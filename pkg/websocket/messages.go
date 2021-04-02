@@ -30,13 +30,6 @@ func (m *IncomingMessage) UnmarshalJSON(data []byte) error {
 		}
 
 		m.Attempt = &evt
-	// case "request_log_event":
-	// 	var evt RequestLogEvent
-	// 	if err := json.Unmarshal(data, &evt); err != nil {
-	// 		return err
-	// 	}
-
-	// 	m.RequestLogEvent = &evt
 	default:
 		return fmt.Errorf("Unexpected message type: %s", incomingMessageEventOnly.Event)
 	}
@@ -50,6 +43,10 @@ func (m OutgoingMessage) MarshalJSON() ([]byte, error) {
 		return json.Marshal(m.AttemptResponse)
 	}
 
+	if m.ErrorAttemptResponse != nil {
+		return json.Marshal(m.ErrorAttemptResponse)
+	}
+
 	if m.ConnectionMessage != nil {
 		return json.Marshal(m.ConnectionMessage)
 	}
@@ -59,6 +56,7 @@ func (m OutgoingMessage) MarshalJSON() ([]byte, error) {
 
 // OutgoingMessage represents any outgoing message sent to Hookdeck.
 type OutgoingMessage struct {
+	*ErrorAttemptResponse
 	*AttemptResponse
 	*ConnectionMessage
 }

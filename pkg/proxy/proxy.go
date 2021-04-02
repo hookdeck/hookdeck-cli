@@ -156,10 +156,21 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		fmt.Println(webhookEvent.Body.Request.Data)
 	} else {
 		url := "http://localhost:" + p.cfg.Port + p.connections_paths[webhookEvent.Body.ConnectionId]
-		client := &http.Client{}
-		req, _ := http.NewRequest(webhookEvent.Body.Request.Method, url, bytes.NewBuffer(webhookEvent.Body.Request.Data))
+
+		timeout := webhookEvent.Body.Request.Timeout
+		if timeout == 0 {
+			timeout = 1000 * 30
+		}
+		client := &http.Client{
+			Timeout: time.Duration(timeout) * time.Millisecond,
+		}
+		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, bytes.NewBuffer(webhookEvent.Body.Request.Data))
+		if err != nil {
+			fmt.Printf("Error: %s\n", err)
+			return
+		}
 		x := make(map[string]json.RawMessage)
-		err := json.Unmarshal(webhookEvent.Body.Request.Headers, &x)
+		err = json.Unmarshal(webhookEvent.Body.Request.Headers, &x)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
 			return
@@ -179,21 +190,19 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 				webhookEvent.Body.Request.Method,
 				err,
 			)
+
 			fmt.Println(errStr)
+			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
+				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
+					Event: "attempt",
+					Body: websocket.ErrorAttemptBody{
+						AttemptId: webhookEvent.Body.AttemptId,
+						Error:     err,
+					},
+				}})
 		} else {
 			p.processEndpointResponse(webhookEvent, res)
 		}
-
-		// localTime := time.Now().Format(timeLayout)
-
-		// color := ansi.Color(os.Stdout)
-		// outputStr := fmt.Sprintf("%s   --> %s%s [%s]",
-		// 	color.Faint(localTime),
-		// 	// maybeConnect,
-		// 	// ansi.Linkify(ansi.Bold(evt.Type), evt.urlForEventType(), p.cfg.Log.Out),
-		// 	// ansi.Linkify(evt.ID, evt.urlForEventID(), p.cfg.Log.Out),
-		// )
-		// fmt.Println(outputStr)
 	}
 }
 
@@ -230,8 +239,10 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 			AttemptResponse: &websocket.AttemptResponse{
 				Event: "attempt",
 				Body: websocket.AttemptResponseBody{
-					Status: resp.StatusCode,
-					Body:   string(buf),
+					AttemptId: webhookEvent.Body.AttemptId,
+					CLIPath:   webhookEvent.Body.Path,
+					Status:    resp.StatusCode,
+					Data:      string(buf),
 				},
 			}})
 	}

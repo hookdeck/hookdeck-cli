@@ -6,6 +6,7 @@ import (
 
 type AttemptRequest struct {
 	Method  string          `json:"method"`
+	Timeout int64           `json:"timeout"`
 	Data    json.RawMessage `json:"data"`
 	Headers json.RawMessage `json:"headers"`
 }
@@ -23,11 +24,23 @@ type Attempt struct {
 }
 
 type AttemptResponseBody struct {
-	Status int    `json:"status"`
-	Body   string `json:"body"`
+	AttemptId string `json:"attempt_id"`
+	CLIPath   string `json:"cli_path"`
+	Status    int    `json:"status"`
+	Data      string `json:"data"`
 }
 
 type AttemptResponse struct {
 	Event string              `json:"event"`
 	Body  AttemptResponseBody `json:"body"`
+}
+
+type ErrorAttemptBody struct {
+	AttemptId string `json:"attempt_id"`
+	Error     error  `json:"error"`
+}
+
+type ErrorAttemptResponse struct {
+	Event string           `json:"event"`
+	Body  ErrorAttemptBody `json:"body"`
 }
