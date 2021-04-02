@@ -117,6 +117,20 @@ func (c *Client) Post(ctx context.Context, path string, data []byte, configure f
 	return c.PerformRequest(ctx, req)
 }
 
+func (c *Client) Put(ctx context.Context, path string, data []byte, configure func(*http.Request)) (*http.Response, error) {
+	url, err := url.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+	url = c.BaseURL.ResolveReference(url)
+	req, err := http.NewRequest(http.MethodPut, url.String(), bytes.NewBuffer(data))
+	if err != nil {
+		return nil, err
+	}
+
+	return c.PerformRequest(ctx, req)
+}
+
 func checkAndPrintError(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
 		defer res.Body.Close()

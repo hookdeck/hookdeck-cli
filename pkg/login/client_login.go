@@ -22,7 +22,7 @@ import (
 var openBrowser = open.Browser
 var canOpenBrowser = open.CanOpenBrowser
 
-const hookdeckCLIAuthPath = "/cli/auth"
+const hookdeckCLIAuthPath = "/cli-auth"
 
 // Links provides the URLs for the CLI to continue the login flow
 type Links struct {
@@ -69,6 +69,7 @@ func Login(config *config.Config, input io.Reader) error {
 	}
 
 	config.Profile.APIKey = response.APIKey
+	config.Profile.ClientID = response.ClientID
 	config.Profile.DisplayName = response.UserName
 	config.Profile.TeamName = response.TeamName
 
@@ -93,11 +94,16 @@ func getLinks(baseURL string, deviceName string) (*Links, error) {
 		BaseURL: parsedBaseURL,
 	}
 
-	// TODO: Figure out device name
-	data := url.Values{}
-	data.Set("device_name", deviceName)
+	data := struct {
+		DeviceName string `json:"device_name"`
+	}{}
+	data.DeviceName = deviceName
+	json_data, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
 
-	res, err := client.Post(context.TODO(), hookdeckCLIAuthPath, nil, nil)
+	res, err := client.Post(context.TODO(), hookdeckCLIAuthPath, json_data, nil)
 	if err != nil {
 		return nil, err
 	}

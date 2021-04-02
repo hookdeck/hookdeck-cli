@@ -22,6 +22,7 @@ type PollAPIKeyResponse struct {
 	TeamID   string `json:"team_id"`
 	TeamName string `json:"team_name"`
 	APIKey   string `json:"key"`
+	ClientID string `json:"client_id"`
 }
 
 // PollForKey polls Hookdeck at the specified interval until either the API key is available or we've reached the max attempts.

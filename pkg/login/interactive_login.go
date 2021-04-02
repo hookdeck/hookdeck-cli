@@ -2,9 +2,12 @@ package login
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,6 +17,7 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
@@ -24,16 +28,42 @@ func InteractiveLogin(config *config.Config) error {
 		return err
 	}
 
+	config.Profile.DeviceName = getConfigureDeviceName(os.Stdin)
+
 	s := ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 
 	// Call poll function
-	response, err := PollForKey(config.APIBaseURL+"/cli/auth/poll?key="+apiKey, 0, 0)
+	response, err := PollForKey(config.APIBaseURL+"/cli-auth/poll?key="+apiKey, 0, 0)
 	if err != nil {
-		ansi.StopSpinner(s, "", os.Stdout)
+		return err
+	}
+
+	parsedBaseURL, err := url.Parse(config.APIBaseURL)
+	if err != nil {
+		return err
+	}
+
+	client := &hookdeck.Client{
+		BaseURL: parsedBaseURL,
+		APIKey:  response.APIKey,
+	}
+
+	data := struct {
+		DeviceName string `json:"device_name"`
+	}{}
+	data.DeviceName = config.Profile.DeviceName
+	json_data, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Put(context.TODO(), "/cli/"+response.ClientID, json_data, nil)
+	if err != nil {
 		return err
 	}
 
 	config.Profile.APIKey = response.APIKey
+	config.Profile.ClientID = response.ClientID
 	config.Profile.DisplayName = response.UserName
 	config.Profile.TeamName = response.TeamName
 

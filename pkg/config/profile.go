@@ -17,6 +17,7 @@ type Profile struct {
 	ProfileName string
 	TeamName    string
 	APIKey      string
+	ClientID    string
 	DisplayName string
 }
 
@@ -172,6 +173,10 @@ func (p *Profile) writeProfile(runtimeViper *viper.Viper) error {
 
 	if p.APIKey != "" {
 		runtimeViper.Set(p.GetConfigField("api_key"), strings.TrimSpace(p.APIKey))
+	}
+
+	if p.ClientID != "" {
+		runtimeViper.Set(p.GetConfigField("client_id"), strings.TrimSpace(p.ClientID))
 	}
 
 	if p.DisplayName != "" {
