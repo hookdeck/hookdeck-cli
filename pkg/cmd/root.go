@@ -1,0 +1,107 @@
+/*
+Copyright © 2020 NAME HERE <EMAIL ADDRESS>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"unicode"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
+	"github.com/hookdeck/hookdeck-cli/pkg/version"
+	"github.com/spf13/cobra"
+)
+
+var cfgFile string
+
+var Config config.Config
+
+var rootCmd = &cobra.Command{
+	Use:           "hookdeck",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	Version:       version.Version,
+	Short:         "A CLI to forward webhooks received on Hookdeck to your local server.",
+}
+
+// Execute adds all child commands to the root command and sets flags appropriately.
+// This is called by main.main(). It only needs to happen once to the rootCmd.
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		errString := err.Error()
+		isLoginRequiredError := errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error()
+
+		switch {
+		case isLoginRequiredError:
+			// capitalize first letter of error because linter
+			errRunes := []rune(errString)
+			errRunes[0] = unicode.ToUpper(errRunes[0])
+
+			fmt.Printf("%s. Running `hookdeck login`...\n", string(errRunes))
+			loginCommand, _, err := rootCmd.Find([]string{"login"})
+
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			err = loginCommand.RunE(&cobra.Command{}, []string{})
+
+			if err != nil {
+				fmt.Println(err)
+			}
+
+		case strings.Contains(errString, "unknown command"):
+			suggStr := "\nS"
+
+			suggestions := rootCmd.SuggestionsFor(os.Args[1])
+			if len(suggestions) > 0 {
+				suggStr = fmt.Sprintf(" Did you mean \"%s\"?\nIf not, s", suggestions[0])
+			}
+
+			fmt.Println(fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
+				"ee \"hookdeck --help\" for a list of available commands.",
+				os.Args[1], rootCmd.CommandPath(), suggStr))
+
+		default:
+			fmt.Println(err)
+		}
+
+		os.Exit(1)
+	}
+}
+
+func init() {
+	cobra.OnInitialize(Config.InitConfig)
+
+	// rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "api-key", "", "Your API key to use for the command")
+	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
+	rootCmd.PersistentFlags().StringVar(&Config.ProfilesFile, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.Profile.DeviceName, "device-name", "", "device name")
+	rootCmd.PersistentFlags().StringVar(&Config.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().StringVarP(&Config.Profile.ProfileName, "project-name", "p", "default", "the project name to read from for config")
+
+	// Hidden configuration flags, useful for dev/debugging
+	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", hookdeck.DefaultAPIBaseURL, "Sets the API base URL")
+	rootCmd.PersistentFlags().MarkHidden("api-base") // #nosec G104
+
+	rootCmd.Flags().BoolP("version", "v", false, "Get the version of the Hookdeck CLI")
+
+	rootCmd.AddCommand(newLoginCmd().cmd)
+	rootCmd.AddCommand(newListenCmd().cmd)
+}

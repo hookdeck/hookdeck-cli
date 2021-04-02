@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "github.com/hookdeck/hookdeck-cli/cmd"
+import "github.com/hookdeck/hookdeck-cli/pkg/cmd"
 
 func main() {
 	cmd.Execute()
