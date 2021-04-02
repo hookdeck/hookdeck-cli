@@ -30,6 +30,8 @@ func (m *IncomingMessage) UnmarshalJSON(data []byte) error {
 		}
 
 		m.Attempt = &evt
+	case "connect_response":
+		return nil
 	default:
 		return fmt.Errorf("Unexpected message type: %s", incomingMessageEventOnly.Event)
 	}

@@ -193,10 +193,9 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 			fmt.Println(errStr)
 			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
 				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
-					Event: "attempt",
+					Event: "attempt_response",
 					Body: websocket.ErrorAttemptBody{
 						AttemptId: webhookEvent.Body.AttemptId,
-						Error:     err,
 					},
 				}})
 		} else {
@@ -214,8 +213,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 		ansi.ColorizeStatus(resp.StatusCode),
 		resp.Request.Method,
 		resp.Request.URL,
-		//TODO: Replace with event id
-		webhookEvent.Body.AttemptId,
+		webhookEvent.Body.EventID,
 	)
 	fmt.Println(outputStr)
 
@@ -236,7 +234,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	if p.webSocketClient != nil {
 		p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
 			AttemptResponse: &websocket.AttemptResponse{
-				Event: "attempt",
+				Event: "attempt_response",
 				Body: websocket.AttemptResponseBody{
 					AttemptId: webhookEvent.Body.AttemptId,
 					CLIPath:   webhookEvent.Body.Path,

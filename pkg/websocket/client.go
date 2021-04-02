@@ -222,14 +222,13 @@ var unknownIDMessage string = "Unknown WebSocket ID."
 // ErrUnknownID can occur when the websocket session is expired or invalid
 var ErrUnknownID error = errors.New(unknownIDMessage)
 
-// connect makes a single attempt to connect to the websocket URL. It returns
-// the success of the attempt.
-
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
+// connect makes a single attempt to connect to the websocket URL. It returns
+// the success of the attempt.
 func (c *Client) connect(ctx context.Context) error {
 	header := http.Header{}
 	// Disable compression by requiring "identity"
@@ -460,7 +459,7 @@ func NewClient(url string, CLIKey string, cfg *Config) *Client {
 	}
 
 	if cfg.Dialer == nil {
-		cfg.Dialer = newWebSocketDialer(os.Getenv("STRIPE_CLI_UNIX_SOCKET"))
+		cfg.Dialer = newWebSocketDialer(os.Getenv("HOOKDECK_CLI_UNIX_SOCKET"))
 	}
 
 	if cfg.Log == nil {

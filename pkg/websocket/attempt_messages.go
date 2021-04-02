@@ -13,6 +13,7 @@ type AttemptRequest struct {
 
 type AttemptBody struct {
 	Path         string         `json:"cli_path"`
+	EventID      string         `json:"event_id"`
 	AttemptId    string         `json:"attempt_id"`
 	ConnectionId string         `json:"webhook_id"`
 	Request      AttemptRequest `json:"request"`

@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -72,8 +71,6 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	if len(args) > 2 {
 		connection_query = args[2]
 	}
-
-	fmt.Println("ws: " + lc.wsBaseURL)
 
 	return listen.Listen(args[0], source_alias, connection_query, listen.Flags{
 		WSBaseURL: lc.wsBaseURL,
