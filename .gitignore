@@ -1,0 +1,9 @@
+
+dist/
+bin/
+coverage.txt
+/hookdeck
+/hookdeck-darwin
+/hookdeck-linux
+/hookdeck-windows.exe
+default_cassette.yaml

@@ -3,16 +3,16 @@ module github.com/hookdeck/hookdeck-cli
 go 1.15
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.2.9 // indirect
+	github.com/AlecAivazis/survey/v2 v2.2.9
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Delta456/box-cli-maker v1.3.2 // indirect
-	github.com/Delta456/box-cli-maker/v2 v2.2.1 // indirect
+	github.com/Delta456/box-cli-maker/v2 v2.2.1
 	github.com/briandowns/spinner v1.11.1
 	github.com/fatih/color v1.9.0 // indirect
 	github.com/google/go-github/v28 v28.1.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.4.2
-	github.com/gosimple/slug v1.9.0 // indirect
+	github.com/gosimple/slug v1.9.0
 	github.com/iancoleman/strcase v0.1.1
 	github.com/joho/godotenv v1.3.0
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
@@ -45,7 +45,7 @@ require (
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/net v0.0.0-20200904194848-62affa334b73 // indirect
 	golang.org/x/sys v0.0.0-20201223074533-0d417f636930
-	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
+	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	gopkg.in/ini.v1 v1.61.0 // indirect
 	gopkg.in/src-d/go-git.v4 v4.13.1
 	gopkg.in/yaml.v2 v2.3.0

@@ -93,6 +93,7 @@ func getLinks(baseURL string, deviceName string) (*Links, error) {
 		BaseURL: parsedBaseURL,
 	}
 
+	// TODO: Figure out device name
 	data := url.Values{}
 	data.Set("device_name", deviceName)
 
