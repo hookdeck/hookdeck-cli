@@ -85,8 +85,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 
 		p.webSocketClient = websocket.NewClient(
 			p.cfg.APIBaseURL,
-			"test",
-			"",
+			p.cfg.Key,
 			&websocket.Config{
 				Log:               p.cfg.Log,
 				NoWSS:             p.cfg.NoWSS,

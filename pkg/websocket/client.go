@@ -69,10 +69,12 @@ type Client struct {
 	URL string
 
 	// ID sent by the client in the `Websocket-Id` header when connecting
-	WebSocketID string
+	CLIKey string
+
+	//WebSocketID string
 
 	// Feature that the websocket is specified for
-	WebSocketAuthorizedFeature string
+	//WebSocketAuthorizedFeature string
 
 	// Optional configuration parameters
 	cfg *Config
@@ -234,8 +236,8 @@ func (c *Client) connect(ctx context.Context) error {
 	header.Set("Accept-Encoding", "identity")
 	header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
-	header.Set("Websocket-Id", c.WebSocketID)
-	header.Set("Authorization", "Basic "+basicAuth("46vt0wfob8e0fjrfzfekdtreyv0h4ev1pnp9b6dj6qgk16iuqb", ""))
+	// header.Set("Websocket-Id", c.WebSocketID)
+	header.Set("Authorization", "Basic "+basicAuth(c.CLIKey, ""))
 
 	url := c.URL
 	if c.cfg.NoWSS && strings.HasPrefix(url, "wss") {
@@ -448,7 +450,7 @@ func (c *Client) writePump() {
 //
 
 // NewClient returns a new Client.
-func NewClient(url string, webSocketID string, websocketAuthorizedFeature string, cfg *Config) *Client {
+func NewClient(url string, CLIKey string, cfg *Config) *Client {
 	if cfg == nil {
 		cfg = &Config{}
 	}
@@ -486,13 +488,14 @@ func NewClient(url string, webSocketID string, websocketAuthorizedFeature string
 	}
 
 	return &Client{
-		URL:                        url,
-		WebSocketID:                webSocketID,
-		WebSocketAuthorizedFeature: websocketAuthorizedFeature,
-		cfg:                        cfg,
-		done:                       make(chan struct{}),
-		send:                       make(chan *OutgoingMessage),
-		NotifyExpired:              make(chan struct{}),
+		URL: url,
+		// WebSocketID:                webSocketID,
+		// WebSocketAuthorizedFeature: websocketAuthorizedFeature,
+		CLIKey:        CLIKey,
+		cfg:           cfg,
+		done:          make(chan struct{}),
+		send:          make(chan *OutgoingMessage),
+		NotifyExpired: make(chan struct{}),
 	}
 }
 
