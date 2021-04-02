@@ -71,7 +71,7 @@ type Client struct {
 	// ID sent by the client in the `Websocket-Id` header when connecting
 	CLIKey string
 
-	//WebSocketID string
+	WebSocketID string
 
 	// Feature that the websocket is specified for
 	//WebSocketAuthorizedFeature string
@@ -235,7 +235,7 @@ func (c *Client) connect(ctx context.Context) error {
 	header.Set("Accept-Encoding", "identity")
 	header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
-	// header.Set("Websocket-Id", c.WebSocketID)
+	header.Set("Websocket-Id", c.WebSocketID)
 	header.Set("Authorization", "Basic "+basicAuth(c.CLIKey, ""))
 
 	url := c.URL
@@ -449,7 +449,7 @@ func (c *Client) writePump() {
 //
 
 // NewClient returns a new Client.
-func NewClient(url string, CLIKey string, cfg *Config) *Client {
+func NewClient(url string, webSocketID string, CLIKey string, cfg *Config) *Client {
 	if cfg == nil {
 		cfg = &Config{}
 	}
@@ -487,8 +487,8 @@ func NewClient(url string, CLIKey string, cfg *Config) *Client {
 	}
 
 	return &Client{
-		URL: url,
-		// WebSocketID:                webSocketID,
+		URL:         url,
+		WebSocketID: webSocketID,
 		// WebSocketAuthorizedFeature: websocketAuthorizedFeature,
 		CLIKey:        CLIKey,
 		cfg:           cfg,

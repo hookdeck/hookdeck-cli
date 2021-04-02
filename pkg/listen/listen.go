@@ -82,7 +82,8 @@ func Listen(port string, source_alias string, connection_query string, flags Fla
 	p := proxy.New(&proxy.Config{
 		DeviceName: deviceName,
 		Key:        key,
-		APIBaseURL: flags.WSBaseURL,
+		APIBaseURL: config.APIBaseURL,
+		WSBaseURL:  flags.WSBaseURL,
 		NoWSS:      flags.NoWSS,
 		Port:       port,
 		Log:        log.StandardLogger(),

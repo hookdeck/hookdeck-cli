@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -35,6 +36,7 @@ type Config struct {
 	// EndpointsMap is a mapping of local webhook endpoint urls to the events they consume
 	Port       string
 	APIBaseURL string
+	WSBaseURL  string
 	// Indicates whether to print full JSON objects to stdout
 	PrintJSON bool
 	Log       *log.Logger
@@ -82,9 +84,15 @@ func (p *Proxy) Run(ctx context.Context) error {
 	var nAttempts int = 0
 
 	for nAttempts < maxConnectAttempts {
+		session, err := p.createSession(ctx)
+		if err != nil {
+			ansi.StopSpinner(s, "", p.cfg.Log.Out)
+			p.cfg.Log.Fatalf("Error while authenticating with Hookdeck: %v", err)
+		}
 
 		p.webSocketClient = websocket.NewClient(
-			p.cfg.APIBaseURL,
+			p.cfg.WSBaseURL,
+			session.Id,
 			p.cfg.Key,
 			&websocket.Config{
 				Log:               p.cfg.Log,
@@ -97,18 +105,6 @@ func (p *Proxy) Run(ctx context.Context) error {
 		go func() {
 			<-p.webSocketClient.Connected()
 			nAttempts = 0
-			var connection_ids []string
-			for _, connection := range p.connections {
-				connection_ids = append(connection_ids, connection.Id)
-			}
-			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
-				ConnectionMessage: &websocket.ConnectionMessage{
-					Event: "connect",
-					Body: websocket.ConnectionMessageBody{
-						SourceId:      p.source.Id,
-						ConnectionIds: connection_ids,
-					},
-				}})
 			ansi.StopSpinner(s, fmt.Sprintf("Ready! (^C to quit)"), p.cfg.Log.Out)
 		}()
 
@@ -137,6 +133,48 @@ func (p *Proxy) Run(ctx context.Context) error {
 	}).Debug("Bye!")
 
 	return nil
+}
+
+func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
+	var session hookdeck.Session
+
+	var err error
+
+	exitCh := make(chan struct{})
+
+	go func() {
+		parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
+		client := &hookdeck.Client{
+			BaseURL: parsedBaseURL,
+			APIKey:  p.cfg.Key,
+		}
+
+		var connection_ids []string
+		for _, connection := range p.connections {
+			connection_ids = append(connection_ids, connection.Id)
+		}
+		for i := 0; i <= 5; i++ {
+			session, err = client.CreateSession(hookdeck.CreateSessionInput{SourceId: p.source.Id,
+				ConnectionIds: connection_ids})
+
+			if err == nil {
+				exitCh <- struct{}{}
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				exitCh <- struct{}{}
+				return
+			case <-time.After(1 * time.Second):
+			}
+		}
+
+		exitCh <- struct{}{}
+	}()
+	<-exitCh
+
+	return session, err
 }
 
 func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {

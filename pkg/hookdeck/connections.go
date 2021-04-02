@@ -43,7 +43,6 @@ func (c *Client) ListConnectionsBySource(source_id string) ([]Connection, error)
 
 func (c *Client) CreateConnection(input CreateConnectionInput) (Connection, error) {
 	input_bytes, err := json.Marshal(input)
-	fmt.Println(string(input_bytes))
 	if err != nil {
 		return Connection{}, err
 	}
