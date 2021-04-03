@@ -160,6 +160,7 @@ func (c *Client) Run(ctx context.Context) {
 			c.cfg.Log.WithFields(log.Fields{
 				"prefix": "websocket.client.Run",
 			}).Debug("Disconnected from Hookdeck")
+			c.NotifyExpired <- struct{}{}
 			close(c.stopReadPump)
 			close(c.stopWritePump)
 			c.wg.Wait()

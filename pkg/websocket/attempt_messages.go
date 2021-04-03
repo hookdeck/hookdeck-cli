@@ -38,7 +38,7 @@ type AttemptResponse struct {
 
 type ErrorAttemptBody struct {
 	AttemptId string `json:"attempt_id"`
-	Error     error  `json:"error"`
+	Error     bool   `json:"error"`
 }
 
 type ErrorAttemptResponse struct {
