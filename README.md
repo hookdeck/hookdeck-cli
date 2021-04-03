@@ -1,16 +1,18 @@
 # Hookdeck CLI
 
-> :warning: Hookdeck CLI is in private alpha and while it can be installed you won't be able to connect our servers. Stay tuned for the public release or email us at info@hookdeck.com for early access.
+> :warning: Hookdeck CLI is in private alpha, and while it can be installed, you won't be able to connect our servers. Stay tuned for the public release or email us at info@hookdeck.com for early access.
 
-Using the Hookdeck CLI you can forward your webhooks to you local webserver. We offer unlimitted **free** and **permanent** webhook URLs. You webhook history is preserved between session and can be viewed, replayed or used for testing by you and your teammates.
+Using the Hookdeck CLI, you can forward your webhooks to your local webserver. We offer unlimited **free** and **permanent** webhook URLs. You webhook history is preserved between session and can be viewed, replayed or used for testing by you and your teammates.
 
 Hookdeck CLI is compatible with most of Hookdeck features such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your webhook integration code locally.
 
-Althought it uses a different approach and philisophy, it's a replacement for ngrok and alternative HTTP tunnel solutions.
+Although it uses a different approach and philosophy, it's a replacement for ngrok and alternative HTTP tunnel solutions.
 
-For a full reference, see the [CLI reference](https://hookdeck.com/cli)
+Hookdeck for development is completely free, and we monetize the platform with our Production offering.
 
-![demo](docs/demo.gif)
+For a complete reference, see the [CLI reference](https://hookdeck.com/cli)
+
+<!-- ![demo](docs/demo.gif) -->
 
 
 ## Installation
@@ -80,16 +82,16 @@ Start a session to forward your webhooks to a local HTTP server.
 hookdeck listen <port> <source-alias?> <connection-query?>
 ```
 
-Hookdeck works by routing webhooks receive for a given `source` (ie: Shopify, Github, etc.) to it's defined `destination` by connected them with a `connection`  to a `destination`. The CLI allows you to receive webhooks for any given connection and forward them to your localhost at the specified port.
+Hookdeck works by routing webhooks receive for a given `source` (ie: Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection`  to a `destination`. The CLI allows you to receive webhooks for any given connection and forward them to your localhost at the specified port.
 
-Each `source` is assigned a Webhook URL which you can use to receive webhooks. When starting with a fresh account the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
+Each `source` is assigned a Webhook URL, which you can use to receive webhooks. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
-Contrarely to ngrok, **Hookdeck does not allow to append a path to your Webhook URL**, instead the routing is done within hookdeck. This mean you will also be prompted to specify your `destination` path and you can have as many as you want per `source`.
+Contrarily to ngrok, **Hookdeck does not allow to append a path to your Webhook URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
 
-> The `port` param is mendatory, webhooks will be forwarded to http://localhost:$PORT/$DESTINATION_PATH
+> The `port` param is mandatory, webhooks will be forwarded to http://localhost:$PORT/$DESTINATION_PATH
 
 #### Listen to all your connections for a given source
-The second param `source-alias` is used to select a specific source to start the CLI from. By default, the CLI will start listening on all eligible connections for that source.
+The second param, `source-alias` is used to select a specific source to listen on. By default, the CLI will start listening on all eligible connections for that source.
 
 ```sh-session
 $ hookdeck listen 3000 shopify
@@ -110,7 +112,7 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 #### Listen to a subset of connection
 
-The 3rd param `connection-query` can be used to filter the list of connection the CLI will listen too. The connection query can either be the `connection` `alias` or the `path`
+The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
 
 ```sh-session
 $ hookdeck listen 3000 shopify orders
@@ -130,12 +132,12 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 #### Viewing and interacting with your webhooks
 
-Webhooks logs for you CLI can be found at https://dashboard.hookdeck.io/cli-events. Events can be replayed or saved at anytime.
+Webhooks logs for your CLI can be found at https://dashboard.hookdeck.io/cli-events. Events can be replayed or saved at any time.
 
 
 ### Version
 
-Print your CLI version and weither or not a new version is available
+Print your CLI version and whether or not a new version is available.
 
 ```sh-session
 hookdeck version
@@ -143,7 +145,7 @@ hookdeck version
 
 ### Completion
 
-Configure auto completion for Hookdeck CLI. The is run on install when using Homebrew or Scoop. You can optionally run this comamnd when using from the binaries directly or without package manager.
+Configure auto-completion for Hookdeck CLI. It is run on install when using Homebrew or Scoop. You can optionally run this command when using the binaries directly or without a package manager.
 
 ```sh-session
 hookdeck completion
