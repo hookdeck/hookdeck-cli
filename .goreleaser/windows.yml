@@ -43,7 +43,7 @@ snapshot:
 scoop:
   bucket:
     owner: hookdeck
-    name: scoop-hookdeck-cli
+    name: scoop-hookdeck
   commit_author:
     name: hookdeck-ci
     email: support@hookdeck.com

@@ -36,9 +36,9 @@ snapshot:
 brews:
   - tap:
       owner: hookdeck
-      name: homebrew-hookdeck-cli
+      name: homebrew-hookdeck
     commit_author:
-      name: hookdeck-ci
+      name: hookdeck
       email: support@hookdeck.com
     homepage: https://hookdeck.com
     description: Hookdeck CLI utility
