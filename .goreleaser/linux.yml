@@ -1,0 +1,64 @@
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    - go mod download
+    - go generate ./...
+project_name: hookdeck
+builds:
+  - id: hookdeck-linux
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    binary: hookdeck
+    env:
+      - CGO_ENABLED=0
+    main: ./main.go
+    goos:
+      - linux
+    goarch:
+      - amd64
+archives:
+  - replacements:
+      linux: linux
+      386: i386
+      amd64: x86_64
+    files:
+      - none*
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+checksum:
+  name_template: "{{ .ProjectName }}-linux-checksums.txt"
+snapshot:
+  name_template: "{{ .Tag }}-next"
+nfpms:
+  - builds:
+      - hookdeck-linux
+    vendor: Hookdeck
+    homepage: https://hookdeck.com
+    maintainer: Hookdeck <support@hookdeck.com>
+    description: Hookdeck CLI utility
+    license: Apache 2.0
+    formats:
+      - deb
+      - rpm
+dockers:
+  - goos: linux
+    goarch: amd64
+    ids:
+      - hookdeck
+      - hookdeck-linux
+    image_templates:
+      - "hookdeck/hookdeck-cli:latest"
+      - "hookdeck/hookdeck-cli:{{ .Tag }}"
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=repository=https://github.com/hookdeck/hookdeck-cli"
+      - "--label=homepage=https://hookdeck.com"
