@@ -104,4 +104,5 @@ func init() {
 
 	rootCmd.AddCommand(newLoginCmd().cmd)
 	rootCmd.AddCommand(newListenCmd().cmd)
+	rootCmd.AddCommand(newCompletionCmd().cmd)
 }
