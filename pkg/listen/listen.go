@@ -77,7 +77,7 @@ func Listen(port string, source_alias string, connection_query string, flags Fla
 		return err
 	}
 
-	fmt.Println("\n👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/cli-events\n")
+	fmt.Println("\n👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/events/cli\n")
 
 	p := proxy.New(&proxy.Config{
 		DeviceName: deviceName,

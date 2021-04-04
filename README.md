@@ -104,7 +104,7 @@ $ hookdeck listen 3000 shopify
 Inventory Service forwarding to /webhooks/shopify/inventory
 Orders Service forwarding to /webhooks/shopify/orders
 
-👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/cli-events
+👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/events/cli
 
 ⣾ Getting ready...
 
@@ -124,7 +124,7 @@ $ hookdeck listen 3000 shopify orders
 ╰────────────────────────────────────────────────────────────────────────╯
 Inventory Service forwarding to /webhooks/shopify/inventory
 
-👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/cli-events
+👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/events/cli
 
 ⣾ Getting ready...
 
@@ -132,7 +132,7 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 #### Viewing and interacting with your webhooks
 
-Webhooks logs for your CLI can be found at https://dashboard.hookdeck.io/cli-events. Events can be replayed or saved at any time.
+Webhooks logs for your CLI can be found at https://dashboard.hookdeck.io/events/cli. Events can be replayed or saved at any time.
 
 
 ### Version
