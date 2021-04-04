@@ -81,15 +81,20 @@ func (p *Proxy) Run(ctx context.Context) error {
 		}).Debug("Ctrl+C received, cleaning up...")
 	})
 
+	session, err := p.createSession(ctx)
+	if err != nil {
+		ansi.StopSpinner(s, "", p.cfg.Log.Out)
+		p.cfg.Log.Fatalf("Error while authenticating with Hookdeck: %v", err)
+	}
+
+	if session.Id == "" {
+		ansi.StopSpinner(s, "", p.cfg.Log.Out)
+		p.cfg.Log.Fatalf("Error while starting a new session")
+	}
+
 	var nAttempts int = 0
 
 	for nAttempts < maxConnectAttempts {
-		session, err := p.createSession(ctx)
-		if err != nil {
-			ansi.StopSpinner(s, "", p.cfg.Log.Out)
-			p.cfg.Log.Fatalf("Error while authenticating with Hookdeck: %v", err)
-		}
-
 		p.webSocketClient = websocket.NewClient(
 			p.cfg.WSBaseURL,
 			session.Id,
