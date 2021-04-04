@@ -252,7 +252,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	localTime := time.Now().Format(timeLayout)
 
 	color := ansi.Color(os.Stdout)
-	outputStr := fmt.Sprintf("%s [%d] %s %s | https://dashboard.hookdeck.io/cli-events/%s",
+	outputStr := fmt.Sprintf("%s [%d] %s %s | https://dashboard.hookdeck.io/events/%s",
 		color.Faint(localTime),
 		ansi.ColorizeStatus(resp.StatusCode),
 		resp.Request.Method,
