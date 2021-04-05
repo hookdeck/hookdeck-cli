@@ -73,7 +73,7 @@ func getConnections(client *hookdeck.Client, source hookdeck.Source, connection_
 		alias := slug.Make(answers.Label)
 		connection, err := client.CreateConnection(hookdeck.CreateConnectionInput{
 			Alias:    alias,
-			Label:    source.Label + " -> " + answers.Label,
+			Label:    answers.Label,
 			SourceId: source.Id,
 			Destination: hookdeck.CreateDestinationInput{
 				Alias:   alias,
