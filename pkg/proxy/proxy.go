@@ -197,7 +197,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	if p.cfg.PrintJSON {
 		fmt.Println(webhookEvent.Body.Request.Data)
 	} else {
-		url := "http://localhost:" + p.cfg.Port + p.connections_paths[webhookEvent.Body.ConnectionId]
+		url := "http://localhost:" + p.cfg.Port + webhookEvent.Body.Path
 
 		timeout := webhookEvent.Body.Request.Timeout
 		if timeout == 0 {
