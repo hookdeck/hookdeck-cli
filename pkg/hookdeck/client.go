@@ -141,7 +141,7 @@ func checkAndPrintError(res *http.Response) error {
 		response := &ErrorResponse{}
 		err = json.Unmarshal(body, &response)
 		if err != nil {
-			return err
+			return fmt.Errorf("Unexpected http status code: %d %s")
 		}
 		if response.Message != "" {
 			return fmt.Errorf("Error: %s", response.Message)
