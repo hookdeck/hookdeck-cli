@@ -1,6 +1,6 @@
 # Hookdeck CLI
 
-> :warning: Hookdeck CLI is in private alpha, and while it can be installed, you won't be able to connect our servers. Stay tuned for the public release or email us at info@hookdeck.com for early access.
+> :warning: Hookdeck CLI is in public beta. An **free** account is required and we will allow for aunauthenticated use cases in short future!
 
 Using the Hookdeck CLI, you can forward your webhooks to your local webserver. We offer unlimited **free** and **permanent** webhook URLs. You webhook history is preserved between session and can be viewed, replayed or used for testing by you and your teammates.
 
