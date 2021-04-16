@@ -12,7 +12,7 @@ Hookdeck for development is completely free, and we monetize the platform with o
 
 For a complete reference, see the [CLI reference](https://hookdeck.com/cli)
 
-<!-- ![demo](docs/demo.gif) -->
+![demo](docs/cli-demo.gif)
 
 
 ## Installation
