@@ -24,7 +24,9 @@ import (
 	box "github.com/Delta456/box-cli-maker/v2"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,10 +37,26 @@ type Flags struct {
 
 // listenCmd represents the listen command
 func Listen(port string, source_alias string, connection_query string, flags Flags, config *config.Config) error {
+	var key string
+	var err error
+	var guest_url string
 
-	key, err := config.Profile.GetAPIKey()
+	key, err = config.Profile.GetAPIKey()
 	if err != nil {
-		return err
+		errString := err.Error()
+		if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
+			guest_url, _ = login.GuestLogin(config)
+			if guest_url == "" {
+				return err
+			}
+
+			key, err = config.Profile.GetAPIKey()
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
@@ -59,6 +77,13 @@ func Listen(port string, source_alias string, connection_query string, flags Fla
 	connections, err := getConnections(client, source, connection_query)
 	if err != nil {
 		return err
+	}
+
+	if guest_url != "" {
+		// Print guest login URL
+		fmt.Println()
+		Box := box.New(box.Config{Px: 2, Py: 1, ContentAlign: "Left", Type: "Round", Color: "White", TitlePos: "Top"})
+		Box.Print("Guest User Account Created", "👤 Dashboard URL: "+guest_url)
 	}
 
 	// Print sources, connections and URLs
