@@ -14,7 +14,6 @@ For a complete reference, see the [CLI reference](https://hookdeck.com/cli)
 
 ![demo](docs/cli-demo.gif)
 
-
 ## Installation
 
 Hookdeck CLI is available for macOS, Windows, and Linux for distros like Ubuntu, Debian, RedHat and CentOS.
@@ -36,7 +35,7 @@ scoop bucket add hookdeck https://github.com/hookdeck/scoop-hookdeck-cli.git
 scoop install hookdeck
 ```
 
-### Linux Or Without package managers 
+### Linux Or Without package managers
 
 To install the Hookdeck CLI on Linux without a package manager:
 
@@ -82,7 +81,7 @@ Start a session to forward your webhooks to a local HTTP server.
 hookdeck listen <port> <source-alias?> <connection-query?>
 ```
 
-Hookdeck works by routing webhooks receive for a given `source` (ie: Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection`  to a `destination`. The CLI allows you to receive webhooks for any given connection and forward them to your localhost at the specified port.
+Hookdeck works by routing webhooks receive for a given `source` (ie: Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive webhooks for any given connection and forward them to your localhost at the specified port.
 
 Each `source` is assigned a Webhook URL, which you can use to receive webhooks. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
@@ -91,20 +90,21 @@ Contrarily to ngrok, **Hookdeck does not allow to append a path to your Webhook 
 > The `port` param is mandatory, webhooks will be forwarded to http://localhost:$PORT/$DESTINATION_PATH
 
 #### Listen to all your connections for a given source
+
 The second param, `source-alias` is used to select a specific source to listen on. By default, the CLI will start listening on all eligible connections for that source.
 
 ```sh-session
 $ hookdeck listen 3000 shopify
 
-╭ Shopify ───────────────────────────────────────────────────────────────╮
-│                                                                        │
-│  🔌 Webhook URL: http://localhost:5000/e/src_dgRnekOhKKZe7KqyXK88Uajr  │
-│                                                                        │
-╰────────────────────────────────────────────────────────────────────────╯
+👉  Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events
+
+Shopify Source
+🔌 Webhook URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+
+Connections
 Inventory Service forwarding to /webhooks/shopify/inventory
 Orders Service forwarding to /webhooks/shopify/orders
 
-👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/events/cli
 
 ⣾ Getting ready...
 
@@ -117,14 +117,14 @@ The 3rd param, `connection-query` can be used to filter the list of connections 
 ```sh-session
 $ hookdeck listen 3000 shopify orders
 
-╭ Shopify ───────────────────────────────────────────────────────────────╮
-│                                                                        │
-│  🔌 Webhook URL: http://localhost:5000/e/src_dgRnekOhKKZe7KqyXK88Uajr  │
-│                                                                        │
-╰────────────────────────────────────────────────────────────────────────╯
+👉  Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events
+
+Shopify Source
+🔌 Webhook URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+
+Connections
 Inventory Service forwarding to /webhooks/shopify/inventory
 
-👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/events/cli
 
 ⣾ Getting ready...
 
@@ -132,8 +132,7 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 #### Viewing and interacting with your webhooks
 
-Webhooks logs for your CLI can be found at https://dashboard.hookdeck.io/events/cli. Events can be replayed or saved at any time.
-
+Webhooks logs for your CLI can be found at https://dashboard.hookdeck.com/cli/events. Events can be replayed or saved at any time.
 
 ### Version
 
@@ -152,6 +151,7 @@ hookdeck completion
 ```
 
 ## License
+
 Copyright (c) Hookdeck. All rights reserved.
 
 Licensed under the [Apache License 2.0 license](blob/master/LICENSE).

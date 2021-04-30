@@ -94,7 +94,7 @@ func GuestLogin(config *config.Config) (string, error) {
 		BaseURL: parsedBaseURL,
 	}
 
-	fmt.Println(" Creating guest user...")
+	fmt.Println("🚩 Not connected with any account. Creating a guest account...")
 
 	guest_user, err := client.CreateGuestUser(hookdeck.CreateGuestUserInput{
 		DeviceName: config.Profile.DeviceName,
@@ -123,9 +123,6 @@ func GuestLogin(config *config.Config) (string, error) {
 	if profileErr != nil {
 		return "", profileErr
 	}
-
-	message := SuccessMessage(response.UserName, response.TeamName)
-	fmt.Print(message)
 
 	return guest_user.Url, nil
 }
