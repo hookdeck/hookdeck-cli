@@ -80,10 +80,11 @@ func Listen(port string, source_alias string, connection_query string, flags Fla
 	}
 
 	fmt.Println()
+	fmt.Println(ansi.Bold("Dashboard"))
 	if guest_url != "" {
-
-		fmt.Println(ansi.Bold("Dashboard Login"))
 		fmt.Println("👤 Login URL: " + guest_url)
+		fmt.Println("Sign up in the dashboard to make your webhook URL permanent.")
+		fmt.Println()
 	}
 	fmt.Println("👉 Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events")
 	fmt.Println()
