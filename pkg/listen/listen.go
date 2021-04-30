@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"regexp"
 
-	box "github.com/Delta456/box-cli-maker/v2"
+	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
@@ -79,30 +79,29 @@ func Listen(port string, source_alias string, connection_query string, flags Fla
 		return err
 	}
 
-	if guest_url != "" {
-		// Print guest login URL
-		fmt.Println()
-		Box := box.New(box.Config{Px: 2, Py: 1, ContentAlign: "Left", Type: "Round", Color: "White", TitlePos: "Top"})
-		Box.Print("Guest User Account Created", "👤 Dashboard URL: "+guest_url)
-	}
-
-	// Print sources, connections and URLs
 	fmt.Println()
-	Box := box.New(box.Config{Px: 2, Py: 1, ContentAlign: "Left", Type: "Round", Color: "White", TitlePos: "Top"})
-	Box.Print(source.Label, "🔌 Webhook URL: "+source.Url)
+	if guest_url != "" {
 
-	//var connection_ids []string
+		fmt.Println(ansi.Bold("Dashboard Login"))
+		fmt.Println("👤 Login URL: " + guest_url)
+	}
+	fmt.Println("👉 Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events")
+	fmt.Println()
+
+	fmt.Println(ansi.Bold(source.Label + " Source"))
+	fmt.Println("🔌 Webhook URL: " + source.Url)
+	fmt.Println()
+
+	fmt.Println(ansi.Bold("Connections"))
 	for _, connection := range connections {
 		fmt.Println(connection.Label + " forwarding to " + connection.Destination.CliPath)
-		//connection_ids = append(connection_ids, connection.Id)
 	}
+	fmt.Println()
 
 	deviceName, err := config.Profile.GetDeviceName()
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("\n👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/events/cli\n")
 
 	p := proxy.New(&proxy.Config{
 		DeviceName: deviceName,
