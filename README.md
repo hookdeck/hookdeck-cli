@@ -1,7 +1,5 @@
 # Hookdeck CLI
 
-> Hookdeck CLI is in public beta. A **free** account is required, and we will allow for unauthenticated use cases in the short future!
-
 Using the Hookdeck CLI, you can forward your webhooks to your local webserver. We offer unlimited **free** and **permanent** webhook URLs. You webhook history is preserved between session and can be viewed, replayed or used for testing by you and your teammates.
 
 Hookdeck CLI is compatible with most of Hookdeck features such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your webhook integration code locally.
@@ -72,6 +70,8 @@ Login with your Hookdeck account.
 ```sh-session
 hookdeck login
 ```
+
+Login in is optional, if you do not login a temporary guest account will be created for you when you run other commands.
 
 ### Listen
 
