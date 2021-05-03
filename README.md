@@ -71,7 +71,7 @@ Login with your Hookdeck account.
 hookdeck login
 ```
 
-Login in is optional, if you do not login a temporary guest account will be created for you when you run other commands.
+> Login is optional, if you do not login a temporary guest account will be created for you when you run other commands.
 
 ### Listen
 
