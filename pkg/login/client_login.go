@@ -84,6 +84,49 @@ func Login(config *config.Config, input io.Reader) error {
 	return nil
 }
 
+func GuestLogin(config *config.Config) (string, error) {
+	parsedBaseURL, err := url.Parse(config.APIBaseURL)
+	if err != nil {
+		return "", err
+	}
+
+	client := &hookdeck.Client{
+		BaseURL: parsedBaseURL,
+	}
+
+	fmt.Println("🚩 Not connected with any account. Creating a guest account...")
+
+	guest_user, err := client.CreateGuestUser(hookdeck.CreateGuestUserInput{
+		DeviceName: config.Profile.DeviceName,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// Call poll function
+	response, err := PollForKey(guest_user.PollURL, 0, 0)
+	if err != nil {
+		return "", err
+	}
+
+	validateErr := validators.APIKey(response.APIKey)
+	if validateErr != nil {
+		return "", validateErr
+	}
+
+	config.Profile.APIKey = response.APIKey
+	config.Profile.ClientID = response.ClientID
+	config.Profile.DisplayName = response.UserName
+	config.Profile.TeamName = response.TeamName
+
+	profileErr := config.Profile.CreateProfile()
+	if profileErr != nil {
+		return "", profileErr
+	}
+
+	return guest_user.Url, nil
+}
+
 func getLinks(baseURL string, deviceName string) (*Links, error) {
 	parsedBaseURL, err := url.Parse(baseURL)
 	if err != nil {

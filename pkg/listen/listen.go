@@ -21,10 +21,12 @@ import (
 	"net/url"
 	"regexp"
 
-	box "github.com/Delta456/box-cli-maker/v2"
+	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,10 +37,26 @@ type Flags struct {
 
 // listenCmd represents the listen command
 func Listen(port string, source_alias string, connection_query string, flags Flags, config *config.Config) error {
+	var key string
+	var err error
+	var guest_url string
 
-	key, err := config.Profile.GetAPIKey()
+	key, err = config.Profile.GetAPIKey()
 	if err != nil {
-		return err
+		errString := err.Error()
+		if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
+			guest_url, _ = login.GuestLogin(config)
+			if guest_url == "" {
+				return err
+			}
+
+			key, err = config.Profile.GetAPIKey()
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
@@ -61,23 +79,30 @@ func Listen(port string, source_alias string, connection_query string, flags Fla
 		return err
 	}
 
-	// Print sources, connections and URLs
 	fmt.Println()
-	Box := box.New(box.Config{Px: 2, Py: 1, ContentAlign: "Left", Type: "Round", Color: "White", TitlePos: "Top"})
-	Box.Print(source.Label, "🔌 Webhook URL: "+source.Url)
+	fmt.Println(ansi.Bold("Dashboard"))
+	if guest_url != "" {
+		fmt.Println("👤 Login URL: " + guest_url)
+		fmt.Println("Sign up in the dashboard to make your webhook URL permanent.")
+		fmt.Println()
+	}
+	fmt.Println("👉 Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events")
+	fmt.Println()
 
-	//var connection_ids []string
+	fmt.Println(ansi.Bold(source.Label + " Source"))
+	fmt.Println("🔌 Webhook URL: " + source.Url)
+	fmt.Println()
+
+	fmt.Println(ansi.Bold("Connections"))
 	for _, connection := range connections {
 		fmt.Println(connection.Label + " forwarding to " + connection.Destination.CliPath)
-		//connection_ids = append(connection_ids, connection.Id)
 	}
+	fmt.Println()
 
 	deviceName, err := config.Profile.GetDeviceName()
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("\n👉  Inspect and replay webhooks: https://dashboard.hookdeck.io/events/cli\n")
 
 	p := proxy.New(&proxy.Config{
 		DeviceName: deviceName,
