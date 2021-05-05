@@ -134,6 +134,14 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 Webhooks logs for your CLI can be found at https://dashboard.hookdeck.com/cli/events. Events can be replayed or saved at any time.
 
+### Logout
+
+Logout of your Hookdeck account and clear your stored credentials.
+
+```sh-session
+hookdeck logout
+```
+
 ### Version
 
 Print your CLI version and whether or not a new version is available.
