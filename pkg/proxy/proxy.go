@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -206,7 +208,13 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		client := &http.Client{
 			Timeout: time.Duration(timeout) * time.Millisecond,
 		}
-		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, bytes.NewBuffer(webhookEvent.Body.Request.Data))
+		// body := webhookEvent.Body.Request.Headers
+		// h := make(map[string]json.RawMessage)
+		// json.Unmarshal(webhookEvent.Body.Request.Headers, &h);
+		fmt.Println(bytes.NewBuffer(webhookEvent.Body.Request.Headers));
+
+		// req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, bytes.NewBuffer(webhookEvent.Body.Request.Data))
+		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
 			return
@@ -217,10 +225,26 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 			fmt.Printf("Error: %s\n", err)
 			return
 		}
+
+		bodyIsText := false
+
 		for key, value := range x {
 			unquoted_value, _ := strconv.Unquote(string(value))
 			req.Header.Set(key, unquoted_value)
+			
+			if(strings.EqualFold(strings.ToLower(key), strings.ToLower("content-type"))) {
+				if(strings.Contains(strings.ToLower(string(value)), strings.ToLower("www-form-urlencoded")) || strings.Contains(strings.ToLower(string(value)), strings.ToLower("text/plain"))) {
+					bodyIsText = true
+				}				
+			}
 		}
+
+		if bodyIsText {
+			req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
+		} else {
+			req.Body = io.NopCloser(bytes.NewBuffer(webhookEvent.Body.Request.Data))
+		}
+
 		res, err := client.Do(req)
 		if err != nil {
 			color := ansi.Color(os.Stdout)
