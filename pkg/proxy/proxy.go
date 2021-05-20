@@ -208,12 +208,8 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		client := &http.Client{
 			Timeout: time.Duration(timeout) * time.Millisecond,
 		}
-		// body := webhookEvent.Body.Request.Headers
-		// h := make(map[string]json.RawMessage)
-		// json.Unmarshal(webhookEvent.Body.Request.Headers, &h);
 		fmt.Println(bytes.NewBuffer(webhookEvent.Body.Request.Headers));
 
-		// req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, bytes.NewBuffer(webhookEvent.Body.Request.Data))
 		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
