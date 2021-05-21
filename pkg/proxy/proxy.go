@@ -208,7 +208,6 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		client := &http.Client{
 			Timeout: time.Duration(timeout) * time.Millisecond,
 		}
-		fmt.Println(bytes.NewBuffer(webhookEvent.Body.Request.Headers));
 
 		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
 		if err != nil {
@@ -227,11 +226,11 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		for key, value := range x {
 			unquoted_value, _ := strconv.Unquote(string(value))
 			req.Header.Set(key, unquoted_value)
-			
-			if(strings.EqualFold(strings.ToLower(key), strings.ToLower("content-type"))) {
-				if(strings.Contains(strings.ToLower(string(value)), strings.ToLower("www-form-urlencoded")) || strings.Contains(strings.ToLower(string(value)), strings.ToLower("text/plain"))) {
+
+			if strings.EqualFold(strings.ToLower(key), strings.ToLower("content-type")) {
+				if strings.Contains(strings.ToLower(string(value)), strings.ToLower("www-form-urlencoded")) || strings.Contains(strings.ToLower(string(value)), strings.ToLower("text/plain")) {
 					bodyIsText = true
-				}				
+				}
 			}
 		}
 
