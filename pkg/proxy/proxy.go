@@ -1,11 +1,9 @@
 package proxy
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -197,7 +195,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	}).Debugf("Processing webhook event")
 
 	if p.cfg.PrintJSON {
-		fmt.Println(webhookEvent.Body.Request.Data)
+		fmt.Println(webhookEvent.Body.Request.DataString)
 	} else {
 		url := "http://localhost:" + p.cfg.Port + webhookEvent.Body.Path
 
@@ -221,24 +219,12 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 			return
 		}
 
-		bodyIsText := false
-
 		for key, value := range x {
 			unquoted_value, _ := strconv.Unquote(string(value))
 			req.Header.Set(key, unquoted_value)
-
-			if strings.EqualFold(strings.ToLower(key), strings.ToLower("content-type")) {
-				if strings.Contains(strings.ToLower(string(value)), strings.ToLower("www-form-urlencoded")) || strings.Contains(strings.ToLower(string(value)), strings.ToLower("text/plain")) {
-					bodyIsText = true
-				}
-			}
 		}
 
-		if bodyIsText {
-			req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
-		} else {
-			req.Body = io.NopCloser(bytes.NewBuffer(webhookEvent.Body.Request.Data))
-		}
+		req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
 
 		res, err := client.Do(req)
 		if err != nil {
