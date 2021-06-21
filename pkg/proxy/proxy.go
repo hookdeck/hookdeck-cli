@@ -225,8 +225,10 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		}
 
 		req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
+		req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
 
 		res, err := client.Do(req)
+
 		if err != nil {
 			color := ansi.Color(os.Stdout)
 			localTime := time.Now().Format(timeLayout)
