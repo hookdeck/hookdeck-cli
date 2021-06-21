@@ -34,7 +34,7 @@ type Config struct {
 	// Key is the API key used to authenticate with Hookdeck
 	Key string
 	// EndpointsMap is a mapping of local webhook endpoint urls to the events they consume
-	Port       string
+	URL        *url.URL
 	APIBaseURL string
 	WSBaseURL  string
 	// Indicates whether to print full JSON objects to stdout
@@ -197,7 +197,8 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	if p.cfg.PrintJSON {
 		fmt.Println(webhookEvent.Body.Request.DataString)
 	} else {
-		url := "http://localhost:" + p.cfg.Port + webhookEvent.Body.Path
+		fmt.Printf("%v", p.cfg.URL)
+		url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
 
 		timeout := webhookEvent.Body.Request.Timeout
 		if timeout == 0 {

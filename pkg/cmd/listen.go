@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"errors"
+	"net/url"
 	"strconv"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -38,11 +39,24 @@ func newListenCmd() *listenCmd {
 		Short: "Forward webhooks for a source to your local server",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return errors.New("Requires a port to foward the webhooks to")
+				return errors.New("Requires a port or forwarding URL to foward the webhooks to")
 			}
-			_, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return errors.New("Argument is not a valid port")
+
+			_, err_port := strconv.ParseInt(args[0], 10, 64)
+			url, err_url := url.Parse(args[0])
+
+			if err_port != nil && err_url != nil {
+				return errors.New("Argument is not a valid port or forwading URL")
+			}
+
+			if err_port != nil {
+				if url.Host == "" {
+					return errors.New("Forwarding URL must contain a host.")
+				}
+
+				if url.RawQuery != "" {
+					return errors.New("Forwarding URL cannot contain query params.")
+				}
 			}
 
 			if len(args) > 3 {
@@ -55,7 +69,6 @@ func newListenCmd() *listenCmd {
 	}
 	lc.cmd.Flags().StringVar(&lc.wsBaseURL, "ws-base", hookdeck.DefaultWebsocektURL, "Sets the Websocket base URL")
 	lc.cmd.Flags().MarkHidden("ws-base") // #nosec G104
-
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 	lc.cmd.Flags().MarkHidden("no-wss") // #nosec G104
 
@@ -72,7 +85,15 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 		connection_query = args[2]
 	}
 
-	return listen.Listen(args[0], source_alias, connection_query, listen.Flags{
+	_, err_port := strconv.ParseInt(args[0], 10, 64)
+	var url *url.URL
+	if err_port != nil {
+		url, _ = url.Parse(args[0])
+	} else {
+		url, _ = url.Parse("http://localhost:" + args[0])
+	}
+
+	return listen.Listen(url, source_alias, connection_query, listen.Flags{
 		WSBaseURL: lc.wsBaseURL,
 		NoWSS:     lc.noWSS,
 	}, &Config)

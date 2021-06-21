@@ -75,19 +75,19 @@ hookdeck login
 
 ### Listen
 
-Start a session to forward your webhooks to a local HTTP server.
+Start a session to forward your webhooks to an HTTP server.
 
 ```sh-session
-hookdeck listen <port> <source-alias?> <connection-query?>
+hookdeck listen <port-or-URL> <source-alias?> <connection-query?>
 ```
 
-Hookdeck works by routing webhooks receive for a given `source` (ie: Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive webhooks for any given connection and forward them to your localhost at the specified port.
+Hookdeck works by routing webhooks receive for a given `source` (ie: Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive webhooks for any given connection and forward them to your localhost at the specified port or any valid URL.
 
 Each `source` is assigned a Webhook URL, which you can use to receive webhooks. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
 Contrarily to ngrok, **Hookdeck does not allow to append a path to your Webhook URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
 
-> The `port` param is mandatory, webhooks will be forwarded to http://localhost:$PORT/$DESTINATION_PATH
+> The `port-or-URL` param is mandatory, webhooks will be forwarded to http://localhost:$PORT/$DESTINATION_PATH when inputing a valid port or your provided URL.
 
 #### Listen to all your connections for a given source
 

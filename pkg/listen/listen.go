@@ -36,7 +36,7 @@ type Flags struct {
 }
 
 // listenCmd represents the listen command
-func Listen(port string, source_alias string, connection_query string, flags Flags, config *config.Config) error {
+func Listen(URL *url.URL, source_alias string, connection_query string, flags Flags, config *config.Config) error {
 	var key string
 	var err error
 	var guest_url string
@@ -110,7 +110,7 @@ func Listen(port string, source_alias string, connection_query string, flags Fla
 		APIBaseURL: config.APIBaseURL,
 		WSBaseURL:  flags.WSBaseURL,
 		NoWSS:      flags.NoWSS,
-		Port:       port,
+		URL:        URL,
 		Log:        log.StandardLogger(),
 	}, source, connections)
 
