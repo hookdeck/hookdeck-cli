@@ -7,3 +7,5 @@ coverage.txt
 /hookdeck-linux
 /hookdeck-windows.exe
 default_cassette.yaml
+.vscode/
+__debug_bin
