@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen"
@@ -43,18 +44,25 @@ func newListenCmd() *listenCmd {
 			}
 
 			_, err_port := strconv.ParseInt(args[0], 10, 64)
-			url, err_url := url.Parse(args[0])
+
+			var parsed_url *url.URL
+			var err_url error
+			if strings.HasPrefix(args[0], "http") {
+				parsed_url, err_url = url.Parse(args[0])
+			} else {
+				parsed_url, err_url = url.Parse("http://" + args[0])
+			}
 
 			if err_port != nil && err_url != nil {
 				return errors.New("Argument is not a valid port or forwading URL")
 			}
 
 			if err_port != nil {
-				if url.Host == "" {
+				if parsed_url.Host == "" {
 					return errors.New("Forwarding URL must contain a host.")
 				}
 
-				if url.RawQuery != "" {
+				if parsed_url.RawQuery != "" {
 					return errors.New("Forwarding URL cannot contain query params.")
 				}
 			}
@@ -88,9 +96,17 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	_, err_port := strconv.ParseInt(args[0], 10, 64)
 	var url *url.URL
 	if err_port != nil {
-		url, _ = url.Parse(args[0])
+		if strings.HasPrefix(args[0], "http") {
+			url, _ = url.Parse(args[0])
+		} else {
+			url, _ = url.Parse("http://" + args[0])
+		}
 	} else {
 		url, _ = url.Parse("http://localhost:" + args[0])
+	}
+
+	if url.Scheme == "" {
+		url.Scheme = "http"
 	}
 
 	return listen.Listen(url, source_alias, connection_query, listen.Flags{
