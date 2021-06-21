@@ -5,11 +5,10 @@ import (
 )
 
 type AttemptRequest struct {
-	Method  		string          `json:"method"`
-	Timeout 		int64           `json:"timeout"`
-	Data    		json.RawMessage `json:"data"`
-	DataString	string      		`json:"data_string"`
-	Headers 		json.RawMessage `json:"headers"`
+	Method     string          `json:"method"`
+	Timeout    int64           `json:"timeout"`
+	DataString string          `json:"data_string"`
+	Headers    json.RawMessage `json:"headers"`
 }
 
 type AttemptBody struct {
