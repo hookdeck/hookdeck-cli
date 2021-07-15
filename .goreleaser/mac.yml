@@ -17,6 +17,15 @@ builds:
       - darwin
     goarch:
       - amd64
+  - id: hookdeck-darwin-arm
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    binary: hookdeck
+    main: ./main.go
+    goos:
+      - darwin
+    goarch:
+      - arm64
 archives:
   - replacements:
       darwin: mac-os
