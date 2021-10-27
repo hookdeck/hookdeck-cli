@@ -20,7 +20,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: v0.157.0
+          version: v0.183.0
           args: release -f .goreleaser/mac.yml --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -32,8 +32,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      -
-        name: Docker Login
+      - name: Docker Login
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
