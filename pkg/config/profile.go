@@ -92,7 +92,7 @@ func (p *Profile) GetAPIKey() (string, error) {
 
 	// Try to fetch the API key from the configuration file
 	if err := viper.ReadInConfig(); err == nil {
-		key := viper.GetString(p.GetConfigField("cli_key"))
+		key := viper.GetString(p.GetConfigField("api_key"))
 
 		err := validators.APIKey(key)
 		if err != nil {
