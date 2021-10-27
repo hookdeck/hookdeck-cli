@@ -71,7 +71,7 @@ func (p *Profile) GetDeviceName() (string, error) {
 
 // GetAPIKey will return the existing key for the given profile
 func (p *Profile) GetAPIKey() (string, error) {
-	envKey := os.Getenv("HOOKDECK_API_KEY")
+	envKey := os.Getenv("HOOKDECK_CLI_KEY")
 	if envKey != "" {
 		err := validators.APIKey(envKey)
 		if err != nil {
@@ -92,7 +92,7 @@ func (p *Profile) GetAPIKey() (string, error) {
 
 	// Try to fetch the API key from the configuration file
 	if err := viper.ReadInConfig(); err == nil {
-		key := viper.GetString(p.GetConfigField("api_key"))
+		key := viper.GetString(p.GetConfigField("cli_key"))
 
 		err := validators.APIKey(key)
 		if err != nil {
