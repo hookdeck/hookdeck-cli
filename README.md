@@ -158,6 +158,34 @@ Configure auto-completion for Hookdeck CLI. It is run on install when using Home
 hookdeck completion
 ```
 
+## Developing
+
+Build from source by running:
+
+```sh
+go build
+```
+
+### Testing against a local API
+
+When testing against a non-production Hookdeck API, you can use the
+`--api-base` and `--ws-base` flags, e.g.:
+
+```sh
+./hookdeck-cli --api-base http://localhost:9000 --ws-base ws://localhost:3003 listen 1234
+```
+
+Also if running in Docker, the equivalent command would be:
+
+```sh
+docker run --rm -it \
+    -v $HOME/.config/hookdeck:/root/.config/hookdeck hookdeck/hookdeck-cli \
+    --api-base http://host.docker.internal:9000 \
+    --ws-base ws://host.docker.internal:3003 \
+    listen \
+    http://host.docker.internal:1234
+```
+
 ## License
 
 Copyright (c) Hookdeck. All rights reserved.
