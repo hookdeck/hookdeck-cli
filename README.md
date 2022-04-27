@@ -50,6 +50,21 @@ docker run --rm -it hookdeck/hookdeck-cli version
 hookdeck version x.y.z (beta)
 ```
 
+If you want to login to your Hookdeck account with the CLI and persist
+credentials, you can bind mount the `~/.config/hookdeck` directory:
+
+```sh
+docker run --rm -it -v $HOME/.config/hookdeck:/root/.config/hookdeck hookdeck/hookdeck-cli login
+```
+
+Then you can listen on any of your sources. Don't forget to use
+`host.docker.internal` to reach a port on your host machine, otherwise
+that port will not be accessible from `localhost` inside the container.
+
+```sh
+docker run --rm -it -v $HOME/.config/hookdeck:/root/.config/hookdeck hookdeck/hookdeck-cli listen http://host.docker.internal:1234
+```
+
 ## Usage
 
 Installing the CLI provides access to the `hookdeck` command.
