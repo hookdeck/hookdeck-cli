@@ -76,9 +76,7 @@ func newListenCmd() *listenCmd {
 		RunE: lc.runListenCmd,
 	}
 	lc.cmd.Flags().StringVar(&lc.wsBaseURL, "ws-base", hookdeck.DefaultWebsocektURL, "Sets the Websocket base URL")
-	lc.cmd.Flags().MarkHidden("ws-base") // #nosec G104
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
-	lc.cmd.Flags().MarkHidden("no-wss") // #nosec G104
 
 	return lc
 }
