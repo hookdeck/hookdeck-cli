@@ -1,6 +1,6 @@
 module github.com/hookdeck/hookdeck-cli
 
-go 1.15
+go 1.18
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.9
