@@ -68,9 +68,9 @@ type Client struct {
 	// URL the client connects to
 	URL string
 
-	// ID sent by the client in the `Websocket-Id` header when connecting
 	CLIKey string
 
+	// ID sent by the client in the `Websocket-Id` header when connecting
 	WebSocketID string
 
 	// Feature that the websocket is specified for
@@ -487,6 +487,8 @@ func NewClient(url string, webSocketID string, CLIKey string, cfg *Config) *Clie
 		cfg.EventHandler = nullEventHandler
 	}
 
+	// Note that this client is not configured for websocket communications
+	// and you must call c.changeConnection
 	return &Client{
 		URL:         url,
 		WebSocketID: webSocketID,

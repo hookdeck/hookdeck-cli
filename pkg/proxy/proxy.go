@@ -34,9 +34,10 @@ type Config struct {
 	// Key is the API key used to authenticate with Hookdeck
 	Key string
 	// EndpointsMap is a mapping of local webhook endpoint urls to the events they consume
-	URL        *url.URL
-	APIBaseURL string
-	WSBaseURL  string
+	URL              *url.URL
+	APIBaseURL       string
+	DashboardBaseURL string
+	WSBaseURL        string
 	// Indicates whether to print full JSON objects to stdout
 	PrintJSON bool
 	Log       *log.Logger
@@ -257,13 +258,13 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *http.Response) {
 	localTime := time.Now().Format(timeLayout)
-
 	color := ansi.Color(os.Stdout)
-	outputStr := fmt.Sprintf("%s [%d] %s %s | https://dashboard.hookdeck.com/cli/events/%s",
+	outputStr := fmt.Sprintf("%s [%d] %s %s | %s/cli/events/%s",
 		color.Faint(localTime),
 		ansi.ColorizeStatus(resp.StatusCode),
 		resp.Request.Method,
 		resp.Request.URL,
+		p.cfg.DashboardBaseURL,
 		webhookEvent.Body.EventID,
 	)
 	fmt.Println(outputStr)

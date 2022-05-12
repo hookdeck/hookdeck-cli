@@ -18,6 +18,9 @@ import (
 // DefaultAPIBaseURL is the default base URL for API requests
 const DefaultAPIBaseURL = "https://api.hookdeck.com"
 
+// DefaultDashboardURL is the default base URL for web links
+const DefaultDashboardURL = "https://dashboard.hookdeck.com"
+
 // DefaultDashboardBaseURL is the default base URL for dashboard requests
 const DefaultDashboardBaseURL = "http://dashboard.hookdeck.com"
 
