@@ -52,6 +52,9 @@ type ErrorResponse struct {
 
 // PerformRequest sends a request to Hookdeck and returns the response.
 func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if req.Header == nil {
+		req.Header = http.Header{}
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	req.Header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())

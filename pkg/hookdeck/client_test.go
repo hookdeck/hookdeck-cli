@@ -2,10 +2,12 @@ package hookdeck
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +33,16 @@ func TestPerformRequest_ParamsEncoding_Delete(t *testing.T) {
 	params.Add("key_a", "value_a")
 	params.Add("key_b", "value_b")
 
-	resp, err := client.PerformRequest(context.TODO(), http.MethodDelete, "/delete", params.Encode(), nil)
+	req := &http.Request{
+		Method: http.MethodDelete,
+		URL: &url.URL{
+			Scheme:   baseURL.Scheme,
+			Host:     baseURL.Host,
+			Path:     "/delete",
+			RawQuery: params.Encode(),
+		},
+	}
+	resp, err := client.PerformRequest(context.TODO(), req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -57,7 +68,17 @@ func TestPerformRequest_ParamsEncoding_Get(t *testing.T) {
 	params.Add("key_a", "value_a")
 	params.Add("key_b", "value_b")
 
-	resp, err := client.PerformRequest(context.TODO(), http.MethodGet, "/get", params.Encode(), nil)
+	req := &http.Request{
+		Method: http.MethodGet,
+		URL: &url.URL{
+			Scheme:   baseURL.Scheme,
+			Host:     baseURL.Host,
+			Path:     "/get",
+			RawQuery: params.Encode(),
+		},
+	}
+
+	resp, err := client.PerformRequest(context.TODO(), req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -83,7 +104,17 @@ func TestPerformRequest_ParamsEncoding_Post(t *testing.T) {
 	params.Add("key_a", "value_a")
 	params.Add("key_b", "value_b")
 
-	resp, err := client.PerformRequest(context.TODO(), http.MethodPost, "/post", params.Encode(), nil)
+	req := &http.Request{
+		Method: http.MethodPost,
+		URL: &url.URL{
+			Scheme: baseURL.Scheme,
+			Host:   baseURL.Host,
+			Path:   "/post",
+		},
+		Body: io.NopCloser(strings.NewReader(params.Encode())),
+	}
+
+	resp, err := client.PerformRequest(context.TODO(), req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -91,7 +122,7 @@ func TestPerformRequest_ParamsEncoding_Post(t *testing.T) {
 
 func TestPerformRequest_ApiKey_Provided(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "Bearer sk_test_1234", r.Header.Get("Authorization"))
+		require.Equal(t, "Basic c2tfdGVzdF8xMjM0Og==", r.Header.Get("Authorization"))
 	}))
 	defer ts.Close()
 
@@ -101,7 +132,16 @@ func TestPerformRequest_ApiKey_Provided(t *testing.T) {
 		APIKey:  "sk_test_1234",
 	}
 
-	resp, err := client.PerformRequest(context.TODO(), http.MethodGet, "/get", "", nil)
+	req := &http.Request{
+		Method: http.MethodGet,
+		URL: &url.URL{
+			Scheme: baseURL.Scheme,
+			Host:   baseURL.Host,
+			Path:   "/get",
+		},
+	}
+
+	resp, err := client.PerformRequest(context.TODO(), req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -118,7 +158,16 @@ func TestPerformRequest_ApiKey_Omitted(t *testing.T) {
 		BaseURL: baseURL,
 	}
 
-	resp, err := client.PerformRequest(context.TODO(), http.MethodGet, "/get", "", nil)
+	req := &http.Request{
+		Method: http.MethodGet,
+		URL: &url.URL{
+			Scheme: baseURL.Scheme,
+			Host:   baseURL.Host,
+			Path:   "/get",
+		},
+	}
+
+	resp, err := client.PerformRequest(context.TODO(), req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -135,9 +184,19 @@ func TestPerformRequest_ConfigureFunc(t *testing.T) {
 		BaseURL: baseURL,
 	}
 
-	resp, err := client.PerformRequest(context.TODO(), http.MethodGet, "/get", "", func(r *http.Request) {
-		r.Header.Add("Hookdeck-Version", "2019-07-10")
-	})
+	req := &http.Request{
+		Method: http.MethodGet,
+		Header: http.Header{
+			"Hookdeck-Version": []string{"2019-07-10"},
+		},
+		URL: &url.URL{
+			Scheme: baseURL.Scheme,
+			Host:   baseURL.Host,
+			Path:   "/get",
+		},
+	}
+
+	resp, err := client.PerformRequest(context.TODO(), req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
