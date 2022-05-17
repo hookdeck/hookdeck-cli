@@ -1,24 +1,34 @@
 package config
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 // Profile handles all things related to managing the project specific configurations
 type Profile struct {
+	Config      *Config
 	DeviceName  string
 	ProfileName string
 	TeamName    string
 	APIKey      string
 	ClientID    string
 	DisplayName string
+}
+
+type partialPollResponse struct {
+	TeamName string `json:"team_name"`
 }
 
 // CreateProfile creates a profile when logging in
@@ -114,13 +124,68 @@ func (p *Profile) GetDisplayName() string {
 	return ""
 }
 
-// GetDisplayName returns the account display name of the team
-func (p *Profile) GetTeamName() string {
-	if err := viper.ReadInConfig(); err == nil {
-		return viper.GetString(p.GetConfigField("team_name"))
+func (p *Profile) refreshTeamName() string {
+	apiKey, err := p.GetAPIKey()
+
+	if err != nil {
+		panic(err)
 	}
 
-	return ""
+	parsedURL, err := url.Parse(p.Config.APIBaseURL + "/cli-auth/poll?key=" + apiKey)
+
+	if err != nil {
+		panic(err)
+	}
+
+	client := &hookdeck.Client{
+		BaseURL: parsedURL,
+	}
+
+	res, err := client.Get(context.TODO(), parsedURL.Path, parsedURL.Query().Encode(), nil)
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	var response partialPollResponse
+
+	err = json.Unmarshal(body, &response)
+
+	if err != nil {
+		panic(err)
+	}
+
+	p.TeamName = response.TeamName
+	p.CreateProfile()
+
+	return response.TeamName
+}
+
+// GetDisplayName returns the account display name of the team
+func (p *Profile) GetTeamName() string {
+	if err := viper.ReadInConfig(); err != nil {
+		return ""
+	}
+
+	teamName := viper.GetString(p.GetConfigField("team_name"))
+
+	if teamName == p.GetDisplayName() {
+		// Could be a bug where we used to store the display name in the
+		// team name field. But it could also be a legit team name that
+		// just happens to be the same as the user display name.
+		//
+		// Call the CLI poll endpoint to make sure.
+		teamName = p.refreshTeamName()
+	}
+
+	return teamName
 }
 
 // GetTerminalPOSDeviceID returns the device id from the config for Terminal quickstart to use
@@ -184,7 +249,7 @@ func (p *Profile) writeProfile(runtimeViper *viper.Viper) error {
 	}
 
 	if p.TeamName != "" {
-		runtimeViper.Set(p.GetConfigField("team_name"), strings.TrimSpace(p.DisplayName))
+		runtimeViper.Set(p.GetConfigField("team_name"), strings.TrimSpace(p.TeamName))
 	}
 
 	runtimeViper.MergeInConfig()
