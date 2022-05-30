@@ -29,7 +29,7 @@ func (c *Client) CreateGuestUser(input CreateGuestUserInput) (GuestUser, error) 
 		return GuestUser{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return GuestUser{}, fmt.Errorf("Unexpected http status code: %d %s", res.StatusCode)
+		return GuestUser{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
 	}
 	guest_user := GuestUser{}
 	postprocessJsonResponse(res, &guest_user)

@@ -86,7 +86,8 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		fmt.Println("Sign up in the dashboard to make your webhook URL permanent.")
 		fmt.Println()
 	}
-	fmt.Println("👉 Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events")
+
+	fmt.Printf("👉 Inspect and replay webhooks: %s/cli/events\n", config.DashboardBaseURL)
 	fmt.Println()
 
 	fmt.Println(ansi.Bold(source.Label + " Source"))
@@ -105,13 +106,14 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	}
 
 	p := proxy.New(&proxy.Config{
-		DeviceName: deviceName,
-		Key:        key,
-		APIBaseURL: config.APIBaseURL,
-		WSBaseURL:  flags.WSBaseURL,
-		NoWSS:      flags.NoWSS,
-		URL:        URL,
-		Log:        log.StandardLogger(),
+		DeviceName:       deviceName,
+		Key:              key,
+		APIBaseURL:       config.APIBaseURL,
+		DashboardBaseURL: config.DashboardBaseURL,
+		WSBaseURL:        flags.WSBaseURL,
+		NoWSS:            flags.NoWSS,
+		URL:              URL,
+		Log:              log.StandardLogger(),
 	}, source, connections)
 
 	err = p.Run(context.Background())

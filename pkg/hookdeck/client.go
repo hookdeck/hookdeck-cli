@@ -18,6 +18,9 @@ import (
 // DefaultAPIBaseURL is the default base URL for API requests
 const DefaultAPIBaseURL = "https://api.hookdeck.com"
 
+// DefaultDashboardURL is the default base URL for web links
+const DefaultDashboardURL = "https://dashboard.hookdeck.com"
+
 // DefaultDashboardBaseURL is the default base URL for dashboard requests
 const DefaultDashboardBaseURL = "http://dashboard.hookdeck.com"
 
@@ -49,6 +52,9 @@ type ErrorResponse struct {
 
 // PerformRequest sends a request to Hookdeck and returns the response.
 func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if req.Header == nil {
+		req.Header = http.Header{}
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	req.Header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
@@ -141,12 +147,12 @@ func checkAndPrintError(res *http.Response) error {
 		response := &ErrorResponse{}
 		err = json.Unmarshal(body, &response)
 		if err != nil {
-			return fmt.Errorf("Unexpected http status code: %d %s")
+			return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
 		}
 		if response.Message != "" {
-			return fmt.Errorf("Error: %s", response.Message)
+			return fmt.Errorf("error: %s", response.Message)
 		}
-		return fmt.Errorf("Unexpected http status code: %d %s", res.StatusCode, string(body))
+		return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, string(body))
 	}
 	return nil
 }

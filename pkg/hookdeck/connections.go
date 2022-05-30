@@ -33,7 +33,7 @@ func (c *Client) ListConnectionsBySource(source_id string) ([]Connection, error)
 		return []Connection{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return []Connection{}, fmt.Errorf("Unexpected http status code: %d %s", res.StatusCode)
+		return []Connection{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
 	}
 	sources := ConnectionList{}
 	postprocessJsonResponse(res, &sources)

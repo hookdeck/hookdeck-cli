@@ -30,7 +30,7 @@ func (c *Client) GetSourceByAlias(alias string) (Source, error) {
 		return Source{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return Source{}, fmt.Errorf("Unexpected http status code: %d %s", res.StatusCode)
+		return Source{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
 	}
 	sources := SourceList{}
 	postprocessJsonResponse(res, &sources)
@@ -47,7 +47,7 @@ func (c *Client) ListSources() ([]Source, error) {
 		return []Source{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return []Source{}, fmt.Errorf("Unexpected http status code: %d %s", res.StatusCode)
+		return []Source{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
 	}
 	sources := SourceList{}
 	postprocessJsonResponse(res, &sources)
@@ -65,7 +65,7 @@ func (c *Client) CreateSource(input CreateSourceInput) (Source, error) {
 		return Source{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return Source{}, fmt.Errorf("Unexpected http status code: %d %s", res.StatusCode)
+		return Source{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
 	}
 	source := Source{}
 	postprocessJsonResponse(res, &source)

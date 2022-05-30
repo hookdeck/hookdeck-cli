@@ -31,11 +31,12 @@ const ColorAuto = "auto"
 
 // Config handles all overall configuration for the CLI
 type Config struct {
-	Color        string
-	LogLevel     string
-	Profile      Profile
-	ProfilesFile string
-	APIBaseURL   string
+	Color            string
+	LogLevel         string
+	Profile          Profile
+	ProfilesFile     string
+	APIBaseURL       string
+	DashboardBaseURL string
 }
 
 // GetConfigFolder retrieves the folder where the profiles file is stored
