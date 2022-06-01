@@ -126,7 +126,6 @@ func (p *Profile) GetDisplayName() string {
 
 func (p *Profile) refreshTeamName() string {
 	apiKey, err := p.GetAPIKey()
-
 	if err != nil {
 		panic(err)
 	}

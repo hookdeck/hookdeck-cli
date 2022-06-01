@@ -22,7 +22,6 @@ func newWhoamiCmd() *whoamiCmd {
 		Use:   "whoami",
 		Args:  validators.NoArgs,
 		Short: "Show the logged-in user",
-		// Long:  "",
 		RunE: lc.runWhoamiCmd,
 	}
 
