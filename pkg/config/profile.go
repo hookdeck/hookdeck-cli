@@ -131,7 +131,6 @@ func (p *Profile) refreshTeamName() string {
 	}
 
 	parsedURL, err := url.Parse(p.Config.APIBaseURL + "/cli-auth/poll?key=" + apiKey)
-
 	if err != nil {
 		panic(err)
 	}
@@ -141,7 +140,6 @@ func (p *Profile) refreshTeamName() string {
 	}
 
 	res, err := client.Get(context.TODO(), parsedURL.Path, parsedURL.Query().Encode(), nil)
-
 	if err != nil {
 		panic(err)
 	}
@@ -156,7 +154,6 @@ func (p *Profile) refreshTeamName() string {
 	var response partialPollResponse
 
 	err = json.Unmarshal(body, &response)
-
 	if err != nil {
 		panic(err)
 	}
