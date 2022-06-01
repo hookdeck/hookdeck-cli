@@ -70,6 +70,8 @@ func (c *Config) InitConfig() {
 		TimestampFormat: time.RFC1123,
 	}
 
+	c.Profile.Config = c
+
 	if c.ProfilesFile != "" {
 		viper.SetConfigFile(c.ProfilesFile)
 	} else {
