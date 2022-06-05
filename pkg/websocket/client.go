@@ -108,75 +108,59 @@ func (c *Client) Connected() <-chan struct{} {
 
 // Run starts listening for incoming webhook requests from Hookdeck.
 func (c *Client) Run(ctx context.Context) {
-	for {
-		c.isConnected = false
+	c.isConnected = false
+	c.cfg.Log.WithFields(log.Fields{
+		"prefix": "websocket.client.Run",
+	}).Debug("Attempting to connect to Hookdeck")
+
+	err := c.connect(ctx)
+	if err != nil {
 		c.cfg.Log.WithFields(log.Fields{
 			"prefix": "websocket.client.Run",
-		}).Debug("Attempting to connect to Hookdeck")
+		}).Debug("Failed to connect to Hookdeck. Retrying...")
 
-		var err error
-		err = c.connect(ctx)
-		for err != nil {
+		if err == ErrUnknownID {
 			c.cfg.Log.WithFields(log.Fields{
 				"prefix": "websocket.client.Run",
-			}).Debug("Failed to connect to Hookdeck. Retrying...")
+			}).Debug("Websocket session is expired.")
+		}
+		return
+	}
 
-			if err == ErrUnknownID {
-				c.cfg.Log.WithFields(log.Fields{
-					"prefix": "websocket.client.Run",
-				}).Debug("Websocket session is expired.")
-				select {
-				case <-ctx.Done():
-					c.Stop()
-					return
-				case <-time.After(c.cfg.ConnectAttemptWait):
-					c.NotifyExpired <- struct{}{}
-					return
-				}
-			}
-			select {
-			case <-ctx.Done():
-				c.Stop()
-			case <-time.After(c.cfg.ConnectAttemptWait):
-			}
-			err = c.connect(ctx)
+	select {
+	case <-ctx.Done():
+		close(c.send)
+		close(c.stopReadPump)
+		close(c.stopWritePump)
+
+		return
+	case <-c.done:
+		close(c.send)
+		close(c.stopReadPump)
+		close(c.stopWritePump)
+		close(c.NotifyExpired)
+
+		return
+	case <-c.notifyClose:
+		c.cfg.Log.WithFields(log.Fields{
+			"prefix": "websocket.client.Run",
+		}).Debug("Disconnected from Hookdeck")
+		c.NotifyExpired <- struct{}{}
+		close(c.stopReadPump)
+		close(c.stopWritePump)
+		c.wg.Wait()
+	case <-time.After(c.cfg.ReconnectInterval):
+		c.cfg.Log.WithFields(log.Fields{
+			"prefix": "websocket.Client.Run",
+		}).Debug("Resetting the connection")
+		close(c.stopReadPump)
+		close(c.stopWritePump)
+
+		if c.conn != nil {
+			c.conn.Close() // #nosec G104
 		}
 
-		select {
-		case <-ctx.Done():
-			close(c.send)
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-
-			return
-		case <-c.done:
-			close(c.send)
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-			close(c.NotifyExpired)
-
-			return
-		case <-c.notifyClose:
-			c.cfg.Log.WithFields(log.Fields{
-				"prefix": "websocket.client.Run",
-			}).Debug("Disconnected from Hookdeck")
-			c.NotifyExpired <- struct{}{}
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-			c.wg.Wait()
-		case <-time.After(c.cfg.ReconnectInterval):
-			c.cfg.Log.WithFields(log.Fields{
-				"prefix": "websocket.Client.Run",
-			}).Debug("Resetting the connection")
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-
-			if c.conn != nil {
-				c.conn.Close() // #nosec G104
-			}
-
-			c.wg.Wait()
-		}
+		c.wg.Wait()
 	}
 }
 
