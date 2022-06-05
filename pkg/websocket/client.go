@@ -38,9 +38,6 @@ type Config struct {
 
 	PongWait time.Duration
 
-	// Interval at which the websocket client should reset the connection
-	ReconnectInterval time.Duration
-
 	WriteWait time.Duration
 
 	EventHandler EventHandler
@@ -117,6 +114,10 @@ func (c *Client) Run(ctx context.Context) {
 	if err != nil {
 		c.cfg.Log.WithFields(log.Fields{
 			"prefix": "websocket.client.Run",
+		}).Debug(err)
+
+		c.cfg.Log.WithFields(log.Fields{
+			"prefix": "websocket.client.Run",
 		}).Debug("Failed to connect to Hookdeck. Retrying...")
 
 		if err == ErrUnknownID {
@@ -124,6 +125,7 @@ func (c *Client) Run(ctx context.Context) {
 				"prefix": "websocket.client.Run",
 			}).Debug("Websocket session is expired.")
 		}
+		c.Restart()
 		return
 	}
 
@@ -149,19 +151,13 @@ func (c *Client) Run(ctx context.Context) {
 		close(c.stopReadPump)
 		close(c.stopWritePump)
 		c.wg.Wait()
-	case <-time.After(c.cfg.ReconnectInterval):
-		c.cfg.Log.WithFields(log.Fields{
-			"prefix": "websocket.Client.Run",
-		}).Debug("Resetting the connection")
-		close(c.stopReadPump)
-		close(c.stopWritePump)
-
-		if c.conn != nil {
-			c.conn.Close() // #nosec G104
-		}
-
-		c.wg.Wait()
 	}
+}
+
+// Restart stops the client and notifies the context.
+func (c *Client) Restart() {
+	c.Stop()
+	c.NotifyExpired <- struct{}{}
 }
 
 // Stop stops listening for incoming webhook events.
@@ -459,10 +455,6 @@ func NewClient(url string, webSocketID string, CLIKey string, cfg *Config) *Clie
 		cfg.PingPeriod = (cfg.PongWait * 9) / 10
 	}
 
-	if cfg.ReconnectInterval == 0 {
-		cfg.ReconnectInterval = defaultReconnectInterval
-	}
-
 	if cfg.WriteWait == 0 {
 		cfg.WriteWait = defaultWriteWait
 	}
@@ -493,8 +485,6 @@ const (
 	defaultConnectAttemptWait = 10 * time.Second
 
 	defaultPongWait = 10 * time.Second
-
-	defaultReconnectInterval = 60 * time.Second
 
 	defaultWriteWait = 10 * time.Second
 )
