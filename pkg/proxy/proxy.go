@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -54,6 +55,7 @@ type Proxy struct {
 	connections       []hookdeck.Connection
 	connections_paths map[string]string
 	webSocketClient   *websocket.Client
+	connectionTimer   *time.Timer
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -71,18 +73,31 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 	return ctx
 }
 
-const maxConnectAttempts = 3
+func (p *Proxy) Run(parentCtx context.Context) error {
+	const maxConnectAttempts = 3
+	nAttempts := 0
+	// Track whether or not we have connected at least once successfully
+	hasConnectedOnce := false
 
-func (p *Proxy) Run(ctx context.Context) error {
+	canConnect := func() bool {
+		// Once we have connected we should always retry
+		// until the user cancels the program
+		if hasConnectedOnce {
+			return true
+		} else {
+			return nAttempts < maxConnectAttempts
+		}
+	}
+
 	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
 
-	ctx = withSIGTERMCancel(ctx, func() {
+	signalCtx := withSIGTERMCancel(parentCtx, func() {
 		log.WithFields(log.Fields{
 			"prefix": "proxy.Proxy.Run",
 		}).Debug("Ctrl+C received, cleaning up...")
 	})
 
-	session, err := p.createSession(ctx)
+	session, err := p.createSession(signalCtx)
 	if err != nil {
 		ansi.StopSpinner(s, "", p.cfg.Log.Out)
 		p.cfg.Log.Fatalf("Error while authenticating with Hookdeck: %v", err)
@@ -93,40 +108,66 @@ func (p *Proxy) Run(ctx context.Context) error {
 		p.cfg.Log.Fatalf("Error while starting a new session")
 	}
 
-	var nAttempts int = 0
-
-	for nAttempts < maxConnectAttempts {
+	for canConnect() {
 		p.webSocketClient = websocket.NewClient(
 			p.cfg.WSBaseURL,
 			session.Id,
 			p.cfg.Key,
 			&websocket.Config{
-				Log:               p.cfg.Log,
-				NoWSS:             p.cfg.NoWSS,
-				ReconnectInterval: time.Duration(100000) * time.Second,
-				EventHandler:      websocket.EventHandlerFunc(p.processAttempt),
+				Log:          p.cfg.Log,
+				NoWSS:        p.cfg.NoWSS,
+				EventHandler: websocket.EventHandlerFunc(p.processAttempt),
 			},
 		)
 
 		go func() {
 			<-p.webSocketClient.Connected()
-			nAttempts = 0
-			ansi.StopSpinner(s, fmt.Sprintf("Ready! (^C to quit)"), p.cfg.Log.Out)
+			msg := "Ready! (^C to quit)"
+			if hasConnectedOnce {
+				msg = "Reconnected!"
+			}
+			ansi.StopSpinner(s, msg, p.cfg.Log.Out)
+			hasConnectedOnce = true
 		}()
 
-		go p.webSocketClient.Run(ctx)
+		go p.webSocketClient.Run(signalCtx)
 		nAttempts++
 
 		select {
-		case <-ctx.Done():
+		case <-signalCtx.Done():
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
 			return nil
 		case <-p.webSocketClient.NotifyExpired:
-			if nAttempts < maxConnectAttempts {
+			if canConnect() {
 				ansi.StartSpinner(s, "Connection lost, reconnecting...", p.cfg.Log.Out)
 			} else {
 				p.cfg.Log.Fatalf("Session expired. Terminating after %d failed attempts to reauthorize", nAttempts)
 			}
+		}
+
+		attemptsOverMax := math.Max(0, float64(nAttempts-maxConnectAttempts))
+		if canConnect() && attemptsOverMax > 0 {
+			// Determine the time to wait to reconnect, maximum of 10 second intervals
+			sleepDurationMS := int(math.Round(math.Min(100, math.Pow(attemptsOverMax, 2)) * 100))
+			log.WithField(
+				"prefix", "proxy.Proxy.Run",
+			).Debugf(
+				"Connect backoff (%dms)", sleepDurationMS,
+			)
+
+			// Stop the timer
+			p.connectionTimer.Stop()
+
+			// Reset the timer to the next duration
+			p.connectionTimer.Reset(time.Duration(sleepDurationMS) * time.Millisecond)
+
+			select {
+			case <-p.connectionTimer.C:
+			case <-signalCtx.Done():
+				p.connectionTimer.Stop()
+				return nil
+			}
+
 		}
 	}
 
@@ -318,6 +359,7 @@ func New(cfg *Config, source hookdeck.Source, connections []hookdeck.Connection)
 		connections:       connections,
 		connections_paths: connections_paths,
 		source:            source,
+		connectionTimer:   time.NewTimer(0), // Defaults to no delay
 	}
 
 	return p
