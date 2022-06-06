@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -185,41 +186,35 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 	var session hookdeck.Session
 
-	var err error
+	parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
+	if err != nil {
+		return session, err
+	}
 
-	exitCh := make(chan struct{})
+	client := &hookdeck.Client{
+		BaseURL: parsedBaseURL,
+		APIKey:  p.cfg.Key,
+	}
 
-	go func() {
-		parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
-		client := &hookdeck.Client{
-			BaseURL: parsedBaseURL,
-			APIKey:  p.cfg.Key,
+	var connection_ids []string
+	for _, connection := range p.connections {
+		connection_ids = append(connection_ids, connection.Id)
+	}
+
+	for i := 0; i <= 5; i++ {
+		session, err = client.CreateSession(hookdeck.CreateSessionInput{SourceId: p.source.Id,
+			ConnectionIds: connection_ids})
+
+		if err == nil {
+			return session, nil
 		}
 
-		var connection_ids []string
-		for _, connection := range p.connections {
-			connection_ids = append(connection_ids, connection.Id)
+		select {
+		case <-ctx.Done():
+			return session, errors.New("canceled by context")
+		case <-time.After(1 * time.Second):
 		}
-		for i := 0; i <= 5; i++ {
-			session, err = client.CreateSession(hookdeck.CreateSessionInput{SourceId: p.source.Id,
-				ConnectionIds: connection_ids})
-
-			if err == nil {
-				exitCh <- struct{}{}
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-				exitCh <- struct{}{}
-				return
-			case <-time.After(1 * time.Second):
-			}
-		}
-
-		exitCh <- struct{}{}
-	}()
-	<-exitCh
+	}
 
 	return session, err
 }
