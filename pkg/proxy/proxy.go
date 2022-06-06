@@ -151,7 +151,8 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			return nil
 		case <-p.webSocketClient.NotifyExpired:
 			if canConnect() {
-				ansi.StartSpinner(s, "Connection lost, reconnecting...", p.cfg.Log.Out)
+				ansi.StopSpinner(s, "", p.cfg.Log.Out)
+				s = ansi.StartNewSpinner("Connection lost, reconnecting...", p.cfg.Log.Out)
 			} else {
 				p.cfg.Log.Fatalf("Session expired. Terminating after %d failed attempts to reauthorize", nAttempts)
 			}
