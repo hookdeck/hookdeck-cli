@@ -125,7 +125,7 @@ func (c *Client) Run(ctx context.Context) {
 				"prefix": "websocket.client.Run",
 			}).Debug("Websocket session is expired.")
 		}
-		c.Restart()
+		c.ConnectionLost()
 		return
 	}
 
@@ -147,16 +147,16 @@ func (c *Client) Run(ctx context.Context) {
 		c.cfg.Log.WithFields(log.Fields{
 			"prefix": "websocket.client.Run",
 		}).Debug("Disconnected from Hookdeck")
-		c.NotifyExpired <- struct{}{}
+
+		c.ConnectionLost()
 		close(c.stopReadPump)
 		close(c.stopWritePump)
 		c.wg.Wait()
 	}
 }
 
-// Restart stops the client and notifies the context.
-func (c *Client) Restart() {
-	c.Stop()
+// ConnectionLost sends NotifyExpired
+func (c *Client) ConnectionLost() {
 	c.NotifyExpired <- struct{}{}
 }
 
