@@ -74,15 +74,21 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 	return ctx
 }
 
+// Run manages the connection to Hookdeck.
+// The connection is established in phases:
+//   - Create a new CLI session
+//   - Create a new websocket connection
 func (p *Proxy) Run(parentCtx context.Context) error {
 	const maxConnectAttempts = 3
 	nAttempts := 0
-	// Track whether or not we have connected at least once successfully
-	hasConnectedOnce := false
 
+	// Track whether or not we have connected successfully.
+	// Once we have connected we no longer limit the number
+	// of connection attempts that will be made and will retry
+	// until the connection is successful or the user terminates
+	// the program.
+	hasConnectedOnce := false
 	canConnect := func() bool {
-		// Once we have connected we should always retry
-		// until the user cancels the program
 		if hasConnectedOnce {
 			return true
 		} else {
@@ -90,13 +96,13 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		}
 	}
 
-	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
-
 	signalCtx := withSIGTERMCancel(parentCtx, func() {
 		log.WithFields(log.Fields{
 			"prefix": "proxy.Proxy.Run",
 		}).Debug("Ctrl+C received, cleaning up...")
 	})
+
+	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
 
 	session, err := p.createSession(signalCtx)
 	if err != nil {
@@ -109,6 +115,8 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		p.cfg.Log.Fatalf("Error while starting a new session")
 	}
 
+	// Main loop to keep attempting to connect to Hookdeck once
+	// we have created a session.
 	for canConnect() {
 		p.webSocketClient = websocket.NewClient(
 			p.cfg.WSBaseURL,
@@ -121,6 +129,7 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			},
 		)
 
+		// Monitor the websocket for connection and update the spinner appropriately.
 		go func() {
 			<-p.webSocketClient.Connected()
 			msg := "Ready! (^C to quit)"
@@ -131,9 +140,11 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			hasConnectedOnce = true
 		}()
 
+		// Run the websocket in the background
 		go p.webSocketClient.Run(signalCtx)
 		nAttempts++
 
+		// Block until ctrl+c or the websocket connection is interrupted
 		select {
 		case <-signalCtx.Done():
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
@@ -146,6 +157,7 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			}
 		}
 
+		// Determine if we should backoff the connection retries.
 		attemptsOverMax := math.Max(0, float64(nAttempts-maxConnectAttempts))
 		if canConnect() && attemptsOverMax > 0 {
 			// Determine the time to wait to reconnect, maximum of 10 second intervals
@@ -156,19 +168,17 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 				"Connect backoff (%dms)", sleepDurationMS,
 			)
 
-			// Stop the timer
-			p.connectionTimer.Stop()
-
 			// Reset the timer to the next duration
+			p.connectionTimer.Stop()
 			p.connectionTimer.Reset(time.Duration(sleepDurationMS) * time.Millisecond)
 
+			// Block until the timer completes or we get interrupted by the user
 			select {
 			case <-p.connectionTimer.C:
 			case <-signalCtx.Done():
 				p.connectionTimer.Stop()
 				return nil
 			}
-
 		}
 	}
 
