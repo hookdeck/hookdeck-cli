@@ -3,8 +3,10 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -54,6 +56,7 @@ type Proxy struct {
 	connections       []hookdeck.Connection
 	connections_paths map[string]string
 	webSocketClient   *websocket.Client
+	connectionTimer   *time.Timer
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -71,18 +74,37 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 	return ctx
 }
 
-const maxConnectAttempts = 3
+// Run manages the connection to Hookdeck.
+// The connection is established in phases:
+//   - Create a new CLI session
+//   - Create a new websocket connection
+func (p *Proxy) Run(parentCtx context.Context) error {
+	const maxConnectAttempts = 3
+	nAttempts := 0
 
-func (p *Proxy) Run(ctx context.Context) error {
-	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
+	// Track whether or not we have connected successfully.
+	// Once we have connected we no longer limit the number
+	// of connection attempts that will be made and will retry
+	// until the connection is successful or the user terminates
+	// the program.
+	hasConnectedOnce := false
+	canConnect := func() bool {
+		if hasConnectedOnce {
+			return true
+		} else {
+			return nAttempts < maxConnectAttempts
+		}
+	}
 
-	ctx = withSIGTERMCancel(ctx, func() {
+	signalCtx := withSIGTERMCancel(parentCtx, func() {
 		log.WithFields(log.Fields{
 			"prefix": "proxy.Proxy.Run",
 		}).Debug("Ctrl+C received, cleaning up...")
 	})
 
-	session, err := p.createSession(ctx)
+	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
+
+	session, err := p.createSession(signalCtx)
 	if err != nil {
 		ansi.StopSpinner(s, "", p.cfg.Log.Out)
 		p.cfg.Log.Fatalf("Error while authenticating with Hookdeck: %v", err)
@@ -93,39 +115,70 @@ func (p *Proxy) Run(ctx context.Context) error {
 		p.cfg.Log.Fatalf("Error while starting a new session")
 	}
 
-	var nAttempts int = 0
-
-	for nAttempts < maxConnectAttempts {
+	// Main loop to keep attempting to connect to Hookdeck once
+	// we have created a session.
+	for canConnect() {
 		p.webSocketClient = websocket.NewClient(
 			p.cfg.WSBaseURL,
 			session.Id,
 			p.cfg.Key,
 			&websocket.Config{
-				Log:               p.cfg.Log,
-				NoWSS:             p.cfg.NoWSS,
-				ReconnectInterval: time.Duration(100000) * time.Second,
-				EventHandler:      websocket.EventHandlerFunc(p.processAttempt),
+				Log:          p.cfg.Log,
+				NoWSS:        p.cfg.NoWSS,
+				EventHandler: websocket.EventHandlerFunc(p.processAttempt),
 			},
 		)
 
+		// Monitor the websocket for connection and update the spinner appropriately.
 		go func() {
 			<-p.webSocketClient.Connected()
-			nAttempts = 0
-			ansi.StopSpinner(s, fmt.Sprintf("Ready! (^C to quit)"), p.cfg.Log.Out)
+			msg := "Ready! (^C to quit)"
+			if hasConnectedOnce {
+				msg = "Reconnected!"
+			}
+			ansi.StopSpinner(s, msg, p.cfg.Log.Out)
+			hasConnectedOnce = true
 		}()
 
-		go p.webSocketClient.Run(ctx)
+		// Run the websocket in the background
+		go p.webSocketClient.Run(signalCtx)
 		nAttempts++
 
+		// Block until ctrl+c or the websocket connection is interrupted
 		select {
-		case <-ctx.Done():
+		case <-signalCtx.Done():
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
 			return nil
 		case <-p.webSocketClient.NotifyExpired:
-			if nAttempts < maxConnectAttempts {
-				ansi.StartSpinner(s, "Connection lost, reconnecting...", p.cfg.Log.Out)
+			if canConnect() {
+				ansi.StopSpinner(s, "", p.cfg.Log.Out)
+				s = ansi.StartNewSpinner("Connection lost, reconnecting...", p.cfg.Log.Out)
 			} else {
 				p.cfg.Log.Fatalf("Session expired. Terminating after %d failed attempts to reauthorize", nAttempts)
+			}
+		}
+
+		// Determine if we should backoff the connection retries.
+		attemptsOverMax := math.Max(0, float64(nAttempts-maxConnectAttempts))
+		if canConnect() && attemptsOverMax > 0 {
+			// Determine the time to wait to reconnect, maximum of 10 second intervals
+			sleepDurationMS := int(math.Round(math.Min(100, math.Pow(attemptsOverMax, 2)) * 100))
+			log.WithField(
+				"prefix", "proxy.Proxy.Run",
+			).Debugf(
+				"Connect backoff (%dms)", sleepDurationMS,
+			)
+
+			// Reset the timer to the next duration
+			p.connectionTimer.Stop()
+			p.connectionTimer.Reset(time.Duration(sleepDurationMS) * time.Millisecond)
+
+			// Block until the timer completes or we get interrupted by the user
+			select {
+			case <-p.connectionTimer.C:
+			case <-signalCtx.Done():
+				p.connectionTimer.Stop()
+				return nil
 			}
 		}
 	}
@@ -144,41 +197,35 @@ func (p *Proxy) Run(ctx context.Context) error {
 func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 	var session hookdeck.Session
 
-	var err error
+	parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
+	if err != nil {
+		return session, err
+	}
 
-	exitCh := make(chan struct{})
+	client := &hookdeck.Client{
+		BaseURL: parsedBaseURL,
+		APIKey:  p.cfg.Key,
+	}
 
-	go func() {
-		parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
-		client := &hookdeck.Client{
-			BaseURL: parsedBaseURL,
-			APIKey:  p.cfg.Key,
+	var connection_ids []string
+	for _, connection := range p.connections {
+		connection_ids = append(connection_ids, connection.Id)
+	}
+
+	for i := 0; i <= 5; i++ {
+		session, err = client.CreateSession(hookdeck.CreateSessionInput{SourceId: p.source.Id,
+			ConnectionIds: connection_ids})
+
+		if err == nil {
+			return session, nil
 		}
 
-		var connection_ids []string
-		for _, connection := range p.connections {
-			connection_ids = append(connection_ids, connection.Id)
+		select {
+		case <-ctx.Done():
+			return session, errors.New("canceled by context")
+		case <-time.After(1 * time.Second):
 		}
-		for i := 0; i <= 5; i++ {
-			session, err = client.CreateSession(hookdeck.CreateSessionInput{SourceId: p.source.Id,
-				ConnectionIds: connection_ids})
-
-			if err == nil {
-				exitCh <- struct{}{}
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-				exitCh <- struct{}{}
-				return
-			case <-time.After(1 * time.Second):
-			}
-		}
-
-		exitCh <- struct{}{}
-	}()
-	<-exitCh
+	}
 
 	return session, err
 }
@@ -318,6 +365,7 @@ func New(cfg *Config, source hookdeck.Source, connections []hookdeck.Connection)
 		connections:       connections,
 		connections_paths: connections_paths,
 		source:            source,
+		connectionTimer:   time.NewTimer(0), // Defaults to no delay
 	}
 
 	return p

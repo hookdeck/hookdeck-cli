@@ -38,9 +38,6 @@ type Config struct {
 
 	PongWait time.Duration
 
-	// Interval at which the websocket client should reset the connection
-	ReconnectInterval time.Duration
-
 	WriteWait time.Duration
 
 	EventHandler EventHandler
@@ -108,76 +105,59 @@ func (c *Client) Connected() <-chan struct{} {
 
 // Run starts listening for incoming webhook requests from Hookdeck.
 func (c *Client) Run(ctx context.Context) {
-	for {
-		c.isConnected = false
+	c.isConnected = false
+	c.cfg.Log.WithFields(log.Fields{
+		"prefix": "websocket.client.Run",
+	}).Debug("Attempting to connect to Hookdeck")
+
+	err := c.connect(ctx)
+	if err != nil {
 		c.cfg.Log.WithFields(log.Fields{
 			"prefix": "websocket.client.Run",
-		}).Debug("Attempting to connect to Hookdeck")
+		}).Debug(err)
 
-		var err error
-		err = c.connect(ctx)
-		for err != nil {
+		c.cfg.Log.WithFields(log.Fields{
+			"prefix": "websocket.client.Run",
+		}).Debug("Failed to connect to Hookdeck. Retrying...")
+
+		if err == ErrUnknownID {
 			c.cfg.Log.WithFields(log.Fields{
 				"prefix": "websocket.client.Run",
-			}).Debug("Failed to connect to Hookdeck. Retrying...")
-
-			if err == ErrUnknownID {
-				c.cfg.Log.WithFields(log.Fields{
-					"prefix": "websocket.client.Run",
-				}).Debug("Websocket session is expired.")
-				select {
-				case <-ctx.Done():
-					c.Stop()
-					return
-				case <-time.After(c.cfg.ConnectAttemptWait):
-					c.NotifyExpired <- struct{}{}
-					return
-				}
-			}
-			select {
-			case <-ctx.Done():
-				c.Stop()
-			case <-time.After(c.cfg.ConnectAttemptWait):
-			}
-			err = c.connect(ctx)
+			}).Debug("Websocket session is expired.")
 		}
-
-		select {
-		case <-ctx.Done():
-			close(c.send)
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-
-			return
-		case <-c.done:
-			close(c.send)
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-			close(c.NotifyExpired)
-
-			return
-		case <-c.notifyClose:
-			c.cfg.Log.WithFields(log.Fields{
-				"prefix": "websocket.client.Run",
-			}).Debug("Disconnected from Hookdeck")
-			c.NotifyExpired <- struct{}{}
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-			c.wg.Wait()
-		case <-time.After(c.cfg.ReconnectInterval):
-			c.cfg.Log.WithFields(log.Fields{
-				"prefix": "websocket.Client.Run",
-			}).Debug("Resetting the connection")
-			close(c.stopReadPump)
-			close(c.stopWritePump)
-
-			if c.conn != nil {
-				c.conn.Close() // #nosec G104
-			}
-
-			c.wg.Wait()
-		}
+		c.ConnectionLost()
+		return
 	}
+
+	select {
+	case <-ctx.Done():
+		close(c.send)
+		close(c.stopReadPump)
+		close(c.stopWritePump)
+
+		return
+	case <-c.done:
+		close(c.send)
+		close(c.stopReadPump)
+		close(c.stopWritePump)
+		close(c.NotifyExpired)
+
+		return
+	case <-c.notifyClose:
+		c.cfg.Log.WithFields(log.Fields{
+			"prefix": "websocket.client.Run",
+		}).Debug("Disconnected from Hookdeck")
+
+		c.ConnectionLost()
+		close(c.stopReadPump)
+		close(c.stopWritePump)
+		c.wg.Wait()
+	}
+}
+
+// ConnectionLost sends NotifyExpired
+func (c *Client) ConnectionLost() {
+	c.NotifyExpired <- struct{}{}
 }
 
 // Stop stops listening for incoming webhook events.
@@ -475,10 +455,6 @@ func NewClient(url string, webSocketID string, CLIKey string, cfg *Config) *Clie
 		cfg.PingPeriod = (cfg.PongWait * 9) / 10
 	}
 
-	if cfg.ReconnectInterval == 0 {
-		cfg.ReconnectInterval = defaultReconnectInterval
-	}
-
 	if cfg.WriteWait == 0 {
 		cfg.WriteWait = defaultWriteWait
 	}
@@ -509,8 +485,6 @@ const (
 	defaultConnectAttemptWait = 10 * time.Second
 
 	defaultPongWait = 10 * time.Second
-
-	defaultReconnectInterval = 60 * time.Second
 
 	defaultWriteWait = 10 * time.Second
 )
