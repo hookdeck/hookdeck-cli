@@ -147,12 +147,13 @@ func checkAndPrintError(res *http.Response) error {
 		response := &ErrorResponse{}
 		err = json.Unmarshal(body, &response)
 		if err != nil {
-			return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
+			// Not a valid JSON response, just use body
+			return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, body)
 		}
 		if response.Message != "" {
 			return fmt.Errorf("error: %s", response.Message)
 		}
-		return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, string(body))
+		return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, body)
 	}
 	return nil
 }
@@ -164,7 +165,7 @@ func postprocessJsonResponse(res *http.Response, target interface{}) (interface{
 		return nil, err
 	}
 	err = json.Unmarshal(body, target)
-	return target, nil
+	return target, err
 }
 
 func newHTTPClient(verbose bool, unixSocket string) *http.Client {
