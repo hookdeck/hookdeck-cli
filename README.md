@@ -1,5 +1,9 @@
 # Hookdeck CLI
 
+[slack-badge]: https://img.shields.io/badge/Slack-Hookdeck%20Developers-blue?logo=slack
+
+[![slack-badge]](https://join.slack.com/t/hookdeckdevelopers/shared_invite/zt-yw7hlyzp-EQuO3QvdiBlH9Tz2KZg5MQ)
+
 Using the Hookdeck CLI, you can forward your webhooks to your local webserver. We offer unlimited **free** and **permanent** webhook URLs. Your webhook history is preserved between session and can be viewed, replayed or used for testing by you and your teammates.
 
 Hookdeck CLI is compatible with most of Hookdeck features such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your webhook integration code locally.
