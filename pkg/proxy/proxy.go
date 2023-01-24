@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,7 +45,8 @@ type Config struct {
 	PrintJSON bool
 	Log       *log.Logger
 	// Force use of unencrypted ws:// protocol instead of wss://
-	NoWSS bool
+	NoWSS    bool
+	Insecure bool
 }
 
 // A Proxy opens a websocket connection with Hookdeck, listens for incoming
@@ -246,13 +248,18 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		fmt.Println(webhookEvent.Body.Request.DataString)
 	} else {
 		url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: p.cfg.Insecure},
+		}
 
 		timeout := webhookEvent.Body.Request.Timeout
 		if timeout == 0 {
 			timeout = 1000 * 30
 		}
+
 		client := &http.Client{
-			Timeout: time.Duration(timeout) * time.Millisecond,
+			Timeout:   time.Duration(timeout) * time.Millisecond,
+			Transport: tr,
 		}
 
 		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
