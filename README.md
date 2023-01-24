@@ -161,6 +161,17 @@ Logout of your Hookdeck account and clear your stored credentials.
 hookdeck logout
 ```
 
+### Skip SSL validation
+
+If you are developing on an SSL destination, and are using a self-signed certificate, you can skip the SSL validation by using the flag `--insecure`.
+You have to specify the full URL with the protocol when using this flag.
+
+**This is dangerous, and should only be used in development scenarios, and for desitnations that you trust.**
+
+```sh-session
+hookdeck --insecure listen https://<url-or-url:port>/
+```
+
 ### Version
 
 Print your CLI version and whether or not a new version is available.
