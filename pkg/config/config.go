@@ -37,6 +37,7 @@ type Config struct {
 	ProfilesFile     string
 	APIBaseURL       string
 	DashboardBaseURL string
+	Insecure         bool
 }
 
 // GetConfigFolder retrieves the folder where the profiles file is stored
