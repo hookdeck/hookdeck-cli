@@ -66,6 +66,8 @@ func InteractiveLogin(config *config.Config) error {
 	config.Profile.ClientID = response.ClientID
 	config.Profile.DisplayName = response.UserName
 	config.Profile.TeamName = response.TeamName
+	config.Profile.TeamMode = response.TeamMode
+	config.Profile.TeamID = response.TeamID
 
 	profileErr := config.Profile.CreateProfile()
 	if profileErr != nil {
@@ -73,7 +75,7 @@ func InteractiveLogin(config *config.Config) error {
 		return profileErr
 	}
 
-	message := SuccessMessage(response.UserName, response.TeamName)
+	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
 
 	ansi.StopSpinner(s, message, os.Stdout)
 

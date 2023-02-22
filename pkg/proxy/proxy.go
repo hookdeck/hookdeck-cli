@@ -20,6 +20,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -34,12 +35,14 @@ const timeLayout = "2006-01-02 15:04:05"
 type Config struct {
 	// DeviceName is the name of the device sent to Hookdeck to help identify the device
 	DeviceName string
+	Profile    config.Profile
 	// Key is the API key used to authenticate with Hookdeck
 	Key string
 	// EndpointsMap is a mapping of local webhook endpoint urls to the events they consume
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string
+	ConsoleBaseURL   string
 	WSBaseURL        string
 	// Indicates whether to print full JSON objects to stdout
 	PrintJSON bool
@@ -313,13 +316,16 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *http.Response) {
 	localTime := time.Now().Format(timeLayout)
 	color := ansi.Color(os.Stdout)
-	outputStr := fmt.Sprintf("%s [%d] %s %s | %s/cli/events/%s",
+	var url = p.cfg.DashboardBaseURL + "/cli/events/" + webhookEvent.Body.EventID
+	if p.cfg.Profile.GetTeamMode() == "console" {
+		url = p.cfg.ConsoleBaseURL + "/?event_id=" + webhookEvent.Body.EventID
+	}
+	outputStr := fmt.Sprintf("%s [%d] %s %s | %s",
 		color.Faint(localTime),
 		ansi.ColorizeStatus(resp.StatusCode),
 		resp.Request.Method,
 		resp.Request.URL,
-		p.cfg.DashboardBaseURL,
-		webhookEvent.Body.EventID,
+		url,
 	)
 	fmt.Println(outputStr)
 

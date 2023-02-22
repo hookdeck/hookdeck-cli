@@ -82,13 +82,20 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	fmt.Println()
 	fmt.Println(ansi.Bold("Dashboard"))
 	if guest_url != "" {
-		fmt.Println("👤 Login URL: " + guest_url)
-		fmt.Println("Sign up in the dashboard to make your webhook URL permanent.")
+		fmt.Println("👤 Console URL: " + guest_url)
+		fmt.Println("Sign up in the Console to make your webhook URL permanent.")
+		fmt.Println()
+	} else {
+		var url = config.DashboardBaseURL
+		if config.Profile.GetTeamId() != "" {
+			url += "?team_id=" + config.Profile.GetTeamId()
+		}
+		if config.Profile.GetTeamMode() == "console" {
+			url = config.ConsoleBaseURL + "?source_id=" + source.Id
+		}
+		fmt.Println("👉 Inspect and replay webhooks: " + url)
 		fmt.Println()
 	}
-
-	fmt.Printf("👉 Inspect and replay webhooks: %s/cli/events\n", config.DashboardBaseURL)
-	fmt.Println()
 
 	fmt.Println(ansi.Bold(source.Label + " Source"))
 	fmt.Println("🔌 Webhook URL: " + source.Url)
@@ -110,6 +117,8 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		Key:              key,
 		APIBaseURL:       config.APIBaseURL,
 		DashboardBaseURL: config.DashboardBaseURL,
+		ConsoleBaseURL:   config.ConsoleBaseURL,
+		Profile:          config.Profile,
 		WSBaseURL:        flags.WSBaseURL,
 		NoWSS:            flags.NoWSS,
 		URL:              URL,

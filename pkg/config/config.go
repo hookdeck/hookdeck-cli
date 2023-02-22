@@ -37,6 +37,7 @@ type Config struct {
 	ProfilesFile     string
 	APIBaseURL       string
 	DashboardBaseURL string
+	ConsoleBaseURL   string
 	Insecure         bool
 }
 
