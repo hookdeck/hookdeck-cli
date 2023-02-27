@@ -37,8 +37,7 @@ type Config struct {
 	DeviceName string
 	Profile    config.Profile
 	// Key is the API key used to authenticate with Hookdeck
-	Key string
-	// EndpointsMap is a mapping of local webhook endpoint urls to the events they consume
+	Key              string
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string
