@@ -9,7 +9,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-// PollAPIKeyResponse returns the data of the polling client login
+// ValidateAPIKeyResponse returns the user and team associated with a key
 type ValidateAPIKeyResponse struct {
 	UserID   string `json:"user_id"`
 	UserName string `json:"user_name"`
@@ -19,7 +19,6 @@ type ValidateAPIKeyResponse struct {
 	ClientID string `json:"client_id"`
 }
 
-// PollForKey polls Hookdeck at the specified interval until either the API key is available or we've reached the max attempts.
 func ValidateKey(baseURL string, key string) (*ValidateAPIKeyResponse, error) {
 
 	parsedBaseURL, err := url.Parse(baseURL)
