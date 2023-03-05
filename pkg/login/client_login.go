@@ -32,12 +32,36 @@ type Links struct {
 
 // Login function is used to obtain credentials via hookdeck dashboard.
 func Login(config *config.Config, input io.Reader) error {
+	var s *spinner.Spinner
+
+	if config.Profile.APIKey != "" {
+		s = ansi.StartNewSpinner("Verifying CLI Key...", os.Stdout)
+		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey)
+		if err != nil {
+			return err
+		}
+
+		config.Profile.ClientID = response.ClientID
+		config.Profile.DisplayName = response.UserName
+		config.Profile.TeamName = response.TeamName
+		config.Profile.TeamMode = response.TeamMode
+		config.Profile.TeamID = response.TeamID
+
+		profileErr := config.Profile.CreateProfile()
+		if profileErr != nil {
+			return profileErr
+		}
+
+		message := SuccessMessage(response.UserName, response.TeamName, config.Profile.TeamMode == "console")
+		ansi.StopSpinner(s, message, os.Stdout)
+
+		return nil
+	}
+
 	links, err := getLinks(config.APIBaseURL, config.Profile.DeviceName)
 	if err != nil {
 		return err
 	}
-
-	var s *spinner.Spinner
 
 	if isSSH() || !canOpenBrowser() {
 		fmt.Printf("To authenticate with Hookdeck, please go to: %s\n", links.BrowserURL)
@@ -72,13 +96,15 @@ func Login(config *config.Config, input io.Reader) error {
 	config.Profile.ClientID = response.ClientID
 	config.Profile.DisplayName = response.UserName
 	config.Profile.TeamName = response.TeamName
+	config.Profile.TeamMode = response.TeamMode
+	config.Profile.TeamID = response.TeamID
 
 	profileErr := config.Profile.CreateProfile()
 	if profileErr != nil {
 		return profileErr
 	}
 
-	message := SuccessMessage(response.UserName, response.TeamName)
+	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
 	ansi.StopSpinner(s, message, os.Stdout)
 
 	return nil
@@ -118,6 +144,8 @@ func GuestLogin(config *config.Config) (string, error) {
 	config.Profile.ClientID = response.ClientID
 	config.Profile.DisplayName = response.UserName
 	config.Profile.TeamName = response.TeamName
+	config.Profile.TeamMode = response.TeamMode
+	config.Profile.TeamID = response.TeamID
 
 	profileErr := config.Profile.CreateProfile()
 	if profileErr != nil {

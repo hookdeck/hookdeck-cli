@@ -21,6 +21,7 @@ type PollAPIKeyResponse struct {
 	UserName string `json:"user_name"`
 	TeamID   string `json:"team_id"`
 	TeamName string `json:"team_name"`
+	TeamMode string `json:"team_mode"`
 	APIKey   string `json:"key"`
 	ClientID string `json:"client_id"`
 }

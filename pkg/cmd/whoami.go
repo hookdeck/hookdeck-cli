@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
+	"github.com/spf13/cobra"
 )
 
 type whoamiCmd struct {
@@ -22,22 +22,28 @@ func newWhoamiCmd() *whoamiCmd {
 		Use:   "whoami",
 		Args:  validators.NoArgs,
 		Short: "Show the logged-in user",
-		RunE: lc.runWhoamiCmd,
+		RunE:  lc.runWhoamiCmd,
 	}
 
 	return lc
 }
 
 func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
-	displayName := Config.Profile.GetDisplayName()
-	teamName := Config.Profile.GetTeamName()
+	key, err := Config.Profile.GetAPIKey()
+	if err != nil {
+		return err
+	}
+	response, err := login.ValidateKey(Config.APIBaseURL, key)
+	if err != nil {
+		return err
+	}
 
 	color := ansi.Color(os.Stdout)
 
 	fmt.Printf(
 		"Logged in as %s in workspace %s\n",
-		color.Bold(displayName),
-		color.Bold(teamName),
+		color.Bold(response.UserName),
+		color.Bold(response.TeamName),
 	)
 
 	return nil

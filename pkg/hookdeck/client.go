@@ -24,6 +24,8 @@ const DefaultDashboardURL = "https://dashboard.hookdeck.com"
 // DefaultDashboardBaseURL is the default base URL for dashboard requests
 const DefaultDashboardBaseURL = "http://dashboard.hookdeck.com"
 
+const DefaultConsoleBaseURL = "http://console.hookdeck.com"
+
 const DefaultWebsocektURL = "wss://ws.hookdeck.com"
 
 // Client is the API client used to sent requests to Hookdeck.

@@ -8,8 +8,14 @@ import (
 )
 
 // SuccessMessage returns the display message for a successfully authenticated user
-func SuccessMessage(displayName string, teamName string) string {
+func SuccessMessage(displayName string, teamName string, isConsole bool) string {
 	color := ansi.Color(os.Stdout)
+
+	if isConsole == true {
+		return fmt.Sprintf(
+			"Done! The Hookdeck CLI is configured with your console Sandbox",
+		)
+	}
 	return fmt.Sprintf(
 		"Done! The Hookdeck CLI is configured for %s in workspace %s\n",
 		color.Bold(displayName),

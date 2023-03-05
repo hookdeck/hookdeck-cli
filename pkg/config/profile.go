@@ -22,6 +22,8 @@ type Profile struct {
 	DeviceName  string
 	ProfileName string
 	TeamName    string
+	TeamID      string
+	TeamMode    string
 	APIKey      string
 	ClientID    string
 	DisplayName string
@@ -119,6 +121,28 @@ func (p *Profile) GetAPIKey() (string, error) {
 func (p *Profile) GetDisplayName() string {
 	if err := viper.ReadInConfig(); err == nil {
 		return viper.GetString(p.GetConfigField("display_name"))
+	}
+
+	return ""
+}
+
+func (p *Profile) GetTeamMode() string {
+	if p.TeamMode != "" {
+		return p.TeamMode
+	}
+	if err := viper.ReadInConfig(); err == nil {
+		return viper.GetString(p.GetConfigField("team_mode"))
+	}
+
+	return ""
+}
+
+func (p *Profile) GetTeamId() string {
+	if p.TeamID != "" {
+		return p.TeamID
+	}
+	if err := viper.ReadInConfig(); err == nil {
+		return viper.GetString(p.GetConfigField("team_id"))
 	}
 
 	return ""
@@ -246,6 +270,14 @@ func (p *Profile) writeProfile(runtimeViper *viper.Viper) error {
 
 	if p.TeamName != "" {
 		runtimeViper.Set(p.GetConfigField("team_name"), strings.TrimSpace(p.TeamName))
+	}
+
+	if p.TeamID != "" {
+		runtimeViper.Set(p.GetConfigField("team_id"), strings.TrimSpace(p.TeamID))
+	}
+
+	if p.TeamMode != "" {
+		runtimeViper.Set(p.GetConfigField("team_mode"), strings.TrimSpace(p.TeamMode))
 	}
 
 	runtimeViper.MergeInConfig()
