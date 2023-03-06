@@ -1,6 +1,6 @@
 {
   "name": "hookdeck-cli",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Hookdeck CLI",
   "repository": {
     "type": "git",
@@ -25,6 +25,6 @@
     "url": "https://github.com/hookdeck/hookdeck-cli/releases/download/v{{version}}/hookdeck_{{version}}_{{platform}}_{{arch}}.tar.gz"
   },
   "dependencies": {
-    "go-npm": "^0.1.9"
+    "go-npm-next": "^1.0.5"
   }
 }

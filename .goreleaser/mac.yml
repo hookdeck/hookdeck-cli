@@ -26,12 +26,6 @@ builds:
       - darwin
     goarch:
       - arm64
-archives:
-  - replacements:
-      darwin: mac-os
-      amd64: x86_64
-    files:
-      - none*
 changelog:
   sort: asc
   filters:
