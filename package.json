@@ -22,7 +22,7 @@
   "goBinary": {
     "name": "hookdeck",
     "path": "./bin",
-    "url": "https://github.com/hookdeck/hookdeck-cli/releases/download/v{{version}}/hookdeck{{version}}_{{platform}}_{{arch}}.tar.gz"
+    "url": "https://github.com/hookdeck/hookdeck-cli/releases/download/v{{version}}/hookdeck_{{version}}_{{platform}}_{{arch}}.tar.gz"
   },
   "dependencies": {
     "go-npm": "^0.1.9"
