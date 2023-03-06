@@ -1,0 +1,30 @@
+{
+  "name": "hookdeck-cli",
+  "version": "0.6.1",
+  "description": "Hookdeck CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hookdeck/hookdeck-cli.git"
+  },
+  "keywords": [
+    "hookdeck",
+    "webhooks"
+  ],
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/hookdeck/hookdeck-cli/issues"
+  },
+  "homepage": "https://github.com/hookdeck/hookdeck-cli#readme",
+  "scripts": {
+    "postinstall": "go-npm install",
+    "preuninstall": "go-npm uninstall"
+  },
+  "goBinary": {
+    "name": "hookdeck",
+    "path": "./bin",
+    "url": "https://github.com/hookdeck/hookdeck-cli/releases/download/v{{version}}/hookdeck{{version}}_{{platform}}_{{arch}}.tar.gz"
+  },
+  "dependencies": {
+    "go-npm": "^0.1.9"
+  }
+}
