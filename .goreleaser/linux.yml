@@ -28,13 +28,6 @@ builds:
       - linux
     goarch:
       - arm
-archives:
-  - replacements:
-      linux: linux
-      386: i386
-      amd64: x86_64
-    files:
-      - none*
 changelog:
   sort: asc
   filters:
