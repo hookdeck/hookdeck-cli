@@ -20,6 +20,14 @@ For a complete reference, see the [CLI reference](https://hookdeck.com/cli)
 
 Hookdeck CLI is available for macOS, Windows, and Linux for distros like Ubuntu, Debian, RedHat and CentOS.
 
+### NPM
+
+Hookdeck CLI is distributed as an NPM package:
+
+```sh
+npm install hookdeck -g
+```
+
 ### macOS
 
 Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/):
@@ -42,7 +50,7 @@ scoop install hookdeck
 To install the Hookdeck CLI on Linux without a package manager:
 
 1. Download the latest linux tar.gz file from https://github.com/hookdeck/hookdeck-cli/releases/latest
-2. Unzip the file: tar -xvf stripe_X.X.X_linux_x86_64.tar.gz
+2. Unzip the file: tar -xvf hookdeck_X.X.X_linux_amd64.tar.gz
 3. Run the executable: ./hookdeck
 
 ### Docker
