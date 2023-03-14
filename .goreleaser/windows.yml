@@ -1,0 +1,49 @@
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    - go mod download
+    - go generate ./...
+project_name: hookdeck
+builds:
+  - id: hookdeck-windows
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    binary: hookdeck
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+    main: ./main.go
+    goos:
+      - windows
+    goarch:
+      - amd64
+      - 386
+archives:
+  - replacements:
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+checksum:
+  name_template: "{{ .ProjectName }}-windows-checksums.txt"
+snapshot:
+  name_template: "{{ .Tag }}-next"
+scoop:
+  bucket:
+    owner: hookdeck
+    name: scoop-hookdeck
+  commit_author:
+    name: hookdeck-ci
+    email: support@hookdeck.com
+  homepage: https://hookdeck.com
+  description: Hookdeck CLI utility
+  license: Apache 2.0
