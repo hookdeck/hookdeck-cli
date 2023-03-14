@@ -31,7 +31,7 @@ changelog:
       - "^docs:"
       - "^test:"
 checksum:
-  name_template: "{{ .ProjectName }}-windows-checksums.txt"
+  name_template: "{{ .ProjectName }}-windows-checksums-npm.txt"
 snapshot:
   name_template: "{{ .Tag }}-next"
 scoop:
