@@ -22,9 +22,6 @@ builds:
       - 386
 archives:
   - replacements:
-    format_overrides:
-      - goos: windows
-        format: zip
     files:
       - none*
 changelog:
