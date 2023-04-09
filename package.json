@@ -15,9 +15,12 @@
     "url": "https://github.com/hookdeck/hookdeck-cli/issues"
   },
   "homepage": "https://github.com/hookdeck/hookdeck-cli#readme",
+  "bin": {
+    "hookdeck": "./bin/hookdeck"
+  },
+  "files": [],
   "scripts": {
-    "postinstall": "go-npm install",
-    "preuninstall": "go-npm uninstall"
+    "preinstall": "go-npm install"
   },
   "goBinary": {
     "name": "hookdeck",
@@ -25,6 +28,6 @@
     "url": "https://github.com/hookdeck/hookdeck-cli/releases/download/v{{version}}/hookdeck_{{version}}_{{platform}}_{{arch}}.tar.gz"
   },
   "dependencies": {
-    "go-npm-next": "^1.0.5"
+    "go-npm-next": "^1.0.6"
   }
 }
