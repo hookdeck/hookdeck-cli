@@ -1,6 +1,6 @@
 {
   "name": "hookdeck-cli",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "Hookdeck CLI",
   "repository": {
     "type": "git",
@@ -20,7 +20,8 @@
   },
   "files": [],
   "scripts": {
-    "preinstall": "go-npm install"
+    "postinstall": "go-npm install",
+    "preuninstall": "go-npm uninstall"
   },
   "goBinary": {
     "name": "hookdeck",
