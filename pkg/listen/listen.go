@@ -17,7 +17,6 @@ package listen
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -44,8 +43,15 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	var err error
 	var guest_url string
 
-	if (flags.CI) {
-		return errors.New("handling CI")
+	if flags.CI == true {
+		err = login.CILogin(config, flags.APIKey)
+		if err != nil {
+			return err
+		}
+		key, err = config.Profile.GetAPIKey()
+		if err != nil {
+			return err
+		}
 	} else {
 		key, err = config.Profile.GetAPIKey()
 		if err != nil {
@@ -77,7 +83,6 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		APIKey:  key,
 	}
 
-	fmt.Println("hola")
 	source, err := getSource(client, source_alias)
 	if err != nil {
 		return err

@@ -155,6 +155,39 @@ func GuestLogin(config *config.Config) (string, error) {
 	return guest_user.Url, nil
 }
 
+func CILogin(config *config.Config, apiKey string) error {
+	parsedBaseURL, err := url.Parse(config.APIBaseURL)
+	if err != nil {
+		return err
+	}
+
+	client := &hookdeck.Client{
+		BaseURL: parsedBaseURL,
+		APIKey: apiKey,
+	}
+
+	response, err := client.CreateCIClient(hookdeck.CreateCIClientInput{
+		DeviceName: config.Profile.DeviceName,
+	})
+	if err != nil {
+		return err
+	}
+
+	validateErr := validators.APIKey(response.APIKey)
+	if validateErr != nil {
+		return validateErr
+	}
+
+	config.Profile.APIKey = response.APIKey
+	config.Profile.ClientID = response.ClientID
+	config.Profile.DisplayName = response.UserName
+	config.Profile.TeamName = response.TeamName
+	config.Profile.TeamMode = response.TeamMode
+	config.Profile.TeamID = response.TeamID
+
+	return nil
+}
+
 func getLinks(baseURL string, deviceName string) (*Links, error) {
 	parsedBaseURL, err := url.Parse(baseURL)
 	if err != nil {
