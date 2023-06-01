@@ -17,6 +17,7 @@ package listen
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -33,6 +34,8 @@ import (
 type Flags struct {
 	NoWSS     bool
 	WSBaseURL string
+	CI        bool
+	APIKey    string
 }
 
 // listenCmd represents the listen command
@@ -41,21 +44,26 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	var err error
 	var guest_url string
 
-	key, err = config.Profile.GetAPIKey()
-	if err != nil {
-		errString := err.Error()
-		if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
-			guest_url, _ = login.GuestLogin(config)
-			if guest_url == "" {
-				return err
-			}
+	if (flags.CI) {
+		return errors.New("handling CI")
+	} else {
+		key, err = config.Profile.GetAPIKey()
+		if err != nil {
+			errString := err.Error()
 
-			key, err = config.Profile.GetAPIKey()
-			if err != nil {
+			if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
+				guest_url, _ = login.GuestLogin(config)
+				if guest_url == "" {
+					return err
+				}
+
+				key, err = config.Profile.GetAPIKey()
+				if err != nil {
+					return err
+				}
+			} else {
 				return err
 			}
-		} else {
-			return err
 		}
 	}
 
@@ -69,6 +77,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		APIKey:  key,
 	}
 
+	fmt.Println("hola")
 	source, err := getSource(client, source_alias)
 	if err != nil {
 		return err
