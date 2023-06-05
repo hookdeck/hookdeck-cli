@@ -33,7 +33,6 @@ import (
 type Flags struct {
 	NoWSS     bool
 	WSBaseURL string
-	CI        bool
 	APIKey    string
 }
 
@@ -43,33 +42,22 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	var err error
 	var guest_url string
 
-	if flags.CI == true {
-		err = login.CILogin(config, flags.APIKey)
-		if err != nil {
-			return err
-		}
-		key, err = config.Profile.GetAPIKey()
-		if err != nil {
-			return err
-		}
-	} else {
-		key, err = config.Profile.GetAPIKey()
-		if err != nil {
-			errString := err.Error()
+	key, err = config.Profile.GetAPIKey()
+	if err != nil {
+		errString := err.Error()
 
-			if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
-				guest_url, _ = login.GuestLogin(config)
-				if guest_url == "" {
-					return err
-				}
-
-				key, err = config.Profile.GetAPIKey()
-				if err != nil {
-					return err
-				}
-			} else {
+		if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
+			guest_url, _ = login.GuestLogin(config)
+			if guest_url == "" {
 				return err
 			}
+
+			key, err = config.Profile.GetAPIKey()
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
 		}
 	}
 

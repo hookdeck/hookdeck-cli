@@ -79,7 +79,6 @@ func newListenCmd() *listenCmd {
 	}
 	lc.cmd.Flags().StringVar(&lc.wsBaseURL, "ws-base", hookdeck.DefaultWebsocektURL, "Sets the Websocket base URL")
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
-	lc.cmd.Flags().BoolVar(&lc.ci, "ci", false, "Whether this is run in an CI environment")
 	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", "", "Your API key to use for the command")
 
 	return lc
@@ -114,7 +113,6 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	return listen.Listen(url, source_alias, connection_query, listen.Flags{
 		WSBaseURL: lc.wsBaseURL,
 		NoWSS:     lc.noWSS,
-		CI:        lc.ci,
 		APIKey:    lc.apiKey,
 	}, &Config)
 }
