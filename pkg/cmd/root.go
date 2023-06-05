@@ -104,6 +104,7 @@ func init() {
 
 	rootCmd.Flags().BoolP("version", "v", false, "Get the version of the Hookdeck CLI")
 
+	rootCmd.AddCommand(newCICmd().cmd)
 	rootCmd.AddCommand(newLoginCmd().cmd)
 	rootCmd.AddCommand(newLogoutCmd().cmd)
 	rootCmd.AddCommand(newListenCmd().cmd)

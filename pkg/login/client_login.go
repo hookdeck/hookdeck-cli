@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -184,6 +185,14 @@ func CILogin(config *config.Config, apiKey string) error {
 	config.Profile.TeamName = response.TeamName
 	config.Profile.TeamMode = response.TeamMode
 	config.Profile.TeamID = response.TeamID
+
+	profileErr := config.Profile.CreateProfile()
+	if profileErr != nil {
+		return profileErr
+	}
+
+	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
+	log.Println(message)
 
 	return nil
 }
