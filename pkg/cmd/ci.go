@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -30,5 +31,9 @@ func newCICmd() *ciCmd {
 }
 
 func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
+	err := validators.APIKey(lc.apiKey)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return login.CILogin(&Config, lc.apiKey)
 }
