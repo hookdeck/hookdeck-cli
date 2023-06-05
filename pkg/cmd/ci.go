@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
@@ -22,7 +24,7 @@ func newCICmd() *ciCmd {
 		Long:  `Login to your Hookdeck account to forward events in CI`,
 		RunE:  lc.runCICmd,
 	}
-	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", "", "Your API key to use for the command")
+	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", os.Getenv("HOOKDECK_API_KEY"), "Your API key to use for the command")
 
 	return lc
 }
