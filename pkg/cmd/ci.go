@@ -13,6 +13,7 @@ import (
 type ciCmd struct {
 	cmd    *cobra.Command
 	apiKey string
+	name   string
 }
 
 func newCICmd() *ciCmd {
@@ -26,6 +27,7 @@ func newCICmd() *ciCmd {
 		RunE:  lc.runCICmd,
 	}
 	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", os.Getenv("HOOKDECK_API_KEY"), "Your API key to use for the command")
+	lc.cmd.Flags().StringVar(&lc.name, "name", "", "Your CI name (ex: $GITHUB_REF)")
 
 	return lc
 }
@@ -35,5 +37,5 @@ func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return login.CILogin(&Config, lc.apiKey)
+	return login.CILogin(&Config, lc.apiKey, lc.name)
 }

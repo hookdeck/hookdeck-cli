@@ -156,7 +156,7 @@ func GuestLogin(config *config.Config) (string, error) {
 	return guest_user.Url, nil
 }
 
-func CILogin(config *config.Config, apiKey string) error {
+func CILogin(config *config.Config, apiKey string, name string) error {
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return err
@@ -167,8 +167,12 @@ func CILogin(config *config.Config, apiKey string) error {
 		APIKey: apiKey,
 	}
 
+	deviceName := name
+	if deviceName == "" {
+		deviceName = config.Profile.DeviceName
+	}
 	response, err := client.CreateCIClient(hookdeck.CreateCIClientInput{
-		DeviceName: config.Profile.DeviceName,
+		DeviceName: deviceName,
 	})
 	if err != nil {
 		return err
