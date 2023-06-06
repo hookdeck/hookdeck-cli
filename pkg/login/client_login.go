@@ -178,9 +178,8 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 		return err
 	}
 
-	validateErr := validators.APIKey(response.APIKey)
-	if validateErr != nil {
-		return validateErr
+	if err := validators.APIKey(response.APIKey); err != nil {
+		return err
 	}
 
 	config.Profile.APIKey = response.APIKey
@@ -190,9 +189,8 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 	config.Profile.TeamMode = response.TeamMode
 	config.Profile.TeamID = response.TeamID
 
-	profileErr := config.Profile.CreateProfile()
-	if profileErr != nil {
-		return profileErr
+	if err := config.Profile.CreateProfile(); err != nil {
+		return err
 	}
 
 	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
