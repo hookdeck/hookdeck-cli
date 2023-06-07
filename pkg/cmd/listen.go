@@ -30,8 +30,6 @@ type listenCmd struct {
 	cmd       *cobra.Command
 	wsBaseURL string
 	noWSS     bool
-	ci        bool
-	apiKey    string
 }
 
 func newListenCmd() *listenCmd {
@@ -79,7 +77,6 @@ func newListenCmd() *listenCmd {
 	}
 	lc.cmd.Flags().StringVar(&lc.wsBaseURL, "ws-base", hookdeck.DefaultWebsocektURL, "Sets the Websocket base URL")
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
-	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", "", "Your API key to use for the command")
 
 	return lc
 }
@@ -113,6 +110,5 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	return listen.Listen(url, source_alias, connection_query, listen.Flags{
 		WSBaseURL: lc.wsBaseURL,
 		NoWSS:     lc.noWSS,
-		APIKey:    lc.apiKey,
 	}, &Config)
 }

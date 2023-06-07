@@ -33,7 +33,6 @@ import (
 type Flags struct {
 	NoWSS     bool
 	WSBaseURL string
-	APIKey    string
 }
 
 // listenCmd represents the listen command
@@ -45,7 +44,6 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	key, err = config.Profile.GetAPIKey()
 	if err != nil {
 		errString := err.Error()
-
 		if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
 			guest_url, _ = login.GuestLogin(config)
 			if guest_url == "" {
