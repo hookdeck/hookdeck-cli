@@ -196,6 +196,29 @@ Configure auto-completion for Hookdeck CLI. It is run on install when using Home
 hookdeck completion
 ```
 
+### Running in CI
+
+If you want to use Hookdeck in CI for tests or any other purposes, you can use your HOOKDECK_API_KEY to authenticate and start forwarding events.
+
+```sh-session
+$ hookdeck ci --api-key $HOOKDECK_API_KEY
+Done! The Hookdeck CLI is configured in workspace MyWorkspace
+
+$ hookdeck listen 3000 shopify orders
+
+👉  Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events
+
+Shopify Source
+🔌 Webhook URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+
+Connections
+Inventory Service forwarding to /webhooks/shopify/inventory
+
+
+⣾ Getting ready...
+
+```
+
 ## Developing
 
 Build from source by running:
