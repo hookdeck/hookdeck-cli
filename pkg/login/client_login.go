@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -153,6 +154,49 @@ func GuestLogin(config *config.Config) (string, error) {
 	}
 
 	return guest_user.Url, nil
+}
+
+func CILogin(config *config.Config, apiKey string, name string) error {
+	parsedBaseURL, err := url.Parse(config.APIBaseURL)
+	if err != nil {
+		return err
+	}
+
+	client := &hookdeck.Client{
+		BaseURL: parsedBaseURL,
+		APIKey: apiKey,
+	}
+
+	deviceName := name
+	if deviceName == "" {
+		deviceName = config.Profile.DeviceName
+	}
+	response, err := client.CreateCIClient(hookdeck.CreateCIClientInput{
+		DeviceName: deviceName,
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := validators.APIKey(response.APIKey); err != nil {
+		return err
+	}
+
+	config.Profile.APIKey = response.APIKey
+	config.Profile.ClientID = response.ClientID
+	config.Profile.DisplayName = response.UserName
+	config.Profile.TeamName = response.TeamName
+	config.Profile.TeamMode = response.TeamMode
+	config.Profile.TeamID = response.TeamID
+
+	if err := config.Profile.CreateProfile(); err != nil {
+		return err
+	}
+
+	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
+	log.Println(message)
+
+	return nil
 }
 
 func getLinks(baseURL string, deviceName string) (*Links, error) {
