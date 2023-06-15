@@ -28,6 +28,8 @@ const DefaultConsoleBaseURL = "http://console.hookdeck.com"
 
 const DefaultWebsocektURL = "wss://ws.hookdeck.com"
 
+const DefaultProfileName = "default"
+
 // Client is the API client used to sent requests to Hookdeck.
 type Client struct {
 	// The base URL (protocol + hostname) used for all requests sent by this

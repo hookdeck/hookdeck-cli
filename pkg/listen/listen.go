@@ -32,7 +32,6 @@ import (
 
 type Flags struct {
 	NoWSS     bool
-	WSBaseURL string
 }
 
 // listenCmd represents the listen command
@@ -119,7 +118,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		DashboardBaseURL: config.DashboardBaseURL,
 		ConsoleBaseURL:   config.ConsoleBaseURL,
 		Profile:          config.Profile,
-		WSBaseURL:        flags.WSBaseURL,
+		WSBaseURL:        config.WSBaseURL,
 		NoWSS:            flags.NoWSS,
 		URL:              URL,
 		Log:              log.StandardLogger(),

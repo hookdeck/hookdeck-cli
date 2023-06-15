@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen"
 	"github.com/spf13/cobra"
 )
@@ -75,7 +74,6 @@ func newListenCmd() *listenCmd {
 		},
 		RunE: lc.runListenCmd,
 	}
-	lc.cmd.Flags().StringVar(&lc.wsBaseURL, "ws-base", hookdeck.DefaultWebsocektURL, "Sets the Websocket base URL")
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 
 	return lc
@@ -108,7 +106,6 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	return listen.Listen(url, source_alias, connection_query, listen.Flags{
-		WSBaseURL: lc.wsBaseURL,
 		NoWSS:     lc.noWSS,
 	}, &Config)
 }
