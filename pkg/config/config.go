@@ -18,6 +18,7 @@ import (
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 // ColorOn represnets the on-state for colors
@@ -38,7 +39,11 @@ type Config struct {
 	APIBaseURL       string
 	DashboardBaseURL string
 	ConsoleBaseURL   string
+	WSBaseURL        string
 	Insecure         bool
+
+	GlobalConfig *viper.Viper
+	LocalConfig  *viper.Viper
 }
 
 // GetConfigFolder retrieves the folder where the profiles file is stored
@@ -72,33 +77,56 @@ func (c *Config) InitConfig() {
 		TimestampFormat: time.RFC1123,
 	}
 
+	c.GlobalConfig = viper.New()
+	c.LocalConfig = viper.New()
 	c.Profile.Config = c
 
-	if c.ProfilesFile != "" {
-		viper.SetConfigFile(c.ProfilesFile)
-	} else {
-		configFolder := c.GetConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
-		configFile := filepath.Join(configFolder, "config.toml")
-		c.ProfilesFile = configFile
-		viper.SetConfigType("toml")
-		viper.SetConfigFile(configFile)
-		viper.SetConfigPermissions(os.FileMode(0600))
-
-		// Try to change permissions manually, because we used to create files
-		// with default permissions (0644)
-		err := os.Chmod(configFile, os.FileMode(0600))
-		if err != nil && !os.IsNotExist(err) {
-			log.Fatalf("%s", err)
-		}
+	// Read global config
+	GlobalConfigFolder := c.GetConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
+	GlobalConfigFile := filepath.Join(GlobalConfigFolder, "config.toml")
+	c.GlobalConfig.SetConfigType("toml")
+	c.GlobalConfig.SetConfigFile(GlobalConfigFile)
+	c.GlobalConfig.SetConfigPermissions(os.FileMode(0600))
+	// Try to change permissions manually, because we used to create files
+	// with default permissions (0644)
+	err := os.Chmod(GlobalConfigFile, os.FileMode(0600))
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatalf("%s", err)
 	}
-
-	// If a profiles file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
+	if err := c.GlobalConfig.ReadInConfig(); err == nil {
 		log.WithFields(log.Fields{
 			"prefix": "config.Config.InitConfig",
-			"path":   viper.ConfigFileUsed(),
+			"path":   c.GlobalConfig.ConfigFileUsed(),
 		}).Debug("Using profiles file")
 	}
+
+	// Read local config
+	workspaceFolder, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	LocalConfigFile := ""
+	if c.ProfilesFile == "" {
+		LocalConfigFile = filepath.Join(workspaceFolder, "hookdeck.toml")
+	} else {
+		if filepath.IsAbs(c.ProfilesFile) {
+			LocalConfigFile = c.ProfilesFile
+		} else {
+			LocalConfigFile = filepath.Join(workspaceFolder, c.ProfilesFile)
+		}
+	}
+	c.LocalConfig.SetConfigType("toml")
+	c.LocalConfig.SetConfigFile(LocalConfigFile)
+	c.ProfilesFile = LocalConfigFile
+	if err := c.LocalConfig.ReadInConfig(); err == nil {
+		log.WithFields(log.Fields{
+			"prefix": "config.Config.InitConfig",
+			"path":   c.LocalConfig.ConfigFileUsed(),
+		}).Debug("Using profiles file")
+	}
+
+	// Construct the config struct
+	c.constructConfig()
 
 	if c.Profile.DeviceName == "" {
 		deviceName, err := os.Hostname()
@@ -201,7 +229,7 @@ func (c *Config) PrintConfig() error {
 // RemoveProfile removes the profile whose name matches the provided
 // profileName from the config file.
 func (c *Config) RemoveProfile(profileName string) error {
-	runtimeViper := viper.GetViper()
+	runtimeViper := c.GlobalConfig
 	var err error
 
 	for field, value := range runtimeViper.AllSettings() {
@@ -213,12 +241,15 @@ func (c *Config) RemoveProfile(profileName string) error {
 		}
 	}
 
-	return syncConfig(runtimeViper)
+	runtimeViper.SetConfigType("toml")
+	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
+	c.GlobalConfig = runtimeViper
+	return c.GlobalConfig.WriteConfig()
 }
 
 // RemoveAllProfiles removes all the profiles from the config file.
 func (c *Config) RemoveAllProfiles() error {
-	runtimeViper := viper.GetViper()
+	runtimeViper := c.GlobalConfig
 	var err error
 
 	for field, value := range runtimeViper.AllSettings() {
@@ -230,7 +261,34 @@ func (c *Config) RemoveAllProfiles() error {
 		}
 	}
 
-	return syncConfig(runtimeViper)
+	runtimeViper.SetConfigType("toml")
+	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
+	c.GlobalConfig = runtimeViper
+	return c.GlobalConfig.WriteConfig()
+}
+
+// Construct the config struct from flags > local config > global config
+func (c *Config) constructConfig() {
+	c.Color               = getStringConfig(c.Color              , c.LocalConfig.GetString("color")         , c.GlobalConfig.GetString(("color"))         , "auto")
+	c.LogLevel            = getStringConfig(c.LogLevel           , c.LocalConfig.GetString("log")           , c.GlobalConfig.GetString(("log"))           , "info")
+	c.APIBaseURL          = getStringConfig(c.APIBaseURL         , c.LocalConfig.GetString("api_base")      , c.GlobalConfig.GetString(("api_base"))      , hookdeck.DefaultAPIBaseURL)
+	c.DashboardBaseURL    = getStringConfig(c.DashboardBaseURL   , c.LocalConfig.GetString("dashboard_base"), c.GlobalConfig.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
+	c.ConsoleBaseURL      = getStringConfig(c.ConsoleBaseURL     , c.LocalConfig.GetString("console_base")  , c.GlobalConfig.GetString(("console_base"))  , hookdeck.DefaultConsoleBaseURL)
+	c.WSBaseURL           = getStringConfig(c.WSBaseURL          , c.LocalConfig.GetString("ws_base")       , c.GlobalConfig.GetString(("ws_base"))       , hookdeck.DefaultWebsocektURL)
+	c.Profile.ProfileName = getStringConfig(c.Profile.ProfileName, c.LocalConfig.GetString("profile")       , c.GlobalConfig.GetString(("profile"))      , "default")
+}
+
+func getStringConfig(v1 string, v2 string, v3 string, v4 string) string {
+	if v1 != "" {
+		return v1
+	}
+	if v2 != "" {
+		return v2
+	}
+	if v3 != "" {
+		return v3
+	}
+	return v4
 }
 
 // isProfile identifies whether a value in the config pertains to a profile.
@@ -238,22 +296,6 @@ func isProfile(value interface{}) bool {
 	// TODO: ianjabour - ideally find a better way to identify projects in config
 	_, ok := value.(map[string]interface{})
 	return ok
-}
-
-// syncConfig merges a runtimeViper instance with the config file being used.
-func syncConfig(runtimeViper *viper.Viper) error {
-	runtimeViper.MergeInConfig()
-	profilesFile := viper.ConfigFileUsed()
-	runtimeViper.SetConfigFile(profilesFile)
-	// Ensure we preserve the config file type
-	runtimeViper.SetConfigType(filepath.Ext(profilesFile))
-
-	err := runtimeViper.WriteConfig()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Temporary workaround until https://github.com/spf13/viper/pull/519 can remove a key from viper

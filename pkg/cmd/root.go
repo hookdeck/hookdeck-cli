@@ -95,12 +95,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.DeviceName, "device-name", "", "device name")
 	rootCmd.PersistentFlags().StringVar(&Config.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().BoolVar(&Config.Insecure, "insecure", false, "Allow invalid TLS certificates")
-	rootCmd.PersistentFlags().StringVarP(&Config.Profile.ProfileName, "project-name", "p", "default", "the project name to read from for config")
+	rootCmd.PersistentFlags().StringVarP(&Config.Profile.ProfileName, "project-name", "p", "", fmt.Sprintf("the project name to read from for config (default \"%s\")", hookdeck.DefaultProfileName))
 
 	// Hidden configuration flags, useful for dev/debugging
-	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", hookdeck.DefaultAPIBaseURL, "Sets the API base URL")
-	rootCmd.PersistentFlags().StringVar(&Config.DashboardBaseURL, "dashboard-base", hookdeck.DefaultDashboardBaseURL, "Sets the web dashboard base URL")
-	rootCmd.PersistentFlags().StringVar(&Config.ConsoleBaseURL, "console-base", hookdeck.DefaultConsoleBaseURL, "Sets the web console base URL")
+	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", "", fmt.Sprintf("Sets the API base URL (default \"%s\")", hookdeck.DefaultAPIBaseURL))
+	rootCmd.PersistentFlags().StringVar(&Config.DashboardBaseURL, "dashboard-base", "", fmt.Sprintf("Sets the web dashboard base URL (default \"%s\")", hookdeck.DefaultDashboardBaseURL))
+	rootCmd.PersistentFlags().StringVar(&Config.ConsoleBaseURL, "console-base", "", fmt.Sprintf("Sets the web console base URL (default \"%s\")", hookdeck.DefaultConsoleBaseURL))
+	rootCmd.PersistentFlags().StringVar(&Config.WSBaseURL, "ws-base", "", fmt.Sprintf("Sets the Websocket base URL (default \"%s\")", hookdeck.DefaultWebsocektURL))
 
 	rootCmd.Flags().BoolP("version", "v", false, "Get the version of the Hookdeck CLI")
 

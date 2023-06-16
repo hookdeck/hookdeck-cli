@@ -35,7 +35,7 @@ type partialPollResponse struct {
 
 // CreateProfile creates a profile when logging in
 func (p *Profile) CreateProfile() error {
-	writeErr := p.writeProfile(viper.GetViper())
+	writeErr := p.writeProfile(p.Config.GlobalConfig)
 	if writeErr != nil {
 		return writeErr
 	}
@@ -46,12 +46,12 @@ func (p *Profile) CreateProfile() error {
 // GetColor gets the color setting for the user based on the flag or the
 // persisted color stored in the config file
 func (p *Profile) GetColor() (string, error) {
-	color := viper.GetString("color")
+	color := p.Config.GlobalConfig.GetString("color")
 	if color != "" {
 		return color, nil
 	}
 
-	color = viper.GetString(p.GetConfigField("color"))
+	color = p.Config.GlobalConfig.GetString(p.GetConfigField("color"))
 	switch color {
 	case "", ColorAuto:
 		return ColorAuto, nil
@@ -74,8 +74,8 @@ func (p *Profile) GetDeviceName() (string, error) {
 		return p.DeviceName, nil
 	}
 
-	if err := viper.ReadInConfig(); err == nil {
-		return viper.GetString(p.GetConfigField("device_name")), nil
+	if err := p.Config.GlobalConfig.ReadInConfig(); err == nil {
+		return p.Config.GlobalConfig.GetString(p.GetConfigField("device_name")), nil
 	}
 
 	return "", validators.ErrDeviceNameNotConfigured
@@ -103,8 +103,8 @@ func (p *Profile) GetAPIKey() (string, error) {
 	}
 
 	// Try to fetch the API key from the configuration file
-	if err := viper.ReadInConfig(); err == nil {
-		key := viper.GetString(p.GetConfigField("api_key"))
+	if err := p.Config.GlobalConfig.ReadInConfig(); err == nil {
+		key := p.Config.GlobalConfig.GetString(p.GetConfigField("api_key"))
 
 		err := validators.APIKey(key)
 		if err != nil {
@@ -119,8 +119,8 @@ func (p *Profile) GetAPIKey() (string, error) {
 
 // GetDisplayName returns the account display name of the user
 func (p *Profile) GetDisplayName() string {
-	if err := viper.ReadInConfig(); err == nil {
-		return viper.GetString(p.GetConfigField("display_name"))
+	if err := p.Config.GlobalConfig.ReadInConfig(); err == nil {
+		return p.Config.GlobalConfig.GetString(p.GetConfigField("display_name"))
 	}
 
 	return ""
@@ -130,8 +130,8 @@ func (p *Profile) GetTeamMode() string {
 	if p.TeamMode != "" {
 		return p.TeamMode
 	}
-	if err := viper.ReadInConfig(); err == nil {
-		return viper.GetString(p.GetConfigField("team_mode"))
+	if err := p.Config.GlobalConfig.ReadInConfig(); err == nil {
+		return p.Config.GlobalConfig.GetString(p.GetConfigField("team_mode"))
 	}
 
 	return ""
@@ -141,8 +141,8 @@ func (p *Profile) GetTeamId() string {
 	if p.TeamID != "" {
 		return p.TeamID
 	}
-	if err := viper.ReadInConfig(); err == nil {
-		return viper.GetString(p.GetConfigField("team_id"))
+	if err := p.Config.GlobalConfig.ReadInConfig(); err == nil {
+		return p.Config.GlobalConfig.GetString(p.GetConfigField("team_id"))
 	}
 
 	return ""
@@ -190,11 +190,11 @@ func (p *Profile) refreshTeamName() string {
 
 // GetDisplayName returns the account display name of the team
 func (p *Profile) GetTeamName() string {
-	if err := viper.ReadInConfig(); err != nil {
+	if err := p.Config.GlobalConfig.ReadInConfig(); err != nil {
 		return ""
 	}
 
-	teamName := viper.GetString(p.GetConfigField("team_name"))
+	teamName := p.Config.GlobalConfig.GetString(p.GetConfigField("team_name"))
 
 	if teamName == p.GetDisplayName() {
 		// Could be a bug where we used to store the display name in the
@@ -210,8 +210,8 @@ func (p *Profile) GetTeamName() string {
 
 // GetTerminalPOSDeviceID returns the device id from the config for Terminal quickstart to use
 func (p *Profile) GetTerminalPOSDeviceID() string {
-	if err := viper.ReadInConfig(); err == nil {
-		return viper.GetString(p.GetConfigField("terminal_pos_device_id"))
+	if err := p.Config.GlobalConfig.ReadInConfig(); err == nil {
+		return p.Config.GlobalConfig.GetString(p.GetConfigField("terminal_pos_device_id"))
 	}
 
 	return ""
@@ -224,19 +224,19 @@ func (p *Profile) GetConfigField(field string) string {
 
 // RegisterAlias registers an alias for a given key.
 func (p *Profile) RegisterAlias(alias, key string) {
-	viper.RegisterAlias(p.GetConfigField(alias), p.GetConfigField(key))
+	p.Config.GlobalConfig.RegisterAlias(p.GetConfigField(alias), p.GetConfigField(key))
 }
 
 // WriteConfigField updates a configuration field and writes the updated
 // configuration to disk.
 func (p *Profile) WriteConfigField(field, value string) error {
-	viper.Set(p.GetConfigField(field), value)
-	return viper.WriteConfig()
+	p.Config.GlobalConfig.Set(p.GetConfigField(field), value)
+	return p.Config.GlobalConfig.WriteConfig()
 }
 
 // DeleteConfigField deletes a configuration field.
 func (p *Profile) DeleteConfigField(field string) error {
-	v, err := removeKey(viper.GetViper(), p.GetConfigField(field))
+	v, err := removeKey(p.Config.GlobalConfig, p.GetConfigField(field))
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (p *Profile) DeleteConfigField(field string) error {
 }
 
 func (p *Profile) writeProfile(runtimeViper *viper.Viper) error {
-	profilesFile := viper.ConfigFileUsed()
+	profilesFile := p.Config.GlobalConfig.ConfigFileUsed()
 
 	err := makePath(profilesFile)
 	if err != nil {
