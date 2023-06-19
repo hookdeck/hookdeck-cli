@@ -8,27 +8,24 @@ import (
 
 // Logout function is used to clear the credentials set for the current Profile
 func Logout(config *config.Config) error {
-	key, _ := config.Profile.GetAPIKey()
-
-	if key == "" {
+	if config.APIKey == "" {
 		fmt.Println("You are already logged out.")
 		return nil
 	}
 
 	fmt.Println("Logging out...")
 
-	profileName := config.Profile.ProfileName
-
-	err := config.RemoveProfile(profileName)
-	if err != nil {
+	if err := config.ClearWorkspace(); err != nil {
 		return err
 	}
 
-	if profileName == "default" {
-		fmt.Println("Credentials have been cleared for the default project.")
-	} else {
-		fmt.Printf("Credentials have been cleared for %s.\n", profileName)
-	}
+	// TOOD: figure out success notice for logout?
+	// username := config.Client.UserName
+	// if err := config.Clear(); err != nil {
+	// 	return err
+	// }
+
+	// fmt.Printf("Credentials have been cleared for %s.\n", username)
 
 	return nil
 }

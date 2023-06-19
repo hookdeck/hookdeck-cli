@@ -35,22 +35,11 @@ type Links struct {
 func Login(config *config.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
-	if config.Profile.APIKey != "" {
+	if config.APIKey != "" {
 		s = ansi.StartNewSpinner("Verifying CLI Key...", os.Stdout)
-		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey)
+		response, err := ValidateKey(config.APIBaseURL, config.APIKey, config.CurrentTeam)
 		if err != nil {
 			return err
-		}
-
-		config.Profile.ClientID = response.ClientID
-		config.Profile.DisplayName = response.UserName
-		config.Profile.TeamName = response.TeamName
-		config.Profile.TeamMode = response.TeamMode
-		config.Profile.TeamID = response.TeamID
-
-		profileErr := config.Profile.CreateProfile()
-		if profileErr != nil {
-			return profileErr
 		}
 
 		message := SuccessMessage(response.UserName, response.TeamName, config.Profile.TeamMode == "console")
@@ -88,21 +77,13 @@ func Login(config *config.Config, input io.Reader) error {
 		return err
 	}
 
-	validateErr := validators.APIKey(response.APIKey)
-	if validateErr != nil {
-		return validateErr
+	err = validators.APIKey(response.APIKey)
+	if err != nil {
+		return err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ClientID = response.ClientID
-	config.Profile.DisplayName = response.UserName
-	config.Profile.TeamName = response.TeamName
-	config.Profile.TeamMode = response.TeamMode
-	config.Profile.TeamID = response.TeamID
-
-	profileErr := config.Profile.CreateProfile()
-	if profileErr != nil {
-		return profileErr
+	if err = config.SaveWorkspace(response.APIKey, response.TeamID); err != nil {
+		return err
 	}
 
 	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")

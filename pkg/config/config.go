@@ -34,8 +34,11 @@ const ColorAuto = "auto"
 type Config struct {
 	Color            string
 	LogLevel         string
-	Profile          Profile
-	ProfilesFile     string
+	APIKey           string
+	CurrentTeam      string
+	ProfilesFile     string // Config file -- TODO: rename
+	Profile          Profile // @deprecated
+	// Helpers
 	APIBaseURL       string
 	DashboardBaseURL string
 	ConsoleBaseURL   string
@@ -226,6 +229,39 @@ func (c *Config) PrintConfig() error {
 	return nil
 }
 
+// SaveWorkspace selects the active workspace to be used
+func (c *Config) SaveWorkspace(apiKey string, teamId string) error {
+	c.GlobalConfig.Set("api_key", apiKey)
+	c.GlobalConfig.Set("workspace", teamId)
+	return c.GlobalConfig.WriteConfig()
+}
+
+// ClearWorkspace log user out
+func (c *Config) ClearWorkspace() error {
+	var err error
+	runtimeViper := c.GlobalConfig
+
+	runtimeViper, err = removeKey(runtimeViper, "api_key");
+	if err != nil {
+		return err
+	}
+	runtimeViper, err = removeKey(runtimeViper, "workspace");
+	if err != nil {
+		return err
+	}
+
+	runtimeViper.SetConfigType("toml")
+	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
+	c.GlobalConfig = runtimeViper
+	return c.GlobalConfig.WriteConfig()
+}
+
+// UseWorkspace selects the active workspace to be used
+func (c *Config) UseWorkspace(teamId string) error {
+	c.GlobalConfig.Set("workspace", teamId)
+	return c.GlobalConfig.WriteConfig()
+}
+
 // RemoveProfile removes the profile whose name matches the provided
 // profileName from the config file.
 func (c *Config) RemoveProfile(profileName string) error {
@@ -275,7 +311,9 @@ func (c *Config) constructConfig() {
 	c.DashboardBaseURL    = getStringConfig(c.DashboardBaseURL   , c.LocalConfig.GetString("dashboard_base"), c.GlobalConfig.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
 	c.ConsoleBaseURL      = getStringConfig(c.ConsoleBaseURL     , c.LocalConfig.GetString("console_base")  , c.GlobalConfig.GetString(("console_base"))  , hookdeck.DefaultConsoleBaseURL)
 	c.WSBaseURL           = getStringConfig(c.WSBaseURL          , c.LocalConfig.GetString("ws_base")       , c.GlobalConfig.GetString(("ws_base"))       , hookdeck.DefaultWebsocektURL)
-	c.Profile.ProfileName = getStringConfig(c.Profile.ProfileName, c.LocalConfig.GetString("profile")       , c.GlobalConfig.GetString(("profile"))      , "default")
+	c.Profile.ProfileName = getStringConfig(c.Profile.ProfileName, c.LocalConfig.GetString("profile")       , c.GlobalConfig.GetString(("profile"))       , "default")
+	c.APIKey              = getStringConfig(c.APIKey             , c.LocalConfig.GetString("api_key")       , c.GlobalConfig.GetString(("api_key"))       , "")
+	c.CurrentTeam         = getStringConfig(c.CurrentTeam        , c.LocalConfig.GetString("workspace")     , c.GlobalConfig.GetString(("workspace"))     , "")
 }
 
 func getStringConfig(v1 string, v2 string, v3 string, v4 string) string {
