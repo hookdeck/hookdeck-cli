@@ -29,7 +29,7 @@ func newWhoamiCmd() *whoamiCmd {
 }
 
 func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
-	response, err := login.ValidateKey(Config.APIBaseURL, Config.APIKey, Config.CurrentTeam)
+	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.TeamID)
 	if err != nil {
 		return err
 	}

@@ -8,14 +8,14 @@ import (
 
 // Logout function is used to clear the credentials set for the current Profile
 func Logout(config *config.Config) error {
-	if config.APIKey == "" {
+	if config.Profile.APIKey == "" {
 		fmt.Println("You are already logged out.")
 		return nil
 	}
 
 	fmt.Println("Logging out...")
 
-	if err := config.ClearWorkspace(); err != nil {
+	if err := config.Profile.RemoveProfile(); err != nil {
 		return err
 	}
 

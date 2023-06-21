@@ -15,7 +15,7 @@ func ListWorkspaces(config *config.Config) ([]hookdeck.Team, error) {
 
 	client := &hookdeck.Client{
 		BaseURL: parsedBaseURL,
-		APIKey:  config.APIKey,
+		APIKey:  config.Profile.APIKey,
 	}
 
 	return client.ListTeams()

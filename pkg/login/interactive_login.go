@@ -67,7 +67,7 @@ func InteractiveLogin(config *config.Config) error {
 	// config.Profile.TeamMode = response.TeamMode
 	// config.Profile.TeamID = response.TeamID
 
-	// profileErr := config.Profile.CreateProfile()
+	// profileErr := config.Profile.SaveProfile()
 	// if profileErr != nil {
 	// 	ansi.StopSpinner(s, "", os.Stdout)
 	// 	return profileErr

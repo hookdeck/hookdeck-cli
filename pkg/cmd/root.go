@@ -89,7 +89,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(Config.InitConfig)
 
-	rootCmd.PersistentFlags().StringVar(&Config.APIKey, "cli-key", "", "Your CLI key to use for the command")
+	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Your CLI key to use for the command")
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
 	rootCmd.PersistentFlags().StringVar(&Config.ProfilesFile, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")

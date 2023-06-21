@@ -38,7 +38,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	var err error
 	var guest_url string
 
-	if config.APIKey == "" {
+	if config.Profile.APIKey == "" {
 		guest_url, _ = login.GuestLogin(config)
 		if guest_url == "" {
 			return err
@@ -52,8 +52,8 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 
 	client := &hookdeck.Client{
 		BaseURL: parsedBaseURL,
-		APIKey:  config.APIKey,
-		TeamID:  config.CurrentTeam,
+		APIKey:  config.Profile.APIKey,
+		TeamID:  config.Profile.TeamID,
 	}
 
 	source, err := getSource(client, source_alias)
@@ -74,10 +74,10 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		fmt.Println()
 	} else {
 		var url = config.DashboardBaseURL
-		if config.CurrentTeam != "" {
-			url += "?team_id=" + config.CurrentTeam
+		if config.Profile.TeamID != "" {
+			url += "?team_id=" + config.Profile.TeamID
 		}
-		if config.CurrentTeamMode == "console" {
+		if config.Profile.TeamMode == "console" {
 			url = config.ConsoleBaseURL + "?source_id=" + source.Id
 		}
 		fmt.Println("👉 Inspect and replay webhooks: " + url)
@@ -94,10 +94,12 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	}
 	fmt.Println()
 
+	fmt.Println(config.WSBaseURL)
+
 	p := proxy.New(&proxy.Config{
 		DeviceName:       config.DeviceName,
-		Key:              config.APIKey,
-		TeamMode:         config.CurrentTeamMode,
+		Key:              config.Profile.APIKey,
+		TeamMode:         config.Profile.TeamMode,
 		APIBaseURL:       config.APIBaseURL,
 		DashboardBaseURL: config.DashboardBaseURL,
 		ConsoleBaseURL:   config.ConsoleBaseURL,

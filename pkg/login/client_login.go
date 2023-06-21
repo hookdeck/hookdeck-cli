@@ -35,14 +35,14 @@ type Links struct {
 func Login(config *config.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
-	if config.APIKey != "" {
+	if config.Profile.APIKey != "" {
 		s = ansi.StartNewSpinner("Verifying CLI Key...", os.Stdout)
-		response, err := ValidateKey(config.APIBaseURL, config.APIKey, config.CurrentTeam)
+		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey, config.Profile.TeamID)
 		if err != nil {
 			return err
 		}
 
-		message := SuccessMessage(response.UserName, response.TeamName, config.CurrentTeamMode == "console")
+		message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
 
 		return nil
@@ -82,7 +82,12 @@ func Login(config *config.Config, input io.Reader) error {
 		return err
 	}
 
-	if err = config.SaveWorkspace(response.APIKey, response.TeamID); err != nil {
+	config.Profile.Name = hookdeck.DefaultProfileName
+	config.Profile.APIKey = response.APIKey
+	config.Profile.TeamID = response.TeamID
+	config.Profile.TeamMode = response.TeamMode
+
+	if err = config.Profile.SaveProfile(); err != nil {
 		return err
 	}
 

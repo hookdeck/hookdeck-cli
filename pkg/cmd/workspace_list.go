@@ -39,7 +39,7 @@ func (lc *workspaceListCmd) runWorkspaceListCmd(cmd *cobra.Command, args []strin
 	color := ansi.Color(os.Stdout)
 
 	for _, workspace := range workspaces {
-		if workspace.Id == Config.CurrentTeam {
+		if workspace.Id == Config.Profile.TeamID {
 			fmt.Printf("%s (current)\n", color.Green(workspace.Id + ":" + workspace.Name))
 		} else {
 			fmt.Printf("%s\n", workspace.Id + ":" + workspace.Name)
