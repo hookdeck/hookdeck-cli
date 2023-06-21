@@ -22,14 +22,10 @@ func newLogoutCmd() *logoutCmd {
 		Long:  `Logout of your Hookdeck account to setup the CLI`,
 		RunE:  lc.runLogoutCmd,
 	}
-	lc.cmd.Flags().BoolVarP(&lc.all, "all", "a", false, "Clear credentials for all projects you are currently logged into.")
 
 	return lc
 }
 
 func (lc *logoutCmd) runLogoutCmd(cmd *cobra.Command, args []string) error {
-	if lc.all {
-		return logout.All(&Config)
-	}
 	return logout.Logout(&Config)
 }

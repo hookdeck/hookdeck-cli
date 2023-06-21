@@ -3,7 +3,6 @@ package config
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,10 +33,11 @@ const ColorAuto = "auto"
 type Config struct {
 	Color            string
 	LogLevel         string
+	DeviceName       string // TODO: use this?
 	APIKey           string
 	CurrentTeam      string
+	CurrentTeamMode  string // TODO: handle console
 	ProfilesFile     string // Config file -- TODO: rename
-	Profile          Profile // @deprecated
 	// Helpers
 	APIBaseURL       string
 	DashboardBaseURL string
@@ -82,7 +82,6 @@ func (c *Config) InitConfig() {
 
 	c.GlobalConfig = viper.New()
 	c.LocalConfig = viper.New()
-	c.Profile.Config = c
 
 	// Read global config
 	GlobalConfigFolder := c.GetConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
@@ -131,21 +130,15 @@ func (c *Config) InitConfig() {
 	// Construct the config struct
 	c.constructConfig()
 
-	if c.Profile.DeviceName == "" {
+	if c.DeviceName == "" {
 		deviceName, err := os.Hostname()
 		if err != nil {
 			deviceName = "unknown"
 		}
-
-		c.Profile.DeviceName = deviceName
+		c.DeviceName = deviceName
 	}
 
-	color, err := c.Profile.GetColor()
-	if err != nil {
-		log.Fatalf("%s", err)
-	}
-
-	switch color {
+	switch c.Color {
 	case ColorOn:
 		ansi.ForceColors = true
 		logFormatter.ForceColors = true
@@ -206,29 +199,6 @@ func (c *Config) EditConfig() error {
 	return err
 }
 
-// PrintConfig outputs the contents of the configuration file.
-func (c *Config) PrintConfig() error {
-	if c.Profile.ProfileName == "default" {
-		configFile, err := ioutil.ReadFile(c.ProfilesFile)
-		if err != nil {
-			return err
-		}
-
-		fmt.Print(string(configFile))
-	} else {
-		configs := viper.GetStringMapString(c.Profile.ProfileName)
-
-		if len(configs) > 0 {
-			fmt.Printf("[%s]\n", c.Profile.ProfileName)
-			for field, value := range configs {
-				fmt.Printf("  %s=%s\n", field, value)
-			}
-		}
-	}
-
-	return nil
-}
-
 // SaveWorkspace selects the active workspace to be used
 func (c *Config) SaveWorkspace(apiKey string, teamId string) error {
 	c.GlobalConfig.Set("api_key", apiKey)
@@ -262,58 +232,16 @@ func (c *Config) UseWorkspace(teamId string) error {
 	return c.GlobalConfig.WriteConfig()
 }
 
-// RemoveProfile removes the profile whose name matches the provided
-// profileName from the config file.
-func (c *Config) RemoveProfile(profileName string) error {
-	runtimeViper := c.GlobalConfig
-	var err error
-
-	for field, value := range runtimeViper.AllSettings() {
-		if isProfile(value) && field == profileName {
-			runtimeViper, err = removeKey(runtimeViper, field)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	runtimeViper.SetConfigType("toml")
-	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
-	c.GlobalConfig = runtimeViper
-	return c.GlobalConfig.WriteConfig()
-}
-
-// RemoveAllProfiles removes all the profiles from the config file.
-func (c *Config) RemoveAllProfiles() error {
-	runtimeViper := c.GlobalConfig
-	var err error
-
-	for field, value := range runtimeViper.AllSettings() {
-		if isProfile(value) {
-			runtimeViper, err = removeKey(runtimeViper, field)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	runtimeViper.SetConfigType("toml")
-	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
-	c.GlobalConfig = runtimeViper
-	return c.GlobalConfig.WriteConfig()
-}
-
 // Construct the config struct from flags > local config > global config
 func (c *Config) constructConfig() {
-	c.Color               = getStringConfig(c.Color              , c.LocalConfig.GetString("color")         , c.GlobalConfig.GetString(("color"))         , "auto")
-	c.LogLevel            = getStringConfig(c.LogLevel           , c.LocalConfig.GetString("log")           , c.GlobalConfig.GetString(("log"))           , "info")
-	c.APIBaseURL          = getStringConfig(c.APIBaseURL         , c.LocalConfig.GetString("api_base")      , c.GlobalConfig.GetString(("api_base"))      , hookdeck.DefaultAPIBaseURL)
-	c.DashboardBaseURL    = getStringConfig(c.DashboardBaseURL   , c.LocalConfig.GetString("dashboard_base"), c.GlobalConfig.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
-	c.ConsoleBaseURL      = getStringConfig(c.ConsoleBaseURL     , c.LocalConfig.GetString("console_base")  , c.GlobalConfig.GetString(("console_base"))  , hookdeck.DefaultConsoleBaseURL)
-	c.WSBaseURL           = getStringConfig(c.WSBaseURL          , c.LocalConfig.GetString("ws_base")       , c.GlobalConfig.GetString(("ws_base"))       , hookdeck.DefaultWebsocektURL)
-	c.Profile.ProfileName = getStringConfig(c.Profile.ProfileName, c.LocalConfig.GetString("profile")       , c.GlobalConfig.GetString(("profile"))       , "default")
-	c.APIKey              = getStringConfig(c.APIKey             , c.LocalConfig.GetString("api_key")       , c.GlobalConfig.GetString(("api_key"))       , "")
-	c.CurrentTeam         = getStringConfig(c.CurrentTeam        , c.LocalConfig.GetString("workspace")     , c.GlobalConfig.GetString(("workspace"))     , "")
+	c.Color            = getStringConfig(c.Color            , c.LocalConfig.GetString("color")         , c.GlobalConfig.GetString(("color"))         , "auto")
+	c.LogLevel         = getStringConfig(c.LogLevel         , c.LocalConfig.GetString("log")           , c.GlobalConfig.GetString(("log"))           , "info")
+	c.APIBaseURL       = getStringConfig(c.APIBaseURL       , c.LocalConfig.GetString("api_base")      , c.GlobalConfig.GetString(("api_base"))      , hookdeck.DefaultAPIBaseURL)
+	c.DashboardBaseURL = getStringConfig(c.DashboardBaseURL , c.LocalConfig.GetString("dashboard_base"), c.GlobalConfig.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
+	c.ConsoleBaseURL   = getStringConfig(c.ConsoleBaseURL   , c.LocalConfig.GetString("console_base")  , c.GlobalConfig.GetString(("console_base"))  , hookdeck.DefaultConsoleBaseURL)
+	c.WSBaseURL        = getStringConfig(c.WSBaseURL        , c.LocalConfig.GetString("ws_base")       , c.GlobalConfig.GetString(("ws_base"))       , hookdeck.DefaultWebsocektURL)
+	c.APIKey           = getStringConfig(c.APIKey           , c.LocalConfig.GetString("api_key")       , c.GlobalConfig.GetString(("api_key"))       , "")
+	c.CurrentTeam      = getStringConfig(c.CurrentTeam      , c.LocalConfig.GetString("workspace")     , c.GlobalConfig.GetString(("workspace"))     , "")
 }
 
 func getStringConfig(v1 string, v2 string, v3 string, v4 string) string {
@@ -327,13 +255,6 @@ func getStringConfig(v1 string, v2 string, v3 string, v4 string) string {
 		return v3
 	}
 	return v4
-}
-
-// isProfile identifies whether a value in the config pertains to a profile.
-func isProfile(value interface{}) bool {
-	// TODO: ianjabour - ideally find a better way to identify projects in config
-	_, ok := value.(map[string]interface{})
-	return ok
 }
 
 // Temporary workaround until https://github.com/spf13/viper/pull/519 can remove a key from viper
@@ -360,19 +281,6 @@ func removeKey(v *viper.Viper, key string) (*viper.Viper, error) {
 	}
 
 	return nv, nil
-}
-
-func makePath(path string) error {
-	dir := filepath.Dir(path)
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // taken from https://github.com/spf13/viper/blob/master/util.go#L199,

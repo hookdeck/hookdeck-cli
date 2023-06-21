@@ -20,7 +20,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -35,9 +34,9 @@ const timeLayout = "2006-01-02 15:04:05"
 type Config struct {
 	// DeviceName is the name of the device sent to Hookdeck to help identify the device
 	DeviceName string
-	Profile    config.Profile
 	// Key is the API key used to authenticate with Hookdeck
 	Key              string
+	TeamMode         string
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string
@@ -316,7 +315,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	localTime := time.Now().Format(timeLayout)
 	color := ansi.Color(os.Stdout)
 	var url = p.cfg.DashboardBaseURL + "/cli/events/" + webhookEvent.Body.EventID
-	if p.cfg.Profile.GetTeamMode() == "console" {
+	if p.cfg.TeamMode == "console" {
 		url = p.cfg.ConsoleBaseURL + "/?event_id=" + webhookEvent.Body.EventID
 	}
 	outputStr := fmt.Sprintf("%s [%d] %s %s | %s",

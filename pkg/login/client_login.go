@@ -42,13 +42,13 @@ func Login(config *config.Config, input io.Reader) error {
 			return err
 		}
 
-		message := SuccessMessage(response.UserName, response.TeamName, config.Profile.TeamMode == "console")
+		message := SuccessMessage(response.UserName, response.TeamName, config.CurrentTeamMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
 
 		return nil
 	}
 
-	links, err := getLinks(config.APIBaseURL, config.Profile.DeviceName)
+	links, err := getLinks(config.APIBaseURL, config.DeviceName)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func GuestLogin(config *config.Config) (string, error) {
 	fmt.Println("🚩 Not connected with any account. Creating a guest account...")
 
 	guest_user, err := client.CreateGuestUser(hookdeck.CreateGuestUserInput{
-		DeviceName: config.Profile.DeviceName,
+		DeviceName: config.DeviceName,
 	})
 	if err != nil {
 		return "", err
@@ -122,16 +122,9 @@ func GuestLogin(config *config.Config) (string, error) {
 		return "", validateErr
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ClientID = response.ClientID
-	config.Profile.DisplayName = response.UserName
-	config.Profile.TeamName = response.TeamName
-	config.Profile.TeamMode = response.TeamMode
-	config.Profile.TeamID = response.TeamID
-
-	profileErr := config.Profile.CreateProfile()
-	if profileErr != nil {
-		return "", profileErr
+	// TODO: save guest mode ??
+	if err = config.SaveWorkspace(response.APIKey, response.TeamID); err != nil {
+		return "", err
 	}
 
 	return guest_user.Url, nil
@@ -150,7 +143,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 
 	deviceName := name
 	if deviceName == "" {
-		deviceName = config.Profile.DeviceName
+		deviceName = config.DeviceName
 	}
 	response, err := client.CreateCIClient(hookdeck.CreateCIClientInput{
 		DeviceName: deviceName,
@@ -163,14 +156,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 		return err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ClientID = response.ClientID
-	config.Profile.DisplayName = response.UserName
-	config.Profile.TeamName = response.TeamName
-	config.Profile.TeamMode = response.TeamMode
-	config.Profile.TeamID = response.TeamID
-
-	if err := config.Profile.CreateProfile(); err != nil {
+	if err := config.SaveWorkspace(response.APIKey, response.TeamID); err != nil {
 		return err
 	}
 
