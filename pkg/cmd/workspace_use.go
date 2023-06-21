@@ -3,12 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/workspace"
 )
@@ -52,11 +52,15 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 		return err
 	}
 
-	color := ansi.Color(os.Stdout)
-	splittedResult := strings.Split(result, " : ")
-	id := splittedResult[0]
-	name := splittedResult[1]
+	var workspace hookdeck.Team
+	for i := range workspaceOptions {
+		if result == workspaces[i].Id + " : " + workspaces[i].Name {
+			workspace = workspaces[i]
+		}
+	}
 
-	fmt.Printf("Selecting workspace %s\n", color.Green(name))
-	return Config.UseWorkspace(id)
+	color := ansi.Color(os.Stdout)
+
+	fmt.Printf("Selecting workspace %s\n", color.Green(workspace.Name))
+	return Config.UseWorkspace(workspace.Id, workspace.Mode)
 }

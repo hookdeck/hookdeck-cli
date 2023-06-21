@@ -9,6 +9,7 @@ import (
 type Team struct {
 	Id   string
 	Name string
+	Mode string
 }
 
 func (c *Client) ListTeams() ([]Team, error) {

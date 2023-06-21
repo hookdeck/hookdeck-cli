@@ -208,8 +208,9 @@ func (c *Config) SaveWorkspace(apiKey string, teamId string) error {
 }
 
 // UseWorkspace selects the active workspace to be used
-func (c *Config) UseWorkspace(teamId string) error {
+func (c *Config) UseWorkspace(teamId string, teamMode string) error {
 	c.Profile.TeamID = teamId
+	c.Profile.TeamMode = teamMode
 	return c.Profile.SaveProfile()
 }
 
