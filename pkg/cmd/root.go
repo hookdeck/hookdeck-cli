@@ -89,6 +89,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(Config.InitConfig)
 
+	rootCmd.PersistentFlags().StringVarP(&Config.Profile.Name, "profile", "p", "", fmt.Sprintf("profile name (default \"%s\")", hookdeck.DefaultProfileName))
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Your CLI key to use for the command")
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
 	rootCmd.PersistentFlags().StringVar(&Config.ProfilesFile, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
@@ -111,4 +112,5 @@ func init() {
 	rootCmd.AddCommand(newCompletionCmd().cmd)
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
 	rootCmd.AddCommand(newWorkspaceCmd().cmd)
+	rootCmd.AddCommand(newProfileCmd().cmd)
 }

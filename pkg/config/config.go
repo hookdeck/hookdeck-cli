@@ -214,6 +214,18 @@ func (c *Config) UseWorkspace(teamId string, teamMode string) error {
 	return c.Profile.SaveProfile()
 }
 
+func (c *Config) ListProfiles() []string {
+	var profiles []string
+
+	for field, value := range c.GlobalConfig.AllSettings() {
+		if isProfile(value) {
+			profiles = append(profiles, field)
+		}
+	}
+
+	return profiles
+}
+
 // Construct the config struct from flags > local config > global config
 func (c *Config) constructConfig() {
 	c.Color            = getStringConfig(c.Color            , c.LocalConfig.GetString("color")          , c.GlobalConfig.GetString(("color"))                              , "auto")
@@ -239,6 +251,13 @@ func getStringConfig(v1 string, v2 string, v3 string, v4 string) string {
 		return v3
 	}
 	return v4
+}
+
+// isProfile identifies whether a value in the config pertains to a profile.
+func isProfile(value interface{}) bool {
+	// TODO: ianjabour - ideally find a better way to identify projects in config
+	_, ok := value.(map[string]interface{})
+	return ok
 }
 
 // Temporary workaround until https://github.com/spf13/viper/pull/519 can remove a key from viper

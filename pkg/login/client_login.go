@@ -82,12 +82,14 @@ func Login(config *config.Config, input io.Reader) error {
 		return err
 	}
 
-	config.Profile.Name = hookdeck.DefaultProfileName
 	config.Profile.APIKey = response.APIKey
 	config.Profile.TeamID = response.TeamID
 	config.Profile.TeamMode = response.TeamMode
 
 	if err = config.Profile.SaveProfile(); err != nil {
+		return err
+	}
+	if err = config.Profile.UseProfile(); err != nil {
 		return err
 	}
 

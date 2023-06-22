@@ -40,3 +40,8 @@ func (p *Profile) RemoveProfile() error {
 	p.Config.GlobalConfig = runtimeViper
 	return p.Config.GlobalConfig.WriteConfig()
 }
+
+func (p *Profile) UseProfile() error {
+	p.Config.GlobalConfig.Set("profile", p.Name)
+	return p.Config.GlobalConfig.WriteConfig()
+}
