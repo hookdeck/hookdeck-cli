@@ -2,9 +2,12 @@ package login
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,70 +17,69 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 // InteractiveLogin lets the user set configuration on the command line
 func InteractiveLogin(config *config.Config) error {
-	fmt.Println("$ hookdeck login -i")
+	apiKey, err := getConfigureAPIKey(os.Stdin)
+	if err != nil {
+		return err
+	}
+
+	config.DeviceName = getConfigureDeviceName(os.Stdin)
+
+	s := ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
+
+	// Call poll function
+	response, err := PollForKey(config.APIBaseURL+"/cli-auth/poll?key="+apiKey, 0, 0)
+	if err != nil {
+		return err
+	}
+
+	parsedBaseURL, err := url.Parse(config.APIBaseURL)
+	if err != nil {
+		return err
+	}
+
+	client := &hookdeck.Client{
+		BaseURL: parsedBaseURL,
+		APIKey:  response.APIKey,
+	}
+
+	data := struct {
+		DeviceName string `json:"device_name"`
+	}{}
+	data.DeviceName = config.DeviceName
+	json_data, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Put(context.TODO(), "/cli/"+response.ClientID, json_data, nil)
+	if err != nil {
+		return err
+	}
+
+	config.Profile.APIKey = response.APIKey
+	config.Profile.TeamMode = response.TeamMode
+	config.Profile.TeamID = response.TeamID
+
+	if err = config.Profile.SaveProfile(); err != nil {
+		ansi.StopSpinner(s, "", os.Stdout)
+		return err
+	}
+	if err = config.Profile.UseProfile(); err != nil {
+		ansi.StopSpinner(s, "", os.Stdout)
+		return err
+	}
+
+	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
+
+	ansi.StopSpinner(s, message, os.Stdout)
+
 	return nil
-	// apiKey, err := getConfigureAPIKey(os.Stdin)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// config.Profile.DeviceName = getConfigureDeviceName(os.Stdin)
-
-	// s := ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
-
-	// // Call poll function
-	// response, err := PollForKey(config.APIBaseURL+"/cli-auth/poll?key="+apiKey, 0, 0)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// parsedBaseURL, err := url.Parse(config.APIBaseURL)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// client := &hookdeck.Client{
-	// 	BaseURL: parsedBaseURL,
-	// 	APIKey:  response.APIKey,
-	// }
-
-	// data := struct {
-	// 	DeviceName string `json:"device_name"`
-	// }{}
-	// data.DeviceName = config.Profile.DeviceName
-	// json_data, err := json.Marshal(data)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// _, err = client.Put(context.TODO(), "/cli/"+response.ClientID, json_data, nil)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// config.Profile.APIKey = response.APIKey
-	// config.Profile.ClientID = response.ClientID
-	// config.Profile.DisplayName = response.UserName
-	// config.Profile.TeamName = response.TeamName
-	// config.Profile.TeamMode = response.TeamMode
-	// config.Profile.TeamID = response.TeamID
-
-	// profileErr := config.Profile.SaveProfile()
-	// if profileErr != nil {
-	// 	ansi.StopSpinner(s, "", os.Stdout)
-	// 	return profileErr
-	// }
-
-	// message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
-
-	// ansi.StopSpinner(s, message, os.Stdout)
-
-	// return nil
 }
 
 func getConfigureAPIKey(input io.Reader) (string, error) {
