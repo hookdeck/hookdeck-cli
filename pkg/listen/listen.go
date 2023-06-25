@@ -39,7 +39,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	var guest_url string
 
 	if config.Profile.APIKey == "" {
-		guest_url, _ = login.GuestLogin(config)
+		guest_url, err = login.GuestLogin(config)
 		if guest_url == "" {
 			return err
 		}

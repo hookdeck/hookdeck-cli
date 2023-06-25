@@ -199,14 +199,6 @@ func (c *Config) EditConfig() error {
 	return err
 }
 
-// TODO: remove this function
-// SaveWorkspace selects the active workspace to be used
-func (c *Config) SaveWorkspace(apiKey string, teamId string) error {
-	c.GlobalConfig.Set("api_key", apiKey)
-	c.GlobalConfig.Set("workspace", teamId)
-	return c.GlobalConfig.WriteConfig()
-}
-
 // UseWorkspace selects the active workspace to be used
 func (c *Config) UseWorkspace(teamId string, teamMode string) error {
 	c.Profile.TeamID = teamId

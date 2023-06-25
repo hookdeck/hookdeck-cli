@@ -128,8 +128,14 @@ func GuestLogin(config *config.Config) (string, error) {
 		return "", err
 	}
 
-	// TODO: save guest mode ??
-	if err = config.SaveWorkspace(response.APIKey, response.TeamID); err != nil {
+	config.Profile.APIKey = response.APIKey
+	config.Profile.TeamID = response.TeamID
+	config.Profile.TeamMode = response.TeamMode
+
+	if err = config.Profile.SaveProfile(); err != nil {
+		return "", err
+	}
+	if err = config.Profile.UseProfile(); err != nil {
 		return "", err
 	}
 
@@ -162,7 +168,14 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 		return err
 	}
 
-	if err := config.SaveWorkspace(response.APIKey, response.TeamID); err != nil {
+	config.Profile.APIKey = response.APIKey
+	config.Profile.TeamID = response.TeamID
+	config.Profile.TeamMode = response.TeamMode
+
+	if err = config.Profile.SaveProfile(); err != nil {
+		return err
+	}
+	if err = config.Profile.UseProfile(); err != nil {
 		return err
 	}
 
