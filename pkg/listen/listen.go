@@ -99,6 +99,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	p := proxy.New(&proxy.Config{
 		DeviceName:       config.DeviceName,
 		Key:              config.Profile.APIKey,
+		TeamID:           config.Profile.TeamID,
 		TeamMode:         config.Profile.TeamMode,
 		APIBaseURL:       config.APIBaseURL,
 		DashboardBaseURL: config.DashboardBaseURL,

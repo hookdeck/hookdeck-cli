@@ -67,6 +67,8 @@ type Client struct {
 
 	CLIKey string
 
+	TeamID string
+
 	// ID sent by the client in the `Websocket-Id` header when connecting
 	WebSocketID string
 
@@ -217,6 +219,7 @@ func (c *Client) connect(ctx context.Context) error {
 	header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
 	header.Set("Websocket-Id", c.WebSocketID)
+	header.Set("X-Team-Id", c.TeamID)
 	header.Set("Authorization", "Basic "+basicAuth(c.CLIKey, ""))
 
 	url := c.URL
@@ -430,7 +433,7 @@ func (c *Client) writePump() {
 //
 
 // NewClient returns a new Client.
-func NewClient(url string, webSocketID string, CLIKey string, cfg *Config) *Client {
+func NewClient(url string, webSocketID string, CLIKey string, teamID string, cfg *Config) *Client {
 	if cfg == nil {
 		cfg = &Config{}
 	}
@@ -470,6 +473,7 @@ func NewClient(url string, webSocketID string, CLIKey string, cfg *Config) *Clie
 		WebSocketID: webSocketID,
 		// WebSocketAuthorizedFeature: websocketAuthorizedFeature,
 		CLIKey:        CLIKey,
+		TeamID:        teamID,
 		cfg:           cfg,
 		done:          make(chan struct{}),
 		send:          make(chan *OutgoingMessage),
