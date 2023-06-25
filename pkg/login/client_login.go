@@ -124,9 +124,8 @@ func GuestLogin(config *config.Config) (string, error) {
 		return "", err
 	}
 
-	validateErr := validators.APIKey(response.APIKey)
-	if validateErr != nil {
-		return "", validateErr
+	if err = validators.APIKey(response.APIKey); err != nil {
+		return "", err
 	}
 
 	// TODO: save guest mode ??
