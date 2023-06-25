@@ -34,8 +34,8 @@ type Config struct {
 	Profile          Profile
 	Color            string
 	LogLevel         string
-	DeviceName       string // TODO: use this?
-	ProfilesFile     string // Config file -- TODO: rename
+	DeviceName       string
+
 	// Helpers
 	APIBaseURL       string
 	DashboardBaseURL string
@@ -43,7 +43,10 @@ type Config struct {
 	WSBaseURL        string
 	Insecure         bool
 
+	// Config
+	GlobalConfigFile string
 	GlobalConfig *viper.Viper
+	LocalConfigFile  string
 	LocalConfig  *viper.Viper
 }
 
@@ -85,13 +88,13 @@ func (c *Config) InitConfig() {
 
 	// Read global config
 	GlobalConfigFolder := c.GetConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
-	GlobalConfigFile := filepath.Join(GlobalConfigFolder, "config.toml")
+	c.GlobalConfigFile = filepath.Join(GlobalConfigFolder, "config.toml")
 	c.GlobalConfig.SetConfigType("toml")
-	c.GlobalConfig.SetConfigFile(GlobalConfigFile)
+	c.GlobalConfig.SetConfigFile(c.GlobalConfigFile)
 	c.GlobalConfig.SetConfigPermissions(os.FileMode(0600))
 	// Try to change permissions manually, because we used to create files
 	// with default permissions (0644)
-	err := os.Chmod(GlobalConfigFile, os.FileMode(0600))
+	err := os.Chmod(c.GlobalConfigFile, os.FileMode(0600))
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatalf("%s", err)
 	}
@@ -108,18 +111,18 @@ func (c *Config) InitConfig() {
 		log.Fatal(err)
 	}
 	LocalConfigFile := ""
-	if c.ProfilesFile == "" {
+	if c.LocalConfigFile == "" {
 		LocalConfigFile = filepath.Join(workspaceFolder, "hookdeck.toml")
 	} else {
-		if filepath.IsAbs(c.ProfilesFile) {
-			LocalConfigFile = c.ProfilesFile
+		if filepath.IsAbs(c.LocalConfigFile) {
+			LocalConfigFile = c.LocalConfigFile
 		} else {
-			LocalConfigFile = filepath.Join(workspaceFolder, c.ProfilesFile)
+			LocalConfigFile = filepath.Join(workspaceFolder, c.LocalConfigFile)
 		}
 	}
 	c.LocalConfig.SetConfigType("toml")
 	c.LocalConfig.SetConfigFile(LocalConfigFile)
-	c.ProfilesFile = LocalConfigFile
+	c.LocalConfigFile = LocalConfigFile
 	if err := c.LocalConfig.ReadInConfig(); err == nil {
 		log.WithFields(log.Fields{
 			"prefix": "config.Config.InitConfig",
@@ -172,7 +175,7 @@ func (c *Config) InitConfig() {
 func (c *Config) EditConfig() error {
 	var err error
 
-	fmt.Println("Opening config file:", c.ProfilesFile)
+	fmt.Println("Opening config file:", c.LocalConfigFile)
 
 	switch runtime.GOOS {
 	case "darwin", "linux":
@@ -181,7 +184,7 @@ func (c *Config) EditConfig() error {
 			editor = "vi"
 		}
 
-		cmd := exec.Command(editor, c.ProfilesFile)
+		cmd := exec.Command(editor, c.LocalConfigFile)
 		// Some editors detect whether they have control of stdin/out and will
 		// fail if they do not.
 		cmd.Stdin = os.Stdin
@@ -191,7 +194,7 @@ func (c *Config) EditConfig() error {
 	case "windows":
 		// As far as I can tell, Windows doesn't have an easily accesible or
 		// comparable option to $EDITOR, so default to notepad for now
-		err = exec.Command("notepad", c.ProfilesFile).Run()
+		err = exec.Command("notepad", c.LocalConfigFile).Run()
 	default:
 		err = fmt.Errorf("unsupported platform")
 	}
