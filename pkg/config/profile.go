@@ -25,7 +25,6 @@ func (p *Profile) RemoveProfile() error {
 	var err error
 	runtimeViper := p.Config.GlobalConfig
 
-	// TODO: see if we can switch to another profile
 	runtimeViper, err = removeKey(runtimeViper, "profile");
 	if err != nil {
 		return err

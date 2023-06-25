@@ -226,6 +226,31 @@ func (c *Config) ListProfiles() []string {
 	return profiles
 }
 
+// RemoveAllProfiles removes all the profiles from the config file.
+func (c *Config) RemoveAllProfiles() error {
+	runtimeViper := c.GlobalConfig
+	var err error
+
+	for field, value := range runtimeViper.AllSettings() {
+		if isProfile(value) {
+			runtimeViper, err = removeKey(runtimeViper, field)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	runtimeViper, err = removeKey(runtimeViper, "profile")
+	if err != nil {
+		return err
+	}
+
+	runtimeViper.SetConfigType("toml")
+	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
+	c.GlobalConfig = runtimeViper
+	return c.GlobalConfig.WriteConfig()
+}
+
 // Construct the config struct from flags > local config > global config
 func (c *Config) constructConfig() {
 	c.Color            = getStringConfig(c.Color            , c.LocalConfig.GetString("color")          , c.GlobalConfig.GetString(("color"))                              , "auto")
