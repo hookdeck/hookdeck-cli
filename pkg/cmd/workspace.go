@@ -20,7 +20,6 @@ func newWorkspaceCmd() *workspaceCmd {
 	}
 
 	lc.cmd.AddCommand(newWorkspaceListCmd().cmd)
-	// lc.cmd.AddCommand(newWorkspaceLoginCmd().cmd)
 	lc.cmd.AddCommand(newWorkspaceUseCmd().cmd)
 
 	return lc
