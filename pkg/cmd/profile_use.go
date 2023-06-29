@@ -21,7 +21,7 @@ func newProfileUseCmd() *profileUseCmd {
 	lc.cmd = &cobra.Command{
 		Use:   "use",
 		Args:  validators.MaximumNArgs(1),
-		Short: "Select an active workspace for upcoming commands",
+		Short: "Select your active profile for future commands",
 		RunE:  lc.runProfileUseCmd,
 	}
 
