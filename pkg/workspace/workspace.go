@@ -7,7 +7,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-func ListWorkspaces(config *config.Config) ([]hookdeck.Team, error) {
+func ListWorkspaces(config *config.Config) ([]hookdeck.Workspace, error) {
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return nil, err
@@ -18,5 +18,5 @@ func ListWorkspaces(config *config.Config) ([]hookdeck.Team, error) {
 		APIKey:  config.Profile.APIKey,
 	}
 
-	return client.ListTeams()
+	return client.ListWorkspaces()
 }

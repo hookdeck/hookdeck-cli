@@ -52,7 +52,7 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 		return err
 	}
 
-	var workspace hookdeck.Team
+	var workspace hookdeck.Workspace
 	for i := range workspaceOptions {
 		if result == workspaces[i].Id + " : " + workspaces[i].Name {
 			workspace = workspaces[i]
