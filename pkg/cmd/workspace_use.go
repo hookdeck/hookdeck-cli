@@ -9,7 +9,8 @@ import (
 )
 
 type workspaceUseCmd struct {
-	cmd *cobra.Command
+	cmd   *cobra.Command
+	local bool
 }
 
 func newWorkspaceUseCmd() *workspaceUseCmd {
@@ -21,6 +22,7 @@ func newWorkspaceUseCmd() *workspaceUseCmd {
 		Short: "Select your active workspace for future commands",
 		RunE:  lc.runWorkspaceUseCmd,
 	}
+	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Pin active workspace to the current directory")
 
 	return lc
 }
@@ -49,5 +51,5 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 	}
 
 	workspace := workspaces[i]
-	return Config.UseWorkspace(workspace.Id, workspace.Mode)
+	return Config.UseWorkspace(lc.local, workspace.Id, workspace.Mode)
 }

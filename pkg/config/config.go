@@ -203,10 +203,10 @@ func (c *Config) EditConfig() error {
 }
 
 // UseWorkspace selects the active workspace to be used
-func (c *Config) UseWorkspace(teamId string, teamMode string) error {
+func (c *Config) UseWorkspace(local bool, teamId string, teamMode string) error {
 	c.Profile.TeamID = teamId
 	c.Profile.TeamMode = teamMode
-	return c.Profile.SaveProfile()
+	return c.Profile.SaveProfile(local)
 }
 
 func (c *Config) ListProfiles() []string {
