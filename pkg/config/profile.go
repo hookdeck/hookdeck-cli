@@ -16,8 +16,8 @@ func (p *Profile) GetConfigField(field string) string {
 
 func (p *Profile) SaveProfile() error {
 	p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
-	p.Config.GlobalConfig.Set(p.GetConfigField("team_id"), p.TeamID)
-	p.Config.GlobalConfig.Set(p.GetConfigField("team_mode"), p.TeamMode)
+	p.Config.GlobalConfig.Set(p.GetConfigField("workspace_id"), p.TeamID)
+	p.Config.GlobalConfig.Set(p.GetConfigField("workspace_mode"), p.TeamMode)
 	return p.Config.GlobalConfig.WriteConfig()
 }
 
