@@ -9,7 +9,8 @@ import (
 )
 
 type workspaceUseCmd struct {
-	cmd *cobra.Command
+	cmd   *cobra.Command
+	local bool
 }
 
 func newWorkspaceUseCmd() *workspaceUseCmd {
@@ -21,21 +22,26 @@ func newWorkspaceUseCmd() *workspaceUseCmd {
 		Short: "Select your active workspace for future commands",
 		RunE:  lc.runWorkspaceUseCmd,
 	}
+	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Pin active workspace to the current directory")
 
 	return lc
 }
 
-// TODO: handle case where workspace name is not unique
 func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string) error {	
 	workspaces, err := workspace.ListWorkspaces(&Config)
 	if err != nil {
 		return err
 	}
 
+	selectedTemplate := "Selecting workspace {{ .Name | green }}"
+	if lc.local {
+		selectedTemplate = "Pinning workspace {{ .Name | green }} to current directory"
+	}
+
 	templates := &promptui.SelectTemplates{
 		Active:   "▸ {{ .Name | green }}",
 		Inactive: "  {{ .Name }}",
-		Selected: "Selecting workspace {{ .Name | green }}",
+		Selected: selectedTemplate,
 	}
 
 	prompt := promptui.Select{
@@ -50,5 +56,5 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 	}
 
 	workspace := workspaces[i]
-	return Config.UseWorkspace(workspace.Id, workspace.Mode)
+	return Config.UseWorkspace(lc.local, workspace.Id, workspace.Mode)
 }

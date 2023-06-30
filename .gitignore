@@ -7,7 +7,7 @@ coverage.txt
 /hookdeck-linux
 /hookdeck-windows.exe
 /hookdeck-cli
-/hookdeck.toml
+/.hookdeck
 default_cassette.yaml
 .vscode/
 __debug_bin
