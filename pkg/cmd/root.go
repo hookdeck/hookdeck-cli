@@ -89,13 +89,13 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(Config.InitConfig)
 
+	rootCmd.PersistentFlags().StringVarP(&Config.Profile.Name, "profile", "p", "", fmt.Sprintf("profile name (default \"%s\")", hookdeck.DefaultProfileName))
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Your CLI key to use for the command")
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
-	rootCmd.PersistentFlags().StringVar(&Config.ProfilesFile, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
-	rootCmd.PersistentFlags().StringVar(&Config.Profile.DeviceName, "device-name", "", "device name")
+	rootCmd.PersistentFlags().StringVar(&Config.LocalConfigFile, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
 	rootCmd.PersistentFlags().StringVar(&Config.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().BoolVar(&Config.Insecure, "insecure", false, "Allow invalid TLS certificates")
-	rootCmd.PersistentFlags().StringVarP(&Config.Profile.ProfileName, "project-name", "p", "", fmt.Sprintf("the project name to read from for config (default \"%s\")", hookdeck.DefaultProfileName))
 
 	// Hidden configuration flags, useful for dev/debugging
 	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", "", fmt.Sprintf("Sets the API base URL (default \"%s\")", hookdeck.DefaultAPIBaseURL))
@@ -111,4 +111,5 @@ func init() {
 	rootCmd.AddCommand(newListenCmd().cmd)
 	rootCmd.AddCommand(newCompletionCmd().cmd)
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
+	rootCmd.AddCommand(newWorkspaceCmd().cmd)
 }

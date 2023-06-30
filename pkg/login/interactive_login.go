@@ -28,7 +28,7 @@ func InteractiveLogin(config *config.Config) error {
 		return err
 	}
 
-	config.Profile.DeviceName = getConfigureDeviceName(os.Stdin)
+	config.DeviceName = getConfigureDeviceName(os.Stdin)
 
 	s := ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 
@@ -51,7 +51,7 @@ func InteractiveLogin(config *config.Config) error {
 	data := struct {
 		DeviceName string `json:"device_name"`
 	}{}
-	data.DeviceName = config.Profile.DeviceName
+	data.DeviceName = config.DeviceName
 	json_data, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -63,16 +63,16 @@ func InteractiveLogin(config *config.Config) error {
 	}
 
 	config.Profile.APIKey = response.APIKey
-	config.Profile.ClientID = response.ClientID
-	config.Profile.DisplayName = response.UserName
-	config.Profile.TeamName = response.TeamName
 	config.Profile.TeamMode = response.TeamMode
 	config.Profile.TeamID = response.TeamID
 
-	profileErr := config.Profile.CreateProfile()
-	if profileErr != nil {
+	if err = config.Profile.SaveProfile(); err != nil {
 		ansi.StopSpinner(s, "", os.Stdout)
-		return profileErr
+		return err
+	}
+	if err = config.Profile.UseProfile(); err != nil {
+		ansi.StopSpinner(s, "", os.Stdout)
+		return err
 	}
 
 	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")

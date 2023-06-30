@@ -3,7 +3,6 @@ package config
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,17 +31,22 @@ const ColorAuto = "auto"
 
 // Config handles all overall configuration for the CLI
 type Config struct {
+	Profile          Profile
 	Color            string
 	LogLevel         string
-	Profile          Profile
-	ProfilesFile     string
+	DeviceName       string
+
+	// Helpers
 	APIBaseURL       string
 	DashboardBaseURL string
 	ConsoleBaseURL   string
 	WSBaseURL        string
 	Insecure         bool
 
+	// Config
+	GlobalConfigFile string
 	GlobalConfig *viper.Viper
+	LocalConfigFile  string
 	LocalConfig  *viper.Viper
 }
 
@@ -72,6 +76,8 @@ func (c *Config) GetConfigFolder(xdgPath string) string {
 
 // InitConfig reads in profiles file and ENV variables if set.
 func (c *Config) InitConfig() {
+	c.Profile.Config = c
+
 	logFormatter := &prefixed.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: time.RFC1123,
@@ -79,17 +85,16 @@ func (c *Config) InitConfig() {
 
 	c.GlobalConfig = viper.New()
 	c.LocalConfig = viper.New()
-	c.Profile.Config = c
 
 	// Read global config
 	GlobalConfigFolder := c.GetConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
-	GlobalConfigFile := filepath.Join(GlobalConfigFolder, "config.toml")
+	c.GlobalConfigFile = filepath.Join(GlobalConfigFolder, "config.toml")
 	c.GlobalConfig.SetConfigType("toml")
-	c.GlobalConfig.SetConfigFile(GlobalConfigFile)
+	c.GlobalConfig.SetConfigFile(c.GlobalConfigFile)
 	c.GlobalConfig.SetConfigPermissions(os.FileMode(0600))
 	// Try to change permissions manually, because we used to create files
 	// with default permissions (0644)
-	err := os.Chmod(GlobalConfigFile, os.FileMode(0600))
+	err := os.Chmod(c.GlobalConfigFile, os.FileMode(0600))
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatalf("%s", err)
 	}
@@ -106,18 +111,18 @@ func (c *Config) InitConfig() {
 		log.Fatal(err)
 	}
 	LocalConfigFile := ""
-	if c.ProfilesFile == "" {
+	if c.LocalConfigFile == "" {
 		LocalConfigFile = filepath.Join(workspaceFolder, "hookdeck.toml")
 	} else {
-		if filepath.IsAbs(c.ProfilesFile) {
-			LocalConfigFile = c.ProfilesFile
+		if filepath.IsAbs(c.LocalConfigFile) {
+			LocalConfigFile = c.LocalConfigFile
 		} else {
-			LocalConfigFile = filepath.Join(workspaceFolder, c.ProfilesFile)
+			LocalConfigFile = filepath.Join(workspaceFolder, c.LocalConfigFile)
 		}
 	}
 	c.LocalConfig.SetConfigType("toml")
 	c.LocalConfig.SetConfigFile(LocalConfigFile)
-	c.ProfilesFile = LocalConfigFile
+	c.LocalConfigFile = LocalConfigFile
 	if err := c.LocalConfig.ReadInConfig(); err == nil {
 		log.WithFields(log.Fields{
 			"prefix": "config.Config.InitConfig",
@@ -128,21 +133,15 @@ func (c *Config) InitConfig() {
 	// Construct the config struct
 	c.constructConfig()
 
-	if c.Profile.DeviceName == "" {
+	if c.DeviceName == "" {
 		deviceName, err := os.Hostname()
 		if err != nil {
 			deviceName = "unknown"
 		}
-
-		c.Profile.DeviceName = deviceName
+		c.DeviceName = deviceName
 	}
 
-	color, err := c.Profile.GetColor()
-	if err != nil {
-		log.Fatalf("%s", err)
-	}
-
-	switch color {
+	switch c.Color {
 	case ColorOn:
 		ansi.ForceColors = true
 		logFormatter.ForceColors = true
@@ -176,7 +175,7 @@ func (c *Config) InitConfig() {
 func (c *Config) EditConfig() error {
 	var err error
 
-	fmt.Println("Opening config file:", c.ProfilesFile)
+	fmt.Println("Opening config file:", c.LocalConfigFile)
 
 	switch runtime.GOOS {
 	case "darwin", "linux":
@@ -185,7 +184,7 @@ func (c *Config) EditConfig() error {
 			editor = "vi"
 		}
 
-		cmd := exec.Command(editor, c.ProfilesFile)
+		cmd := exec.Command(editor, c.LocalConfigFile)
 		// Some editors detect whether they have control of stdin/out and will
 		// fail if they do not.
 		cmd.Stdin = os.Stdin
@@ -195,7 +194,7 @@ func (c *Config) EditConfig() error {
 	case "windows":
 		// As far as I can tell, Windows doesn't have an easily accesible or
 		// comparable option to $EDITOR, so default to notepad for now
-		err = exec.Command("notepad", c.ProfilesFile).Run()
+		err = exec.Command("notepad", c.LocalConfigFile).Run()
 	default:
 		err = fmt.Errorf("unsupported platform")
 	}
@@ -203,48 +202,23 @@ func (c *Config) EditConfig() error {
 	return err
 }
 
-// PrintConfig outputs the contents of the configuration file.
-func (c *Config) PrintConfig() error {
-	if c.Profile.ProfileName == "default" {
-		configFile, err := ioutil.ReadFile(c.ProfilesFile)
-		if err != nil {
-			return err
-		}
-
-		fmt.Print(string(configFile))
-	} else {
-		configs := viper.GetStringMapString(c.Profile.ProfileName)
-
-		if len(configs) > 0 {
-			fmt.Printf("[%s]\n", c.Profile.ProfileName)
-			for field, value := range configs {
-				fmt.Printf("  %s=%s\n", field, value)
-			}
-		}
-	}
-
-	return nil
+// UseWorkspace selects the active workspace to be used
+func (c *Config) UseWorkspace(teamId string, teamMode string) error {
+	c.Profile.TeamID = teamId
+	c.Profile.TeamMode = teamMode
+	return c.Profile.SaveProfile()
 }
 
-// RemoveProfile removes the profile whose name matches the provided
-// profileName from the config file.
-func (c *Config) RemoveProfile(profileName string) error {
-	runtimeViper := c.GlobalConfig
-	var err error
+func (c *Config) ListProfiles() []string {
+	var profiles []string
 
-	for field, value := range runtimeViper.AllSettings() {
-		if isProfile(value) && field == profileName {
-			runtimeViper, err = removeKey(runtimeViper, field)
-			if err != nil {
-				return err
-			}
+	for field, value := range c.GlobalConfig.AllSettings() {
+		if isProfile(value) {
+			profiles = append(profiles, field)
 		}
 	}
 
-	runtimeViper.SetConfigType("toml")
-	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
-	c.GlobalConfig = runtimeViper
-	return c.GlobalConfig.WriteConfig()
+	return profiles
 }
 
 // RemoveAllProfiles removes all the profiles from the config file.
@@ -261,6 +235,11 @@ func (c *Config) RemoveAllProfiles() error {
 		}
 	}
 
+	runtimeViper, err = removeKey(runtimeViper, "profile")
+	if err != nil {
+		return err
+	}
+
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
 	c.GlobalConfig = runtimeViper
@@ -269,13 +248,16 @@ func (c *Config) RemoveAllProfiles() error {
 
 // Construct the config struct from flags > local config > global config
 func (c *Config) constructConfig() {
-	c.Color               = getStringConfig(c.Color              , c.LocalConfig.GetString("color")         , c.GlobalConfig.GetString(("color"))         , "auto")
-	c.LogLevel            = getStringConfig(c.LogLevel           , c.LocalConfig.GetString("log")           , c.GlobalConfig.GetString(("log"))           , "info")
-	c.APIBaseURL          = getStringConfig(c.APIBaseURL         , c.LocalConfig.GetString("api_base")      , c.GlobalConfig.GetString(("api_base"))      , hookdeck.DefaultAPIBaseURL)
-	c.DashboardBaseURL    = getStringConfig(c.DashboardBaseURL   , c.LocalConfig.GetString("dashboard_base"), c.GlobalConfig.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
-	c.ConsoleBaseURL      = getStringConfig(c.ConsoleBaseURL     , c.LocalConfig.GetString("console_base")  , c.GlobalConfig.GetString(("console_base"))  , hookdeck.DefaultConsoleBaseURL)
-	c.WSBaseURL           = getStringConfig(c.WSBaseURL          , c.LocalConfig.GetString("ws_base")       , c.GlobalConfig.GetString(("ws_base"))       , hookdeck.DefaultWebsocektURL)
-	c.Profile.ProfileName = getStringConfig(c.Profile.ProfileName, c.LocalConfig.GetString("profile")       , c.GlobalConfig.GetString(("profile"))      , "default")
+	c.Color            = getStringConfig(c.Color            , c.LocalConfig.GetString("color")          , c.GlobalConfig.GetString(("color"))                              , "auto")
+	c.LogLevel         = getStringConfig(c.LogLevel         , c.LocalConfig.GetString("log")            , c.GlobalConfig.GetString(("log"))                                , "info")
+	c.APIBaseURL       = getStringConfig(c.APIBaseURL       , c.LocalConfig.GetString("api_base")       , c.GlobalConfig.GetString(("api_base"))                           , hookdeck.DefaultAPIBaseURL)
+	c.DashboardBaseURL = getStringConfig(c.DashboardBaseURL , c.LocalConfig.GetString("dashboard_base") , c.GlobalConfig.GetString(("dashboard_base"))                     , hookdeck.DefaultDashboardBaseURL)
+	c.ConsoleBaseURL   = getStringConfig(c.ConsoleBaseURL   , c.LocalConfig.GetString("console_base")   , c.GlobalConfig.GetString(("console_base"))                       , hookdeck.DefaultConsoleBaseURL)
+	c.WSBaseURL        = getStringConfig(c.WSBaseURL        , c.LocalConfig.GetString("ws_base")        , c.GlobalConfig.GetString(("ws_base"))                            , hookdeck.DefaultWebsocektURL)
+	c.Profile.Name     = getStringConfig(c.Profile.Name     , c.LocalConfig.GetString("profile")        , c.GlobalConfig.GetString(("profile"))                            , hookdeck.DefaultProfileName)
+	c.Profile.APIKey   = getStringConfig(c.Profile.APIKey   , c.LocalConfig.GetString("api_key")        , c.GlobalConfig.GetString((c.Profile.GetConfigField("api_key")))  , "")
+	c.Profile.TeamID   = getStringConfig(c.Profile.TeamID   , c.LocalConfig.GetString("team_id")        , c.GlobalConfig.GetString((c.Profile.GetConfigField("team_id")))  , "")
+	c.Profile.TeamMode = getStringConfig(c.Profile.TeamMode , c.LocalConfig.GetString("team_mode")      , c.GlobalConfig.GetString((c.Profile.GetConfigField("team_mode"))), "")
 }
 
 func getStringConfig(v1 string, v2 string, v3 string, v4 string) string {
@@ -322,19 +304,6 @@ func removeKey(v *viper.Viper, key string) (*viper.Viper, error) {
 	}
 
 	return nv, nil
-}
-
-func makePath(path string) error {
-	dir := filepath.Dir(path)
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // taken from https://github.com/spf13/viper/blob/master/util.go#L199,

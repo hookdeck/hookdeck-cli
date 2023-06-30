@@ -40,6 +40,8 @@ type Client struct {
 	// empty, the `Authorization` header will be omitted.
 	APIKey string
 
+	TeamID string
+
 	// When this is enabled, request and response headers will be printed to
 	// stdout.
 	Verbose bool
@@ -62,6 +64,10 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	req.Header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
+
+	if c.TeamID != "" {
+		req.Header.Set("X-Team-ID", c.TeamID)
+	}
 
 	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT")) {
 		telemetryHdr, err := getTelemetryHeader()

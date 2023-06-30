@@ -29,16 +29,14 @@ func newWhoamiCmd() *whoamiCmd {
 }
 
 func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
-	key, err := Config.Profile.GetAPIKey()
-	if err != nil {
-		return err
-	}
-	response, err := login.ValidateKey(Config.APIBaseURL, key)
-	if err != nil {
-		return err
-	}
-
 	color := ansi.Color(os.Stdout)
+
+	fmt.Printf( "Using profile %s\n", color.Bold(Config.Profile.Name))
+
+	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.TeamID)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf(
 		"Logged in as %s in workspace %s\n",

@@ -26,7 +26,6 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
-	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,24 +35,12 @@ type Flags struct {
 
 // listenCmd represents the listen command
 func Listen(URL *url.URL, source_alias string, connection_query string, flags Flags, config *config.Config) error {
-	var key string
 	var err error
 	var guest_url string
 
-	key, err = config.Profile.GetAPIKey()
-	if err != nil {
-		errString := err.Error()
-		if errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error() {
-			guest_url, _ = login.GuestLogin(config)
-			if guest_url == "" {
-				return err
-			}
-
-			key, err = config.Profile.GetAPIKey()
-			if err != nil {
-				return err
-			}
-		} else {
+	if config.Profile.APIKey == "" {
+		guest_url, err = login.GuestLogin(config)
+		if guest_url == "" {
 			return err
 		}
 	}
@@ -65,7 +52,8 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 
 	client := &hookdeck.Client{
 		BaseURL: parsedBaseURL,
-		APIKey:  key,
+		APIKey:  config.Profile.APIKey,
+		TeamID:  config.Profile.TeamID,
 	}
 
 	source, err := getSource(client, source_alias)
@@ -86,10 +74,10 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		fmt.Println()
 	} else {
 		var url = config.DashboardBaseURL
-		if config.Profile.GetTeamId() != "" {
-			url += "?team_id=" + config.Profile.GetTeamId()
+		if config.Profile.TeamID != "" {
+			url += "?team_id=" + config.Profile.TeamID
 		}
-		if config.Profile.GetTeamMode() == "console" {
+		if config.Profile.TeamMode == "console" {
 			url = config.ConsoleBaseURL + "?source_id=" + source.Id
 		}
 		fmt.Println("👉 Inspect and replay webhooks: " + url)
@@ -106,18 +94,16 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	}
 	fmt.Println()
 
-	deviceName, err := config.Profile.GetDeviceName()
-	if err != nil {
-		return err
-	}
+	fmt.Println(config.WSBaseURL)
 
 	p := proxy.New(&proxy.Config{
-		DeviceName:       deviceName,
-		Key:              key,
+		DeviceName:       config.DeviceName,
+		Key:              config.Profile.APIKey,
+		TeamID:           config.Profile.TeamID,
+		TeamMode:         config.Profile.TeamMode,
 		APIBaseURL:       config.APIBaseURL,
 		DashboardBaseURL: config.DashboardBaseURL,
 		ConsoleBaseURL:   config.ConsoleBaseURL,
-		Profile:          config.Profile,
 		WSBaseURL:        config.WSBaseURL,
 		NoWSS:            flags.NoWSS,
 		URL:              URL,
