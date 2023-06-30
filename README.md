@@ -219,6 +219,30 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 ```
 
+### Manage active workspace
+
+If you are a part of many workspaces, you can switch between them using our workspace management commands.
+
+```sh-session
+$ hookdeck workspace list
+My Workspace (current)
+Another Workspace
+Yet Another One
+
+$ hookdeck workspace use
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select Workspace:
+    My Workspace
+    Another Workspace
+  ▸ Yet Another One
+
+Selecting workspace Yet Another One
+
+$ hookdeck whoami
+Using profile default
+Logged in as Me in workspace Yet Another One
+```
+
 ## Developing
 
 Build from source by running:
