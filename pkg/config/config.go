@@ -112,7 +112,7 @@ func (c *Config) InitConfig() {
 	}
 	LocalConfigFile := ""
 	if c.LocalConfigFile == "" {
-		LocalConfigFile = filepath.Join(workspaceFolder, "hookdeck.toml")
+		LocalConfigFile = filepath.Join(workspaceFolder, ".hookdeck/config.toml")
 	} else {
 		if filepath.IsAbs(c.LocalConfigFile) {
 			LocalConfigFile = c.LocalConfigFile
