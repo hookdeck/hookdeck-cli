@@ -25,7 +25,6 @@ func newWorkspaceUseCmd() *workspaceUseCmd {
 	return lc
 }
 
-// TODO: handle case where workspace name is not unique
 func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string) error {	
 	workspaces, err := workspace.ListWorkspaces(&Config)
 	if err != nil {
