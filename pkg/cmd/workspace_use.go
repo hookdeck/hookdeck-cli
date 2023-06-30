@@ -1,14 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/workspace"
 )
@@ -30,37 +25,30 @@ func newWorkspaceUseCmd() *workspaceUseCmd {
 	return lc
 }
 
+// TODO: handle case where workspace name is not unique
 func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string) error {	
 	workspaces, err := workspace.ListWorkspaces(&Config)
 	if err != nil {
 		return err
 	}
 
-	workspaceOptions := make([]string, len(workspaces))
-
-	for i := range workspaceOptions {
-		workspaceOptions[i] = workspaces[i].Id + " : " + workspaces[i].Name
+	templates := &promptui.SelectTemplates{
+		Active:   "▸ {{ .Name | green }}",
+		Inactive: "  {{ .Name }}",
+		Selected: "Selecting workspace {{ .Name | green }}",
 	}
 
 	prompt := promptui.Select{
 		Label: "Select Workspace",
-		Items: workspaceOptions,
+		Items: workspaces,
+		Templates: templates,
 	}
 
-	_, result, err := prompt.Run()
+	i, _, err := prompt.Run()
 	if err != nil {
 		return err
 	}
 
-	var workspace hookdeck.Workspace
-	for i := range workspaceOptions {
-		if result == workspaces[i].Id + " : " + workspaces[i].Name {
-			workspace = workspaces[i]
-		}
-	}
-
-	color := ansi.Color(os.Stdout)
-
-	fmt.Printf("Selecting workspace %s\n", color.Green(workspace.Name))
+	workspace := workspaces[i]
 	return Config.UseWorkspace(workspace.Id, workspace.Mode)
 }
