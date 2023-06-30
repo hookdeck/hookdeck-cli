@@ -33,10 +33,15 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 		return err
 	}
 
+	selectedTemplate := "Selecting workspace {{ .Name | green }}"
+	if lc.local {
+		selectedTemplate = "Pinning workspace {{ .Name | green }} to current directory"
+	}
+
 	templates := &promptui.SelectTemplates{
 		Active:   "▸ {{ .Name | green }}",
 		Inactive: "  {{ .Name }}",
-		Selected: "Selecting workspace {{ .Name | green }}",
+		Selected: selectedTemplate,
 	}
 
 	prompt := promptui.Select{
