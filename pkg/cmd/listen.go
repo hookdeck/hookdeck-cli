@@ -106,6 +106,6 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	return listen.Listen(url, source_alias, connection_query, listen.Flags{
-		NoWSS:     lc.noWSS,
+		NoWSS: lc.noWSS,
 	}, &Config)
 }

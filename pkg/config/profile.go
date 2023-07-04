@@ -2,8 +2,8 @@ package config
 
 type Profile struct {
 	Name     string // profile name
-	APIKey 	 string
-	TeamID 	 string
+	APIKey   string
+	TeamID   string
 	TeamMode string
 
 	Config *Config
@@ -18,7 +18,7 @@ func (p *Profile) SaveProfile(local bool) error {
 	// in local, we're d setting mode because it should always be inbound
 	// as a user can't have both inbound & console teams (i think)
 	// and we don't need to expose it to the end user
-	if (local) {
+	if local {
 		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
 		if err := p.Config.GlobalConfig.WriteConfig(); err != nil {
 			return err
@@ -37,11 +37,11 @@ func (p *Profile) RemoveProfile() error {
 	var err error
 	runtimeViper := p.Config.GlobalConfig
 
-	runtimeViper, err = removeKey(runtimeViper, "profile");
+	runtimeViper, err = removeKey(runtimeViper, "profile")
 	if err != nil {
 		return err
 	}
-	runtimeViper, err = removeKey(runtimeViper, p.Name);
+	runtimeViper, err = removeKey(runtimeViper, p.Name)
 	if err != nil {
 		return err
 	}

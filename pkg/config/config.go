@@ -31,10 +31,10 @@ const ColorAuto = "auto"
 
 // Config handles all overall configuration for the CLI
 type Config struct {
-	Profile          Profile
-	Color            string
-	LogLevel         string
-	DeviceName       string
+	Profile    Profile
+	Color      string
+	LogLevel   string
+	DeviceName string
 
 	// Helpers
 	APIBaseURL       string
@@ -45,9 +45,9 @@ type Config struct {
 
 	// Config
 	GlobalConfigFile string
-	GlobalConfig *viper.Viper
+	GlobalConfig     *viper.Viper
 	LocalConfigFile  string
-	LocalConfig  *viper.Viper
+	LocalConfig      *viper.Viper
 }
 
 // GetConfigFolder retrieves the folder where the profiles file is stored
@@ -248,21 +248,21 @@ func (c *Config) RemoveAllProfiles() error {
 
 // Construct the config struct from flags > local config > global config
 func (c *Config) constructConfig() {
-	c.Color            = getStringConfig([]string{c.Color            , c.LocalConfig.GetString("color")          , c.GlobalConfig.GetString(("color"))                             , "auto"})
-	c.LogLevel         = getStringConfig([]string{c.LogLevel         , c.LocalConfig.GetString("log")            , c.GlobalConfig.GetString(("log"))                               , "info"})
-	c.APIBaseURL       = getStringConfig([]string{c.APIBaseURL       , c.LocalConfig.GetString("api_base")       , c.GlobalConfig.GetString(("api_base"))                          , hookdeck.DefaultAPIBaseURL})
-	c.DashboardBaseURL = getStringConfig([]string{c.DashboardBaseURL , c.LocalConfig.GetString("dashboard_base") , c.GlobalConfig.GetString(("dashboard_base"))                    , hookdeck.DefaultDashboardBaseURL})
-	c.ConsoleBaseURL   = getStringConfig([]string{c.ConsoleBaseURL   , c.LocalConfig.GetString("console_base")   , c.GlobalConfig.GetString(("console_base"))                      , hookdeck.DefaultConsoleBaseURL})
-	c.WSBaseURL        = getStringConfig([]string{c.WSBaseURL        , c.LocalConfig.GetString("ws_base")        , c.GlobalConfig.GetString(("ws_base"))                           , hookdeck.DefaultWebsocektURL})
-	c.Profile.Name     = getStringConfig([]string{c.Profile.Name     , c.LocalConfig.GetString("profile")        , c.GlobalConfig.GetString(("profile"))                           , hookdeck.DefaultProfileName})
-	c.Profile.APIKey   = getStringConfig([]string{c.Profile.APIKey   , c.LocalConfig.GetString("api_key")        , c.GlobalConfig.GetString((c.Profile.GetConfigField("api_key"))) , ""})
-	c.Profile.TeamID   = getStringConfig([]string{c.Profile.TeamID   , c.LocalConfig.GetString("workspace_id")   , c.LocalConfig.GetString("team_id")                              , c.GlobalConfig.GetString((c.Profile.GetConfigField("workspace_id")))   , c.GlobalConfig.GetString((c.Profile.GetConfigField("team_id")))   , ""})
-	c.Profile.TeamMode = getStringConfig([]string{c.Profile.TeamMode , c.LocalConfig.GetString("workspace_mode") , c.LocalConfig.GetString("team_mode")                            , c.GlobalConfig.GetString((c.Profile.GetConfigField("workspace_mode"))) , c.GlobalConfig.GetString((c.Profile.GetConfigField("team_mode"))) , ""})
+	c.Color = getStringConfig([]string{c.Color, c.LocalConfig.GetString("color"), c.GlobalConfig.GetString(("color")), "auto"})
+	c.LogLevel = getStringConfig([]string{c.LogLevel, c.LocalConfig.GetString("log"), c.GlobalConfig.GetString(("log")), "info"})
+	c.APIBaseURL = getStringConfig([]string{c.APIBaseURL, c.LocalConfig.GetString("api_base"), c.GlobalConfig.GetString(("api_base")), hookdeck.DefaultAPIBaseURL})
+	c.DashboardBaseURL = getStringConfig([]string{c.DashboardBaseURL, c.LocalConfig.GetString("dashboard_base"), c.GlobalConfig.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL})
+	c.ConsoleBaseURL = getStringConfig([]string{c.ConsoleBaseURL, c.LocalConfig.GetString("console_base"), c.GlobalConfig.GetString(("console_base")), hookdeck.DefaultConsoleBaseURL})
+	c.WSBaseURL = getStringConfig([]string{c.WSBaseURL, c.LocalConfig.GetString("ws_base"), c.GlobalConfig.GetString(("ws_base")), hookdeck.DefaultWebsocektURL})
+	c.Profile.Name = getStringConfig([]string{c.Profile.Name, c.LocalConfig.GetString("profile"), c.GlobalConfig.GetString(("profile")), hookdeck.DefaultProfileName})
+	c.Profile.APIKey = getStringConfig([]string{c.Profile.APIKey, c.LocalConfig.GetString("api_key"), c.GlobalConfig.GetString((c.Profile.GetConfigField("api_key"))), ""})
+	c.Profile.TeamID = getStringConfig([]string{c.Profile.TeamID, c.LocalConfig.GetString("workspace_id"), c.LocalConfig.GetString("team_id"), c.GlobalConfig.GetString((c.Profile.GetConfigField("workspace_id"))), c.GlobalConfig.GetString((c.Profile.GetConfigField("team_id"))), ""})
+	c.Profile.TeamMode = getStringConfig([]string{c.Profile.TeamMode, c.LocalConfig.GetString("workspace_mode"), c.LocalConfig.GetString("team_mode"), c.GlobalConfig.GetString((c.Profile.GetConfigField("workspace_mode"))), c.GlobalConfig.GetString((c.Profile.GetConfigField("team_mode"))), ""})
 }
 
 func getStringConfig(values []string) string {
 	for _, str := range values {
-    if str != "" {
+		if str != "" {
 			return str
 		}
 	}

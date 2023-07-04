@@ -27,7 +27,7 @@ func newWorkspaceUseCmd() *workspaceUseCmd {
 	return lc
 }
 
-func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string) error {	
+func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string) error {
 	workspaces, err := workspace.ListWorkspaces(&Config)
 	if err != nil {
 		return err
@@ -45,8 +45,8 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 	}
 
 	prompt := promptui.Select{
-		Label: "Select Workspace",
-		Items: workspaces,
+		Label:     "Select Workspace",
+		Items:     workspaces,
 		Templates: templates,
 	}
 

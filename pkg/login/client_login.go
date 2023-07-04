@@ -150,7 +150,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 
 	client := &hookdeck.Client{
 		BaseURL: parsedBaseURL,
-		APIKey: apiKey,
+		APIKey:  apiKey,
 	}
 
 	deviceName := name

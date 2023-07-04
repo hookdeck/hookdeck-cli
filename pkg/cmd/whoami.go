@@ -31,7 +31,7 @@ func newWhoamiCmd() *whoamiCmd {
 func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 	color := ansi.Color(os.Stdout)
 
-	fmt.Printf( "Using profile %s\n", color.Bold(Config.Profile.Name))
+	fmt.Printf("Using profile %s\n", color.Bold(Config.Profile.Name))
 
 	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.TeamID)
 	if err != nil {

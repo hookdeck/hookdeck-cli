@@ -30,7 +30,7 @@ import (
 )
 
 type Flags struct {
-	NoWSS     bool
+	NoWSS bool
 }
 
 // listenCmd represents the listen command
