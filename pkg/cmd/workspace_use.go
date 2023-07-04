@@ -28,6 +28,10 @@ func newWorkspaceUseCmd() *workspaceUseCmd {
 }
 
 func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
 	workspaces, err := workspace.ListWorkspaces(&Config)
 	if err != nil {
 		return err

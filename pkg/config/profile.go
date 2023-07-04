@@ -1,5 +1,7 @@
 package config
 
+import "github.com/hookdeck/hookdeck-cli/pkg/validators"
+
 type Profile struct {
 	Name     string // profile name
 	APIKey   string
@@ -55,4 +57,11 @@ func (p *Profile) RemoveProfile() error {
 func (p *Profile) UseProfile() error {
 	p.Config.GlobalConfig.Set("profile", p.Name)
 	return p.Config.GlobalConfig.WriteConfig()
+}
+
+func (p *Profile) ValidateAPIKey() error {
+	if p.APIKey == "" {
+		return validators.ErrAPIKeyNotConfigured
+	}
+	return nil
 }

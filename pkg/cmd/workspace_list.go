@@ -29,7 +29,9 @@ func newWorkspaceListCmd() *workspaceListCmd {
 }
 
 func (lc *workspaceListCmd) runWorkspaceListCmd(cmd *cobra.Command, args []string) error {
-	// TODO: validate API key ??
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
 
 	workspaces, err := workspace.ListWorkspaces(&Config)
 	if err != nil {
