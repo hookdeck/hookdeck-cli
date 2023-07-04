@@ -94,8 +94,6 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 	}
 	fmt.Println()
 
-	fmt.Println(config.WSBaseURL)
-
 	p := proxy.New(&proxy.Config{
 		DeviceName:       config.DeviceName,
 		Key:              config.Profile.APIKey,
