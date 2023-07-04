@@ -246,6 +246,17 @@ func (c *Config) RemoveAllProfiles() error {
 	return c.GlobalConfig.WriteConfig()
 }
 
+func (c *Config) SaveLocalConfig() error {
+	if err := ensureDirectoy(filepath.Dir(c.LocalConfigFile)); err != nil {
+		return err
+	}
+	return c.LocalConfig.WriteConfig()
+}
+
+func ensureDirectoy(path string) error {
+	return os.MkdirAll(path, os.ModePerm)
+}
+
 // Construct the config struct from flags > local config > global config
 func (c *Config) constructConfig() {
 	c.Color = getStringConfig([]string{c.Color, c.LocalConfig.GetString("color"), c.GlobalConfig.GetString(("color")), "auto"})

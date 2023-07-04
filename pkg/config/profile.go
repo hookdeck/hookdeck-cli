@@ -24,7 +24,7 @@ func (p *Profile) SaveProfile(local bool) error {
 			return err
 		}
 		p.Config.LocalConfig.Set("workspace_id", p.TeamID)
-		return p.Config.LocalConfig.WriteConfig()
+		return p.Config.SaveLocalConfig()
 	} else {
 		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
 		p.Config.GlobalConfig.Set(p.GetConfigField("workspace_id"), p.TeamID)
