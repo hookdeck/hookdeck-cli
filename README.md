@@ -243,6 +243,21 @@ Using profile default
 Logged in as Me in workspace Yet Another One
 ```
 
+You can also pin an active workspace in the current working directory with the `--local` flag.
+
+```sh-session
+$ hookdeck workspace use --local
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select Workspace:
+    My Workspace
+    Another Workspace
+  ▸ Yet Another One
+
+Selecting workspace Yet Another One
+```
+
+This will create a local config file in your current directory at `myproject/.hookdeck/config.toml`. Depending on your team's Hookdeck usage and workspace setup, you may or may not want to commit this configuration file to version control.
+
 ## Developing
 
 Build from source by running:
