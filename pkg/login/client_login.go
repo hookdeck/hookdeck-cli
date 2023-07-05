@@ -36,7 +36,7 @@ func Login(config *config.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
 	if config.Profile.APIKey != "" {
-		s = ansi.StartNewSpinner("Verifying CLI Key...", os.Stdout)
+		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
 		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey, config.Profile.TeamID)
 		if err != nil {
 			return err
@@ -150,7 +150,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 
 	client := &hookdeck.Client{
 		BaseURL: parsedBaseURL,
-		APIKey: apiKey,
+		APIKey:  apiKey,
 	}
 
 	deviceName := name

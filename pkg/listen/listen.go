@@ -30,7 +30,7 @@ import (
 )
 
 type Flags struct {
-	NoWSS     bool
+	NoWSS bool
 }
 
 // listenCmd represents the listen command
@@ -93,8 +93,6 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		fmt.Println(connection.Label + " forwarding to " + connection.Destination.CliPath)
 	}
 	fmt.Println()
-
-	fmt.Println(config.WSBaseURL)
 
 	p := proxy.New(&proxy.Config{
 		DeviceName:       config.DeviceName,

@@ -1,9 +1,11 @@
 package config
 
+import "github.com/hookdeck/hookdeck-cli/pkg/validators"
+
 type Profile struct {
 	Name     string // profile name
-	APIKey 	 string
-	TeamID 	 string
+	APIKey   string
+	TeamID   string
 	TeamMode string
 
 	Config *Config
@@ -18,13 +20,13 @@ func (p *Profile) SaveProfile(local bool) error {
 	// in local, we're d setting mode because it should always be inbound
 	// as a user can't have both inbound & console teams (i think)
 	// and we don't need to expose it to the end user
-	if (local) {
+	if local {
 		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
 		if err := p.Config.GlobalConfig.WriteConfig(); err != nil {
 			return err
 		}
 		p.Config.LocalConfig.Set("workspace_id", p.TeamID)
-		return p.Config.LocalConfig.WriteConfig()
+		return p.Config.SaveLocalConfig()
 	} else {
 		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
 		p.Config.GlobalConfig.Set(p.GetConfigField("workspace_id"), p.TeamID)
@@ -37,11 +39,11 @@ func (p *Profile) RemoveProfile() error {
 	var err error
 	runtimeViper := p.Config.GlobalConfig
 
-	runtimeViper, err = removeKey(runtimeViper, "profile");
+	runtimeViper, err = removeKey(runtimeViper, "profile")
 	if err != nil {
 		return err
 	}
-	runtimeViper, err = removeKey(runtimeViper, p.Name);
+	runtimeViper, err = removeKey(runtimeViper, p.Name)
 	if err != nil {
 		return err
 	}
@@ -55,4 +57,11 @@ func (p *Profile) RemoveProfile() error {
 func (p *Profile) UseProfile() error {
 	p.Config.GlobalConfig.Set("profile", p.Name)
 	return p.Config.GlobalConfig.WriteConfig()
+}
+
+func (p *Profile) ValidateAPIKey() error {
+	if p.APIKey == "" {
+		return validators.ErrAPIKeyNotConfigured
+	}
+	return nil
 }
