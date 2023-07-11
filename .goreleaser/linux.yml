@@ -67,8 +67,8 @@ dockers:
       - hookdeck
       - hookdeck-linux
     image_templates:
-      - "hookdeck/hookdeck-cli:latest"
-      - "hookdeck/hookdeck-cli:{{ .Tag }}"
+      - "hookdeck/hookdeck-cli:latest-amd64"
+      - "hookdeck/hookdeck-cli:{{ .Tag }}-amd64"
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -77,3 +77,21 @@ dockers:
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=repository=https://github.com/hookdeck/hookdeck-cli"
       - "--label=homepage=https://hookdeck.com"
+      - "--platform=linux/amd64"
+  - goos: linux
+    goarch: arm64
+    ids:
+      - hookdeck
+      - hookdeck-linux-arm
+    image_templates:
+      - "hookdeck/hookdeck-cli:latest-arm64"
+      - "hookdeck/hookdeck-cli:{{ .Tag }}-arm64"
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=repository=https://github.com/hookdeck/hookdeck-cli"
+      - "--label=homepage=https://hookdeck.com"
+      - "--platform=linux/arm64/v8"
