@@ -87,8 +87,8 @@ func (c *Config) InitConfig() {
 	c.LocalConfig = viper.New()
 
 	// Read global config
-	GlobalConfigFolder := c.GetConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
-	c.GlobalConfigFile = filepath.Join(GlobalConfigFolder, "config.toml")
+	globalConfigFolder := c.GetConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
+	c.GlobalConfigFile = filepath.Join(globalConfigFolder, "config.toml")
 	c.GlobalConfig.SetConfigType("toml")
 	c.GlobalConfig.SetConfigFile(c.GlobalConfigFile)
 	c.GlobalConfig.SetConfigPermissions(os.FileMode(0600))
@@ -110,19 +110,19 @@ func (c *Config) InitConfig() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	LocalConfigFile := ""
+	localConfigFile := ""
 	if c.LocalConfigFile == "" {
-		LocalConfigFile = filepath.Join(workspaceFolder, ".hookdeck/config.toml")
+		localConfigFile = filepath.Join(workspaceFolder, ".hookdeck/config.toml")
 	} else {
 		if filepath.IsAbs(c.LocalConfigFile) {
-			LocalConfigFile = c.LocalConfigFile
+			localConfigFile = c.LocalConfigFile
 		} else {
-			LocalConfigFile = filepath.Join(workspaceFolder, c.LocalConfigFile)
+			localConfigFile = filepath.Join(workspaceFolder, c.LocalConfigFile)
 		}
 	}
 	c.LocalConfig.SetConfigType("toml")
-	c.LocalConfig.SetConfigFile(LocalConfigFile)
-	c.LocalConfigFile = LocalConfigFile
+	c.LocalConfig.SetConfigFile(localConfigFile)
+	c.LocalConfigFile = localConfigFile
 	if err := c.LocalConfig.ReadInConfig(); err == nil {
 		log.WithFields(log.Fields{
 			"prefix": "config.Config.InitConfig",
@@ -243,18 +243,21 @@ func (c *Config) RemoveAllProfiles() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
 	c.GlobalConfig = runtimeViper
+	return c.SaveGlobalConfig()
+}
+
+func (c *Config) SaveGlobalConfig() error {
+	if err := makePath(c.GlobalConfig.ConfigFileUsed()); err != nil {
+		return err
+	}
 	return c.GlobalConfig.WriteConfig()
 }
 
 func (c *Config) SaveLocalConfig() error {
-	if err := ensureDirectoy(filepath.Dir(c.LocalConfigFile)); err != nil {
+	if err := makePath(c.LocalConfig.ConfigFileUsed()); err != nil {
 		return err
 	}
 	return c.LocalConfig.WriteConfig()
-}
-
-func ensureDirectoy(path string) error {
-	return os.MkdirAll(path, os.ModePerm)
 }
 
 // Construct the config struct from flags > local config > global config
@@ -312,6 +315,19 @@ func removeKey(v *viper.Viper, key string) (*viper.Viper, error) {
 	}
 
 	return nv, nil
+}
+
+func makePath(path string) error {
+	dir := filepath.Dir(path)
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // taken from https://github.com/spf13/viper/blob/master/util.go#L199,

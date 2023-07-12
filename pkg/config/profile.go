@@ -22,7 +22,7 @@ func (p *Profile) SaveProfile(local bool) error {
 	// and we don't need to expose it to the end user
 	if local {
 		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
-		if err := p.Config.GlobalConfig.WriteConfig(); err != nil {
+		if err := p.Config.SaveGlobalConfig(); err != nil {
 			return err
 		}
 		p.Config.LocalConfig.Set("workspace_id", p.TeamID)
@@ -31,7 +31,7 @@ func (p *Profile) SaveProfile(local bool) error {
 		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
 		p.Config.GlobalConfig.Set(p.GetConfigField("workspace_id"), p.TeamID)
 		p.Config.GlobalConfig.Set(p.GetConfigField("workspace_mode"), p.TeamMode)
-		return p.Config.GlobalConfig.WriteConfig()
+		return p.Config.SaveGlobalConfig()
 	}
 }
 
@@ -51,12 +51,12 @@ func (p *Profile) RemoveProfile() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(p.Config.GlobalConfig.ConfigFileUsed())
 	p.Config.GlobalConfig = runtimeViper
-	return p.Config.GlobalConfig.WriteConfig()
+	return p.Config.SaveGlobalConfig()
 }
 
 func (p *Profile) UseProfile() error {
 	p.Config.GlobalConfig.Set("profile", p.Name)
-	return p.Config.GlobalConfig.WriteConfig()
+	return p.Config.SaveGlobalConfig()
 }
 
 func (p *Profile) ValidateAPIKey() error {
