@@ -21,8 +21,7 @@ builds:
       - amd64
       - 386
 archives:
-  - replacements:
-    files:
+  - files:
       - none*
 changelog:
   sort: asc
@@ -34,13 +33,13 @@ checksum:
   name_template: "{{ .ProjectName }}-windows-checksums-npm.txt"
 snapshot:
   name_template: "{{ .Tag }}-next"
-scoop:
-  bucket:
-    owner: hookdeck
-    name: scoop-hookdeck
-  commit_author:
-    name: hookdeck-ci
-    email: support@hookdeck.com
-  homepage: https://hookdeck.com
-  description: Hookdeck CLI utility
-  license: Apache 2.0
+scoops:
+  - repository:
+      owner: hookdeck
+      name: scoop-hookdeck
+    commit_author:
+      name: hookdeck-ci
+      email: support@hookdeck.com
+    homepage: https://hookdeck.com
+    description: Hookdeck CLI utility
+    license: Apache 2.0
