@@ -243,17 +243,17 @@ func (c *Config) RemoveAllProfiles() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(c.GlobalConfig.ConfigFileUsed())
 	c.GlobalConfig = runtimeViper
-	return c.SaveGlobalConfig()
+	return c.WriteGlobalConfig()
 }
 
-func (c *Config) SaveGlobalConfig() error {
+func (c *Config) WriteGlobalConfig() error {
 	if err := makePath(c.GlobalConfig.ConfigFileUsed()); err != nil {
 		return err
 	}
 	return c.GlobalConfig.WriteConfig()
 }
 
-func (c *Config) SaveLocalConfig() error {
+func (c *Config) WriteLocalConfig() error {
 	if err := makePath(c.LocalConfig.ConfigFileUsed()); err != nil {
 		return err
 	}
