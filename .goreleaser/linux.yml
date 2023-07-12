@@ -28,17 +28,6 @@ builds:
       - linux
     goarch:
       - arm64
-  - id: hookdeck-linux-arm
-    ldflags:
-      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
-    binary: hookdeck
-    env:
-      - CGO_ENABLED=0
-    main: ./main.go
-    goos:
-      - linux
-    goarch:
-      - arm
 changelog:
   sort: asc
   filters:
@@ -82,7 +71,7 @@ dockers:
     goarch: arm64
     ids:
       - hookdeck
-      - hookdeck-linux-arm
+      - hookdeck-linux-arm64
     image_templates:
       - "hookdeck/hookdeck-cli:latest-arm64"
       - "hookdeck/hookdeck-cli:{{ .Tag }}-arm64"
