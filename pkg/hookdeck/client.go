@@ -22,9 +22,9 @@ const DefaultAPIBaseURL = "https://api.hookdeck.com"
 const DefaultDashboardURL = "https://dashboard.hookdeck.com"
 
 // DefaultDashboardBaseURL is the default base URL for dashboard requests
-const DefaultDashboardBaseURL = "http://dashboard.hookdeck.com"
+const DefaultDashboardBaseURL = "https://dashboard.hookdeck.com"
 
-const DefaultConsoleBaseURL = "http://console.hookdeck.com"
+const DefaultConsoleBaseURL = "https://console.hookdeck.com"
 
 const DefaultWebsocektURL = "wss://ws.hookdeck.com"
 
