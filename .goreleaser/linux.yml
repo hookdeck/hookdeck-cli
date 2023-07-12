@@ -84,3 +84,12 @@ dockers:
       - "--label=repository=https://github.com/hookdeck/hookdeck-cli"
       - "--label=homepage=https://hookdeck.com"
       - "--platform=linux/arm64/v8"
+docker_manifests:
+  - name_template: "hookdeck/hookdeck-cli:latest"
+    image_templates:
+      - "hookdeck/hookdeck-cli:latest-amd64"
+      - "hookdeck/hookdeck-cli:latest-arm64"
+  - name_template: "hookdeck/hookdeck-cli:{{ .Tag }}"
+    image_templates:
+      - "hookdeck/hookdeck-cli:{{ .Tag }}-amd64"
+      - "hookdeck/hookdeck-cli:{{ .Tag }}-arm64"
