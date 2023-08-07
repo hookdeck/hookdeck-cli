@@ -29,7 +29,6 @@ func newWorkspaceUseCmd() *workspaceUseCmd {
 }
 
 func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string) error {
-
 	if err := Config.Profile.ValidateAPIKey(); err != nil {
 		return err
 	}
@@ -39,9 +38,13 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 		return err
 	}
 
+	var currentWorkspaceName string
 	workspaceNames := make([]string, len(workspaces))
 	for index, workspace := range workspaces {
 		workspaceNames[index] = workspace.Name
+		if workspace.Id == Config.Profile.TeamID {
+			currentWorkspaceName = workspace.Name
+		}
 	}
 
 	var qs = []*survey.Question{
@@ -50,7 +53,7 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 			Prompt: &survey.Select{
 				Message: "Select Workspace",
 				Options: workspaceNames,
-				Default: "red",
+				Default: currentWorkspaceName,
 			},
 			Validate: survey.Required,
 		},
