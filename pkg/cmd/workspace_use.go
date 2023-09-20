@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"github.com/manifoldco/promptui"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/workspace"
 )
@@ -37,28 +38,41 @@ func (lc *workspaceUseCmd) runWorkspaceUseCmd(cmd *cobra.Command, args []string)
 		return err
 	}
 
-	selectedTemplate := "Selecting workspace {{ .Name | green }}"
-	if lc.local {
-		selectedTemplate = "Pinning workspace {{ .Name | green }} to current directory"
+	var currentWorkspaceName string
+	workspaceNames := make([]string, len(workspaces))
+	for index, workspace := range workspaces {
+		workspaceNames[index] = workspace.Name
+		if workspace.Id == Config.Profile.TeamID {
+			currentWorkspaceName = workspace.Name
+		}
 	}
 
-	templates := &promptui.SelectTemplates{
-		Active:   "▸ {{ .Name | green }}",
-		Inactive: "  {{ .Name }}",
-		Selected: selectedTemplate,
+	var qs = []*survey.Question{
+		{
+			Name: "workspace_name",
+			Prompt: &survey.Select{
+				Message: "Select Workspace",
+				Options: workspaceNames,
+				Default: currentWorkspaceName,
+			},
+			Validate: survey.Required,
+		},
 	}
 
-	prompt := promptui.Select{
-		Label:     "Select Workspace",
-		Items:     workspaces,
-		Templates: templates,
-	}
+	answers := struct {
+		WorkspaceName string `survey:"workspace_name"`
+	}{}
 
-	i, _, err := prompt.Run()
-	if err != nil {
+	if err = survey.Ask(qs, &answers); err != nil {
 		return err
 	}
 
-	workspace := workspaces[i]
+	var workspace hookdeck.Workspace
+	for _, tempWorkspace := range workspaces {
+		if answers.WorkspaceName == tempWorkspace.Name {
+			workspace = tempWorkspace
+		}
+	}
+
 	return Config.UseWorkspace(lc.local, workspace.Id, workspace.Mode)
 }
