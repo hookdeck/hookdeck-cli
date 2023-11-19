@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,7 +39,7 @@ func newListenCmd() *listenCmd {
 		Short: "Forward webhooks for a source to your local server",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return errors.New("Requires a port or forwarding URL to foward the webhooks to")
+				return errors.New("Requires a port or forwarding URL to forward the webhooks to")
 			}
 
 			_, err_port := strconv.ParseInt(args[0], 10, 64)
@@ -75,6 +75,8 @@ func newListenCmd() *listenCmd {
 		RunE: lc.runListenCmd,
 	}
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
+
+	lc.cmd.SetUsageTemplate(strings.Replace(lc.cmd.UsageTemplate(), "{{.UseLine}}", "hookdeck listen [port or forwarding URL] [flags]", 1))
 
 	return lc
 }
