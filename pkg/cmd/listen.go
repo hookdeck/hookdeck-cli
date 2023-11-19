@@ -76,7 +76,12 @@ func newListenCmd() *listenCmd {
 	}
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 
-	lc.cmd.SetUsageTemplate(strings.Replace(lc.cmd.UsageTemplate(), "{{.UseLine}}", "hookdeck listen [port or forwarding URL] [flags]", 1))
+	lc.cmd.SetUsageTemplate(
+		strings.Replace(
+			lc.cmd.UsageTemplate(),
+			"{{.UseLine}}",
+			"hookdeck listen [port or forwarding URL] [source] [connection] [flags]", 1),
+	)
 
 	return lc
 }
