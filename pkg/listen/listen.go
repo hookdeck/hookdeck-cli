@@ -118,6 +118,6 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 }
 
 func isPath(value string) (bool, error) {
-	is_path, err := regexp.MatchString("^(/)+([/.a-zA-Z0-9-_%]*)$", value)
+	is_path, err := regexp.MatchString("^(\/)+([/a-zA-Z0-9-_%\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@]*)$", value)
 	return is_path, err
 }
