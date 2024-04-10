@@ -43,7 +43,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf(
-		"Logged in as %s in workspace %s\n",
+		"Logged in as %s in project %s\n",
 		color.Bold(response.UserName),
 		color.Bold(response.TeamName),
 	)

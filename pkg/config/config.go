@@ -202,8 +202,8 @@ func (c *Config) EditConfig() error {
 	return err
 }
 
-// UseWorkspace selects the active workspace to be used
-func (c *Config) UseWorkspace(local bool, teamId string, teamMode string) error {
+// UseProject selects the active project to be used
+func (c *Config) UseProject(local bool, teamId string, teamMode string) error {
 	c.Profile.TeamID = teamId
 	c.Profile.TeamMode = teamMode
 	return c.Profile.SaveProfile(local)

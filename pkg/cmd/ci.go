@@ -22,8 +22,8 @@ func newCICmd() *ciCmd {
 	lc.cmd = &cobra.Command{
 		Use:   "ci",
 		Args:  validators.NoArgs,
-		Short: "Login to your Hookdeck workspace in CI",
-		Long:  `Login to your Hookdeck workspace to forward events in CI`,
+		Short: "Login to your Hookdeck project in CI",
+		Long:  `Login to your Hookdeck project to forward events in CI`,
 		RunE:  lc.runCICmd,
 	}
 	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", os.Getenv("HOOKDECK_API_KEY"), "Your API key to use for the command")

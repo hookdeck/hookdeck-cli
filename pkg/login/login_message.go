@@ -19,13 +19,13 @@ func SuccessMessage(displayName string, teamName string, isConsole bool) string 
 
 	if displayName == "" {
 		return fmt.Sprintf(
-			"Done! The Hookdeck CLI is configured in workspace %s\n",
+			"Done! The Hookdeck CLI is configured in project %s\n",
 			color.Bold(teamName),
 		)
 	}
 
 	return fmt.Sprintf(
-		"Done! The Hookdeck CLI is configured for %s in workspace %s\n",
+		"Done! The Hookdeck CLI is configured for %s in project %s\n",
 		color.Bold(displayName),
 		color.Bold(teamName),
 	)
