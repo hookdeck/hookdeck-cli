@@ -1,31 +1,36 @@
 package listen
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosimple/slug"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
+	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getSource(client *hookdeck.Client, source_alias string) (hookdeck.Source, error) {
-	var source hookdeck.Source
+func getSource(sdkClient *hookdeckclient.Client, source_alias string) (*hookdecksdk.Source, error) {
+	var source *hookdecksdk.Source
 	if source_alias != "" {
-		source, _ = client.GetSourceByAlias(source_alias)
-		if source.Id == "" {
+		sources, _ := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
+			Name: &source_alias,
+		})
+		if *sources.Count > 0 {
+			source = sources.Models[0]
+		}
+		if source == nil {
 			// TODO: Prompt here?
-			source, _ = client.CreateSource(hookdeck.CreateSourceInput{
-				Alias: source_alias,
-				// TODO: labelized alias
-				Label: source_alias,
+			source, _ = sdkClient.Source.Create(context.Background(), &hookdecksdk.SourceCreateRequest{
+				Name: slug.Make(source_alias),
 			})
 		}
 	} else {
-		sources, _ := client.ListSources()
-		if len(sources) > 0 {
+		sources, _ := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{})
+		if *sources.Count > 0 {
 			var sources_alias []string
-			for _, temp_source := range sources {
-				sources_alias = append(sources_alias, temp_source.Alias)
+			for _, temp_source := range sources.Models {
+				sources_alias = append(sources_alias, temp_source.Name)
 			}
 
 			answers := struct {
@@ -49,15 +54,15 @@ func getSource(client *hookdeck.Client, source_alias string) (hookdeck.Source, e
 			}
 
 			if answers.SourceAlias != "Create new source" {
-				for _, temp_source := range sources {
-					if temp_source.Alias == answers.SourceAlias {
+				for _, temp_source := range sources.Models {
+					if temp_source.Name == answers.SourceAlias {
 						source = temp_source
 					}
 				}
 			}
 		}
 
-		if source.Id == "" {
+		if source == nil {
 			answers := struct {
 				Label string `survey:"label"` // or you can tag fields to match a specific name
 			}{}
@@ -74,9 +79,8 @@ func getSource(client *hookdeck.Client, source_alias string) (hookdeck.Source, e
 				return source, err
 			}
 
-			source, _ = client.CreateSource(hookdeck.CreateSourceInput{
-				Alias: slug.Make(answers.Label),
-				Label: answers.Label,
+			source, _ = sdkClient.Source.Create(context.Background(), &hookdecksdk.SourceCreateRequest{
+				Name: slug.Make(answers.Label),
 			})
 		}
 	}

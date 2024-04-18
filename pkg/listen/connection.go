@@ -8,9 +8,10 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosimple/slug"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
-func getConnections(client *hookdeck.Client, source hookdeck.Source, connection_query string) ([]hookdeck.Connection, error) {
+func getConnections(client *hookdeck.Client, source *hookdecksdk.Source, connection_query string) ([]hookdeck.Connection, error) {
 	// TODO: Filter connections using connection_query
 	var connections []hookdeck.Connection
 	connections, err := client.ListConnectionsBySource(source.Id)

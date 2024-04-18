@@ -56,7 +56,9 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		TeamID:  config.Profile.TeamID,
 	}
 
-	source, err := getSource(client, source_alias)
+	sdkClient := config.GetClient()
+
+	source, err := getSource(sdkClient, source_alias)
 	if err != nil {
 		return err
 	}
@@ -84,7 +86,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		fmt.Println()
 	}
 
-	fmt.Println(ansi.Bold(source.Label + " Source"))
+	fmt.Println(ansi.Bold(source.Name + " Source"))
 	fmt.Println("🔌 Webhook URL: " + source.Url)
 	fmt.Println()
 

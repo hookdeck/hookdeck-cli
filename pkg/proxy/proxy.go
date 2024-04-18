@@ -22,6 +22,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
+	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
 const timeLayout = "2006-01-02 15:04:05"
@@ -56,7 +57,7 @@ type Config struct {
 // back to Hookdeck.
 type Proxy struct {
 	cfg               *Config
-	source            hookdeck.Source
+	source            *hookdecksdk.Source
 	connections       []hookdeck.Connection
 	connections_paths map[string]string
 	webSocketClient   *websocket.Client
@@ -363,7 +364,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 //
 
 // New creates a new Proxy
-func New(cfg *Config, source hookdeck.Source, connections []hookdeck.Connection) *Proxy {
+func New(cfg *Config, source *hookdecksdk.Source, connections []hookdeck.Connection) *Proxy {
 	if cfg.Log == nil {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
