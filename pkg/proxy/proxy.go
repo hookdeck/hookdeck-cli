@@ -58,7 +58,7 @@ type Config struct {
 type Proxy struct {
 	cfg               *Config
 	source            *hookdecksdk.Source
-	connections       []hookdeck.Connection
+	connections       []*hookdecksdk.Connection
 	connections_paths map[string]string
 	webSocketClient   *websocket.Client
 	connectionTimer   *time.Timer
@@ -364,7 +364,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 //
 
 // New creates a new Proxy
-func New(cfg *Config, source *hookdecksdk.Source, connections []hookdeck.Connection) *Proxy {
+func New(cfg *Config, source *hookdecksdk.Source, connections []*hookdecksdk.Connection) *Proxy {
 	if cfg.Log == nil {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
@@ -372,7 +372,7 @@ func New(cfg *Config, source *hookdecksdk.Source, connections []hookdeck.Connect
 	connections_paths := make(map[string]string)
 
 	for _, connection := range connections {
-		connections_paths[connection.Id] = connection.Destination.CliPath
+		connections_paths[connection.Id] = *connection.Destination.CliPath
 	}
 
 	p := &Proxy{

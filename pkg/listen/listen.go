@@ -23,7 +23,6 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
 	log "github.com/sirupsen/logrus"
@@ -45,17 +44,6 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		}
 	}
 
-	parsedBaseURL, err := url.Parse(config.APIBaseURL)
-	if err != nil {
-		return err
-	}
-
-	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
-		APIKey:  config.Profile.APIKey,
-		TeamID:  config.Profile.TeamID,
-	}
-
 	sdkClient := config.GetClient()
 
 	source, err := getSource(sdkClient, source_alias)
@@ -63,7 +51,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		return err
 	}
 
-	connections, err := getConnections(client, source, connection_query)
+	connections, err := getConnections(sdkClient, source, connection_query)
 	if err != nil {
 		return err
 	}
@@ -92,7 +80,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 
 	fmt.Println(ansi.Bold("Connections"))
 	for _, connection := range connections {
-		fmt.Println(connection.Label + " forwarding to " + connection.Destination.CliPath)
+		fmt.Println(*connection.Name + " forwarding to " + *connection.Destination.CliPath)
 	}
 	fmt.Println()
 

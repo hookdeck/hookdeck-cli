@@ -1,27 +1,30 @@
 package listen
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosimple/slug"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
+	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getConnections(client *hookdeck.Client, source *hookdecksdk.Source, connection_query string) ([]hookdeck.Connection, error) {
+func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, connection_query string) ([]*hookdecksdk.Connection, error) {
 	// TODO: Filter connections using connection_query
-	var connections []hookdeck.Connection
-	connections, err := client.ListConnectionsBySource(source.Id)
+	var connections []*hookdecksdk.Connection
+	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{
+		SourceId: &source.Id,
+	})
 	if err != nil {
-		return connections, err
+		return connectionList.Models, err
 	}
 
-	var filtered_connections []hookdeck.Connection
+	var filtered_connections []*hookdecksdk.Connection
 	for _, connection := range connections {
-		if connection.Destination.CliPath != "" {
+		if *connection.Destination.CliPath != "" {
 			filtered_connections = append(filtered_connections, connection)
 		}
 	}
@@ -32,9 +35,9 @@ func getConnections(client *hookdeck.Client, source *hookdecksdk.Source, connect
 		if err != nil {
 			return connections, err
 		}
-		var filtered_connections []hookdeck.Connection
+		var filtered_connections []*hookdecksdk.Connection
 		for _, connection := range connections {
-			if (is_path && strings.Contains(connection.Destination.CliPath, connection_query)) || connection.Alias == connection_query {
+			if (is_path && strings.Contains(*connection.Destination.CliPath, connection_query)) || *connection.Name == connection_query {
 				filtered_connections = append(filtered_connections, connection)
 			}
 		}
@@ -72,15 +75,13 @@ func getConnections(client *hookdeck.Client, source *hookdecksdk.Source, connect
 			return connections, err
 		}
 		alias := slug.Make(answers.Label)
-		connection, err := client.CreateConnection(hookdeck.CreateConnectionInput{
-			Alias:    alias,
-			Label:    answers.Label,
-			SourceId: source.Id,
-			Destination: hookdeck.CreateDestinationInput{
-				Alias:   alias,
-				Label:   answers.Label,
-				CliPath: answers.Path,
-			},
+		connection, err := client.Connection.Create(context.Background(), &hookdecksdk.ConnectionCreateRequest{
+			Name:     hookdecksdk.OptionalOrNull(&alias),
+			SourceId: hookdecksdk.OptionalOrNull(&source.Id),
+			Destination: hookdecksdk.OptionalOrNull(&hookdecksdk.ConnectionCreateRequestDestination{
+				Name:    alias,
+				CliPath: &answers.Path,
+			}),
 		})
 		if err != nil {
 			return connections, err
