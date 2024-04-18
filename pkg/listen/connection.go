@@ -19,8 +19,9 @@ func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, c
 		SourceId: &source.Id,
 	})
 	if err != nil {
-		return connectionList.Models, err
+		return nil, err
 	}
+	connections = connectionList.Models
 
 	var filtered_connections []*hookdecksdk.Connection
 	for _, connection := range connections {
