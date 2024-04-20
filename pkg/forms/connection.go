@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/charmbracelet/huh"
+	"github.com/gosimple/slug"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
@@ -98,10 +99,33 @@ func (c ConnectionForm) Create(input ConnectionCreateFormInput) (*hookdecksdk.Co
 	}
 
 	// Connection section
+	var name string
+	var description string
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewInput().
+			Title("What should be your new connection name? (optional)").
+			Value(&name),
+		huh.NewInput().
+			Title("What should be your new connection description? (optional)").
+			Value(&description),
+	))
+	err := form.Run()
+	if err != nil {
+		return nil, err
+	}
 
 	// Construct request payload
 
 	payload := &hookdecksdk.ConnectionCreateRequest{}
+
+	if name != "" {
+		name = slug.Make(name)
+		payload.Name = hookdecksdk.OptionalOrNull(&name)
+	}
+
+	if description != "" {
+		payload.Description = hookdecksdk.OptionalOrNull(&description)
+	}
 
 	if connectionSourceRequest != nil {
 		payload.Source = hookdecksdk.OptionalOrNull(connectionSourceRequest)
