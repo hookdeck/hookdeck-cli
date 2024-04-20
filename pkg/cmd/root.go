@@ -113,5 +113,4 @@ func init() {
 	rootCmd.AddCommand(newCompletionCmd().cmd)
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
 	rootCmd.AddCommand(newWorkspaceCmd().cmd)
-	rootCmd.AddCommand(connectionCmd)
 }

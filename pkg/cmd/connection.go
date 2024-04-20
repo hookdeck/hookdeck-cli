@@ -11,3 +11,7 @@ var connectionCmd = &cobra.Command{
 	Args:  validators.NoArgs,
 	Short: "Manage your connections",
 }
+
+func init() {
+	rootCmd.AddCommand(connectionCmd)
+}
