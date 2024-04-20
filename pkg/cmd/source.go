@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/forms"
 	"github.com/hookdeck/hookdeck-cli/pkg/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	hookdeck "github.com/hookdeck/hookdeck-go-sdk"
@@ -36,6 +37,13 @@ var sourceDeleteCmd = &cobra.Command{
 	Args:  validators.ExactArgs(1),
 	Short: "Delete your source",
 	RunE:  deleteSource,
+}
+
+var sourceCreateCmd = &cobra.Command{
+	Use:   "create",
+	Args:  validators.NoArgs,
+	Short: "Create a source",
+	RunE:  createSource,
 }
 
 func listSource(cmd *cobra.Command, args []string) error {
@@ -95,9 +103,32 @@ func deleteSource(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func createSource(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
+	client := Config.GetClient()
+
+	input, err := forms.Source.Create()
+	if err != nil {
+		return err
+	}
+
+	source, err := client.Source.Create(context.Background(), input)
+	if err != nil {
+		return err
+	}
+
+	tui.SourceFull(&Config, source)
+
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(sourceCmd)
 	sourceCmd.AddCommand(sourceListCmd)
 	sourceCmd.AddCommand(sourceRetrieveCmd)
 	sourceCmd.AddCommand(sourceDeleteCmd)
+	sourceCmd.AddCommand(sourceCreateCmd)
 }

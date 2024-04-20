@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/forms"
 	"github.com/hookdeck/hookdeck-cli/pkg/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	hookdeck "github.com/hookdeck/hookdeck-go-sdk"
@@ -36,6 +37,13 @@ var destinationDeleteCmd = &cobra.Command{
 	Args:  validators.ExactArgs(1),
 	Short: "Delete your destination",
 	RunE:  deleteDestination,
+}
+
+var destinationCreateCmd = &cobra.Command{
+	Use:   "create",
+	Args:  validators.NoArgs,
+	Short: "Create a destination",
+	RunE:  createDestination,
 }
 
 func listDestination(cmd *cobra.Command, args []string) error {
@@ -95,9 +103,32 @@ func deleteDestination(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func createDestination(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
+	client := Config.GetClient()
+
+	input, err := forms.Destination.Create()
+	if err != nil {
+		return err
+	}
+
+	destination, err := client.Destination.Create(context.Background(), input)
+	if err != nil {
+		return err
+	}
+
+	tui.DestinationFull(&Config, destination)
+
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(destinationCmd)
 	destinationCmd.AddCommand(destinationListCmd)
 	destinationCmd.AddCommand(destinationRetrieveCmd)
 	destinationCmd.AddCommand(destinationDeleteCmd)
+	destinationCmd.AddCommand(destinationCreateCmd)
 }
