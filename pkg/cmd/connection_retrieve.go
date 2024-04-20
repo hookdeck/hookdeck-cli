@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
@@ -27,7 +27,7 @@ var connectionRetrieveCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("%s %s (%s)\n", connection.Id, *connection.FullName, *connection.Name)
+		tui.ConnectionFull(&Config, connection)
 
 		return nil
 	},
