@@ -101,29 +101,19 @@ func (c ConnectionForm) Create(input ConnectionCreateFormInput) (*hookdecksdk.Co
 
 	// Construct request payload
 
-	if connectionSourceRequest != nil && connectionDestinationRequest != nil {
-		return &hookdecksdk.ConnectionCreateRequest{
-			Source:      hookdecksdk.OptionalOrNull(connectionSourceRequest),
-			Destination: hookdecksdk.OptionalOrNull(connectionDestinationRequest),
-		}, nil
-	}
+	payload := &hookdecksdk.ConnectionCreateRequest{}
 
 	if connectionSourceRequest != nil {
-		return &hookdecksdk.ConnectionCreateRequest{
-			Source:        hookdecksdk.OptionalOrNull(connectionSourceRequest),
-			DestinationId: hookdecksdk.OptionalOrNull(&destinationId),
-		}, nil
+		payload.Source = hookdecksdk.OptionalOrNull(connectionSourceRequest)
+	} else {
+		payload.SourceId = hookdecksdk.OptionalOrNull(&sourceId)
 	}
 
 	if connectionDestinationRequest != nil {
-		return &hookdecksdk.ConnectionCreateRequest{
-			SourceId:    hookdecksdk.OptionalOrNull(&sourceId),
-			Destination: hookdecksdk.OptionalOrNull(connectionDestinationRequest),
-		}, nil
+		payload.Destination = hookdecksdk.OptionalOrNull(connectionDestinationRequest)
+	} else {
+		payload.DestinationId = hookdecksdk.OptionalOrNull(&destinationId)
 	}
 
-	return &hookdecksdk.ConnectionCreateRequest{
-		SourceId:      hookdecksdk.OptionalOrNull(&sourceId),
-		DestinationId: hookdecksdk.OptionalOrNull(&destinationId),
-	}, nil
+	return payload, nil
 }
