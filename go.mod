@@ -6,9 +6,11 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.2.9
 	github.com/BurntSushi/toml v0.3.1
 	github.com/briandowns/spinner v1.11.1
+	github.com/charmbracelet/huh v0.3.0
 	github.com/google/go-github/v28 v28.1.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/gosimple/slug v1.9.0
+	github.com/hookdeck/hookdeck-go-sdk v0.0.37
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/sirupsen/logrus v1.8.0
@@ -27,7 +29,6 @@ require (
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/charmbracelet/bubbles v0.17.2-0.20240108170749-ec883029c8e6 // indirect
 	github.com/charmbracelet/bubbletea v0.25.0 // indirect
-	github.com/charmbracelet/huh v0.3.0 // indirect
 	github.com/charmbracelet/lipgloss v0.9.1 // indirect
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
 	github.com/creack/pty v1.1.9 // indirect
@@ -36,7 +37,6 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/hookdeck/hookdeck-go-sdk v0.0.37 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kr/pty v1.1.8 // indirect
