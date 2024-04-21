@@ -11,12 +11,15 @@ import (
 
 // ValidateAPIKeyResponse returns the user and team associated with a key
 type ValidateAPIKeyResponse struct {
-	UserID   string `json:"user_id"`
-	UserName string `json:"user_name"`
-	TeamID   string `json:"team_id"`
-	TeamName string `json:"team_name"`
-	TeamMode string `json:"team_mode"`
-	ClientID string `json:"client_id"`
+	UserID           string `json:"user_id"`
+	UserName         string `json:"user_name"`
+	UserEmail        string `json:"user_email"`
+	OrganizationName string `json:"organization_name"`
+	OrganizationID   string `json:"organization_id"`
+	TeamID           string `json:"team_id"`
+	TeamName         string `json:"team_name_no_org"`
+	TeamMode         string `json:"team_mode"`
+	ClientID         string `json:"client_id"`
 }
 
 func ValidateKey(baseURL string, key string, teamId string) (*ValidateAPIKeyResponse, error) {

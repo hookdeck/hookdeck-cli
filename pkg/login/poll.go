@@ -16,14 +16,17 @@ const intervalDefault = 1 * time.Second
 
 // PollAPIKeyResponse returns the data of the polling client login
 type PollAPIKeyResponse struct {
-	Claimed  bool   `json:"claimed"`
-	UserID   string `json:"user_id"`
-	UserName string `json:"user_name"`
-	TeamID   string `json:"team_id"`
-	TeamName string `json:"team_name"`
-	TeamMode string `json:"team_mode"`
-	APIKey   string `json:"key"`
-	ClientID string `json:"client_id"`
+	Claimed          bool   `json:"claimed"`
+	UserID           string `json:"user_id"`
+	UserName         string `json:"user_name"`
+	UserEmail        string `json:"user_email"`
+	OrganizationName string `json:"organization_name"`
+	OrganizationID   string `json:"organization_id"`
+	TeamID           string `json:"team_id"`
+	TeamName         string `json:"team_name"`
+	TeamMode         string `json:"team_mode"`
+	APIKey           string `json:"key"`
+	ClientID         string `json:"client_id"`
 }
 
 // PollForKey polls Hookdeck at the specified interval until either the API key is available or we've reached the max attempts.

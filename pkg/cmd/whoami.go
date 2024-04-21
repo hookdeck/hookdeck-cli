@@ -35,7 +35,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 
 	color := ansi.Color(os.Stdout)
 
-	fmt.Printf("Using profile %s\n", color.Bold(Config.Profile.Name))
+	fmt.Printf("\nUsing profile %s (use -p flag to use a different config profile)\n\n", color.Bold(Config.Profile.Name))
 
 	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.TeamID)
 	if err != nil {
@@ -43,9 +43,11 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf(
-		"Logged in as %s in project %s\n",
+		"Logged in as %s (%s) on project %s in organization %s\n",
 		color.Bold(response.UserName),
+		color.Bold(response.UserEmail),
 		color.Bold(response.TeamName),
+		color.Bold(response.OrganizationName),
 	)
 
 	return nil
