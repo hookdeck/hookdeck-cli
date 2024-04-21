@@ -42,7 +42,7 @@ func Login(config *config.Config, input io.Reader) error {
 			return err
 		}
 
-		message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
+		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
 
 		return nil
@@ -93,7 +93,7 @@ func Login(config *config.Config, input io.Reader) error {
 		return err
 	}
 
-	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
 	ansi.StopSpinner(s, message, os.Stdout)
 
 	return nil
@@ -179,8 +179,13 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 		return err
 	}
 
-	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
-	log.Println(message)
+	color := ansi.Color(os.Stdout)
+
+	log.Println(fmt.Sprintf(
+		"The Hookdeck CLI is configured on project %s in organization %s\n",
+		color.Bold(response.TeamName),
+		color.Bold(response.OrganizationName),
+	))
 
 	return nil
 }

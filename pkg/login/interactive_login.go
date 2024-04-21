@@ -75,7 +75,7 @@ func InteractiveLogin(config *config.Config) error {
 		return err
 	}
 
-	message := SuccessMessage(response.UserName, response.TeamName, response.TeamMode == "console")
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
 
 	ansi.StopSpinner(s, message, os.Stdout)
 
