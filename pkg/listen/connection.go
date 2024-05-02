@@ -25,7 +25,7 @@ func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, c
 
 	var filtered_connections []*hookdecksdk.Connection
 	for _, connection := range connections {
-		if *connection.Destination.CliPath != "" {
+		if connection.Destination.CliPath != nil && *connection.Destination.CliPath != "" {
 			filtered_connections = append(filtered_connections, connection)
 		}
 	}
@@ -38,7 +38,7 @@ func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, c
 		}
 		var filtered_connections []*hookdecksdk.Connection
 		for _, connection := range connections {
-			if (is_path && strings.Contains(*connection.Destination.CliPath, connection_query)) || *connection.Name == connection_query {
+			if (is_path && connection.Destination.CliPath != nil && strings.Contains(*connection.Destination.CliPath, connection_query)) || *connection.Name == connection_query {
 				filtered_connections = append(filtered_connections, connection)
 			}
 		}
