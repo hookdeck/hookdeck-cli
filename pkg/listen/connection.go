@@ -1,43 +1,48 @@
 package listen
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosimple/slug"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
+	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getConnections(client *hookdeck.Client, source hookdeck.Source, connection_query string) ([]hookdeck.Connection, error) {
-	// TODO: Filter connections using connection_query
-	var connections []hookdeck.Connection
-	connections, err := client.ListConnectionsBySource(source.Id)
+func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
+	// TODO: Filter connections using connectionQuery
+	var connections []*hookdecksdk.Connection
+	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{
+		SourceId: &source.Id,
+	})
 	if err != nil {
-		return connections, err
+		return nil, err
 	}
+	connections = connectionList.Models
 
-	var filtered_connections []hookdeck.Connection
+	var filteredConnections []*hookdecksdk.Connection
 	for _, connection := range connections {
-		if connection.Destination.CliPath != "" {
-			filtered_connections = append(filtered_connections, connection)
+		if connection.Destination.CliPath != nil && *connection.Destination.CliPath != "" {
+			filteredConnections = append(filteredConnections, connection)
 		}
 	}
-	connections = filtered_connections
+	connections = filteredConnections
 
-	if connection_query != "" {
-		is_path, err := isPath(connection_query)
+	if connectionQuery != "" {
+		is_path, err := isPath(connectionQuery)
 		if err != nil {
 			return connections, err
 		}
-		var filtered_connections []hookdeck.Connection
+		var filteredConnections []*hookdecksdk.Connection
 		for _, connection := range connections {
-			if (is_path && strings.Contains(connection.Destination.CliPath, connection_query)) || connection.Alias == connection_query {
-				filtered_connections = append(filtered_connections, connection)
+			if (is_path && connection.Destination.CliPath != nil && strings.Contains(*connection.Destination.CliPath, connectionQuery)) || *connection.Name == connectionQuery {
+				filteredConnections = append(filteredConnections, connection)
 			}
 		}
-		connections = filtered_connections
+		connections = filteredConnections
 	}
 
 	if len(connections) == 0 {
@@ -48,7 +53,7 @@ func getConnections(client *hookdeck.Client, source hookdeck.Source, connection_
 		var qs = []*survey.Question{
 			{
 				Name:   "path",
-				Prompt: &survey.Input{Message: "What path should the webhooks be forwarded to (ie: /webhooks)?"},
+				Prompt: &survey.Input{Message: "What path should the events be forwarded to (ie: /webhooks)?"},
 				Validate: func(val interface{}) error {
 					str, ok := val.(string)
 					is_path, err := isPath(str)
@@ -71,15 +76,13 @@ func getConnections(client *hookdeck.Client, source hookdeck.Source, connection_
 			return connections, err
 		}
 		alias := slug.Make(answers.Label)
-		connection, err := client.CreateConnection(hookdeck.CreateConnectionInput{
-			Alias:    alias,
-			Label:    answers.Label,
-			SourceId: source.Id,
-			Destination: hookdeck.CreateDestinationInput{
-				Alias:   alias,
-				Label:   answers.Label,
-				CliPath: answers.Path,
-			},
+		connection, err := client.Connection.Create(context.Background(), &hookdecksdk.ConnectionCreateRequest{
+			Name:     hookdecksdk.OptionalOrNull(&alias),
+			SourceId: hookdecksdk.OptionalOrNull(&source.Id),
+			Destination: hookdecksdk.OptionalOrNull(&hookdecksdk.ConnectionCreateRequestDestination{
+				Name:    alias,
+				CliPath: &answers.Path,
+			}),
 		})
 		if err != nil {
 			return connections, err
