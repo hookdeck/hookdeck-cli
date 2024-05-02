@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1 - 2024-05-02
+
+No changes. Just bumping the NPM version.
+
 ## 0.9.0 - 2024-05-02
 
 ### Breaking changes
