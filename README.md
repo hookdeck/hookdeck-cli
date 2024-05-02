@@ -4,9 +4,9 @@
 
 [![slack-badge]](https://join.slack.com/t/hookdeckdevelopers/shared_invite/zt-yw7hlyzp-EQuO3QvdiBlH9Tz2KZg5MQ)
 
-Using the Hookdeck CLI, you can forward your webhooks to your local webserver. We offer unlimited **free** and **permanent** webhook URLs. Your webhook history is preserved between session and can be viewed, replayed or used for testing by you and your teammates.
+Using the Hookdeck CLI, you can forward your events (e.g. webhooks) to your local webserver. We offer unlimited **free** and **permanent** event URLs. Your event history is preserved between sessions and can be viewed, replayed, or used for testing by you and your teammates.
 
-Hookdeck CLI is compatible with most of Hookdeck features such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your webhook integration code locally.
+Hookdeck CLI is compatible with most of Hookdeck's features, such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your event (e.g. webhook) integration code locally.
 
 Although it uses a different approach and philosophy, it's a replacement for ngrok and alternative HTTP tunnel solutions.
 
@@ -18,7 +18,7 @@ For a complete reference, see the [CLI reference](https://hookdeck.com/cli)
 
 ## Installation
 
-Hookdeck CLI is available for macOS, Windows, and Linux for distros like Ubuntu, Debian, RedHat and CentOS.
+Hookdeck CLI is available for macOS, Windows, and Linux for distros like Ubuntu, Debian, RedHat, and CentOS.
 
 ### NPM
 
@@ -102,19 +102,19 @@ hookdeck login
 
 ### Listen
 
-Start a session to forward your webhooks to an HTTP server.
+Start a session to forward your events to an HTTP server.
 
 ```sh-session
 hookdeck listen <port-or-URL> <source-alias?> <connection-query?>
 ```
 
-Hookdeck works by routing webhooks receive for a given `source` (ie: Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive webhooks for any given connection and forward them to your localhost at the specified port or any valid URL.
+Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
 
-Each `source` is assigned a Webhook URL, which you can use to receive webhooks. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
+Each `source` is assigned a Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
-Contrarily to ngrok, **Hookdeck does not allow to append a path to your Webhook URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
+Contrary to ngrok, **Hookdeck does not allow to append a path to your enent URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
 
-> The `port-or-URL` param is mandatory, webhooks will be forwarded to http://localhost:$PORT/$DESTINATION_PATH when inputing a valid port or your provided URL.
+> The `port-or-URL` param is mandatory, events will be forwarded to http://localhost:$PORT/$DESTINATION_PATH when inputing a valid port or your provided URL.
 
 #### Listen to all your connections for a given source
 
@@ -123,10 +123,10 @@ The second param, `source-alias` is used to select a specific source to listen o
 ```sh-session
 $ hookdeck listen 3000 shopify
 
-👉  Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
 Shopify Source
-🔌 Webhook URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
 Connections
 Inventory Service forwarding to /webhooks/shopify/inventory
@@ -137,17 +137,17 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 ```
 
-#### Listen to a subset of connection
+#### Listen to a subset of connections
 
 The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
 
 ```sh-session
 $ hookdeck listen 3000 shopify orders
 
-👉  Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
 Shopify Source
-🔌 Webhook URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
 Connections
 Inventory Service forwarding to /webhooks/shopify/inventory
@@ -157,9 +157,9 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 ```
 
-#### Viewing and interacting with your webhooks
+#### Viewing and interacting with your events
 
-Webhooks logs for your CLI can be found at https://dashboard.hookdeck.com/cli/events. Events can be replayed or saved at any time.
+Event logs for your CLI can be found at https://dashboard.hookdeck.com/cli/events. Events can be replayed or saved at any time.
 
 ### Logout
 
@@ -206,10 +206,10 @@ Done! The Hookdeck CLI is configured in workspace MyWorkspace
 
 $ hookdeck listen 3000 shopify orders
 
-👉  Inspect and replay webhooks: https://dashboard.hookdeck.com/cli/events
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
 Shopify Source
-🔌 Webhook URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
 Connections
 Inventory Service forwarding to /webhooks/shopify/inventory
@@ -290,4 +290,4 @@ docker run --rm -it \
 
 Copyright (c) Hookdeck. All rights reserved.
 
-Licensed under the [Apache License 2.0 license](blob/master/LICENSE).
+Licensed under the [Apache License 2.0 license](LICENSE).

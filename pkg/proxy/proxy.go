@@ -239,7 +239,7 @@ func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 
 func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	if msg.Attempt == nil {
-		p.cfg.Log.Debug("WebSocket specified for Webhooks received non-webhook event")
+		p.cfg.Log.Debug("WebSocket specified for Events received unexpected event")
 		return
 	}
 

@@ -53,7 +53,7 @@ func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, c
 		var qs = []*survey.Question{
 			{
 				Name:   "path",
-				Prompt: &survey.Input{Message: "What path should the webhooks be forwarded to (ie: /webhooks)?"},
+				Prompt: &survey.Input{Message: "What path should the events be forwarded to (ie: /webhooks)?"},
 				Validate: func(val interface{}) error {
 					str, ok := val.(string)
 					is_path, err := isPath(str)

@@ -36,10 +36,10 @@ func newListenCmd() *listenCmd {
 
 	lc.cmd = &cobra.Command{
 		Use:   "listen",
-		Short: "Forward webhooks for a source to your local server",
+		Short: "Forward events for a source to your local server",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return errors.New("Requires a port or forwarding URL to forward the webhooks to")
+				return errors.New("Requires a port or forwarding URL to forward the events to")
 			}
 
 			_, err_port := strconv.ParseInt(args[0], 10, 64)

@@ -37,7 +37,7 @@ var rootCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Version:       version.Version,
-	Short:         "A CLI to forward webhooks received on Hookdeck to your local server.",
+	Short:         "A CLI to forward events received on Hookdeck to your local server.",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

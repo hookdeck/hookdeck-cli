@@ -70,7 +70,7 @@ func Listen(URL *url.URL, source_alias string, connectionQuery string, flags Fla
 		if config.Profile.TeamMode == "console" {
 			url = config.ConsoleBaseURL + "?source_id=" + source.Id
 		}
-		fmt.Println("👉 Inspect and replay webhooks: " + url)
+		fmt.Println("👉 Inspect and replay events: " + url)
 		fmt.Println()
 	}
 
