@@ -22,8 +22,6 @@ jobs:
         with:
           version: latest
           args: release -f .goreleaser/mac.yml --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
 
   build-linux:
     runs-on: ubuntu-latest
@@ -53,9 +51,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v4
         with:
           version: latest
-          args: release -f .goreleaser/linux.yml --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          args: release --skip-publish -f .goreleaser/linux.yml --clean
 
   build-windows:
     runs-on: windows-latest
@@ -72,9 +68,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
-          args: release -f .goreleaser/windows.yml --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          args: release --skip-publish -f .goreleaser/windows.yml --clean 
 
   build-windows-npm:
     runs-on: windows-latest
@@ -91,6 +85,4 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
-          args: release -f .goreleaser/windows-npm.yml --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          args: release --skip-publish -f .goreleaser/windows-npm.yml --clean
