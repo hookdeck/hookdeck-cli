@@ -23,7 +23,6 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
 	log "github.com/sirupsen/logrus"
@@ -34,7 +33,7 @@ type Flags struct {
 }
 
 // listenCmd represents the listen command
-func Listen(URL *url.URL, source_alias string, connection_query string, flags Flags, config *config.Config) error {
+func Listen(URL *url.URL, source_alias string, connectionQuery string, flags Flags, config *config.Config) error {
 	var err error
 	var guest_url string
 
@@ -45,23 +44,14 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		}
 	}
 
-	parsedBaseURL, err := url.Parse(config.APIBaseURL)
+	sdkClient := config.GetClient()
+
+	source, err := getSource(sdkClient, source_alias)
 	if err != nil {
 		return err
 	}
 
-	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
-		APIKey:  config.Profile.APIKey,
-		TeamID:  config.Profile.TeamID,
-	}
-
-	source, err := getSource(client, source_alias)
-	if err != nil {
-		return err
-	}
-
-	connections, err := getConnections(client, source, connection_query)
+	connections, err := getConnections(sdkClient, source, connectionQuery)
 	if err != nil {
 		return err
 	}
@@ -80,17 +70,17 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		if config.Profile.TeamMode == "console" {
 			url = config.ConsoleBaseURL + "?source_id=" + source.Id
 		}
-		fmt.Println("👉 Inspect and replay webhooks: " + url)
+		fmt.Println("👉 Inspect and replay events: " + url)
 		fmt.Println()
 	}
 
-	fmt.Println(ansi.Bold(source.Label + " Source"))
-	fmt.Println("🔌 Webhook URL: " + source.Url)
+	fmt.Println(ansi.Bold(source.Name + " Source"))
+	fmt.Println("🔌 Event URL: " + source.Url)
 	fmt.Println()
 
 	fmt.Println(ansi.Bold("Connections"))
 	for _, connection := range connections {
-		fmt.Println(connection.Label + " forwarding to " + connection.Destination.CliPath)
+		fmt.Println(*connection.Name + " forwarding to " + *connection.Destination.CliPath)
 	}
 	fmt.Println()
 
