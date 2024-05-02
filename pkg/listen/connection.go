@@ -12,8 +12,8 @@ import (
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, connection_query string) ([]*hookdecksdk.Connection, error) {
-	// TODO: Filter connections using connection_query
+func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
+	// TODO: Filter connections using connectionQuery
 	var connections []*hookdecksdk.Connection
 	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{
 		SourceId: &source.Id,
@@ -23,26 +23,26 @@ func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, c
 	}
 	connections = connectionList.Models
 
-	var filtered_connections []*hookdecksdk.Connection
+	var filteredConnections []*hookdecksdk.Connection
 	for _, connection := range connections {
 		if connection.Destination.CliPath != nil && *connection.Destination.CliPath != "" {
-			filtered_connections = append(filtered_connections, connection)
+			filteredConnections = append(filteredConnections, connection)
 		}
 	}
-	connections = filtered_connections
+	connections = filteredConnections
 
-	if connection_query != "" {
-		is_path, err := isPath(connection_query)
+	if connectionQuery != "" {
+		is_path, err := isPath(connectionQuery)
 		if err != nil {
 			return connections, err
 		}
-		var filtered_connections []*hookdecksdk.Connection
+		var filteredConnections []*hookdecksdk.Connection
 		for _, connection := range connections {
-			if (is_path && connection.Destination.CliPath != nil && strings.Contains(*connection.Destination.CliPath, connection_query)) || *connection.Name == connection_query {
-				filtered_connections = append(filtered_connections, connection)
+			if (is_path && connection.Destination.CliPath != nil && strings.Contains(*connection.Destination.CliPath, connectionQuery)) || *connection.Name == connectionQuery {
+				filteredConnections = append(filteredConnections, connection)
 			}
 		}
-		connections = filtered_connections
+		connections = filteredConnections
 	}
 
 	if len(connections) == 0 {

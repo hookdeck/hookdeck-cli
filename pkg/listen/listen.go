@@ -33,7 +33,7 @@ type Flags struct {
 }
 
 // listenCmd represents the listen command
-func Listen(URL *url.URL, source_alias string, connection_query string, flags Flags, config *config.Config) error {
+func Listen(URL *url.URL, source_alias string, connectionQuery string, flags Flags, config *config.Config) error {
 	var err error
 	var guest_url string
 
@@ -51,7 +51,7 @@ func Listen(URL *url.URL, source_alias string, connection_query string, flags Fl
 		return err
 	}
 
-	connections, err := getConnections(sdkClient, source, connection_query)
+	connections, err := getConnections(sdkClient, source, connectionQuery)
 	if err != nil {
 		return err
 	}
