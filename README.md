@@ -202,7 +202,7 @@ If you want to use Hookdeck in CI for tests or any other purposes, you can use y
 
 ```sh-session
 $ hookdeck ci --api-key $HOOKDECK_API_KEY
-Done! The Hookdeck CLI is configured in workspace MyWorkspace
+Done! The Hookdeck CLI is configured in project MyProject
 
 $ hookdeck listen 3000 shopify orders
 
@@ -219,44 +219,44 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 ```
 
-### Manage active workspace
+### Manage active project
 
-If you are a part of multiple workspaces, you can switch between them using our workspace management commands.
+If you are a part of multiple project, you can switch between them using our project management commands.
 
 ```sh-session
-$ hookdeck workspace list
-My Workspace (current)
-Another Workspace
+$ hookdeck project list
+My Project (current)
+Another Project
 Yet Another One
 
-$ hookdeck workspace use
+$ hookdeck project use
 Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Workspace:
-    My Workspace
-    Another Workspace
+? Select Project:
+    My Project
+    Another Project
   ▸ Yet Another One
 
-Selecting workspace Yet Another One
+Selecting project Yet Another One
 
 $ hookdeck whoami
 Using profile default
-Logged in as Me in workspace Yet Another One
+Logged in as Me in project Yet Another One
 ```
 
-You can also pin an active workspace in the current working directory with the `--local` flag.
+You can also pin an active project in the current working directory with the `--local` flag.
 
 ```sh-session
-$ hookdeck workspace use --local
+$ hookdeck project use --local
 Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Workspace:
-    My Workspace
-    Another Workspace
+? Select Project:
+    My Project
+    Another Project
   ▸ Yet Another One
 
-Selecting workspace Yet Another One
+Selecting project Yet Another One
 ```
 
-This will create a local config file in your current directory at `myproject/.hookdeck/config.toml`. Depending on your team's Hookdeck usage and workspace setup, you may or may not want to commit this configuration file to version control.
+This will create a local config file in your current directory at `myproject/.hookdeck/config.toml`. Depending on your team's Hookdeck usage and project setup, you may or may not want to commit this configuration file to version control.
 
 ## Developing
 

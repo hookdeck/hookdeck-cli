@@ -112,5 +112,5 @@ func init() {
 	rootCmd.AddCommand(newListenCmd().cmd)
 	rootCmd.AddCommand(newCompletionCmd().cmd)
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
-	rootCmd.AddCommand(newWorkspaceCmd().cmd)
+	rootCmd.AddCommand(newProjectCmd().cmd)
 }

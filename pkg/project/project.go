@@ -1,4 +1,4 @@
-package workspace
+package project
 
 import (
 	"net/url"
@@ -7,7 +7,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-func ListWorkspaces(config *config.Config) ([]hookdeck.Workspace, error) {
+func ListProjects(config *config.Config) ([]hookdeck.Project, error) {
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return nil, err
@@ -18,5 +18,5 @@ func ListWorkspaces(config *config.Config) ([]hookdeck.Workspace, error) {
 		APIKey:  config.Profile.APIKey,
 	}
 
-	return client.ListWorkspaces()
+	return client.ListProjects()
 }
