@@ -37,7 +37,7 @@ checksum:
 snapshot:
   name_template: "{{ .Tag }}-next"
 brews:
-  - tap:
+  - repository:
       owner: hookdeck
       name: homebrew-hookdeck
     commit_author:

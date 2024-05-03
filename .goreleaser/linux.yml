@@ -53,7 +53,6 @@ dockers:
   - goos: linux
     goarch: amd64
     ids:
-      - hookdeck
       - hookdeck-linux
     image_templates:
       - "hookdeck/hookdeck-cli:latest-amd64"
@@ -70,7 +69,6 @@ dockers:
   - goos: linux
     goarch: arm64
     ids:
-      - hookdeck
       - hookdeck-linux-arm64
     image_templates:
       - "hookdeck/hookdeck-cli:latest-arm64"
