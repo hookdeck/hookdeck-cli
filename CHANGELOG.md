@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.2 - 2024-05-03
+
+No changes. Update to the build process to fix Linux builds.
+
 ## 0.9.1 - 2024-05-02
 
 No changes. Just bumping the NPM version.
