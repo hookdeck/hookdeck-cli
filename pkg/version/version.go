@@ -15,8 +15,8 @@ import (
 // Version of the CLI.
 // This is set to the actual version by GoReleaser, identify by the
 // git tag assigned to the release. Versions built from source will
-// always show master.
-var Version = "master"
+// always show main.
+var Version = "main"
 
 // Template for the version string.
 var Template = fmt.Sprintf("hookdeck version %s\n", Version)
@@ -24,8 +24,8 @@ var Template = fmt.Sprintf("hookdeck version %s\n", Version)
 // CheckLatestVersion makes a request to the GitHub API to pull the latest
 // release of the CLI
 func CheckLatestVersion() {
-	// master is the dev version, we don't want to check against that every time
-	if Version != "master" {
+	// main is the dev version, we don't want to check against that every time
+	if Version != "main" {
 		s := ansi.StartNewSpinner("Checking for new versions...", os.Stdout)
 		latest := getLatestVersion()
 
