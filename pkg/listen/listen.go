@@ -80,7 +80,13 @@ func Listen(URL *url.URL, source_alias string, connectionQuery string, flags Fla
 
 	fmt.Println(ansi.Bold("Connections"))
 	for _, connection := range connections {
-		fmt.Println(*connection.Name + " forwarding to " + *connection.Destination.CliPath)
+		var connectionName string
+		if connection.Name != nil {
+			connectionName = *connection.Name
+		} else {
+			connectionName = connection.Destination.Name
+		}
+		fmt.Println(connectionName + " forwarding to " + *connection.Destination.CliPath)
 	}
 	fmt.Println()
 
