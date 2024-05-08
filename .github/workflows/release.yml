@@ -102,6 +102,8 @@ jobs:
         with:
           # Checkout on main so that the later commit works
           ref: main
+          # With permission to push to a protected branch
+          token: ${{ secrets.READ_WRITE_PAT }}
           
       - uses: actions/setup-node@v4
         with:
