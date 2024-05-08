@@ -112,23 +112,24 @@ jobs:
 
       - name: Get GitHub tag version
         # Store the version, stripping any v-prefix
+        id: tag-version
         run: |
           TAG_VERSION=${GITHUB_REF_NAME#v}
           echo Version: $TAG_VERSION
-          echo "TAG_VERSION=$TAG_VERSION" >> $GITHUB_ENV
+          echo "TAG_VERSION=$TAG_VERSION" >> $GITHUB_OUTPUT
 
       - name: Update package.json version
         uses: jossef/action-set-json-field@v2.1
         with:
           file: package.json
           field: version
-          value: ${TAG_VERSION}
+          value: ${{ steps.tag-version.outputs.TAG_VERSION }}
 
       - name: Commit package.json version
         uses: EndBug/add-and-commit@v9
         with:
           default_author: github_actions
-          message: 'Update package.json version to ${TAG_VERSION}'
+          message: 'Update package.json version to ${{ steps.tag-version.outputs.TAG_VERSION }}'
           add: 'package.json'
           
       - run: npm ci
