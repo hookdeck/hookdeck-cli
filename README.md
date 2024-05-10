@@ -12,7 +12,7 @@ Although it uses a different approach and philosophy, it's a replacement for ngr
 
 Hookdeck for development is completely free, and we monetize the platform with our Production offering.
 
-For a complete reference, see the [CLI reference](https://hookdeck.com/cli)
+For a complete reference, see the [CLI reference](https://hookdeck.com/cli?ref=github-hookdeck-cli)
 
 https://github.com/hookdeck/hookdeck-cli/assets/328367/a49dcf59-49ee-4838-9643-b6f90d2ab33e
 
