@@ -4,15 +4,15 @@
 
 [![slack-badge]](https://join.slack.com/t/hookdeckdevelopers/shared_invite/zt-yw7hlyzp-EQuO3QvdiBlH9Tz2KZg5MQ)
 
-Using the Hookdeck CLI, you can forward your events (e.g. webhooks) to your local webserver. We offer unlimited **free** and **permanent** event URLs. Your event history is preserved between sessions and can be viewed, replayed, or used for testing by you and your teammates.
+Using the Hookdeck CLI, you can forward your events (e.g. webhooks) to your local web server with unlimited **free** and **permanent** event URLs. Your event history is preserved between sessions and can be viewed, replayed, or used for testing by you and your teammates.
 
 Hookdeck CLI is compatible with most of Hookdeck's features, such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your event (e.g. webhook) integration code locally.
 
 Although it uses a different approach and philosophy, it's a replacement for ngrok and alternative HTTP tunnel solutions.
 
-Hookdeck for development is completely free, and we monetize the platform with our Production offering.
+Hookdeck for development is completely free, and we monetize the platform with our production offering.
 
-For a complete reference, see the [CLI reference](https://hookdeck.com/cli?ref=github-hookdeck-cli)
+For a complete reference, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
 
 https://github.com/hookdeck/hookdeck-cli/assets/328367/a49dcf59-49ee-4838-9643-b6f90d2ab33e
 
@@ -45,7 +45,7 @@ scoop bucket add hookdeck https://github.com/hookdeck/scoop-hookdeck-cli.git
 scoop install hookdeck
 ```
 
-### Linux Or Without package managers
+### Linux Or without package managers
 
 To install the Hookdeck CLI on Linux without a package manager:
 
@@ -112,7 +112,7 @@ Hookdeck works by routing events received for a given `source` (i.e., Shopify, G
 
 Each `source` is assigned a Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
-Contrary to ngrok, **Hookdeck does not allow to append a path to your enent URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
+Contrary to ngrok, **Hookdeck does not allow to append a path to your event URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
 
 > The `port-or-URL` param is mandatory, events will be forwarded to http://localhost:$PORT/$DESTINATION_PATH when inputing a valid port or your provided URL.
 
