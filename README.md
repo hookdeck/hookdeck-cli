@@ -159,7 +159,7 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 #### Viewing and interacting with your events
 
-Event logs for your CLI can be found at https://dashboard.hookdeck.com/cli/events. Events can be replayed or saved at any time.
+Event logs for your CLI can be found at [https://dashboard.hookdeck.com/cli/events](https://dashboard.hookdeck.com/cli/events?ref=github-hookdeck-cli). Events can be replayed or saved at any time.
 
 ### Logout
 
