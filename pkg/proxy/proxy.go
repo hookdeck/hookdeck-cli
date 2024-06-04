@@ -214,14 +214,16 @@ func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 		TeamID:  p.cfg.TeamID,
 	}
 
-	var connection_ids []string
+	var connectionIDs []string
 	for _, connection := range p.connections {
-		connection_ids = append(connection_ids, connection.Id)
+		connectionIDs = append(connectionIDs, connection.Id)
 	}
 
 	for i := 0; i <= 5; i++ {
-		session, err = client.CreateSession(hookdeck.CreateSessionInput{SourceId: p.source.Id,
-			ConnectionIds: connection_ids})
+		session, err = client.CreateSession(hookdeck.CreateSessionInput{
+			SourceId:      p.source.Id,
+			ConnectionIds: connectionIDs,
+		})
 
 		if err == nil {
 			return session, nil
