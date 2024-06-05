@@ -12,7 +12,9 @@ import (
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
+func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
+	source := sources[0]
+
 	// TODO: Filter connections using connectionQuery
 	var connections []*hookdecksdk.Connection
 	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{

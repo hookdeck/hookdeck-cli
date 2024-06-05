@@ -24,7 +24,6 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -33,7 +32,7 @@ type Flags struct {
 }
 
 // listenCmd represents the listen command
-func Listen(URL *url.URL, sourceAlias string, connectionQuery string, flags Flags, config *config.Config) error {
+func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags Flags, config *config.Config) error {
 	var err error
 	var guestURL string
 
@@ -46,13 +45,12 @@ func Listen(URL *url.URL, sourceAlias string, connectionQuery string, flags Flag
 
 	sdkClient := config.GetClient()
 
-	source, err := getSource(sdkClient, sourceAlias)
+	sources, err := getSources(sdkClient, sourceAliases)
 	if err != nil {
 		return err
 	}
-	sources := []*hookdecksdk.Source{source}
 
-	connections, err := getConnections(sdkClient, source, connectionQuery)
+	connections, err := getConnections(sdkClient, sources, connectionQuery)
 	if err != nil {
 		return err
 	}
