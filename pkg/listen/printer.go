@@ -20,8 +20,6 @@ func printDashboardInformation(config *config.Config, guestURL string) {
 			url += "?team_id=" + config.Profile.TeamID
 		}
 		if config.Profile.TeamMode == "console" {
-			// TODO: how should we display this if there are multiple sources?
-			// url = config.ConsoleBaseURL + "?source_id=" + source.Id
 			url = config.ConsoleBaseURL
 		}
 		fmt.Println("👉 Inspect and replay events: " + url)
