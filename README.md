@@ -25,7 +25,7 @@ Hookdeck CLI is available for macOS, Windows, and Linux for distros like Ubuntu,
 Hookdeck CLI is distributed as an NPM package:
 
 ```sh
-npm install hookdeck -g
+npm install hookdeck-cli -g
 ```
 
 ### macOS
