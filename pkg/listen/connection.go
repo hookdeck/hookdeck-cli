@@ -13,8 +13,20 @@ import (
 )
 
 func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
-	source := sources[0]
+	connections := []*hookdecksdk.Connection{}
 
+	for _, source := range sources {
+		sourceConnections, err := getConnectionsPerSource(client, source, connectionQuery)
+		if err != nil {
+			return []*hookdecksdk.Connection{}, nil
+		}
+		connections = append(connections, sourceConnections...)
+	}
+
+	return connections, nil
+}
+
+func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
 	// TODO: Filter connections using connectionQuery
 	var connections []*hookdecksdk.Connection
 	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{
