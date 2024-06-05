@@ -29,7 +29,7 @@ func (c *Client) CreateSession(input CreateSessionInput) (Session, error) {
 	if res.StatusCode != http.StatusOK {
 		defer res.Body.Close()
 		body, _ := ioutil.ReadAll(res.Body)
-		return Session{}, fmt.Errorf("Unexpected http status code: %d %s", res.StatusCode, string(body))
+		return Session{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, string(body))
 	}
 	session := Session{}
 	postprocessJsonResponse(res, &session)
