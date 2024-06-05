@@ -88,9 +88,9 @@ func newListenCmd() *listenCmd {
 
 // listenCmd represents the listen command
 func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
-	var sourceAlias, connectionQuery string
+	var sourceQueryString, connectionQuery string
 	if len(args) > 1 {
-		sourceAlias = args[1]
+		sourceQueryString = args[1]
 	}
 	if len(args) > 2 {
 		connectionQuery = args[2]
@@ -112,7 +112,14 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 		url.Scheme = "http"
 	}
 
-	return listen.Listen(url, sourceAlias, connectionQuery, listen.Flags{
+	var sourceQuery []string
+	if sourceQueryString == "" {
+		sourceQuery = []string{}
+	} else {
+		sourceQuery = strings.Split(sourceQueryString, ",")
+	}
+
+	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
 		NoWSS: lc.noWSS,
 	}, &Config)
 }

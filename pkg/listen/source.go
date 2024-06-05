@@ -2,6 +2,7 @@ package listen
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -10,27 +11,31 @@ import (
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getSource(sdkClient *hookdeckclient.Client, source_alias string) (*hookdecksdk.Source, error) {
+func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hookdecksdk.Source, error) {
+	limit := 100
 	var source *hookdecksdk.Source
-	if source_alias != "" {
-		sources, _ := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
-			Name: &source_alias,
+	if len(sourceQuery) == 1 && sourceQuery[0] == "*" {
+		sources, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
+			Limit: &limit,
 		})
-		if *sources.Count > 0 {
-			source = sources.Models[0]
+		if err != nil {
+			return []*hookdecksdk.Source{}, err
 		}
-		if source == nil {
-			// TODO: Prompt here?
-			source, _ = sdkClient.Source.Create(context.Background(), &hookdecksdk.SourceCreateRequest{
-				Name: slug.Make(source_alias),
-			})
+		if sources == nil || *sources.Count == 0 {
+			return []*hookdecksdk.Source{}, errors.New("unable to find any matching sources")
 		}
+		return sources.Models, nil
+	} else if len(sourceQuery) > 0 {
+		return listMultipleSources(sdkClient, sourceQuery)
 	} else {
-		sources, _ := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{})
-		if *sources.Count > 0 {
-			var sources_alias []string
-			for _, temp_source := range sources.Models {
-				sources_alias = append(sources_alias, temp_source.Name)
+		sources := []*hookdecksdk.Source{}
+		availableSources, _ := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
+			Limit: &limit,
+		})
+		if *availableSources.Count > 0 {
+			var sourceAliases []string
+			for _, temp_source := range availableSources.Models {
+				sourceAliases = append(sourceAliases, temp_source.Name)
 			}
 
 			answers := struct {
@@ -42,7 +47,7 @@ func getSource(sdkClient *hookdeckclient.Client, source_alias string) (*hookdeck
 					Name: "source",
 					Prompt: &survey.Select{
 						Message: "Select a source",
-						Options: append(sources_alias, "Create new source"),
+						Options: append(sourceAliases, "Create new source"),
 					},
 				},
 			}
@@ -50,19 +55,19 @@ func getSource(sdkClient *hookdeckclient.Client, source_alias string) (*hookdeck
 			err := survey.Ask(qs, &answers)
 			if err != nil {
 				fmt.Println(err.Error())
-				return source, err
+				return []*hookdecksdk.Source{}, err
 			}
 
 			if answers.SourceAlias != "Create new source" {
-				for _, temp_source := range sources.Models {
-					if temp_source.Name == answers.SourceAlias {
-						source = temp_source
+				for _, currentSource := range availableSources.Models {
+					if currentSource.Name == answers.SourceAlias {
+						sources = append(sources, currentSource)
 					}
 				}
 			}
 		}
 
-		if source == nil {
+		if len(sources) == 0 {
 			answers := struct {
 				Label string `survey:"label"` // or you can tag fields to match a specific name
 			}{}
@@ -76,13 +81,33 @@ func getSource(sdkClient *hookdeckclient.Client, source_alias string) (*hookdeck
 
 			err := survey.Ask(qs, &answers)
 			if err != nil {
-				return source, err
+				return []*hookdecksdk.Source{}, err
 			}
 
 			source, _ = sdkClient.Source.Create(context.Background(), &hookdecksdk.SourceCreateRequest{
 				Name: slug.Make(answers.Label),
 			})
+			sources = append(sources, source)
+		}
+
+		return sources, nil
+	}
+}
+
+func listMultipleSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hookdecksdk.Source, error) {
+	sources := []*hookdecksdk.Source{}
+
+	for _, sourceName := range sourceQuery {
+		sourceQuery, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
+			Name: &sourceName,
+		})
+		if err != nil {
+			return []*hookdecksdk.Source{}, err
+		}
+		if len(sourceQuery.Models) > 0 {
+			sources = append(sources, sourceQuery.Models[0])
 		}
 	}
-	return source, nil
+
+	return sources, nil
 }
