@@ -56,12 +56,10 @@ type Config struct {
 // webhook events, forwards them to the local endpoint and sends the response
 // back to Hookdeck.
 type Proxy struct {
-	cfg               *Config
-	source            *hookdecksdk.Source
-	connections       []*hookdecksdk.Connection
-	connections_paths map[string]string
-	webSocketClient   *websocket.Client
-	connectionTimer   *time.Timer
+	cfg             *Config
+	connections     []*hookdecksdk.Connection
+	webSocketClient *websocket.Client
+	connectionTimer *time.Timer
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -221,7 +219,6 @@ func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 
 	for i := 0; i <= 5; i++ {
 		session, err = client.CreateSession(hookdeck.CreateSessionInput{
-			SourceId:      p.source.Id,
 			ConnectionIds: connectionIDs,
 		})
 
@@ -345,8 +342,6 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 		return
 	}
 
-	// body := truncate(string(buf), 5000, true)
-
 	if p.webSocketClient != nil {
 		p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
 			AttemptResponse: &websocket.AttemptResponse{
@@ -366,73 +361,16 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 //
 
 // New creates a new Proxy
-func New(cfg *Config, source *hookdecksdk.Source, connections []*hookdecksdk.Connection) *Proxy {
+func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 	if cfg.Log == nil {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
 
-	connections_paths := make(map[string]string)
-
-	for _, connection := range connections {
-		connections_paths[connection.Id] = *connection.Destination.CliPath
-	}
-
 	p := &Proxy{
-		cfg:               cfg,
-		connections:       connections,
-		connections_paths: connections_paths,
-		source:            source,
-		connectionTimer:   time.NewTimer(0), // Defaults to no delay
+		cfg:             cfg,
+		connections:     connections,
+		connectionTimer: time.NewTimer(0), // Defaults to no delay
 	}
 
 	return p
-}
-
-//
-// Private constants
-//
-
-const (
-	maxBodySize        = 5000
-	maxNumHeaders      = 20
-	maxHeaderKeySize   = 50
-	maxHeaderValueSize = 200
-)
-
-//
-// Private functions
-//
-
-// truncate will truncate str to be less than or equal to maxByteLength bytes.
-// It will respect UTF8 and truncate the string at a code point boundary.
-// If ellipsis is true, we'll append "..." to the truncated string if the string
-// was in fact truncated, and if there's enough room. Note that the
-// full string returned will always be <= maxByteLength bytes long, even with ellipsis.
-func truncate(str string, maxByteLength int, ellipsis bool) string {
-	if len(str) <= maxByteLength {
-		return str
-	}
-
-	bytes := []byte(str)
-
-	if ellipsis && maxByteLength > 3 {
-		maxByteLength -= 3
-	} else {
-		ellipsis = false
-	}
-
-	for maxByteLength > 0 && maxByteLength < len(bytes) && isUTF8ContinuationByte(bytes[maxByteLength]) {
-		maxByteLength--
-	}
-
-	result := string(bytes[0:maxByteLength])
-	if ellipsis {
-		result += "..."
-	}
-
-	return result
-}
-
-func isUTF8ContinuationByte(b byte) bool {
-	return (b & 0xC0) == 0x80
 }
