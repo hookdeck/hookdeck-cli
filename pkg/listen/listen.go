@@ -110,8 +110,16 @@ func parseSourceQuery(sourceQuery string) ([]string, error) {
 	var sourceAliases []string
 	if sourceQuery == "" {
 		sourceAliases = []string{}
-	} else {
+	} else if strings.Contains(sourceQuery, ",") {
 		sourceAliases = strings.Split(sourceQuery, ",")
+	} else if strings.Contains(sourceQuery, " ") {
+		sourceAliases = strings.Split(sourceQuery, " ")
+	} else {
+		sourceAliases = append(sourceAliases, sourceQuery)
+	}
+
+	for i := range sourceAliases {
+		sourceAliases[i] = strings.TrimSpace(sourceAliases[i])
 	}
 
 	// TODO: remove once we can support better limit
