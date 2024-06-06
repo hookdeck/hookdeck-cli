@@ -88,9 +88,9 @@ func newListenCmd() *listenCmd {
 
 // listenCmd represents the listen command
 func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
-	var sourceQueryString, connectionQuery string
+	var sourceQuery, connectionQuery string
 	if len(args) > 1 {
-		sourceQueryString = args[1]
+		sourceQuery = args[1]
 	}
 	if len(args) > 2 {
 		connectionQuery = args[2]
@@ -110,18 +110,6 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 
 	if url.Scheme == "" {
 		url.Scheme = "http"
-	}
-
-	var sourceQuery []string
-	if sourceQueryString == "" {
-		sourceQuery = []string{}
-	} else {
-		sourceQuery = strings.Split(sourceQueryString, ",")
-	}
-
-	// TODO: remove once we can support better limit
-	if len(sourceQuery) > 10 {
-		return errors.New("max 10 sources supported")
 	}
 
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
