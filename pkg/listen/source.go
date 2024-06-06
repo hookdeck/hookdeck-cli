@@ -15,8 +15,10 @@ func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hook
 	limit := 100
 	var source *hookdecksdk.Source
 	if len(sourceQuery) == 1 && sourceQuery[0] == "*" {
+		// TODO: remove once we can support better limit
+		temporaryLimit := 10
 		sources, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
-			Limit: &limit,
+			Limit: &temporaryLimit,
 		})
 		if err != nil {
 			return []*hookdecksdk.Source{}, err
