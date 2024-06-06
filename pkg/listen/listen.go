@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
@@ -34,9 +35,14 @@ type Flags struct {
 }
 
 // listenCmd represents the listen command
-func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags Flags, config *config.Config) error {
+func Listen(URL *url.URL, sourceQuery string, connectionQuery string, flags Flags, config *config.Config) error {
 	var err error
 	var guestURL string
+
+	sourceAliases, err := parseSourceQuery(sourceQuery)
+	if err != nil {
+		return err
+	}
 
 	isMultiSource := len(sourceAliases) > 1 || (len(sourceAliases) == 1 && sourceAliases[0] == "*")
 
@@ -98,6 +104,22 @@ func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags 
 	}
 
 	return nil
+}
+
+func parseSourceQuery(sourceQuery string) ([]string, error) {
+	var sourceAliases []string
+	if sourceQuery == "" {
+		sourceAliases = []string{}
+	} else {
+		sourceAliases = strings.Split(sourceQuery, ",")
+	}
+
+	// TODO: remove once we can support better limit
+	if len(sourceAliases) > 10 {
+		return []string{}, errors.New("max 10 sources supported")
+	}
+
+	return sourceAliases, nil
 }
 
 func isPath(value string) (bool, error) {
