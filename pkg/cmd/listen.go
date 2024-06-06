@@ -119,6 +119,11 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 		sourceQuery = strings.Split(sourceQueryString, ",")
 	}
 
+	// TODO: remove once we can support better limit
+	if len(sourceQuery) > 10 {
+		return errors.New("max 10 sources supported")
+	}
+
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
 		NoWSS: lc.noWSS,
 	}, &Config)
