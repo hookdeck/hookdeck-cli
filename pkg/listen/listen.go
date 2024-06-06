@@ -38,6 +38,8 @@ func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags 
 	var err error
 	var guestURL string
 
+	isMultiSource := len(sourceAliases) > 1 || (len(sourceAliases) == 1 && sourceAliases[0] == "*")
+
 	if config.Profile.APIKey == "" {
 		guestURL, err = login.GuestLogin(config)
 		if guestURL == "" {
@@ -54,7 +56,7 @@ func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags 
 		return err
 	}
 
-	connections, err := getConnections(sdkClient, sources, connectionQuery)
+	connections, err := getConnections(sdkClient, sources, connectionQuery, isMultiSource)
 	if err != nil {
 		return err
 	}
