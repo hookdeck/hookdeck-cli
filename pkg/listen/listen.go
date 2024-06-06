@@ -17,6 +17,7 @@ package listen
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -24,6 +25,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
+	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -45,6 +47,8 @@ func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags 
 
 	sdkClient := config.GetClient()
 
+	// Prepare data
+
 	sources, err := getSources(sdkClient, sourceAliases)
 	if err != nil {
 		return err
@@ -54,6 +58,12 @@ func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags 
 	if err != nil {
 		return err
 	}
+
+	if err := validateData(sources, connections); err != nil {
+		return err
+	}
+
+	// Start proxy
 
 	fmt.Println()
 	printDashboardInformation(config, guestURL)
@@ -89,4 +99,12 @@ func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags 
 func isPath(value string) (bool, error) {
 	is_path, err := regexp.MatchString(`^(\/)+([/a-zA-Z0-9-_%\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@]*)$`, value)
 	return is_path, err
+}
+
+func validateData(sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection) error {
+	if len(connections) == 0 {
+		return errors.New("no connections provided")
+	}
+
+	return nil
 }
