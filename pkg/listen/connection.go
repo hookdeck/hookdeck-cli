@@ -12,11 +12,11 @@ import (
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
+func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionQuery string, isMultiSource bool) ([]*hookdecksdk.Connection, error) {
 	connections := []*hookdecksdk.Connection{}
 
 	for _, source := range sources {
-		sourceConnections, err := getConnectionsPerSource(client, source, connectionQuery)
+		sourceConnections, err := getConnectionsPerSource(client, source, connectionQuery, isMultiSource)
 		if err != nil {
 			return []*hookdecksdk.Connection{}, nil
 		}
@@ -26,7 +26,7 @@ func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source
 	return connections, nil
 }
 
-func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
+func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string, isMultiSource bool) ([]*hookdecksdk.Connection, error) {
 	// TODO: Filter connections using connectionQuery
 	var connections []*hookdecksdk.Connection
 	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{
@@ -59,7 +59,7 @@ func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.
 		connections = filteredConnections
 	}
 
-	if len(connections) == 0 {
+	if len(connections) == 0 && !isMultiSource {
 		answers := struct {
 			Label string `survey:"label"`
 			Path  string `survey:"path"`
