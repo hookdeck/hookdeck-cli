@@ -61,6 +61,8 @@ func Listen(URL *url.URL, sourceAliases []string, connectionQuery string, flags 
 		return err
 	}
 
+	sources = getRelevantSources(sources, connections)
+
 	if err := validateData(sources, connections); err != nil {
 		return err
 	}
@@ -109,4 +111,22 @@ func validateData(sources []*hookdecksdk.Source, connections []*hookdecksdk.Conn
 	}
 
 	return nil
+}
+
+func getRelevantSources(sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection) []*hookdecksdk.Source {
+	relevantSourceId := map[string]bool{}
+
+	for _, connection := range connections {
+		relevantSourceId[connection.Source.Id] = true
+	}
+
+	relevantSources := []*hookdecksdk.Source{}
+
+	for _, source := range sources {
+		if relevantSourceId[source.Id] {
+			relevantSources = append(relevantSources, source)
+		}
+	}
+
+	return relevantSources
 }
