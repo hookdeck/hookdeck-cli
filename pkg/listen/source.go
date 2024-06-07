@@ -75,9 +75,13 @@ func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hook
 	} else {
 		sources := []*hookdecksdk.Source{}
 
-		availableSources, _ := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
+		availableSources, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
 			Limit: &limit,
 		})
+
+		if err != nil {
+			return []*hookdecksdk.Source{}, err
+		}
 
 		if *availableSources.Count > 0 {
 			selectedSources, err := selectSources(availableSources.Models)
