@@ -12,8 +12,21 @@ import (
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
 
-func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string) ([]*hookdecksdk.Connection, error) {
-	// TODO: Filter connections using connectionQuery
+func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionQuery string, isMultiSource bool) ([]*hookdecksdk.Connection, error) {
+	connections := []*hookdecksdk.Connection{}
+
+	for _, source := range sources {
+		sourceConnections, err := getConnectionsPerSource(client, source, connectionQuery, isMultiSource)
+		if err != nil {
+			return []*hookdecksdk.Connection{}, nil
+		}
+		connections = append(connections, sourceConnections...)
+	}
+
+	return connections, nil
+}
+
+func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string, isMultiSource bool) ([]*hookdecksdk.Connection, error) {
 	var connections []*hookdecksdk.Connection
 	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{
 		SourceId: &source.Id,
@@ -45,7 +58,7 @@ func getConnections(client *hookdeckclient.Client, source *hookdecksdk.Source, c
 		connections = filteredConnections
 	}
 
-	if len(connections) == 0 {
+	if len(connections) == 0 && !isMultiSource {
 		answers := struct {
 			Label string `survey:"label"`
 			Path  string `survey:"path"`
