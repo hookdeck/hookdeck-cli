@@ -45,13 +45,13 @@ func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.
 	connections = filteredConnections
 
 	if connectionQuery != "" {
-		is_path, err := isPath(connectionQuery)
+		isPath, err := isPath(connectionQuery)
 		if err != nil {
 			return connections, err
 		}
 		var filteredConnections []*hookdecksdk.Connection
 		for _, connection := range connections {
-			if (is_path && connection.Destination.CliPath != nil && strings.Contains(*connection.Destination.CliPath, connectionQuery)) || (connection.Name != nil && *connection.Name == connectionQuery) {
+			if (isPath && connection.Destination.CliPath != nil && strings.Contains(*connection.Destination.CliPath, connectionQuery)) || (connection.Name != nil && *connection.Name == connectionQuery) {
 				filteredConnections = append(filteredConnections, connection)
 			}
 		}
@@ -69,8 +69,8 @@ func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.
 				Prompt: &survey.Input{Message: "What path should the events be forwarded to (ie: /webhooks)?"},
 				Validate: func(val interface{}) error {
 					str, ok := val.(string)
-					is_path, err := isPath(str)
-					if !ok || !is_path || err != nil {
+					isPath, err := isPath(str)
+					if !ok || !isPath || err != nil {
 						return errors.New("invalid path")
 					}
 					return nil
