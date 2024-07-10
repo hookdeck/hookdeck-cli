@@ -35,7 +35,7 @@ type Flags struct {
 }
 
 // listenCmd represents the listen command
-func Listen(URL *url.URL, sourceQuery string, connectionQuery string, flags Flags, config *config.Config) error {
+func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, flags Flags, config *config.Config) error {
 	var err error
 	var guestURL string
 
@@ -62,7 +62,7 @@ func Listen(URL *url.URL, sourceQuery string, connectionQuery string, flags Flag
 		return err
 	}
 
-	connections, err := getConnections(sdkClient, sources, connectionQuery, isMultiSource)
+	connections, err := getConnections(sdkClient, sources, connectionFilterString, isMultiSource)
 	if err != nil {
 		return err
 	}
