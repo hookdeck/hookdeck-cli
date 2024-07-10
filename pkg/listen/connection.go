@@ -29,7 +29,7 @@ func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source
 func getConnectionsPerSource(client *hookdeckclient.Client, source *hookdecksdk.Source, connectionQuery string, isMultiSource bool) ([]*hookdecksdk.Connection, error) {
 	var connections []*hookdecksdk.Connection
 	connectionList, err := client.Connection.List(context.Background(), &hookdecksdk.ConnectionListRequest{
-		SourceId: &source.Id,
+		SourceId: []*string{&source.Id},
 	})
 	if err != nil {
 		return nil, err
