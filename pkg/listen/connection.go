@@ -39,17 +39,28 @@ func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source
 	return connections, nil
 }
 
+// 1. Filter to only include CLI destination
+// 2. Apply connectionFilterString
 func filterConnections(connections []*hookdecksdk.Connection, connectionFilterString string) ([]*hookdecksdk.Connection, error) {
-	if connectionFilterString == "" {
-		return connections, nil
+	// 1. Filter to only include CLI destination
+	var cliDestinationConnections []*hookdecksdk.Connection
+	for _, connection := range connections {
+		if connection.Destination.CliPath != nil && *connection.Destination.CliPath != "" {
+			cliDestinationConnections = append(cliDestinationConnections, connection)
+		}
 	}
 
+	if connectionFilterString == "" {
+		return cliDestinationConnections, nil
+	}
+
+	// 2. Apply connectionFilterString
 	isPath, err := isPath(connectionFilterString)
 	if err != nil {
 		return connections, err
 	}
 	var filteredConnections []*hookdecksdk.Connection
-	for _, connection := range connections {
+	for _, connection := range cliDestinationConnections {
 		if (isPath && connection.Destination.CliPath != nil && strings.Contains(*connection.Destination.CliPath, connectionFilterString)) || (connection.Name != nil && *connection.Name == connectionFilterString) {
 			filteredConnections = append(filteredConnections, connection)
 		}
