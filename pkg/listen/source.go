@@ -28,15 +28,11 @@ import (
 // they'd like to use. They will also have an option to create a new source.
 
 func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hookdecksdk.Source, error) {
-	limit := 100
+	limit := 255 // Hookdeck API limit
 
 	// case 1
 	if len(sourceQuery) == 1 && sourceQuery[0] == "*" {
-		// TODO: remove once we can support better limit
-		temporaryLimit := 10
-		sources, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
-			Limit: &temporaryLimit,
-		})
+		sources, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{})
 		if err != nil {
 			return []*hookdecksdk.Source{}, err
 		}
