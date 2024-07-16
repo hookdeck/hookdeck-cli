@@ -8,8 +8,8 @@ import (
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
-func printListenMessage(config *config.Config, sourceQuery string, isMultiSource bool) {
-	if !isMultiSource || sourceQuery == "*" {
+func printListenMessage(config *config.Config, isMultiSource bool) {
+	if !isMultiSource {
 		return
 	}
 

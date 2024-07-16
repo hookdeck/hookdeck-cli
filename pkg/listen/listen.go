@@ -74,7 +74,7 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 	}
 
 	// Start proxy
-	printListenMessage(config, sourceQuery, isMultiSource)
+	printListenMessage(config, isMultiSource)
 	fmt.Println()
 	printDashboardInformation(config, guestURL)
 	fmt.Println()
