@@ -9,16 +9,12 @@ import (
 )
 
 func printListenMessage(config *config.Config, sourceQuery string, isMultiSource bool) {
-	if !isMultiSource {
+	if !isMultiSource || sourceQuery == "*" {
 		return
 	}
 
 	fmt.Println()
-	if sourceQuery == "*" {
-		fmt.Println("Listening for events on the first 10 Sources that have Connections with CLI Destinations")
-	} else {
-		fmt.Println("Listening for events on Sources that have Connections with CLI Destinations")
-	}
+	fmt.Println("Listening for events on Sources that have Connections with CLI Destinations")
 }
 
 func printDashboardInformation(config *config.Config, guestURL string) {
