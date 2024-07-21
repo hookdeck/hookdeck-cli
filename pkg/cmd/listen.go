@@ -26,9 +26,9 @@ import (
 )
 
 type listenCmd struct {
-	cmd       *cobra.Command
-	wsBaseURL string
-	noWSS     bool
+	cmd   *cobra.Command
+	noWSS bool
+	path  string
 }
 
 func newListenCmd() *listenCmd {
@@ -75,6 +75,7 @@ func newListenCmd() *listenCmd {
 		RunE: lc.runListenCmd,
 	}
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
+	lc.cmd.Flags().StringVar(&lc.path, "cli-path", "", "Sets the server path of that locally running web server the events will be forwarded to")
 
 	lc.cmd.SetUsageTemplate(
 		strings.Replace(
@@ -113,6 +114,7 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
-		NoWSS: lc.noWSS,
+		NoWSS:   lc.noWSS,
+		CliPath: lc.path,
 	}, &Config)
 }
