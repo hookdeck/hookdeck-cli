@@ -2,14 +2,13 @@ package listen
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosimple/slug"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
+	log "github.com/sirupsen/logrus"
 )
 
 func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionFilterString string, isMultiSource bool, cliPath string) ([]*hookdecksdk.Connection, error) {
@@ -31,7 +30,7 @@ func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source
 		return []*hookdecksdk.Connection{}, err
 	}
 
-	connections, err = ensureConnections(client, connections, sources, isMultiSource, cliPath)
+	connections, err = ensureConnections(client, connections, sources, isMultiSource, connectionFilterString, cliPath)
 	if err != nil {
 		return []*hookdecksdk.Connection{}, err
 	}
@@ -71,45 +70,34 @@ func filterConnections(connections []*hookdecksdk.Connection, connectionFilterSt
 
 // When users want to listen to a single source but there is no connection for that source,
 // we can help user set up a new connection for it.
-func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk.Connection, sources []*hookdecksdk.Source, isMultiSource bool, cliPath string) ([]*hookdecksdk.Connection, error) {
+func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk.Connection, sources []*hookdecksdk.Source, isMultiSource bool, connectionFilterString string, cliPath string) ([]*hookdecksdk.Connection, error) {
+	l := log.StandardLogger()
+
 	if len(connections) > 0 || isMultiSource {
+		msg := fmt.Sprintf("Connection exists for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath)
+		l.Debug(msg)
+
 		return connections, nil
 	}
+
+	msg := fmt.Sprintf("No connection found. Creating a connection for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath)
+	l.Debug(msg)
 
 	connectionDetails := struct {
 		Label string `survey:"label"`
 		Path  string `survey:"path"`
 	}{}
 
-	if len(cliPath) != 0 {
-		connectionDetails.Path = cliPath
-		connectionDetails.Label = "CLI"
+	if len(connectionFilterString) == 0 {
+		connectionDetails.Label = "cli"
 	} else {
-		var qs = []*survey.Question{
-			{
-				Name:   "path",
-				Prompt: &survey.Input{Message: "What path should the events be forwarded to (ie: /webhooks)?"},
-				Validate: func(val interface{}) error {
-					str, ok := val.(string)
-					isPath, err := isPath(str)
-					if !ok || !isPath || err != nil {
-						return errors.New("invalid path")
-					}
-					return nil
-				},
-			},
-			{
-				Name:     "label",
-				Prompt:   &survey.Input{Message: "What's your connection label (ie: My API)?"},
-				Validate: survey.Required,
-			},
-		}
+		connectionDetails.Label = connectionFilterString
+	}
 
-		err := survey.Ask(qs, &connectionDetails)
-		if err != nil {
-			fmt.Println(err.Error())
-			return connections, err
-		}
+	if len(cliPath) == 0 {
+		connectionDetails.Path = "/"
+	} else {
+		connectionDetails.Path = cliPath
 	}
 
 	alias := slug.Make(connectionDetails.Label)

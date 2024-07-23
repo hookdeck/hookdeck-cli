@@ -79,7 +79,7 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		return err
 	}
 
-	// If the "clii-path" flag has been passed and the destination has a current cli path value but it's different, update destination path
+	// If the "cli-path" flag has been passed and the destination has a current cli path value but it's different, update destination path
 	if len(flags.CliPath) != 0 &&
 		len(connections) == 1 &&
 		*connections[0].Destination.CliPath != "" &&
