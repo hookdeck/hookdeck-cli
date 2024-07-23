@@ -79,6 +79,13 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		return err
 	}
 
+	if len(flags.CliPath) != 0 && len(connections) > 1 {
+		return errors.New(fmt.Errorf(`Multiple CLI destinations found. Cannot set the CLI path on multiple destinations.
+Specify a single destination to update the CLI path. For example, pass a connection name:
+			
+  hookdeck listen %s %s %s --cli-path %s`, URL.String(), sourceQuery, "connection-name", flags.CliPath).Error())
+	}
+
 	// If the "cli-path" flag has been passed and the destination has a current cli path value but it's different, update destination path
 	if len(flags.CliPath) != 0 &&
 		len(connections) == 1 &&
