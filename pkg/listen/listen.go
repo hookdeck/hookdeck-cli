@@ -31,7 +31,8 @@ import (
 )
 
 type Flags struct {
-	NoWSS bool
+	NoWSS   bool
+	CliPath string
 }
 
 // listenCmd represents the listen command
@@ -45,6 +46,17 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 	}
 
 	isMultiSource := len(sourceAliases) > 1 || (len(sourceAliases) == 1 && sourceAliases[0] == "*")
+
+	if flags.CliPath != "" {
+		if isMultiSource {
+			return errors.New("Can only set a CLI path when listening to a single source")
+		}
+
+		_, err = isPath(flags.CliPath)
+		if err != nil {
+			return errors.New("The CLI path must be in a valid format")
+		}
+	}
 
 	if config.Profile.APIKey == "" {
 		guestURL, err = login.GuestLogin(config)
@@ -62,9 +74,38 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		return err
 	}
 
-	connections, err := getConnections(sdkClient, sources, connectionFilterString, isMultiSource)
+	connections, err := getConnections(sdkClient, sources, connectionFilterString, isMultiSource, flags.CliPath)
 	if err != nil {
 		return err
+	}
+
+	if len(flags.CliPath) != 0 && len(connections) > 1 {
+		return errors.New(fmt.Errorf(`Multiple CLI destinations found. Cannot set the CLI path on multiple destinations.
+Specify a single destination to update the CLI path. For example, pass a connection name:
+			
+  hookdeck listen %s %s %s --cli-path %s`, URL.String(), sourceQuery, "connection-name", flags.CliPath).Error())
+	}
+
+	// If the "cli-path" flag has been passed and the destination has a current cli path value but it's different, update destination path
+	if len(flags.CliPath) != 0 &&
+		len(connections) == 1 &&
+		*connections[0].Destination.CliPath != "" &&
+		*connections[0].Destination.CliPath != flags.CliPath {
+
+		l := log.StandardLogger()
+		updateMsg := fmt.Sprintf("Updating destination CLI path from \"%s\" to \"%s\"", *connections[0].Destination.CliPath, flags.CliPath)
+		l.Debug(updateMsg)
+
+		path := flags.CliPath
+		_, err := sdkClient.Destination.Update(context.Background(), connections[0].Destination.Id, &hookdecksdk.DestinationUpdateRequest{
+			CliPath: hookdecksdk.Optional[string](path),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		connections[0].Destination.CliPath = &path
 	}
 
 	sources = getRelevantSources(sources, connections)
