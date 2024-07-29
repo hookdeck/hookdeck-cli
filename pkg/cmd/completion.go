@@ -110,7 +110,7 @@ func selectShell(shell string) error {
 		}
 		return err
 	default:
-		return fmt.Errorf("Could not automatically detect your shell. Please run the command with the `--shell` flag for either bash or zsh")
+		return fmt.Errorf("could not automatically detect your shell. Please run the command with the `--shell` flag for either bash or zsh")
 	}
 }
 

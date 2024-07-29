@@ -11,8 +11,7 @@ import (
 )
 
 type whoamiCmd struct {
-	cmd         *cobra.Command
-	interactive bool
+	cmd *cobra.Command
 }
 
 func newWhoamiCmd() *whoamiCmd {
