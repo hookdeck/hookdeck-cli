@@ -39,14 +39,14 @@ func newListenCmd() *listenCmd {
 		Use:   "listen",
 		Short: "Forward events for a source to your local server",
 		Long: `Forward events for a source to your local server.
-		
+
 This command will create a new Hookdeck Source if it doesn't exist.
 
-By default the Hookdeck Destination will be named "CLI",  and the
+By default the Hookdeck Destination will be named "CLI", and the
 Destination CLI path will be "/". To set the CLI path, use the "--cli-path" flag.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return errors.New("Requires a port or forwarding URL to forward the events to")
+				return errors.New("requires a port or forwarding URL to forward the events to")
 			}
 
 			_, err_port := strconv.ParseInt(args[0], 10, 64)
@@ -60,21 +60,21 @@ Destination CLI path will be "/". To set the CLI path, use the "--cli-path" flag
 			}
 
 			if err_port != nil && err_url != nil {
-				return errors.New("Argument is not a valid port or forwading URL")
+				return errors.New("argument is not a valid port or forwading URL")
 			}
 
 			if err_port != nil {
 				if parsed_url.Host == "" {
-					return errors.New("Forwarding URL must contain a host.")
+					return errors.New("forwarding URL must contain a host")
 				}
 
 				if parsed_url.RawQuery != "" {
-					return errors.New("Forwarding URL cannot contain query params.")
+					return errors.New("forwarding URL cannot contain query params")
 				}
 			}
 
 			if len(args) > 3 {
-				return errors.New("Invalid extra argument provided")
+				return errors.New("invalid extra argument provided")
 			}
 
 			return nil
