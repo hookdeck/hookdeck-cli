@@ -95,9 +95,8 @@ Specify a single destination to update the CLI path. For example, pass a connect
 		*connections[0].Destination.CliPath != "" &&
 		*connections[0].Destination.CliPath != flags.CliPath {
 
-		l := log.StandardLogger()
 		updateMsg := fmt.Sprintf("Updating destination CLI path from \"%s\" to \"%s\"", *connections[0].Destination.CliPath, flags.CliPath)
-		l.Debug(updateMsg)
+		log.Debug(updateMsg)
 
 		path := flags.CliPath
 		_, err := sdkClient.Destination.Update(context.Background(), connections[0].Destination.Id, &hookdecksdk.DestinationUpdateRequest{

@@ -71,17 +71,13 @@ func filterConnections(connections []*hookdecksdk.Connection, connectionFilterSt
 // When users want to listen to a single source but there is no connection for that source,
 // we can help user set up a new connection for it.
 func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk.Connection, sources []*hookdecksdk.Source, isMultiSource bool, connectionFilterString string, cliPath string) ([]*hookdecksdk.Connection, error) {
-	l := log.StandardLogger()
-
 	if len(connections) > 0 || isMultiSource {
-		msg := fmt.Sprintf("Connection exists for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath)
-		l.Debug(msg)
+		log.Debug(fmt.Sprintf("Connection exists for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath))
 
 		return connections, nil
 	}
 
-	msg := fmt.Sprintf("No connection found. Creating a connection for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath)
-	l.Debug(msg)
+	log.Debug(fmt.Sprintf("No connection found. Creating a connection for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath))
 
 	connectionDetails := struct {
 		Label string `survey:"label"`
