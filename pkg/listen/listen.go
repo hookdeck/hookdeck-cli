@@ -100,7 +100,7 @@ Specify a single destination to update the CLI path. For example, pass a connect
 
 		path := flags.CliPath
 		_, err := sdkClient.Destination.Update(context.Background(), connections[0].Destination.Id, &hookdecksdk.DestinationUpdateRequest{
-			CliPath: hookdecksdk.Optional[string](path),
+			CliPath: hookdecksdk.Optional(path),
 		})
 
 		if err != nil {
