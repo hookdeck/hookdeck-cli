@@ -52,8 +52,11 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 			return errors.New("Can only set a CLI path when listening to a single source")
 		}
 
-		_, err = isPath(flags.CliPath)
+		flagIsPath, err := isPath(flags.CliPath)
 		if err != nil {
+			return err
+		}
+		if !flagIsPath {
 			return errors.New("The CLI path must be in a valid format")
 		}
 	}
