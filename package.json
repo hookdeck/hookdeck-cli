@@ -1,6 +1,6 @@
 {
   "name": "hookdeck-cli",
-  "version": "0.10.1",
+  "version": "0.2.0",
   "description": "Hookdeck CLI",
   "repository": {
     "type": "git",
