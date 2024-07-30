@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gosimple/slug"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 	log "github.com/sirupsen/logrus"
@@ -80,14 +79,17 @@ func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk
 	log.Debug(fmt.Sprintf("No connection found. Creating a connection for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath))
 
 	connectionDetails := struct {
-		Label string `survey:"label"`
-		Path  string `survey:"path"`
+		ConnectionName  string
+		DestinationName string
+		Path            string
 	}{}
 
+	connectionDetails.DestinationName = fmt.Sprintf("%s-%s", "cli", sources[0].Name)
+
 	if len(connectionFilterString) == 0 {
-		connectionDetails.Label = "cli"
+		connectionDetails.ConnectionName = fmt.Sprintf("%s_to_%s", sources[0].Name, connectionDetails.DestinationName)
 	} else {
-		connectionDetails.Label = connectionFilterString
+		connectionDetails.ConnectionName = connectionFilterString
 	}
 
 	if len(cliPath) == 0 {
@@ -96,13 +98,11 @@ func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk
 		connectionDetails.Path = cliPath
 	}
 
-	alias := slug.Make(connectionDetails.Label)
-
 	connection, err := client.Connection.Create(context.Background(), &hookdecksdk.ConnectionCreateRequest{
-		Name:     hookdecksdk.OptionalOrNull(&alias),
+		Name:     hookdecksdk.OptionalOrNull(&connectionDetails.ConnectionName),
 		SourceId: hookdecksdk.OptionalOrNull(&sources[0].Id),
 		Destination: hookdecksdk.OptionalOrNull(&hookdecksdk.ConnectionCreateRequestDestination{
-			Name:    alias,
+			Name:    connectionDetails.DestinationName,
 			CliPath: &connectionDetails.Path,
 		}),
 	})
