@@ -14,7 +14,7 @@ Hookdeck for development is completely free, and we monetize the platform with o
 
 For a complete reference, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
 
-https://github.com/hookdeck/hookdeck-cli/assets/328367/a49dcf59-49ee-4838-9643-b6f90d2ab33e
+https://github.com/user-attachments/assets/5fca7842-9c41-411c-8cd6-2f32f84fa907
 
 ## Installation
 
