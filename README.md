@@ -105,12 +105,12 @@ hookdeck login
 Start a session to forward your events to an HTTP server.
 
 ```sh-session
-hookdeck listen <port-or-URL> <source-alias?> <connection-query?>
+hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--cli-path?]
 ```
 
 Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
 
-Each `source` is assigned a Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
+Each `source` is assigned an Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
 Contrary to ngrok, **Hookdeck does not allow to append a path to your event URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
 
@@ -150,7 +150,27 @@ Shopify Source
 🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
 Connections
-Inventory Service forwarding to /webhooks/shopify/inventory
+Orders Service forwarding to /webhooks/shopify/orders
+
+
+⣾ Getting ready...
+
+```
+
+#### Changing the path events are forwarded to
+
+The `--cli-path` flag allows you to change the path to which events are forwarded.
+
+```sh-session
+$ hookdeck listen 3000 shopify orders --cli-path /events/shopify/orders
+
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
+
+Shopify Source
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+
+Connections
+Orders Service forwarding to /events/shopify/orders
 
 
 ⣾ Getting ready...
