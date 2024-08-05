@@ -10,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionFilterString string, isMultiSource bool, cliPath string) ([]*hookdecksdk.Connection, error) {
+func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source, connectionFilterString string, isMultiSource bool, path string) ([]*hookdecksdk.Connection, error) {
 	sourceIDs := []*string{}
 
 	for _, source := range sources {
@@ -29,7 +29,7 @@ func getConnections(client *hookdeckclient.Client, sources []*hookdecksdk.Source
 		return []*hookdecksdk.Connection{}, err
 	}
 
-	connections, err = ensureConnections(client, connections, sources, isMultiSource, connectionFilterString, cliPath)
+	connections, err = ensureConnections(client, connections, sources, isMultiSource, connectionFilterString, path)
 	if err != nil {
 		return []*hookdecksdk.Connection{}, err
 	}
@@ -69,14 +69,14 @@ func filterConnections(connections []*hookdecksdk.Connection, connectionFilterSt
 
 // When users want to listen to a single source but there is no connection for that source,
 // we can help user set up a new connection for it.
-func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk.Connection, sources []*hookdecksdk.Source, isMultiSource bool, connectionFilterString string, cliPath string) ([]*hookdecksdk.Connection, error) {
+func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk.Connection, sources []*hookdecksdk.Source, isMultiSource bool, connectionFilterString string, path string) ([]*hookdecksdk.Connection, error) {
 	if len(connections) > 0 || isMultiSource {
-		log.Debug(fmt.Sprintf("Connection exists for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath))
+		log.Debug(fmt.Sprintf("Connection exists for Source \"%s\", Connection \"%s\", and path \"%s\"", sources[0].Name, connectionFilterString, path))
 
 		return connections, nil
 	}
 
-	log.Debug(fmt.Sprintf("No connection found. Creating a connection for Source \"%s\", Connection \"%s\", and CLI path \"%s\"", sources[0].Name, connectionFilterString, cliPath))
+	log.Debug(fmt.Sprintf("No connection found. Creating a connection for Source \"%s\", Connection \"%s\", and path \"%s\"", sources[0].Name, connectionFilterString, path))
 
 	connectionDetails := struct {
 		ConnectionName  string
@@ -92,10 +92,10 @@ func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk
 		connectionDetails.ConnectionName = connectionFilterString
 	}
 
-	if len(cliPath) == 0 {
+	if len(path) == 0 {
 		connectionDetails.Path = "/"
 	} else {
-		connectionDetails.Path = cliPath
+		connectionDetails.Path = path
 	}
 
 	connection, err := client.Connection.Create(context.Background(), &hookdecksdk.ConnectionCreateRequest{
