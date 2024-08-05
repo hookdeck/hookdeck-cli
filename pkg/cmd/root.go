@@ -98,9 +98,13 @@ func init() {
 
 	// Hidden configuration flags, useful for dev/debugging
 	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", "", fmt.Sprintf("Sets the API base URL (default \"%s\")", hookdeck.DefaultAPIBaseURL))
+	rootCmd.PersistentFlags().MarkHidden("api-base")
 	rootCmd.PersistentFlags().StringVar(&Config.DashboardBaseURL, "dashboard-base", "", fmt.Sprintf("Sets the web dashboard base URL (default \"%s\")", hookdeck.DefaultDashboardBaseURL))
+	rootCmd.PersistentFlags().MarkHidden("dashboard-base")
 	rootCmd.PersistentFlags().StringVar(&Config.ConsoleBaseURL, "console-base", "", fmt.Sprintf("Sets the web console base URL (default \"%s\")", hookdeck.DefaultConsoleBaseURL))
+	rootCmd.PersistentFlags().MarkHidden("console-base")
 	rootCmd.PersistentFlags().StringVar(&Config.WSBaseURL, "ws-base", "", fmt.Sprintf("Sets the Websocket base URL (default \"%s\")", hookdeck.DefaultWebsocektURL))
+	rootCmd.PersistentFlags().MarkHidden("ws-base")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Get the version of the Hookdeck CLI")
 
