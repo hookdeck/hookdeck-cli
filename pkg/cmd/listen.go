@@ -24,12 +24,23 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/listen"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type listenCmd struct {
-	cmd     *cobra.Command
-	noWSS   bool
-	cliPath string
+	cmd   *cobra.Command
+	noWSS bool
+	path  string
+}
+
+// Map --cli-path to --path
+func normalizeCliPathFlag(f *pflag.FlagSet, name string) pflag.NormalizedName {
+	switch name {
+	case "cli-path":
+		name = "path"
+		break
+	}
+	return pflag.NormalizedName(name)
 }
 
 func newListenCmd() *listenCmd {
@@ -42,8 +53,8 @@ func newListenCmd() *listenCmd {
 
 This command will create a new Hookdeck Source if it doesn't exist.
 
-By default the Hookdeck Destination will be named "CLI", and the
-Destination CLI path will be "/". To set the CLI path, use the "--cli-path" flag.`,
+By default the Hookdeck Destination will be named "{source}-cli", and the
+Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("requires a port or forwarding URL to forward the events to")
@@ -83,7 +94,11 @@ Destination CLI path will be "/". To set the CLI path, use the "--cli-path" flag
 	}
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 	lc.cmd.Flags().MarkHidden("no-wss")
-	lc.cmd.Flags().StringVar(&lc.cliPath, "cli-path", "", "Sets the server path of that locally running web server the events will be forwarded to")
+
+	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
+
+	// --cli-path is an alias for
+	lc.cmd.Flags().SetNormalizeFunc(normalizeCliPathFlag)
 
 	usage := lc.cmd.UsageTemplate()
 
@@ -113,7 +128,7 @@ Examples:
 	
   Forward events to the path "/webhooks" on local server running on port %[1]d:
 
-    hookdeck listen %[1]d --cli-path /webhooks
+    hookdeck listen %[1]d --path /webhooks
 		`, 3000)
 
 	lc.cmd.SetUsageTemplate(usage)
@@ -148,7 +163,7 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
-		NoWSS:   lc.noWSS,
-		CliPath: lc.cliPath,
+		NoWSS: lc.noWSS,
+		Path:  lc.path,
 	}, &Config)
 }

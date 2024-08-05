@@ -105,7 +105,7 @@ hookdeck login
 Start a session to forward your events to an HTTP server.
 
 ```sh-session
-hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--cli-path?]
+hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--path?]
 ```
 
 Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
@@ -159,10 +159,10 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 #### Changing the path events are forwarded to
 
-The `--cli-path` flag allows you to change the path to which events are forwarded.
+The `--path` flag sets the path to which events are forwarded.
 
 ```sh-session
-$ hookdeck listen 3000 shopify orders --cli-path /events/shopify/orders
+$ hookdeck listen 3000 shopify orders --path /events/shopify/orders
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
