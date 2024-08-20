@@ -56,11 +56,6 @@ type Config struct {
 func (c *Config) GetConfigFolder(xdgPath string) string {
 	configPath := xdgPath
 
-	log.WithFields(log.Fields{
-		"prefix": "config.Config.GetProfilesFolder",
-		"path":   configPath,
-	}).Debug("Using profiles file")
-
 	if configPath == "" {
 		home, err := homedir.Dir()
 		if err != nil {
@@ -71,12 +66,31 @@ func (c *Config) GetConfigFolder(xdgPath string) string {
 		configPath = filepath.Join(home, ".config")
 	}
 
+	log.WithFields(log.Fields{
+		"prefix": "config.Config.GetProfilesFolder",
+		"path":   configPath,
+	}).Debug("Using profiles folder")
+
 	return filepath.Join(configPath, "hookdeck")
 }
 
 // InitConfig reads in profiles file and ENV variables if set.
 func (c *Config) InitConfig() {
 	c.Profile.Config = c
+
+	// Set log level
+	switch c.LogLevel {
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	default:
+		log.Fatalf("Unrecognized log level value: %s. Expected one of debug, info, warn, error.", c.LogLevel)
+	}
 
 	logFormatter := &prefixed.TextFormatter{
 		FullTimestamp:   true,
@@ -102,7 +116,7 @@ func (c *Config) InitConfig() {
 		log.WithFields(log.Fields{
 			"prefix": "config.Config.InitConfig",
 			"path":   c.GlobalConfig.ConfigFileUsed(),
-		}).Debug("Using profiles file")
+		}).Debug("Using global profiles file")
 	}
 
 	// Read local config
@@ -127,7 +141,7 @@ func (c *Config) InitConfig() {
 		log.WithFields(log.Fields{
 			"prefix": "config.Config.InitConfig",
 			"path":   c.LocalConfig.ConfigFileUsed(),
-		}).Debug("Using profiles file")
+		}).Debug("Using local profiles file")
 	}
 
 	// Construct the config struct
@@ -155,20 +169,6 @@ func (c *Config) InitConfig() {
 	}
 
 	log.SetFormatter(logFormatter)
-
-	// Set log level
-	switch c.LogLevel {
-	case "debug":
-		log.SetLevel(log.DebugLevel)
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	case "warn":
-		log.SetLevel(log.WarnLevel)
-	case "error":
-		log.SetLevel(log.ErrorLevel)
-	default:
-		log.Fatalf("Unrecognized log level value: %s. Expected one of debug, info, warn, error.", c.LogLevel)
-	}
 }
 
 // EditConfig opens the configuration file in the default editor.
@@ -250,6 +250,12 @@ func (c *Config) WriteGlobalConfig() error {
 	if err := makePath(c.GlobalConfig.ConfigFileUsed()); err != nil {
 		return err
 	}
+
+	log.WithFields(log.Fields{
+		"prefix": "config.Config.WriteGlobalConfig",
+		"path":   c.GlobalConfig.ConfigFileUsed(),
+	}).Debug("Writing global config")
+
 	return c.GlobalConfig.WriteConfig()
 }
 
