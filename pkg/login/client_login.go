@@ -51,7 +51,12 @@ func Login(config *config.Config, input io.Reader) error {
 		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
 
-		config.Profile.SaveProfile(config.LocalConfigFile != "")
+		if err = config.Profile.SaveProfile(false); err != nil {
+			return err
+		}
+		if err = config.Profile.UseProfile(); err != nil {
+			return err
+		}
 
 		return nil
 	}
