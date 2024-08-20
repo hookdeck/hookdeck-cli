@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/briandowns/spinner"
 
@@ -36,6 +37,11 @@ func Login(config *config.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
 	if config.Profile.APIKey != "" {
+		log.WithFields(log.Fields{
+			"prefix": "login.Login",
+			"APIKey": config.Profile.APIKey,
+		}).Debug("Logging in with API key")
+
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
 		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey, config.Profile.TeamID)
 		if err != nil {
@@ -44,6 +50,13 @@ func Login(config *config.Config, input io.Reader) error {
 
 		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
+
+		if err = config.Profile.SaveProfile(false); err != nil {
+			return err
+		}
+		if err = config.Profile.UseProfile(); err != nil {
+			return err
+		}
 
 		return nil
 	}
