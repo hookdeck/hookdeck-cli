@@ -30,11 +30,12 @@ func TestGetConfigPath(t *testing.T) {
 
 		fs := &globalNoLocalConfigFS{}
 		c := Config{fs: fs}
-		customPath := ""
+		customPathInput := ""
+		expectedPath := filepath.Join(getConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml")
 
-		path, isGlobalConfig := c.getConfigPath(customPath)
+		path, isGlobalConfig := c.getConfigPath(customPathInput)
 		assert.True(t, isGlobalConfig)
-		assert.Equal(t, path, filepath.Join(getConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml"))
+		assert.Equal(t, expectedPath, path)
 	})
 
 	t.Run("with no local or custom config - should return global config path", func(t *testing.T) {
@@ -42,11 +43,12 @@ func TestGetConfigPath(t *testing.T) {
 
 		fs := &noConfigFS{}
 		c := Config{fs: fs}
-		customPath := ""
+		customPathInput := ""
+		expectedPath := filepath.Join(getConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml")
 
-		path, isGlobalConfig := c.getConfigPath(customPath)
+		path, isGlobalConfig := c.getConfigPath(customPathInput)
 		assert.True(t, isGlobalConfig)
-		assert.Equal(t, path, filepath.Join(getConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml"))
+		assert.Equal(t, expectedPath, path)
 	})
 
 	t.Run("with local and custom config - should return custom config path", func(t *testing.T) {
@@ -54,11 +56,12 @@ func TestGetConfigPath(t *testing.T) {
 
 		fs := &globalAndLocalConfigFS{}
 		c := Config{fs: fs}
-		customPath := "/absolute/custom/config.toml"
+		customPathInput := "/absolute/custom/config.toml"
+		expectedPath := customPathInput
 
-		path, isGlobalConfig := c.getConfigPath(customPath)
+		path, isGlobalConfig := c.getConfigPath(customPathInput)
 		assert.False(t, isGlobalConfig)
-		assert.Equal(t, path, customPath)
+		assert.Equal(t, expectedPath, path)
 	})
 
 	t.Run("with local only - should return local config path", func(t *testing.T) {
@@ -66,12 +69,13 @@ func TestGetConfigPath(t *testing.T) {
 
 		fs := &globalAndLocalConfigFS{}
 		c := Config{fs: fs}
-		customPath := ""
-
-		path, isGlobalConfig := c.getConfigPath(customPath)
-		assert.False(t, isGlobalConfig)
+		customPathInput := ""
 		pwd, _ := os.Getwd()
-		assert.Equal(t, path, filepath.Join(pwd, "./.hookdeck/config.toml"))
+		expectedPath := filepath.Join(pwd, "./.hookdeck/config.toml")
+
+		path, isGlobalConfig := c.getConfigPath(customPathInput)
+		assert.False(t, isGlobalConfig)
+		assert.Equal(t, expectedPath, path)
 	})
 
 	t.Run("with absolute custom config - should return custom config path", func(t *testing.T) {
@@ -79,11 +83,12 @@ func TestGetConfigPath(t *testing.T) {
 
 		fs := &noConfigFS{}
 		c := Config{fs: fs}
-		customPath := "/absolute/custom/config.toml"
+		customPathInput := "/absolute/custom/config.toml"
+		expectedPath := customPathInput
 
-		path, isGlobalConfig := c.getConfigPath(customPath)
+		path, isGlobalConfig := c.getConfigPath(customPathInput)
 		assert.False(t, isGlobalConfig)
-		assert.Equal(t, path, customPath)
+		assert.Equal(t, expectedPath, path)
 	})
 
 	t.Run("with relative custom config - should return custom config path", func(t *testing.T) {
@@ -91,12 +96,13 @@ func TestGetConfigPath(t *testing.T) {
 
 		fs := &noConfigFS{}
 		c := Config{fs: fs}
-		customPath := "absolute/custom/config.toml"
-
-		path, isGlobalConfig := c.getConfigPath(customPath)
-		assert.False(t, isGlobalConfig)
+		customPathInput := "absolute/custom/config.toml"
 		pwd, _ := os.Getwd()
-		assert.Equal(t, path, filepath.Join(pwd, customPath))
+		expectedPath := filepath.Join(pwd, customPathInput)
+
+		path, isGlobalConfig := c.getConfigPath(customPathInput)
+		assert.False(t, isGlobalConfig)
+		assert.Equal(t, expectedPath, path)
 	})
 }
 
