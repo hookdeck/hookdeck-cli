@@ -11,16 +11,16 @@ type Profile struct {
 	Config *Config
 }
 
-// GetConfigField returns the configuration field for the specific profile
-func (p *Profile) GetConfigField(field string) string {
+// getConfigField returns the configuration field for the specific profile
+func (p *Profile) getConfigField(field string) string {
 	return p.Name + "." + field
 }
 
 func (p *Profile) SaveProfile() error {
-	p.Config.viper.Set(p.GetConfigField("api_key"), p.APIKey)
-	p.Config.viper.Set(p.GetConfigField("workspace_id"), p.TeamID)
-	p.Config.viper.Set(p.GetConfigField("workspace_mode"), p.TeamMode)
-	return p.Config.WriteConfig()
+	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
+	p.Config.viper.Set(p.getConfigField("workspace_id"), p.TeamID)
+	p.Config.viper.Set(p.getConfigField("workspace_mode"), p.TeamMode)
+	return p.Config.writeConfig()
 }
 
 func (p *Profile) RemoveProfile() error {
@@ -39,12 +39,12 @@ func (p *Profile) RemoveProfile() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(p.Config.viper.ConfigFileUsed())
 	p.Config.viper = runtimeViper
-	return p.Config.WriteConfig()
+	return p.Config.writeConfig()
 }
 
 func (p *Profile) UseProfile() error {
 	p.Config.viper.Set("profile", p.Name)
-	return p.Config.WriteConfig()
+	return p.Config.writeConfig()
 }
 
 func (p *Profile) ValidateAPIKey() error {

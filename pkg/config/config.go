@@ -1,17 +1,10 @@
 package config
 
 import (
-	"bytes"
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
-	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
@@ -50,30 +43,6 @@ type Config struct {
 
 	// Internal
 	fs ConfigFS
-}
-
-// getConfigFolder retrieves the folder where the profiles file is stored
-// It searches for the xdg environment path first and will secondarily
-// place it in the home directory
-func getConfigFolder(xdgPath string) string {
-	configPath := xdgPath
-
-	if configPath == "" {
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		configPath = filepath.Join(home, ".config")
-	}
-
-	log.WithFields(log.Fields{
-		"prefix": "config.Config.GetProfilesFolder",
-		"path":   configPath,
-	}).Debug("Using profiles folder")
-
-	return filepath.Join(configPath, "hookdeck")
 }
 
 // InitConfig reads in profiles file and ENV variables if set.
@@ -155,37 +124,6 @@ func (c *Config) InitConfig() {
 	log.SetFormatter(logFormatter)
 }
 
-// EditConfig opens the configuration file in the default editor.
-func (c *Config) EditConfig() error {
-	var err error
-
-	fmt.Println("Opening config file:", c.configFile)
-
-	switch runtime.GOOS {
-	case "darwin", "linux":
-		editor := os.Getenv("EDITOR")
-		if editor == "" {
-			editor = "vi"
-		}
-
-		cmd := exec.Command(editor, c.configFile)
-		// Some editors detect whether they have control of stdin/out and will
-		// fail if they do not.
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-
-		return cmd.Run()
-	case "windows":
-		// As far as I can tell, Windows doesn't have an easily accesible or
-		// comparable option to $EDITOR, so default to notepad for now
-		err = exec.Command("notepad", c.configFile).Run()
-	default:
-		err = fmt.Errorf("unsupported platform")
-	}
-
-	return err
-}
-
 // UseProject selects the active project to be used
 func (c *Config) UseProject(teamId string, teamMode string) error {
 	c.Profile.TeamID = teamId
@@ -228,10 +166,10 @@ func (c *Config) RemoveAllProfiles() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(c.viper.ConfigFileUsed())
 	c.viper = runtimeViper
-	return c.WriteConfig()
+	return c.writeConfig()
 }
 
-func (c *Config) WriteConfig() error {
+func (c *Config) writeConfig() error {
 	if err := c.fs.makePath(c.viper.ConfigFileUsed()); err != nil {
 		return err
 	}
@@ -246,13 +184,13 @@ func (c *Config) WriteConfig() error {
 
 // Construct the config struct from flags > local config > global config
 func (c *Config) constructConfig() {
-	c.Color = getStringConfig([]string{c.Color, c.viper.GetString(("color")), "auto"})
-	c.LogLevel = getStringConfig([]string{c.LogLevel, c.viper.GetString(("log")), "info"})
-	c.APIBaseURL = getStringConfig([]string{c.APIBaseURL, c.viper.GetString(("api_base")), hookdeck.DefaultAPIBaseURL})
-	c.DashboardBaseURL = getStringConfig([]string{c.DashboardBaseURL, c.viper.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL})
-	c.ConsoleBaseURL = getStringConfig([]string{c.ConsoleBaseURL, c.viper.GetString(("console_base")), hookdeck.DefaultConsoleBaseURL})
-	c.WSBaseURL = getStringConfig([]string{c.WSBaseURL, c.viper.GetString(("ws_base")), hookdeck.DefaultWebsocektURL})
-	c.Profile.Name = getStringConfig([]string{c.Profile.Name, c.viper.GetString(("profile")), hookdeck.DefaultProfileName})
+	c.Color = stringCoalesce(c.Color, c.viper.GetString(("color")), "auto")
+	c.LogLevel = stringCoalesce(c.LogLevel, c.viper.GetString(("log")), "info")
+	c.APIBaseURL = stringCoalesce(c.APIBaseURL, c.viper.GetString(("api_base")), hookdeck.DefaultAPIBaseURL)
+	c.DashboardBaseURL = stringCoalesce(c.DashboardBaseURL, c.viper.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
+	c.ConsoleBaseURL = stringCoalesce(c.ConsoleBaseURL, c.viper.GetString(("console_base")), hookdeck.DefaultConsoleBaseURL)
+	c.WSBaseURL = stringCoalesce(c.WSBaseURL, c.viper.GetString(("ws_base")), hookdeck.DefaultWebsocektURL)
+	c.Profile.Name = stringCoalesce(c.Profile.Name, c.viper.GetString(("profile")), hookdeck.DefaultProfileName)
 	// Needs to support both profile-based config
 	// and top-level config for backward compat. For example:
 	// ````
@@ -267,19 +205,9 @@ func (c *Config) constructConfig() {
 	// "workspace" > "team"
 	// TODO: use "project" instead of "workspace"
 	// TODO: use "cli_key" instead of "api_key"
-	c.Profile.APIKey = getStringConfig([]string{c.Profile.APIKey, c.viper.GetString(c.Profile.GetConfigField("api_key")), c.viper.GetString("api_key"), ""})
-	c.Profile.TeamID = getStringConfig([]string{c.Profile.TeamID, c.viper.GetString(c.Profile.GetConfigField("workspace_id")), c.viper.GetString(c.Profile.GetConfigField("team_id")), c.viper.GetString("workspace_id"), ""})
-	c.Profile.TeamMode = getStringConfig([]string{c.Profile.TeamMode, c.viper.GetString(c.Profile.GetConfigField("workspace_mode")), c.viper.GetString(c.Profile.GetConfigField("team_mode")), c.viper.GetString("workspace_mode"), ""})
-}
-
-func getStringConfig(values []string) string {
-	for _, str := range values {
-		if str != "" {
-			return str
-		}
-	}
-
-	return values[len(values)-1]
+	c.Profile.APIKey = stringCoalesce(c.Profile.APIKey, c.viper.GetString(c.Profile.getConfigField("api_key")), c.viper.GetString("api_key"), "")
+	c.Profile.TeamID = stringCoalesce(c.Profile.TeamID, c.viper.GetString(c.Profile.getConfigField("workspace_id")), c.viper.GetString(c.Profile.getConfigField("team_id")), c.viper.GetString("workspace_id"), "")
+	c.Profile.TeamMode = stringCoalesce(c.Profile.TeamMode, c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
 }
 
 // getConfigPath returns the path for the config file.
@@ -310,69 +238,6 @@ func (c *Config) getConfigPath(path string) (string, bool) {
 		return localConfigPath, false
 	}
 
-	globalConfigFolder := getConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
+	globalConfigFolder := getSystemConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
 	return filepath.Join(globalConfigFolder, "config.toml"), true
-}
-
-// isProfile identifies whether a value in the config pertains to a profile.
-func isProfile(value interface{}) bool {
-	// TODO: ianjabour - ideally find a better way to identify projects in config
-	_, ok := value.(map[string]interface{})
-	return ok
-}
-
-// Temporary workaround until https://github.com/spf13/viper/pull/519 can remove a key from viper
-func removeKey(v *viper.Viper, key string) (*viper.Viper, error) {
-	configMap := v.AllSettings()
-	path := strings.Split(key, ".")
-	lastKey := strings.ToLower(path[len(path)-1])
-	deepestMap := deepSearch(configMap, path[0:len(path)-1])
-	delete(deepestMap, lastKey)
-
-	buf := new(bytes.Buffer)
-
-	encodeErr := toml.NewEncoder(buf).Encode(configMap)
-	if encodeErr != nil {
-		return nil, encodeErr
-	}
-
-	nv := viper.New()
-	nv.SetConfigType("toml") // hint to viper that we've encoded the data as toml
-
-	err := nv.ReadConfig(buf)
-	if err != nil {
-		return nil, err
-	}
-
-	return nv, nil
-}
-
-// taken from https://github.com/spf13/viper/blob/master/util.go#L199,
-// we need this to delete configs, remove when viper supprts unset natively
-func deepSearch(m map[string]interface{}, path []string) map[string]interface{} {
-	for _, k := range path {
-		m2, ok := m[k]
-		if !ok {
-			// intermediate key does not exist
-			// => create it and continue from there
-			m3 := make(map[string]interface{})
-			m[k] = m3
-			m = m3
-
-			continue
-		}
-
-		m3, ok := m2.(map[string]interface{})
-		if !ok {
-			// intermediate key is a value
-			// => replace with a new map
-			m3 = make(map[string]interface{})
-			m[k] = m3
-		}
-
-		// continue search from here
-		m = m3
-	}
-
-	return m
 }
