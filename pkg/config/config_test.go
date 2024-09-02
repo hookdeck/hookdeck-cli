@@ -106,6 +106,120 @@ func TestGetConfigPath(t *testing.T) {
 	})
 }
 
+func TestInitConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty config", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/empty.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "default", c.Profile.Name)
+		assert.Equal(t, "", c.Profile.APIKey)
+		assert.Equal(t, "", c.Profile.TeamID)
+		assert.Equal(t, "", c.Profile.TeamMode)
+	})
+
+	t.Run("default profile", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/default-profile.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "default", c.Profile.Name)
+		assert.Equal(t, "test_api_key", c.Profile.APIKey)
+		assert.Equal(t, "test_workspace_id", c.Profile.TeamID)
+		assert.Equal(t, "test_workspace_mode", c.Profile.TeamMode)
+	})
+
+	t.Run("multiple profile", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/multiple-profiles.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "account_2", c.Profile.Name)
+		assert.Equal(t, "account_2_test_api_key", c.Profile.APIKey)
+		assert.Equal(t, "account_2_test_workspace_id", c.Profile.TeamID)
+		assert.Equal(t, "account_2_test_workspace_mode", c.Profile.TeamMode)
+	})
+
+	t.Run("custom profile", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/multiple-profiles.toml",
+		}
+		c.Profile.Name = "account_3"
+		c.InitConfig()
+
+		assert.Equal(t, "account_3", c.Profile.Name)
+		assert.Equal(t, "account_3_test_api_key", c.Profile.APIKey)
+		assert.Equal(t, "account_3_test_workspace_id", c.Profile.TeamID)
+		assert.Equal(t, "account_3_test_workspace_mode", c.Profile.TeamMode)
+	})
+
+	t.Run("local full", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/local-full.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "default", c.Profile.Name)
+		assert.Equal(t, "local_api_key", c.Profile.APIKey)
+		assert.Equal(t, "local_workspace_id", c.Profile.TeamID)
+		assert.Equal(t, "local_workspace_mode", c.Profile.TeamMode)
+	})
+
+	// TODO: Consider this case. This is a breaking change.
+	// BREAKINGCHANGE
+	t.Run("local workspace only", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/local-workspace-only.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "default", c.Profile.Name)
+		assert.Equal(t, "", c.Profile.APIKey)
+		assert.Equal(t, "local_workspace_id", c.Profile.TeamID)
+		assert.Equal(t, "", c.Profile.TeamMode)
+	})
+
+	t.Run("api key override", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/default-profile.toml",
+		}
+		apiKey := "overridden_api_key"
+		c.Profile.APIKey = apiKey
+		c.InitConfig()
+
+		assert.Equal(t, "default", c.Profile.Name)
+		assert.Equal(t, apiKey, c.Profile.APIKey)
+		assert.Equal(t, "test_workspace_id", c.Profile.TeamID)
+		assert.Equal(t, "test_workspace_mode", c.Profile.TeamMode)
+	})
+}
+
 // ===== Mock FS =====
 
 // Mock fs where there's no config file, whether global or local
