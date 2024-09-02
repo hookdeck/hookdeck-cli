@@ -1,0 +1,21 @@
+profile = "account_2"
+
+[default]
+  api_key = "test_api_key"
+  workspace_id = "test_workspace_id"
+  workspace_mode = "test_workspace_mode"
+
+[account_1]
+  api_key = "account_1_test_api_key"
+  workspace_id = "account_1_test_workspace_id"
+  workspace_mode = "account_1_test_workspace_mode"
+
+[account_2]
+  api_key = "account_2_test_api_key"
+  workspace_id = "account_2_test_workspace_id"
+  workspace_mode = "account_2_test_workspace_mode"
+
+[account_3]
+  api_key = "account_3_test_api_key"
+  workspace_id = "account_3_test_workspace_id"
+  workspace_mode = "account_3_test_workspace_mode"

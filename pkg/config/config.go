@@ -268,8 +268,8 @@ func (c *Config) constructConfig() {
 	// TODO: use "project" instead of "workspace"
 	// TODO: use "cli_key" instead of "api_key"
 	c.Profile.APIKey = getStringConfig([]string{c.Profile.APIKey, c.viper.GetString(c.Profile.GetConfigField("api_key")), c.viper.GetString("api_key"), ""})
-	c.Profile.APIKey = getStringConfig([]string{c.Profile.APIKey, c.viper.GetString(c.Profile.GetConfigField("workspace_id")), c.viper.GetString(c.Profile.GetConfigField("team_id")), c.viper.GetString("workspace_id"), ""})
-	c.Profile.APIKey = getStringConfig([]string{c.Profile.APIKey, c.viper.GetString(c.Profile.GetConfigField("workspace_mode")), c.viper.GetString(c.Profile.GetConfigField("team_mode")), c.viper.GetString("workspace_mode"), ""})
+	c.Profile.TeamID = getStringConfig([]string{c.Profile.TeamID, c.viper.GetString(c.Profile.GetConfigField("workspace_id")), c.viper.GetString(c.Profile.GetConfigField("team_id")), c.viper.GetString("workspace_id"), ""})
+	c.Profile.TeamMode = getStringConfig([]string{c.Profile.TeamMode, c.viper.GetString(c.Profile.GetConfigField("workspace_mode")), c.viper.GetString(c.Profile.GetConfigField("team_mode")), c.viper.GetString("workspace_mode"), ""})
 }
 
 func getStringConfig(values []string) string {
