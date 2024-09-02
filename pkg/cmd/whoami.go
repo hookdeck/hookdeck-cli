@@ -28,6 +28,8 @@ func newWhoamiCmd() *whoamiCmd {
 }
 
 func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
+	fmt.Println(Config.Profile)
+
 	if err := Config.Profile.ValidateAPIKey(); err != nil {
 		return err
 	}
