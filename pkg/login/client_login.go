@@ -51,7 +51,7 @@ func Login(config *config.Config, input io.Reader) error {
 		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
 
-		if err = config.Profile.SaveProfile(false); err != nil {
+		if err = config.Profile.SaveProfile(); err != nil {
 			return err
 		}
 		if err = config.Profile.UseProfile(); err != nil {
@@ -99,7 +99,7 @@ func Login(config *config.Config, input io.Reader) error {
 	config.Profile.TeamID = response.TeamID
 	config.Profile.TeamMode = response.TeamMode
 
-	if err = config.Profile.SaveProfile(false); err != nil {
+	if err = config.Profile.SaveProfile(); err != nil {
 		return err
 	}
 	if err = config.Profile.UseProfile(); err != nil {
@@ -145,7 +145,7 @@ func GuestLogin(config *config.Config) (string, error) {
 	config.Profile.TeamID = response.TeamID
 	config.Profile.TeamMode = response.TeamMode
 
-	if err = config.Profile.SaveProfile(false); err != nil {
+	if err = config.Profile.SaveProfile(); err != nil {
 		return "", err
 	}
 	if err = config.Profile.UseProfile(); err != nil {
@@ -185,7 +185,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 	config.Profile.TeamID = response.TeamID
 	config.Profile.TeamMode = response.TeamMode
 
-	if err = config.Profile.SaveProfile(false); err != nil {
+	if err = config.Profile.SaveProfile(); err != nil {
 		return err
 	}
 	if err = config.Profile.UseProfile(); err != nil {

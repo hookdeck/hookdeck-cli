@@ -91,7 +91,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "(deprecated) Your API key to use for the command")
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "api-key", "", "Your API key to use for the command")
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
-	rootCmd.PersistentFlags().StringVar(&Config.LocalConfigFile, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
 	rootCmd.PersistentFlags().StringVar(&Config.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().BoolVar(&Config.Insecure, "insecure", false, "Allow invalid TLS certificates")
