@@ -47,6 +47,9 @@ type Config struct {
 	ConfigFileFlag string // flag -- should NOT use this directly
 	configFile     string // resolved path of config file
 	viper          *viper.Viper
+
+	// Internal
+	fs ConfigFS
 }
 
 // getConfigFolder retrieves the folder where the profiles file is stored
@@ -75,6 +78,10 @@ func getConfigFolder(xdgPath string) string {
 
 // InitConfig reads in profiles file and ENV variables if set.
 func (c *Config) InitConfig() {
+	if c.fs == nil {
+		c.fs = newConfigFS()
+	}
+
 	c.Profile.Config = c
 
 	// Set log level
@@ -98,7 +105,7 @@ func (c *Config) InitConfig() {
 
 	c.viper = viper.New()
 
-	configPath, isGlobalConfig := getConfigPath(c.ConfigFileFlag)
+	configPath, isGlobalConfig := c.getConfigPath(c.ConfigFileFlag)
 	c.configFile = configPath
 	c.viper.SetConfigType("toml")
 	c.viper.SetConfigFile(c.configFile)
@@ -225,7 +232,7 @@ func (c *Config) RemoveAllProfiles() error {
 }
 
 func (c *Config) WriteConfig() error {
-	if err := makePath(c.viper.ConfigFileUsed()); err != nil {
+	if err := c.fs.makePath(c.viper.ConfigFileUsed()); err != nil {
 		return err
 	}
 
@@ -281,7 +288,7 @@ func getStringConfig(values []string) string {
 // - `${PWD}/.hookdeck/config.toml`
 // - `${HOME}/.config/hookdeck/config.toml`
 // Returns the path string and a boolean indicating whether it's the global default path.
-func getConfigPath(path string) (string, bool) {
+func (c *Config) getConfigPath(path string) (string, bool) {
 	workspaceFolder, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -295,7 +302,7 @@ func getConfigPath(path string) (string, bool) {
 	}
 
 	localConfigPath := filepath.Join(workspaceFolder, ".hookdeck/config.toml")
-	localConfigExists, err := fileExists(localConfigPath)
+	localConfigExists, err := c.fs.fileExists(localConfigPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -340,19 +347,6 @@ func removeKey(v *viper.Viper, key string) (*viper.Viper, error) {
 	return nv, nil
 }
 
-func makePath(path string) error {
-	dir := filepath.Dir(path)
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // taken from https://github.com/spf13/viper/blob/master/util.go#L199,
 // we need this to delete configs, remove when viper supprts unset natively
 func deepSearch(m map[string]interface{}, path []string) map[string]interface{} {
@@ -381,15 +375,4 @@ func deepSearch(m map[string]interface{}, path []string) map[string]interface{} 
 	}
 
 	return m
-}
-
-func fileExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
 }
