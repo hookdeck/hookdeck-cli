@@ -31,7 +31,7 @@ func TestGetConfigPath(t *testing.T) {
 		fs := &globalNoLocalConfigFS{}
 		c := Config{fs: fs}
 		customPathInput := ""
-		expectedPath := filepath.Join(getConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml")
+		expectedPath := filepath.Join(getSystemConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml")
 
 		path, isGlobalConfig := c.getConfigPath(customPathInput)
 		assert.True(t, isGlobalConfig)
@@ -44,7 +44,7 @@ func TestGetConfigPath(t *testing.T) {
 		fs := &noConfigFS{}
 		c := Config{fs: fs}
 		customPathInput := ""
-		expectedPath := filepath.Join(getConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml")
+		expectedPath := filepath.Join(getSystemConfigFolder(os.Getenv("XDG_CONFIG_HOME")), "config.toml")
 
 		path, isGlobalConfig := c.getConfigPath(customPathInput)
 		assert.True(t, isGlobalConfig)
@@ -255,7 +255,7 @@ func (fs *globalNoLocalConfigFS) makePath(path string) error {
 	return nil
 }
 func (fs *globalNoLocalConfigFS) fileExists(path string) (bool, error) {
-	globalConfigFolder := getConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
+	globalConfigFolder := getSystemConfigFolder(os.Getenv("XDG_CONFIG_HOME"))
 	globalPath := filepath.Join(globalConfigFolder, "config.toml")
 	if path == globalPath {
 		return true, nil
