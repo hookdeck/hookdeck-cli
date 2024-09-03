@@ -1,6 +1,8 @@
 package config
 
-import "github.com/hookdeck/hookdeck-cli/pkg/validators"
+import (
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
+)
 
 type Profile struct {
 	Name     string // profile name
