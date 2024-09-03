@@ -90,11 +90,12 @@ func (c *Config) InitConfig() {
 	}
 
 	// Read config file
-	if err := c.viper.ReadInConfig(); err == nil {
-		log.WithFields(log.Fields{
-			"prefix": "config.Config.InitConfig",
-			"path":   c.viper.ConfigFileUsed(),
-		}).Debug("Reading config file")
+	log.WithFields(log.Fields{
+		"prefix": "config.Config.InitConfig",
+		"path":   c.viper.ConfigFileUsed(),
+	}).Debug("Reading config file")
+	if err := c.viper.ReadInConfig(); err != nil {
+		log.Fatal(err)
 	}
 
 	// Construct the config struct
@@ -175,8 +176,8 @@ func (c *Config) writeConfig() error {
 	}
 
 	log.WithFields(log.Fields{
-		"prefix": "config.Config.WriteConfig",
-		"path":   c.viper.WriteConfig(),
+		"prefix": "config.Config.writeConfig",
+		"path":   c.viper.ConfigFileUsed(),
 	}).Debug("Writing config")
 
 	return c.viper.WriteConfig()

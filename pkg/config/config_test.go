@@ -1,6 +1,8 @@
 package config
 
 import (
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -218,6 +220,135 @@ func TestInitConfig(t *testing.T) {
 		assert.Equal(t, "test_workspace_id", c.Profile.TeamID)
 		assert.Equal(t, "test_workspace_mode", c.Profile.TeamMode)
 	})
+}
+
+func TestWriteConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("save profile", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/default-profile.toml")
+		c.InitConfig()
+
+		// Act
+		c.Profile.TeamMode = "new_team_mode"
+		err := c.Profile.SaveProfile()
+
+		// Assert
+		assert.NoError(t, err)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), `workspace_mode = "new_team_mode"`)
+	})
+
+	t.Run("use project", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/default-profile.toml")
+		c.InitConfig()
+
+		// Act
+		err := c.UseProject("new_team_id", "new_team_mode")
+
+		// Assert
+		assert.NoError(t, err)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), `workspace_id = "new_team_id"`)
+	})
+
+	t.Run("use profile", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/multiple-profiles.toml")
+		c.InitConfig()
+
+		// Act
+		c.Profile.Name = "account_3"
+		err := c.Profile.UseProfile()
+
+		// Assert
+		assert.NoError(t, err)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), `profile = "account_3"`)
+	})
+
+	t.Run("remove profile", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/multiple-profiles.toml")
+		c.InitConfig()
+
+		// Act
+		err := c.Profile.RemoveProfile()
+
+		// Assert
+		assert.NoError(t, err)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.NotContains(t, string(contentBytes), "account_2", `default profile "account_2" should be cleared`)
+		assert.NotContains(t, string(contentBytes), `profile =`, `profile key should be cleared`)
+	})
+
+	t.Run("remove profile multiple times", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/multiple-profiles.toml")
+		c.InitConfig()
+
+		// Act
+		err := c.Profile.RemoveProfile()
+
+		// Assert
+		assert.NoError(t, err)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.NotContains(t, string(contentBytes), "account_2", `default profile "account_2" should be cleared`)
+		assert.NotContains(t, string(contentBytes), `profile =`, `profile key should be cleared`)
+
+		// Remove profile again
+
+		c2 := Config{LogLevel: "info"}
+		c2.ConfigFileFlag = c.ConfigFileFlag
+		c2.InitConfig()
+		err = c2.Profile.RemoveProfile()
+
+		contentBytes, _ = ioutil.ReadFile(c2.viper.ConfigFileUsed())
+		assert.NoError(t, err)
+		assert.NotContains(t, string(contentBytes), "[default]", `default profile "default" should be cleared`)
+		assert.NotContains(t, string(contentBytes), `api_key = "test_api_key"`, `default profile "default" should be cleared`)
+
+		// Now even though there are some profiles (account_1, account_3), when reading config
+		// we won't register any profile.
+		// TODO: Consider this case. It's not great UX. This may be an edge case only power users run into
+		// given it requires users to be using multiple profiles.
+
+		c3 := Config{LogLevel: "info"}
+		c3.ConfigFileFlag = c.ConfigFileFlag
+		c3.InitConfig()
+		assert.Equal(t, "default", c3.Profile.Name, `profile should be "default"`)
+		assert.Equal(t, "", c3.Profile.APIKey, "api key should be empty even though there are other profiles")
+	})
+}
+
+// ===== Test helpers =====
+
+func setupTempConfig(t *testing.T, sourceConfigPath string) string {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	srcFile, _ := os.Open(sourceConfigPath)
+	defer srcFile.Close()
+	destFile, _ := os.Create(configPath)
+	defer destFile.Close()
+	io.Copy(destFile, srcFile)
+	return configPath
 }
 
 // ===== Mock FS =====
