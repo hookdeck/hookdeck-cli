@@ -137,6 +137,29 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 ```
 
+#### Listen to multiple sources
+
+`source-alia` can be a comma-separated list of source names (for example, `stripe,shopify,twilio`) or `'*'` (with quotes) to listen to all sources.
+
+```sh-session
+$ hookdeck listen 3000 '*'
+
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
+
+Sources
+🔌 stripe URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn01
+🔌 shopify URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn02
+🔌 twilio URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn03
+
+Connections
+stripe -> cli-stripe forwarding to /webhooks/stripe
+shopify -> cli-shopify forwarding to /webhooks/shopify
+twilio -> cli-twilio forwarding to /webhooks/twilio
+
+⣾ Getting ready...
+
+```
+
 #### Listen to a subset of connections
 
 The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
