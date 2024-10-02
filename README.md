@@ -139,7 +139,7 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 #### Listen to multiple sources
 
-`source-alia` can be a comma-separated list of source names (for example, `stripe,shopify,twilio`) or `'*'` (with quotes) to listen to all sources.
+`source-alias` can be a comma-separated list of source names (for example, `stripe,shopify,twilio`) or `'*'` (with quotes) to listen to all sources.
 
 ```sh-session
 $ hookdeck listen 3000 '*'
