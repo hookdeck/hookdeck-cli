@@ -39,7 +39,7 @@ jobs:
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
-          echo "Docker username: $env:DOCKER_USERNAME"
+          echo "Docker username: $DOCKER_USERNAME"
       - name: Docker Login
         uses: docker/login-action@v3
         with:
