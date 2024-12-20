@@ -9,7 +9,7 @@ require (
 	github.com/google/go-github/v28 v28.1.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/gosimple/slug v1.14.0
-	github.com/hookdeck/hookdeck-go-sdk v0.4.1
+	github.com/hookdeck/hookdeck-go-sdk v0.7.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/sirupsen/logrus v1.9.3
@@ -29,6 +29,7 @@ require (
 	github.com/fatih/color v1.9.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
+	github.com/google/uuid v1.4.0 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
