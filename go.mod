@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.9
 	github.com/BurntSushi/toml v0.3.1
-	github.com/briandowns/spinner v1.11.1
+	github.com/briandowns/spinner v1.23.2
 	github.com/google/go-github/v28 v28.1.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/gosimple/slug v1.14.0
