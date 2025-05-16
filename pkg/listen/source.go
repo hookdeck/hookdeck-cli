@@ -180,6 +180,7 @@ func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.
 		sourceName = answers.Label
 	}
 
+	slug.Lowercase = false
 	source, err := sdkClient.Source.Create(context.Background(), &hookdecksdk.SourceCreateRequest{
 		Name: slug.Make(sourceName),
 	})
