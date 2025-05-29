@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/gosimple/slug"
+	"github.com/hookdeck/hookdeck-cli/pkg/slug"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 )
@@ -180,7 +180,6 @@ func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.
 		sourceName = answers.Label
 	}
 
-	slug.Lowercase = false
 	source, err := sdkClient.Source.Create(context.Background(), &hookdecksdk.SourceCreateRequest{
 		Name: slug.Make(sourceName),
 	})
