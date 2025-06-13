@@ -5,13 +5,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
-	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 type projectUseCmd struct {
-	cmd   *cobra.Command
-	local bool
+	cmd *cobra.Command
+	// local bool
 }
 
 func newProjectUseCmd() *projectUseCmd {
@@ -23,7 +23,10 @@ func newProjectUseCmd() *projectUseCmd {
 		Short: "Select your active project for future commands",
 		RunE:  lc.runProjectUseCmd,
 	}
-	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Pin active project to the current directory")
+
+	// With the change in config management (either local or global, not both), this flag is no longer needed
+	// TODO: consider remove / deprecate
+	// lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Pin active project to the current directory")
 
 	return lc
 }
@@ -74,5 +77,5 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		}
 	}
 
-	return Config.UseProject(lc.local, project.Id, project.Mode)
+	return Config.UseProject(project.Id, project.Mode)
 }
