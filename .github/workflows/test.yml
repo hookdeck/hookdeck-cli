@@ -1,9 +1,14 @@
 name: test
 
 on:
+  workflow_run:
+    workflows: ["Dependabot PR Check"]
+    types: 
+      - completed
   pull_request:
     branches:
       - main
+      - next
 
 jobs:
   build-mac:
@@ -27,6 +32,7 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' || github.event.workflow_run.conclusion == 'success' }}
     env:
       # https://goreleaser.com/customization/docker_manifest/
       DOCKER_CLI_EXPERIMENTAL: "enabled"
