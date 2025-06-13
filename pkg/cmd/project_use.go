@@ -45,7 +45,7 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 	projectNames := make([]string, len(projects))
 	for index, project := range projects {
 		projectNames[index] = project.Name
-		if project.Id == Config.Profile.TeamID {
+		if project.Id == Config.Profile.ProjectId {
 			currentProjectName = project.Name
 		}
 	}

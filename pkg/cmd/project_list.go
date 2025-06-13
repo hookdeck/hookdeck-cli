@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 type projectListCmd struct {
@@ -41,7 +41,7 @@ func (lc *projectListCmd) runProjectListCmd(cmd *cobra.Command, args []string) e
 	color := ansi.Color(os.Stdout)
 
 	for _, project := range projects {
-		if project.Id == Config.Profile.TeamID {
+		if project.Id == Config.Profile.ProjectId {
 			fmt.Printf("%s (current)\n", color.Green(project.Name))
 		} else {
 			fmt.Printf("%s\n", project.Name)

@@ -13,9 +13,9 @@ type CIClient struct {
 	UserName         string `json:"user_name"`
 	OrganizationName string `json:"organization_name"`
 	OrganizationID   string `json:"organization_id"`
-	TeamID           string `json:"team_id"`
-	TeamName         string `json:"team_name"`
-	TeamMode         string `json:"team_mode"`
+	ProjectID        string `json:"team_id"`
+	ProjectName      string `json:"team_name"`
+	ProjectMode      string `json:"team_mode"`
 	APIKey           string `json:"key"`
 	ClientID         string `json:"client_id"`
 }

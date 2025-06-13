@@ -157,9 +157,9 @@ func (c *Config) InitConfig() {
 }
 
 // UseProject selects the active project to be used
-func (c *Config) UseProject(teamId string, teamMode string) error {
-	c.Profile.TeamID = teamId
-	c.Profile.TeamMode = teamMode
+func (c *Config) UseProject(projectId string, projectMode string) error {
+	c.Profile.ProjectId = projectId
+	c.Profile.ProjectMode = projectMode
 	return c.Profile.SaveProfile()
 }
 
@@ -238,8 +238,10 @@ func (c *Config) constructConfig() {
 	// TODO: use "project" instead of "workspace"
 	// TODO: use "cli_key" instead of "api_key"
 	c.Profile.APIKey = stringCoalesce(c.Profile.APIKey, c.viper.GetString(c.Profile.getConfigField("api_key")), c.viper.GetString("api_key"), "")
-	c.Profile.TeamID = stringCoalesce(c.Profile.TeamID, c.viper.GetString(c.Profile.getConfigField("workspace_id")), c.viper.GetString(c.Profile.getConfigField("team_id")), c.viper.GetString("workspace_id"), "")
-	c.Profile.TeamMode = stringCoalesce(c.Profile.TeamMode, c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
+
+	c.Profile.ProjectId = stringCoalesce(c.Profile.ProjectId, c.viper.GetString(c.Profile.getConfigField("project_id")), c.viper.GetString("project_id"), c.viper.GetString(c.Profile.getConfigField("workspace_id")), c.viper.GetString(c.Profile.getConfigField("team_id")), c.viper.GetString("workspace_id"), "")
+
+	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
 }
 
 // getConfigPath returns the path for the config file.

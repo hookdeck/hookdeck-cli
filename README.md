@@ -301,6 +301,40 @@ Selecting project Yet Another One
 
 This will create a local config file in your current directory at `myproject/.hookdeck/config.toml`. Depending on your team's Hookdeck usage and project setup, you may or may not want to commit this configuration file to version control.
 
+### Using Profiles
+
+The `config.toml` file supports profiles which give you the ability to save different CLI configuration within the same configuration file.
+
+For example, the following file has two profiles:
+
+```toml
+profile = "dev"
+
+[dev]
+  api_key = "api_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  project_id = "tm_5JxTelcYxOJy"
+  project_mode = "inbound"
+
+[prod]
+  api_key = "api_key_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+  project_id = "tm_U9Zod13qtsHp"
+  project_mode = "inbound"
+```
+
+This allows you to run commands against different projects. For example, to listen to the `webhooks` source in the `dev` profile, run:
+
+```sh
+hookdeck listen 3030 webhooks -p dev
+```
+
+To listen to the `webhooks` source in the `prod` profile, run:
+
+```sh
+hookdeck listen 3030 webhooks -p prod
+```
+
+
+
 ## Developing
 
 Build from source by running:
