@@ -89,13 +89,44 @@ func (c *Config) InitConfig() {
 		}
 	}
 
+	// Check if config file exists, create if not
+	var exists bool
+	var checkErr error
+	exists, checkErr = c.fs.fileExists(c.configFile)
+	if checkErr != nil {
+		log.Fatalf("Error checking existence of config file %s: %v", c.configFile, checkErr)
+	}
+
+	if !exists {
+		log.WithFields(log.Fields{"prefix": "config.Config.InitConfig", "path": c.configFile}).Debug("Configuration file not found. Creating a new one.")
+		createErr := c.fs.makePath(c.configFile)
+		if createErr != nil {
+			log.Fatalf("Error creating directory for config file %s: %v", c.configFile, createErr)
+		}
+
+		file, createErr := os.Create(c.configFile)
+		if createErr != nil {
+			log.Fatalf("Error creating new config file %s: %v", c.configFile, createErr)
+		}
+		file.Close() // Immediately close the newly created file
+
+		if isGlobalConfig {
+			permErr := os.Chmod(c.configFile, os.FileMode(0600))
+			if permErr != nil {
+				log.Fatalf("Error setting permissions for new config file %s: %v", c.configFile, permErr)
+			}
+		}
+	}
+
 	// Read config file
 	log.WithFields(log.Fields{
 		"prefix": "config.Config.InitConfig",
 		"path":   c.viper.ConfigFileUsed(),
 	}).Debug("Reading config file")
-	if err := c.viper.ReadInConfig(); err != nil {
-		log.Fatal(err)
+	if readErr := c.viper.ReadInConfig(); readErr != nil {
+		log.Fatalf("Error reading config file %s: %v", c.viper.ConfigFileUsed(), readErr)
+	} else {
+		log.WithFields(log.Fields{"prefix": "config.Config.InitConfig", "path": c.viper.ConfigFileUsed()}).Debug("Successfully read config file")
 	}
 
 	// Construct the config struct
