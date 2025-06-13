@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/useragent"
+	log "github.com/sirupsen/logrus"
 )
 
 // DefaultAPIBaseURL is the default base URL for API requests
@@ -87,8 +88,28 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 
 	if ctx != nil {
 		req = req.WithContext(ctx)
-	}
+		logFields := log.Fields{
+			"prefix":  "client.Client.PerformRequest",
+			"method":  req.Method,
+			"url":     req.URL.String(),
+			"headers": req.Header,
+		}
 
+		if req.Body != nil {
+			bodyBytes, err := io.ReadAll(req.Body)
+			if err != nil {
+				// Log the error and potentially return or handle it
+				log.WithFields(logFields).WithError(err).Error("Failed to read request body")
+				// Depending on desired behavior, you might want to return an error here
+				// or proceed without the body in logFields.
+				// For now, just log and continue.
+			} else {
+				req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+				logFields["body"] = string(bodyBytes)
+			}
+		}
+		log.WithFields(logFields).Debug("Performing request")
+	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -97,6 +118,22 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 	err = checkAndPrintError(resp)
 	if err != nil {
 		return nil, err
+	}
+
+	if ctx != nil {
+		logFields := log.Fields{
+			"prefix":     "client.Client.PerformRequest",
+			"statusCode": resp.StatusCode,
+			"headers":    resp.Header,
+		}
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err == nil {
+			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			logFields["body"] = string(bodyBytes)
+		}
+
+		log.WithFields(logFields).Debug("Received response")
 	}
 
 	return resp, nil
@@ -151,7 +188,7 @@ func (c *Client) Put(ctx context.Context, path string, data []byte, configure fu
 func checkAndPrintError(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
 		defer res.Body.Close()
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
@@ -171,7 +208,7 @@ func checkAndPrintError(res *http.Response) error {
 
 func postprocessJsonResponse(res *http.Response, target interface{}) (interface{}, error) {
 	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
