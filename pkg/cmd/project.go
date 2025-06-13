@@ -20,6 +20,7 @@ func newProjectCmd() *projectCmd {
 	}
 
 	lc.cmd.AddCommand(newProjectListCmd().cmd)
+	lc.cmd.AddCommand(newProjectCreateCmd().cmd) // Added
 	lc.cmd.AddCommand(newProjectUseCmd().cmd)
 
 	return lc
