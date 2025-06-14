@@ -5,10 +5,10 @@ import (
 )
 
 type Profile struct {
-	Name     string // profile name
-	APIKey   string
-	TeamID   string
-	TeamMode string
+	Name        string // profile name
+	APIKey      string
+	ProjectId   string
+	ProjectMode string
 
 	Config *Config
 }
@@ -20,8 +20,8 @@ func (p *Profile) getConfigField(field string) string {
 
 func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
-	p.Config.viper.Set(p.getConfigField("workspace_id"), p.TeamID)
-	p.Config.viper.Set(p.getConfigField("workspace_mode"), p.TeamMode)
+	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
+	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
 	return p.Config.writeConfig()
 }
 

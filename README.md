@@ -81,7 +81,7 @@ docker run --rm -it -v $HOME/.config/hookdeck:/root/.config/hookdeck hookdeck/ho
 
 Installing the CLI provides access to the `hookdeck` command.
 
-```sh-session
+```sh
 hookdeck [command]
 
 # Run `--help` for detailed information about CLI commands
@@ -92,10 +92,15 @@ hookdeck [command] help
 
 ### Login
 
-Login with your Hookdeck account.
+Login with your Hookdeck account. This will typically open a browser window for authentication.
 
-```sh-session
+```sh
 hookdeck login
+```
+
+If you are in an environment without a browser (e.g., a TTY-only terminal), you can use the `--interactive` (or `-i`) flag to log in by pasting your API key:
+```sh
+hookdeck login --interactive
 ```
 
 > Login is optional, if you do not login a temporary guest account will be created for you when you run other commands.
@@ -104,7 +109,7 @@ hookdeck login
 
 Start a session to forward your events to an HTTP server.
 
-```sh-session
+```sh
 hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--path?]
 ```
 
@@ -120,7 +125,7 @@ Contrary to ngrok, **Hookdeck does not allow to append a path to your event URL*
 
 The second param, `source-alias` is used to select a specific source to listen on. By default, the CLI will start listening on all eligible connections for that source.
 
-```sh-session
+```sh
 $ hookdeck listen 3000 shopify
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -141,7 +146,7 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 `source-alias` can be a comma-separated list of source names (for example, `stripe,shopify,twilio`) or `'*'` (with quotes) to listen to all sources.
 
-```sh-session
+```sh
 $ hookdeck listen 3000 '*'
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -164,7 +169,7 @@ twilio -> cli-twilio forwarding to /webhooks/twilio
 
 The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
 
-```sh-session
+```sh
 $ hookdeck listen 3000 shopify orders
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -184,7 +189,7 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 The `--path` flag sets the path to which events are forwarded.
 
-```sh-session
+```sh
 $ hookdeck listen 3000 shopify orders --path /events/shopify/orders
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -208,26 +213,28 @@ Event logs for your CLI can be found at [https://dashboard.hookdeck.com/cli/even
 
 Logout of your Hookdeck account and clear your stored credentials.
 
-```sh-session
+```sh
 hookdeck logout
 ```
 
 ### Skip SSL validation
 
-If you are developing on an SSL destination, and are using a self-signed certificate, you can skip the SSL validation by using the flag `--insecure`.
-You have to specify the full URL with the protocol when using this flag.
+When forwarding events to an HTTPS URL as the first argument to `hookdeck listen` (e.g., `https://localhost:1234/webhook`), you might encounter SSL validation errors if the destination is using a self-signed certificate.
 
-**This is dangerous, and should only be used in development scenarios, and for desitnations that you trust.**
+For local development scenarios, you can instruct the `listen` command to bypass this SSL certificate validation by using its `--insecure` flag. You must provide the full HTTPS URL.
 
-```sh-session
-hookdeck --insecure listen https://<url-or-url:port>/
+**This is dangerous and should only be used in trusted local development environments for destinations you control.**
+
+Example of skipping SSL validation for an HTTPS destination:
+```sh
+hookdeck listen --insecure https://<your-ssl-url-or-url:port>/ <source-alias?> <connection-query?>
 ```
 
 ### Version
 
 Print your CLI version and whether or not a new version is available.
 
-```sh-session
+```sh
 hookdeck version
 ```
 
@@ -235,7 +242,7 @@ hookdeck version
 
 Configure auto-completion for Hookdeck CLI. It is run on install when using Homebrew or Scoop. You can optionally run this command when using the binaries directly or without a package manager.
 
-```sh-session
+```sh
 hookdeck completion
 ```
 
@@ -243,7 +250,7 @@ hookdeck completion
 
 If you want to use Hookdeck in CI for tests or any other purposes, you can use your HOOKDECK_API_KEY to authenticate and start forwarding events.
 
-```sh-session
+```sh
 $ hookdeck ci --api-key $HOOKDECK_API_KEY
 Done! The Hookdeck CLI is configured in project MyProject
 
@@ -264,49 +271,184 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 ### Manage active project
 
-If you are a part of multiple project, you can switch between them using our project management commands.
+If you are a part of multiple projects, you can switch between them using our project management commands.
 
-```sh-session
+To list your projects, you can use the `hookdeck project list` command. It can take optional organization and project name substrings to filter the list. The matching is partial and case-insensitive.
+
+```sh
+# List all projects
 $ hookdeck project list
-My Project (current)
-Another Project
-Yet Another One
+My Org / My Project (current)
+My Org / Another Project
+Another Org / Yet Another One
 
-$ hookdeck project use
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Project:
-    My Project
-    Another Project
-  ▸ Yet Another One
-
-Selecting project Yet Another One
-
-$ hookdeck whoami
-Using profile default
-Logged in as Me in project Yet Another One
+# List projects with "Org" in the organization name and "Proj" in the project name
+$ hookdeck project list Org Proj
+My Org / My Project (current)
+My Org / Another Project
 ```
 
-You can also pin an active project in the current working directory with the `--local` flag.
+To select or change the active project, use the `hookdeck project use` command. When arguments are provided, it uses exact, case-insensitive matching for the organization and project names.
 
-```sh-session
-$ hookdeck project use --local
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Project:
-    My Project
-    Another Project
-  ▸ Yet Another One
-
-Selecting project Yet Another One
+```console
+hookdeck project use [<organization_name> [<project_name>]]
 ```
 
-This will create a local config file in your current directory at `myproject/.hookdeck/config.toml`. Depending on your team's Hookdeck usage and project setup, you may or may not want to commit this configuration file to version control.
+**Behavior:**
+
+-   **`hookdeck project use`** (no arguments):
+    An interactive prompt will guide you through selecting your organization and then the project within that organization.
+    ```sh
+    $ hookdeck project use
+    Use the arrow keys to navigate: ↓ ↑ → ←
+    ? Select Organization:
+        My Org
+      ▸ Another Org
+    ...
+    ? Select Project (Another Org):
+        Project X
+      ▸ Project Y
+    Selecting project Project Y
+    Successfully set active project to: [Another Org] Project Y
+    ```
+
+-   **`hookdeck project use <organization_name>`** (one argument):
+    Filters projects by the specified `<organization_name>`.
+    - If multiple projects exist under that organization, you'll be prompted to choose one.
+    - If only one project exists, it will be selected automatically.
+    ```sh
+    $ hookdeck project use "My Org"
+    # (If multiple projects, prompts to select. If one, auto-selects)
+    Successfully set active project to: [My Org] Default Project
+    ```
+
+-   **`hookdeck project use <organization_name> <project_name>`** (two arguments):
+    Directly selects the project `<project_name>` under the organization `<organization_name>`.
+    ```sh
+    $ hookdeck project use "My Corp" "API Staging"
+    Successfully set active project to: [My Corp] API Staging
+    ```
+
+Upon successful selection, you will generally see a confirmation message like:
+`Successfully set active project to: [<organization_name>] <project_name>`
+
+## Configuration files
+
+The Hookdeck CLI uses configuration files to store the your keys, project settings, profiles, and other configurations.
+
+### Configuration file name and locations
+
+The CLI will look for the configuration file in the following order:
+
+  1. The `--config` flag, which allows you to specify a custom configuration file name and path per command.
+  2. The local directory `.hookdeck/config.toml`.
+  3. The default global configuration file location.
+
+### Default configuration Location
+
+The default configuration location varies by operating system:
+
+- **macOS/Linux**: `~/.config/hookdeck/config.toml`
+- **Windows**: `%USERPROFILE%\.config\hookdeck\config.toml`
+
+The CLI follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) on Unix-like systems, respecting the `XDG_CONFIG_HOME` environment variable if set.
+
+### Configuration File Format
+
+The Hookdeck CLI configuration file is stored in TOML format and typically includes:
+
+```toml
+api_key = "api_key_xxxxxxxxxxxxxxxxxxxx"
+project_id = "tm_xxxxxxxxxxxxxxx"
+project_mode = "inbound" | "console"
+```
+
+### Local Configuration
+
+The Hookdeck CLI also supports local configuration files. If you run the CLI commands in a directory that contains a `.hookdeck/config.toml` file, the CLI will use that file for configuration instead of the global one.
+
+### Using Profiles
+
+The `config.toml` file supports profiles which give you the ability to save different CLI configuration within the same configuration file.
+
+You can create new profiles by either running `hookdeck login` or `hookdeck use` with the `-p` flag and a profile name. For example:
+
+```sh
+hookdeck login -p dev
+```
+
+If you know the name of your Hookdeck organization and the project you want to use with a profile you can use the following:
+
+```sh
+hookdeck project use org_name proj_name -p prod
+```
+
+This will results in the following config file that has two profiles:
+
+```toml
+profile = "dev"
+
+[dev]
+  api_key = "api_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  project_id = "tm_5JxTelcYxOJy"
+  project_mode = "inbound"
+
+[prod]
+  api_key = "api_key_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+  project_id = "tm_U9Zod13qtsHp"
+  project_mode = "inbound"
+```
+
+This allows you to run commands against different projects. For example, to listen to the `webhooks` source in the `dev` profile, run:
+
+```sh
+hookdeck listen 3030 webhooks -p dev
+```
+
+To listen to the `webhooks` source in the `prod` profile, run:
+
+```sh
+hookdeck listen 3030 webhooks -p prod
+```
+
+## Global Flags
+
+The following flags can be used with any command:
+
+*   `--api-key`: Your API key to use for the command.
+*   `--color`: Turn on/off color output (on, off, auto).
+*   `--config`: Path to a specific configuration file.
+*   `--device-name`: A unique name for your device.
+*   `--insecure`: Allow invalid TLS certificates.
+*   `--log-level`: Set the logging level (debug, info, warn, error).
+*   `--profile` or `-p`: Use a specific configuration profile.
+
+There are also some hidden flags that are mainly used for development and debugging:
+
+*   `--api-base`: Sets the API base URL.
+*   `--dashboard-base`: Sets the web dashboard base URL.
+*   `--console-base`: Sets the web console base URL.
+*   `--ws-base`: Sets the Websocket base URL.
+
 
 ## Developing
+
+Running from source:
+
+```sh
+go run main.go
+```
 
 Build from source by running:
 
 ```sh
 go build
+```
+
+Then run the locally generated `hookdeck-cli` binary:
+
+```sh
+./hookdeck-cli
 ```
 
 ### Testing against a local API

@@ -2,5 +2,5 @@ profile = "default"
 
 [default]
   api_key = "test_api_key"
-  workspace_id = "test_workspace_id"
-  workspace_mode = "test_workspace_mode"
+  project_id = "test_project_id"
+  project_mode = "test_project_mode"

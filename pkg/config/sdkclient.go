@@ -15,7 +15,7 @@ func (c *Config) GetClient() *hookdeckclient.Client {
 		client = hookdeck.CreateSDKClient(hookdeck.SDKClientInit{
 			APIBaseURL: c.APIBaseURL,
 			APIKey:     c.Profile.APIKey,
-			TeamID:     c.Profile.TeamID,
+			TeamID:     c.Profile.ProjectId,
 		})
 	})
 

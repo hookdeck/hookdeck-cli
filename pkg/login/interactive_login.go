@@ -63,8 +63,8 @@ func InteractiveLogin(config *config.Config) error {
 	}
 
 	config.Profile.APIKey = response.APIKey
-	config.Profile.TeamMode = response.TeamMode
-	config.Profile.TeamID = response.TeamID
+	config.Profile.ProjectMode = response.ProjectMode
+	config.Profile.ProjectId = response.ProjectID
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		ansi.StopSpinner(s, "", os.Stdout)
@@ -75,7 +75,7 @@ func InteractiveLogin(config *config.Config) error {
 		return err
 	}
 
-	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 
 	ansi.StopSpinner(s, message, os.Stdout)
 
