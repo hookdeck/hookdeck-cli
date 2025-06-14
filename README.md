@@ -328,7 +328,19 @@ Upon successful selection, you will generally see a confirmation message like:
 
 The `config.toml` file supports profiles which give you the ability to save different CLI configuration within the same configuration file.
 
-For example, the following file has two profiles:
+You can create new profiles by either running `hookdeck login` or `hookdeck use` with the `-p` flag and a profile name. For example:
+
+```sh
+hookdeck login -p dev
+```
+
+If you know the name of your Hookdeck organization and the project you want to use with a profile you can use the following:
+
+```sh
+hookdeck project use org_name proj_name -p prod
+```
+
+This will results in the following config file that has two profiles:
 
 ```toml
 profile = "dev"
@@ -356,14 +368,24 @@ To listen to the `webhooks` source in the `prod` profile, run:
 hookdeck listen 3030 webhooks -p prod
 ```
 
-
-
 ## Developing
+
+Running from source:
+
+```sh
+go run main.go
+```
 
 Build from source by running:
 
 ```sh
 go build
+```
+
+Then run the locally generated `hookdeck-cli` binary:
+
+```sh
+./hookdeck-cli
 ```
 
 ### Testing against a local API
