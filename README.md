@@ -92,10 +92,15 @@ hookdeck [command] help
 
 ### Login
 
-Login with your Hookdeck account.
+Login with your Hookdeck account. This will typically open a browser window for authentication.
 
 ```sh-session
 hookdeck login
+```
+
+If you are in an environment without a browser (e.g., a TTY-only terminal), you can use the `--interactive` (or `-i`) flag to log in by pasting your API key:
+```sh-session
+hookdeck login --interactive
 ```
 
 > Login is optional, if you do not login a temporary guest account will be created for you when you run other commands.
@@ -214,13 +219,15 @@ hookdeck logout
 
 ### Skip SSL validation
 
-If you are developing on an SSL destination, and are using a self-signed certificate, you can skip the SSL validation by using the flag `--insecure`.
-You have to specify the full URL with the protocol when using this flag.
+When forwarding events to an HTTPS URL as the first argument to `hookdeck listen` (e.g., `https://localhost:1234/webhook`), you might encounter SSL validation errors if the destination is using a self-signed certificate.
 
-**This is dangerous, and should only be used in development scenarios, and for desitnations that you trust.**
+For local development scenarios, you can instruct the `listen` command to bypass this SSL certificate validation by using its `--insecure` flag. You must provide the full HTTPS URL.
 
+**This is dangerous and should only be used in trusted local development environments for destinations you control.**
+
+Example of skipping SSL validation for an HTTPS destination:
 ```sh-session
-hookdeck --insecure listen https://<url-or-url:port>/
+hookdeck listen --insecure https://<your-ssl-url-or-url:port>/ <source-alias?> <connection-query?>
 ```
 
 ### Version
@@ -266,40 +273,56 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 If you are a part of multiple project, you can switch between them using our project management commands.
 
-```sh-session
+```sh
 $ hookdeck project list
 My Project (current)
 Another Project
 Yet Another One
-
-$ hookdeck project use
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Project:
-    My Project
-    Another Project
-  ▸ Yet Another One
-
-Selecting project Yet Another One
-
-$ hookdeck whoami
-Using profile default
-Logged in as Me in project Yet Another One
 ```
 
-You can also pin an active project in the current working directory with the `--local` flag.
+To select or change the active project, use the `hookdeck project use` command:
 
-```sh-session
-$ hookdeck project use --local
-Use the arrow keys to navigate: ↓ ↑ → ←
-? Select Project:
-    My Project
-    Another Project
-  ▸ Yet Another One
-
-Selecting project Yet Another One
+```console
+hookdeck project use [<organization_name> [<project_name>]]
 ```
 
-This will create a local config file in your current directory at `myproject/.hookdeck/config.toml`. Depending on your team's Hookdeck usage and project setup, you may or may not want to commit this configuration file to version control.
+**Behavior:**
+
+-   **`hookdeck project use`** (no arguments):
+    An interactive prompt will guide you through selecting your organization and then the project within that organization.
+    ```sh-session
+    $ hookdeck project use
+    Use the arrow keys to navigate: ↓ ↑ → ←
+    ? Select Organization:
+        My Org
+      ▸ Another Org
+    ...
+    ? Select Project (Another Org):
+        Project X
+      ▸ Project Y
+    Selecting project Project Y
+    Successfully set active project to: [Another Org] Project Y
+    ```
+
+-   **`hookdeck project use <organization_name>`** (one argument):
+    Filters projects by the specified `<organization_name>`.
+    - If multiple projects exist under that organization, you'll be prompted to choose one.
+    - If only one project exists, it will be selected automatically.
+    ```sh-session
+    $ hookdeck project use "My Org"
+    # (If multiple projects, prompts to select. If one, auto-selects)
+    Successfully set active project to: [My Org] Default Project
+    ```
+
+-   **`hookdeck project use <organization_name> <project_name>`** (two arguments):
+    Directly selects the project `<project_name>` under the organization `<organization_name>`.
+    ```sh-session
+    $ hookdeck project use "My Corp" "API Staging"
+    Successfully set active project to: [My Corp] API Staging
+    ```
+
+Upon successful selection, you will generally see a confirmation message like:
+`Successfully set active project to: [<organization_name>] <project_name>`
 
 ### Using Profiles
 
