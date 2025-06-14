@@ -112,11 +112,25 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"prefix": "client.Client.PerformRequest 1",
+			"method": req.Method,
+			"url":    req.URL.String(),
+			"error":  err.Error(),
+			"status": resp.StatusCode,
+		}).Error("Failed to perform request")
 		return nil, err
 	}
 
 	err = checkAndPrintError(resp)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"prefix": "client.Client.PerformRequest 2",
+			"method": req.Method,
+			"url":    req.URL.String(),
+			"error":  err.Error(),
+			"status": resp.StatusCode,
+		}).Error("Unexpected response")
 		return nil, err
 	}
 
@@ -187,7 +201,9 @@ func (c *Client) Put(ctx context.Context, path string, data []byte, configure fu
 
 func checkAndPrintError(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
-		defer res.Body.Close()
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
@@ -196,7 +212,7 @@ func checkAndPrintError(res *http.Response) error {
 		err = json.Unmarshal(body, &response)
 		if err != nil {
 			// Not a valid JSON response, just use body
-			return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, body)
+			return fmt.Errorf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body)
 		}
 		if response.Message != "" {
 			return fmt.Errorf("error: %s", response.Message)
