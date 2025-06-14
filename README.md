@@ -271,16 +271,24 @@ Inventory Service forwarding to /webhooks/shopify/inventory
 
 ### Manage active project
 
-If you are a part of multiple project, you can switch between them using our project management commands.
+If you are a part of multiple projects, you can switch between them using our project management commands.
+
+To list your projects, you can use the `hookdeck project list` command. It can take optional organization and project name substrings to filter the list. The matching is partial and case-insensitive.
 
 ```sh
+# List all projects
 $ hookdeck project list
-My Project (current)
-Another Project
-Yet Another One
+My Org / My Project (current)
+My Org / Another Project
+Another Org / Yet Another One
+
+# List projects with "Org" in the organization name and "Proj" in the project name
+$ hookdeck project list Org Proj
+My Org / My Project (current)
+My Org / Another Project
 ```
 
-To select or change the active project, use the `hookdeck project use` command:
+To select or change the active project, use the `hookdeck project use` command. When arguments are provided, it uses exact, case-insensitive matching for the organization and project names.
 
 ```console
 hookdeck project use [<organization_name> [<project_name>]]

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -14,25 +13,6 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
-
-// parseProjectName extracts the organization and project name from a string
-// formatted as "[organization_name] project_name".
-// (The API returns project names in this format as it recognizes the request coming from the CLI.)
-// It returns the organization name, project name, or an error if parsing fails.
-func parseProjectName(fullName string) (orgName string, projName string, err error) {
-	re := regexp.MustCompile(`^\[(.*?)\]\s*(.*)$`)
-	matches := re.FindStringSubmatch(fullName)
-
-	if len(matches) == 3 {
-		org := strings.TrimSpace(matches[1])
-		proj := strings.TrimSpace(matches[2])
-		if org == "" || proj == "" {
-			return "", "", fmt.Errorf("invalid project name format: organization or project name is empty in '%s'", fullName)
-		}
-		return org, proj, nil
-	}
-	return "", "", fmt.Errorf("could not parse project name into '[organization] project' format: '%s'", fullName)
-}
 
 type projectUseCmd struct {
 	cmd *cobra.Command
@@ -45,7 +25,7 @@ func newProjectUseCmd() *projectUseCmd {
 	lc.cmd = &cobra.Command{
 		Use:   "use [<organization_name> [<project_name>]]",
 		Args:  validators.MaximumNArgs(2),
-		Short: "Select your active project for future commands",
+		Short: "Set the active project for future commands",
 		RunE:  lc.runProjectUseCmd,
 	}
 
@@ -115,7 +95,7 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		var orgProjectDisplayNames []string
 
 		for _, p := range projects {
-			org, _, errParser := parseProjectName(p.Name)
+			org, _, errParser := project.ParseProjectName(p.Name)
 			if errParser != nil {
 				continue // Skip projects with names that don't match the expected format
 			}
@@ -165,17 +145,25 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		argProjNameInput := args[1]
 		argOrgNameLower := strings.ToLower(argOrgNameInput)
 		argProjNameLower := strings.ToLower(argProjNameInput)
+		var matchingProjects []hookdeck.Project
 
 		for _, p := range projects {
-			org, proj, errParser := parseProjectName(p.Name)
+			org, proj, errParser := project.ParseProjectName(p.Name)
 			if errParser != nil {
 				continue // Skip projects with names that don't match the expected format
 			}
 			if strings.ToLower(org) == argOrgNameLower && strings.ToLower(proj) == argProjNameLower {
-				selectedProject = p
-				projectFound = true
-				break
+				matchingProjects = append(matchingProjects, p)
 			}
+		}
+
+		if len(matchingProjects) > 1 {
+			return fmt.Errorf("multiple projects named '%s' found in organization '%s'. Projects must have unique names to be used with the `project use <org> <project>` command", argProjNameInput, argOrgNameInput)
+		}
+
+		if len(matchingProjects) == 1 {
+			selectedProject = matchingProjects[0]
+			projectFound = true
 		}
 
 		if !projectFound {
