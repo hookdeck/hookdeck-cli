@@ -324,6 +324,41 @@ hookdeck project use [<organization_name> [<project_name>]]
 Upon successful selection, you will generally see a confirmation message like:
 `Successfully set active project to: [<organization_name>] <project_name>`
 
+## Configuration files
+
+The Hookdeck CLI uses configuration files to store the your keys, project settings, profiles, and other configurations.
+
+### Configuration file name and locations
+
+The CLI will look for the configuration file in the following order:
+
+  1. The `--config` flag, which allows you to specify a custom configuration file name and path per command.
+  2. The local directory `.hookdeck/config.toml`.
+  3. The default global configuration file location.
+
+### Default configuration Location
+
+The default configuration location varies by operating system:
+
+- **macOS/Linux**: `~/.config/hookdeck/config.toml`
+- **Windows**: `%USERPROFILE%\.config\hookdeck\config.toml`
+
+The CLI follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) on Unix-like systems, respecting the `XDG_CONFIG_HOME` environment variable if set.
+
+### Configuration File Format
+
+The Hookdeck CLI configuration file is stored in TOML format and typically includes:
+
+```toml
+api_key = "api_key_xxxxxxxxxxxxxxxxxxxx"
+project_id = "tm_xxxxxxxxxxxxxxx"
+project_mode = "inbound" | "console"
+```
+
+### Local Configuration
+
+The Hookdeck CLI also supports local configuration files. If you run the CLI commands in a directory that contains a `.hookdeck/config.toml` file, the CLI will use that file for configuration instead of the global one.
+
 ### Using Profiles
 
 The `config.toml` file supports profiles which give you the ability to save different CLI configuration within the same configuration file.
