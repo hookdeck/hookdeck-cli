@@ -81,7 +81,7 @@ docker run --rm -it -v $HOME/.config/hookdeck:/root/.config/hookdeck hookdeck/ho
 
 Installing the CLI provides access to the `hookdeck` command.
 
-```sh-session
+```sh
 hookdeck [command]
 
 # Run `--help` for detailed information about CLI commands
@@ -94,12 +94,12 @@ hookdeck [command] help
 
 Login with your Hookdeck account. This will typically open a browser window for authentication.
 
-```sh-session
+```sh
 hookdeck login
 ```
 
 If you are in an environment without a browser (e.g., a TTY-only terminal), you can use the `--interactive` (or `-i`) flag to log in by pasting your API key:
-```sh-session
+```sh
 hookdeck login --interactive
 ```
 
@@ -109,7 +109,7 @@ hookdeck login --interactive
 
 Start a session to forward your events to an HTTP server.
 
-```sh-session
+```sh
 hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--path?]
 ```
 
@@ -125,7 +125,7 @@ Contrary to ngrok, **Hookdeck does not allow to append a path to your event URL*
 
 The second param, `source-alias` is used to select a specific source to listen on. By default, the CLI will start listening on all eligible connections for that source.
 
-```sh-session
+```sh
 $ hookdeck listen 3000 shopify
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -146,7 +146,7 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 `source-alias` can be a comma-separated list of source names (for example, `stripe,shopify,twilio`) or `'*'` (with quotes) to listen to all sources.
 
-```sh-session
+```sh
 $ hookdeck listen 3000 '*'
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -169,7 +169,7 @@ twilio -> cli-twilio forwarding to /webhooks/twilio
 
 The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
 
-```sh-session
+```sh
 $ hookdeck listen 3000 shopify orders
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -189,7 +189,7 @@ Orders Service forwarding to /webhooks/shopify/orders
 
 The `--path` flag sets the path to which events are forwarded.
 
-```sh-session
+```sh
 $ hookdeck listen 3000 shopify orders --path /events/shopify/orders
 
 👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
@@ -213,7 +213,7 @@ Event logs for your CLI can be found at [https://dashboard.hookdeck.com/cli/even
 
 Logout of your Hookdeck account and clear your stored credentials.
 
-```sh-session
+```sh
 hookdeck logout
 ```
 
@@ -226,7 +226,7 @@ For local development scenarios, you can instruct the `listen` command to bypass
 **This is dangerous and should only be used in trusted local development environments for destinations you control.**
 
 Example of skipping SSL validation for an HTTPS destination:
-```sh-session
+```sh
 hookdeck listen --insecure https://<your-ssl-url-or-url:port>/ <source-alias?> <connection-query?>
 ```
 
@@ -234,7 +234,7 @@ hookdeck listen --insecure https://<your-ssl-url-or-url:port>/ <source-alias?> <
 
 Print your CLI version and whether or not a new version is available.
 
-```sh-session
+```sh
 hookdeck version
 ```
 
@@ -242,7 +242,7 @@ hookdeck version
 
 Configure auto-completion for Hookdeck CLI. It is run on install when using Homebrew or Scoop. You can optionally run this command when using the binaries directly or without a package manager.
 
-```sh-session
+```sh
 hookdeck completion
 ```
 
@@ -250,7 +250,7 @@ hookdeck completion
 
 If you want to use Hookdeck in CI for tests or any other purposes, you can use your HOOKDECK_API_KEY to authenticate and start forwarding events.
 
-```sh-session
+```sh
 $ hookdeck ci --api-key $HOOKDECK_API_KEY
 Done! The Hookdeck CLI is configured in project MyProject
 
@@ -290,7 +290,7 @@ hookdeck project use [<organization_name> [<project_name>]]
 
 -   **`hookdeck project use`** (no arguments):
     An interactive prompt will guide you through selecting your organization and then the project within that organization.
-    ```sh-session
+    ```sh
     $ hookdeck project use
     Use the arrow keys to navigate: ↓ ↑ → ←
     ? Select Organization:
@@ -308,7 +308,7 @@ hookdeck project use [<organization_name> [<project_name>]]
     Filters projects by the specified `<organization_name>`.
     - If multiple projects exist under that organization, you'll be prompted to choose one.
     - If only one project exists, it will be selected automatically.
-    ```sh-session
+    ```sh
     $ hookdeck project use "My Org"
     # (If multiple projects, prompts to select. If one, auto-selects)
     Successfully set active project to: [My Org] Default Project
@@ -316,7 +316,7 @@ hookdeck project use [<organization_name> [<project_name>]]
 
 -   **`hookdeck project use <organization_name> <project_name>`** (two arguments):
     Directly selects the project `<project_name>` under the organization `<organization_name>`.
-    ```sh-session
+    ```sh
     $ hookdeck project use "My Corp" "API Staging"
     Successfully set active project to: [My Corp] API Staging
     ```
@@ -402,6 +402,26 @@ To listen to the `webhooks` source in the `prod` profile, run:
 ```sh
 hookdeck listen 3030 webhooks -p prod
 ```
+
+## Global Flags
+
+The following flags can be used with any command:
+
+*   `--api-key`: Your API key to use for the command.
+*   `--color`: Turn on/off color output (on, off, auto).
+*   `--config`: Path to a specific configuration file.
+*   `--device-name`: A unique name for your device.
+*   `--insecure`: Allow invalid TLS certificates.
+*   `--log-level`: Set the logging level (debug, info, warn, error).
+*   `--profile` or `-p`: Use a specific configuration profile.
+
+There are also some hidden flags that are mainly used for development and debugging:
+
+*   `--api-base`: Sets the API base URL.
+*   `--dashboard-base`: Sets the web dashboard base URL.
+*   `--console-base`: Sets the web console base URL.
+*   `--ws-base`: Sets the Websocket base URL.
+
 
 ## Developing
 
