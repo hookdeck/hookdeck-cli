@@ -100,8 +100,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Checkout on main so that the later commit works
-          ref: main
+          # Checkout on the release branch so that the later commit works
+          ref: ${{ vars.RELEASE_BRANCH || 'main' }}
           # With permission to push to a protected branch
           token: ${{ secrets.READ_WRITE_PAT }}
           
