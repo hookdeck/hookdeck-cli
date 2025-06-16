@@ -88,21 +88,33 @@ func init() {
 	cobra.OnInitialize(Config.InitConfig)
 
 	rootCmd.PersistentFlags().StringVarP(&Config.Profile.Name, "profile", "p", "", fmt.Sprintf("profile name (default \"%s\")", hookdeck.DefaultProfileName))
+
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "(deprecated) Your API key to use for the command")
+	rootCmd.PersistentFlags().MarkHidden("cli-key")
+
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "api-key", "", "Your API key to use for the command")
+	rootCmd.PersistentFlags().MarkHidden("api-key")
+
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
+
 	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
+
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
+
 	rootCmd.PersistentFlags().StringVar(&Config.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
+
 	rootCmd.PersistentFlags().BoolVar(&Config.Insecure, "insecure", false, "Allow invalid TLS certificates")
 
 	// Hidden configuration flags, useful for dev/debugging
 	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", "", fmt.Sprintf("Sets the API base URL (default \"%s\")", hookdeck.DefaultAPIBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("api-base")
+
 	rootCmd.PersistentFlags().StringVar(&Config.DashboardBaseURL, "dashboard-base", "", fmt.Sprintf("Sets the web dashboard base URL (default \"%s\")", hookdeck.DefaultDashboardBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("dashboard-base")
+
 	rootCmd.PersistentFlags().StringVar(&Config.ConsoleBaseURL, "console-base", "", fmt.Sprintf("Sets the web console base URL (default \"%s\")", hookdeck.DefaultConsoleBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("console-base")
+
 	rootCmd.PersistentFlags().StringVar(&Config.WSBaseURL, "ws-base", "", fmt.Sprintf("Sets the Websocket base URL (default \"%s\")", hookdeck.DefaultWebsocektURL))
 	rootCmd.PersistentFlags().MarkHidden("ws-base")
 
