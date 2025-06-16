@@ -18,7 +18,7 @@ jobs:
         with:
           go-version: 1.18.1
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: v2.10.2
           args: release -f .goreleaser/mac.yml --clean
@@ -49,7 +49,7 @@ jobs:
         with:
           go-version: 1.18.1
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: v2.10.2
           args: release -f .goreleaser/linux.yml --clean
