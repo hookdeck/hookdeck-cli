@@ -17,8 +17,8 @@
 
 set -e
 
-if [ -z "$HOOKDECK_API_KEY" ]; then
-  echo "Error: HOOKDECK_API_KEY environment variable is not set."
+if [ -z "$HOOKDECK_CLI_TESTING_API_KEY" ]; then
+  echo "Error: HOOKDECK_CLI_TESTING_API_KEY environment variable is not set."
   exit 1
 fi
 
