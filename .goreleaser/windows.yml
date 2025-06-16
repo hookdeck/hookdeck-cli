@@ -40,6 +40,7 @@ scoops:
   - repository:
       owner: hookdeck
       name: scoop-hookdeck
+    name: "{{ if .Prerelease }}hookdeck-beta{{ else }}hookdeck{{ end }}"
     commit_author:
       name: hookdeck-ci
       email: support@hookdeck.com
