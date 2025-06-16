@@ -100,11 +100,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Checkout on the release branch so that the later commit works
-          ref: ${{ vars.RELEASE_BRANCH || 'main' }}
           # With permission to push to a protected branch
           token: ${{ secrets.READ_WRITE_PAT }}
-          
+          fetch-depth: 0 # Required to find branches for a tag
+
+      - name: Determine release branch
+        id: get_branch
+        run: |
+          # Find the branch that contains the tag.
+          # Prefers 'main', then 'master', then the first branch found.
+          BRANCHES=$(git branch -r --contains ${{ github.ref_name }} | sed 's/ *origin\///' | grep -v HEAD)
+          if echo "$BRANCHES" | grep -q -w "main"; then
+            RELEASE_BRANCH="main"
+          elif echo "$BRANCHES" | grep -q -w "master"; then
+            RELEASE_BRANCH="master"
+          else
+            RELEASE_BRANCH=$(echo "$BRANCHES" | head -n 1)
+          fi
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "Determined release branch for commit: ${RELEASE_BRANCH}"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20.x"
@@ -131,8 +146,21 @@ jobs:
           default_author: github_actions
           message: 'Update package.json version to ${{ steps.tag-version.outputs.TAG_VERSION }}'
           add: 'package.json'
+          push: 'HEAD:${{ steps.get_branch.outputs.RELEASE_BRANCH }}'
           
       - run: npm ci
-      - run: npm publish
+
+      - name: Determine npm tag for pre-releases
+        id: npm_tag
+        run: |
+          TAG_VERSION="${{ steps.tag-version.outputs.TAG_VERSION }}"
+          NPM_TAG="latest"
+          if [[ "$TAG_VERSION" == *-* ]]; then
+            NPM_TAG=$(echo "$TAG_VERSION" | cut -d'-' -f2 | cut -d'.' -f1)
+          fi
+          echo "tag=${NPM_TAG}" >> $GITHUB_OUTPUT
+          echo "npm tag: ${NPM_TAG}"
+
+      - run: npm publish --tag ${{ steps.npm_tag.outputs.tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
