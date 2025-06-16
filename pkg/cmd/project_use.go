@@ -169,14 +169,12 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		if !projectFound {
 			return fmt.Errorf("project '%s' in organization '%s' not found", argProjNameInput, argOrgNameInput)
 		}
-	default: // Should not happen due to Args validation by Cobra
-		return fmt.Errorf("unexpected number of arguments: %d. Expected 0, 1, or 2", len(args))
 	}
 
 	if !projectFound {
 		// This case should ideally be unreachable if all paths correctly set projectFound or error out.
 		// It acts as a safeguard.
-		return fmt.Errorf("an active project could not be determined based on the provided arguments")
+		return fmt.Errorf("a project could not be determined based on the provided arguments")
 	}
 
 	err = Config.UseProject(selectedProject.Id, selectedProject.Mode)
