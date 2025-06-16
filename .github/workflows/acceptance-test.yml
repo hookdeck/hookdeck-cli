@@ -9,7 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      HOOKDECK_API_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_API_KEY }}
+      HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_API_KEY }}
     steps:
       - name: Check out code
         uses: actions/checkout@v3
