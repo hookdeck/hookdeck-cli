@@ -122,8 +122,8 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "default", c.Profile.Name)
 		assert.Equal(t, "", c.Profile.APIKey)
-		assert.Equal(t, "", c.Profile.TeamID)
-		assert.Equal(t, "", c.Profile.TeamMode)
+		assert.Equal(t, "", c.Profile.ProjectId)
+		assert.Equal(t, "", c.Profile.ProjectMode)
 	})
 
 	t.Run("default profile", func(t *testing.T) {
@@ -137,8 +137,8 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "default", c.Profile.Name)
 		assert.Equal(t, "test_api_key", c.Profile.APIKey)
-		assert.Equal(t, "test_workspace_id", c.Profile.TeamID)
-		assert.Equal(t, "test_workspace_mode", c.Profile.TeamMode)
+		assert.Equal(t, "test_project_id", c.Profile.ProjectId)
+		assert.Equal(t, "test_project_mode", c.Profile.ProjectMode)
 	})
 
 	t.Run("multiple profile", func(t *testing.T) {
@@ -152,8 +152,8 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "account_2", c.Profile.Name)
 		assert.Equal(t, "account_2_test_api_key", c.Profile.APIKey)
-		assert.Equal(t, "account_2_test_workspace_id", c.Profile.TeamID)
-		assert.Equal(t, "account_2_test_workspace_mode", c.Profile.TeamMode)
+		assert.Equal(t, "account_2_test_project_id", c.Profile.ProjectId)
+		assert.Equal(t, "account_2_test_project_mode", c.Profile.ProjectMode)
 	})
 
 	t.Run("custom profile", func(t *testing.T) {
@@ -168,8 +168,8 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "account_3", c.Profile.Name)
 		assert.Equal(t, "account_3_test_api_key", c.Profile.APIKey)
-		assert.Equal(t, "account_3_test_workspace_id", c.Profile.TeamID)
-		assert.Equal(t, "account_3_test_workspace_mode", c.Profile.TeamMode)
+		assert.Equal(t, "account_3_test_project_id", c.Profile.ProjectId)
+		assert.Equal(t, "account_3_test_project_mode", c.Profile.ProjectMode)
 	})
 
 	t.Run("local full", func(t *testing.T) {
@@ -183,8 +183,23 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "default", c.Profile.Name)
 		assert.Equal(t, "local_api_key", c.Profile.APIKey)
-		assert.Equal(t, "local_workspace_id", c.Profile.TeamID)
-		assert.Equal(t, "local_workspace_mode", c.Profile.TeamMode)
+		assert.Equal(t, "local_project_id", c.Profile.ProjectId)
+		assert.Equal(t, "local_project_mode", c.Profile.ProjectMode)
+	})
+
+	t.Run("backwards compatible", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/local-full-workspace.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "default", c.Profile.Name)
+		assert.Equal(t, "local_api_key", c.Profile.APIKey)
+		assert.Equal(t, "local_workspace_id", c.Profile.ProjectId)
+		assert.Equal(t, "local_workspace_mode", c.Profile.ProjectMode)
 	})
 
 	// TODO: Consider this case. This is a breaking change.
@@ -200,8 +215,8 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "default", c.Profile.Name)
 		assert.Equal(t, "", c.Profile.APIKey)
-		assert.Equal(t, "local_workspace_id", c.Profile.TeamID)
-		assert.Equal(t, "", c.Profile.TeamMode)
+		assert.Equal(t, "local_workspace_id", c.Profile.ProjectId)
+		assert.Equal(t, "", c.Profile.ProjectMode)
 	})
 
 	t.Run("api key override", func(t *testing.T) {
@@ -217,8 +232,8 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "default", c.Profile.Name)
 		assert.Equal(t, apiKey, c.Profile.APIKey)
-		assert.Equal(t, "test_workspace_id", c.Profile.TeamID)
-		assert.Equal(t, "test_workspace_mode", c.Profile.TeamMode)
+		assert.Equal(t, "test_project_id", c.Profile.ProjectId)
+		assert.Equal(t, "test_project_mode", c.Profile.ProjectMode)
 	})
 }
 
@@ -234,13 +249,13 @@ func TestWriteConfig(t *testing.T) {
 		c.InitConfig()
 
 		// Act
-		c.Profile.TeamMode = "new_team_mode"
+		c.Profile.ProjectMode = "new_team_mode"
 		err := c.Profile.SaveProfile()
 
 		// Assert
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
-		assert.Contains(t, string(contentBytes), `workspace_mode = "new_team_mode"`)
+		assert.Contains(t, string(contentBytes), `project_mode = "new_team_mode"`)
 	})
 
 	t.Run("use project", func(t *testing.T) {
@@ -257,7 +272,7 @@ func TestWriteConfig(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
-		assert.Contains(t, string(contentBytes), `workspace_id = "new_team_id"`)
+		assert.Contains(t, string(contentBytes), `project_id = "new_team_id"`)
 	})
 
 	t.Run("use profile", func(t *testing.T) {

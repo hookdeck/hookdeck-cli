@@ -43,12 +43,12 @@ func Login(config *config.Config, input io.Reader) error {
 		}).Debug("Logging in with API key")
 
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
-		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey, config.Profile.TeamID)
+		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey, config.Profile.ProjectId)
 		if err != nil {
 			return err
 		}
 
-		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
+		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
 
 		if err = config.Profile.SaveProfile(); err != nil {
@@ -96,8 +96,8 @@ func Login(config *config.Config, input io.Reader) error {
 	}
 
 	config.Profile.APIKey = response.APIKey
-	config.Profile.TeamID = response.TeamID
-	config.Profile.TeamMode = response.TeamMode
+	config.Profile.ProjectId = response.ProjectID
+	config.Profile.ProjectMode = response.ProjectMode
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err
@@ -106,7 +106,7 @@ func Login(config *config.Config, input io.Reader) error {
 		return err
 	}
 
-	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.TeamName, response.TeamMode == "console")
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 	ansi.StopSpinner(s, message, os.Stdout)
 
 	return nil
@@ -142,8 +142,8 @@ func GuestLogin(config *config.Config) (string, error) {
 	}
 
 	config.Profile.APIKey = response.APIKey
-	config.Profile.TeamID = response.TeamID
-	config.Profile.TeamMode = response.TeamMode
+	config.Profile.ProjectId = response.ProjectID
+	config.Profile.ProjectMode = response.ProjectMode
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return "", err
@@ -182,8 +182,8 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 	}
 
 	config.Profile.APIKey = response.APIKey
-	config.Profile.TeamID = response.TeamID
-	config.Profile.TeamMode = response.TeamMode
+	config.Profile.ProjectId = response.ProjectID
+	config.Profile.ProjectMode = response.ProjectMode
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err
@@ -196,7 +196,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 
 	log.Println(fmt.Sprintf(
 		"The Hookdeck CLI is configured on project %s in organization %s\n",
-		color.Bold(response.TeamName),
+		color.Bold(response.ProjectName),
 		color.Bold(response.OrganizationName),
 	))
 

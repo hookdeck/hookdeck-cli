@@ -1,3 +1,3 @@
 api_key = "local_api_key"
-workspace_id = "local_workspace_id"
-workspace_mode = "local_workspace_mode"
+project_id = "local_project_id"
+project_mode = "local_project_mode"
