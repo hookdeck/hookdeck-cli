@@ -1,3 +1,4 @@
+version: 2
 env:
   - GO111MODULE=on
 before:
@@ -55,8 +56,8 @@ dockers:
     ids:
       - hookdeck-linux
     image_templates:
-      - "hookdeck/hookdeck-cli:latest-amd64"
       - "hookdeck/hookdeck-cli:{{ .Tag }}-amd64"
+      - "{{ if not .Prerelease }}hookdeck/hookdeck-cli:latest-amd64{{ end }}"
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -71,8 +72,8 @@ dockers:
     ids:
       - hookdeck-linux-arm64
     image_templates:
-      - "hookdeck/hookdeck-cli:latest-arm64"
       - "hookdeck/hookdeck-cli:{{ .Tag }}-arm64"
+      - "{{ if not .Prerelease }}hookdeck/hookdeck-cli:latest-arm64{{ end }}"
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -83,11 +84,12 @@ dockers:
       - "--label=homepage=https://hookdeck.com"
       - "--platform=linux/arm64/v8"
 docker_manifests:
-  - name_template: "hookdeck/hookdeck-cli:latest"
-    image_templates:
-      - "hookdeck/hookdeck-cli:latest-amd64"
-      - "hookdeck/hookdeck-cli:latest-arm64"
   - name_template: "hookdeck/hookdeck-cli:{{ .Tag }}"
     image_templates:
       - "hookdeck/hookdeck-cli:{{ .Tag }}-amd64"
       - "hookdeck/hookdeck-cli:{{ .Tag }}-arm64"
+  - name_template: "hookdeck/hookdeck-cli:latest"
+    image_templates:
+      - "hookdeck/hookdeck-cli:latest-amd64"
+      - "hookdeck/hookdeck-cli:latest-arm64"
+    skip_push: auto
