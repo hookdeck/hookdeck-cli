@@ -129,8 +129,8 @@ Specify a single destination to update the path. For example, pass a connection 
 	p := proxy.New(&proxy.Config{
 		DeviceName:       config.DeviceName,
 		Key:              config.Profile.APIKey,
-		TeamID:           config.Profile.TeamID,
-		TeamMode:         config.Profile.TeamMode,
+		ProjectID:        config.Profile.ProjectId,
+		ProjectMode:      config.Profile.ProjectMode,
 		APIBaseURL:       config.APIBaseURL,
 		DashboardBaseURL: config.DashboardBaseURL,
 		ConsoleBaseURL:   config.ConsoleBaseURL,

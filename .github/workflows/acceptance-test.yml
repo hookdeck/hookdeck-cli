@@ -1,0 +1,26 @@
+name: Acceptance Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_API_KEY }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.18'
+
+      - name: Make script executable
+        run: chmod +x scripts/acceptance-test.sh
+
+      - name: Run acceptance tests
+        run: ./scripts/acceptance-test.sh

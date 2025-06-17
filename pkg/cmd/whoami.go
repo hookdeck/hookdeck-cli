@@ -36,7 +36,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nUsing profile %s (use -p flag to use a different config profile)\n\n", color.Bold(Config.Profile.Name))
 
-	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.TeamID)
+	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.ProjectId)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 		"Logged in as %s (%s) on project %s in organization %s\n",
 		color.Bold(response.UserName),
 		color.Bold(response.UserEmail),
-		color.Bold(response.TeamName),
+		color.Bold(response.ProjectName),
 		color.Bold(response.OrganizationName),
 	)
 

@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/useragent"
+	log "github.com/sirupsen/logrus"
 )
 
 // DefaultAPIBaseURL is the default base URL for API requests
@@ -40,7 +41,7 @@ type Client struct {
 	// empty, the `Authorization` header will be omitted.
 	APIKey string
 
-	TeamID string
+	ProjectID string
 
 	// When this is enabled, request and response headers will be printed to
 	// stdout.
@@ -65,8 +66,9 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 	req.Header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	req.Header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
 
-	if c.TeamID != "" {
-		req.Header.Set("X-Team-ID", c.TeamID)
+	if c.ProjectID != "" {
+		req.Header.Set("X-Team-ID", c.ProjectID)
+		req.Header.Set("X-Project-ID", c.ProjectID)
 	}
 
 	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT")) {
@@ -86,16 +88,66 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 
 	if ctx != nil {
 		req = req.WithContext(ctx)
-	}
+		logFields := log.Fields{
+			"prefix":  "client.Client.PerformRequest",
+			"method":  req.Method,
+			"url":     req.URL.String(),
+			"headers": req.Header,
+		}
 
+		if req.Body != nil {
+			bodyBytes, err := io.ReadAll(req.Body)
+			if err != nil {
+				// Log the error and potentially return or handle it
+				log.WithFields(logFields).WithError(err).Error("Failed to read request body")
+				// Depending on desired behavior, you might want to return an error here
+				// or proceed without the body in logFields.
+				// For now, just log and continue.
+			} else {
+				req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+				logFields["body"] = string(bodyBytes)
+			}
+		}
+		log.WithFields(logFields).Debug("Performing request")
+	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"prefix": "client.Client.PerformRequest 1",
+			"method": req.Method,
+			"url":    req.URL.String(),
+			"error":  err.Error(),
+			"status": resp.StatusCode,
+		}).Error("Failed to perform request")
 		return nil, err
 	}
 
 	err = checkAndPrintError(resp)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"prefix": "client.Client.PerformRequest 2",
+			"method": req.Method,
+			"url":    req.URL.String(),
+			"error":  err.Error(),
+			"status": resp.StatusCode,
+		}).Error("Unexpected response")
 		return nil, err
+	}
+
+	if ctx != nil {
+		logFields := log.Fields{
+			"prefix":     "client.Client.PerformRequest",
+			"statusCode": resp.StatusCode,
+			"headers":    resp.Header,
+		}
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err == nil {
+			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			logFields["body"] = string(bodyBytes)
+		}
+
+		log.WithFields(logFields).Debug("Received response")
 	}
 
 	return resp, nil
@@ -149,8 +201,10 @@ func (c *Client) Put(ctx context.Context, path string, data []byte, configure fu
 
 func checkAndPrintError(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
-		defer res.Body.Close()
-		body, err := ioutil.ReadAll(res.Body)
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
@@ -158,7 +212,7 @@ func checkAndPrintError(res *http.Response) error {
 		err = json.Unmarshal(body, &response)
 		if err != nil {
 			// Not a valid JSON response, just use body
-			return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, body)
+			return fmt.Errorf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body)
 		}
 		if response.Message != "" {
 			return fmt.Errorf("error: %s", response.Message)
@@ -170,7 +224,7 @@ func checkAndPrintError(res *http.Response) error {
 
 func postprocessJsonResponse(res *http.Response, target interface{}) (interface{}, error) {
 	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
