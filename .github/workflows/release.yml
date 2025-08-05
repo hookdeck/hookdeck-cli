@@ -18,9 +18,9 @@ jobs:
         with:
           go-version: 1.18.1
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
-          version: latest
+          version: v2.10.2
           args: release -f .goreleaser/mac.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -49,9 +49,9 @@ jobs:
         with:
           go-version: 1.18.1
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
-          version: latest
+          version: v2.10.2
           args: release -f .goreleaser/linux.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -70,33 +70,14 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: latest
+          version: v2.10.2
           args: release -f .goreleaser/windows.yml --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-
-  build-windows-npm:
-    runs-on: windows-latest
-    steps:
-      - name: Code checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.18.1
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          version: latest
-          args: release -f .goreleaser/windows-npm.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
 
   publish-npm:
     runs-on: ubuntu-latest
-    needs: [build-windows-npm, build-linux, build-mac]
+    needs: [build-windows, build-linux, build-mac]
     steps:
       - uses: actions/checkout@v4
         with:
