@@ -25,10 +25,10 @@ func printDashboardInformation(config *config.Config, guestURL string) {
 		fmt.Println()
 	} else {
 		var url = config.DashboardBaseURL
-		if config.Profile.TeamID != "" {
-			url += "?team_id=" + config.Profile.TeamID
+		if config.Profile.ProjectId != "" {
+			url += "?team_id=" + config.Profile.ProjectId
 		}
-		if config.Profile.TeamMode == "console" {
+		if config.Profile.ProjectMode == "console" {
 			url = config.ConsoleBaseURL
 		}
 		fmt.Println("👉 Inspect and replay events: " + url)

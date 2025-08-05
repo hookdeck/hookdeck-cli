@@ -1,43 +1,33 @@
 package config
 
-import "github.com/hookdeck/hookdeck-cli/pkg/validators"
+import (
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
+)
 
 type Profile struct {
-	Name     string // profile name
-	APIKey   string
-	TeamID   string
-	TeamMode string
+	Name        string // profile name
+	APIKey      string
+	ProjectId   string
+	ProjectMode string
 
 	Config *Config
 }
 
-// GetConfigField returns the configuration field for the specific profile
-func (p *Profile) GetConfigField(field string) string {
+// getConfigField returns the configuration field for the specific profile
+func (p *Profile) getConfigField(field string) string {
 	return p.Name + "." + field
 }
 
-func (p *Profile) SaveProfile(local bool) error {
-	// in local, we're d setting mode because it should always be inbound
-	// as a user can't have both inbound & console teams (i think)
-	// and we don't need to expose it to the end user
-	if local {
-		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
-		if err := p.Config.WriteGlobalConfig(); err != nil {
-			return err
-		}
-		p.Config.LocalConfig.Set("workspace_id", p.TeamID)
-		return p.Config.WriteLocalConfig()
-	} else {
-		p.Config.GlobalConfig.Set(p.GetConfigField("api_key"), p.APIKey)
-		p.Config.GlobalConfig.Set(p.GetConfigField("workspace_id"), p.TeamID)
-		p.Config.GlobalConfig.Set(p.GetConfigField("workspace_mode"), p.TeamMode)
-		return p.Config.WriteGlobalConfig()
-	}
+func (p *Profile) SaveProfile() error {
+	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
+	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
+	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
+	return p.Config.writeConfig()
 }
 
 func (p *Profile) RemoveProfile() error {
 	var err error
-	runtimeViper := p.Config.GlobalConfig
+	runtimeViper := p.Config.viper
 
 	runtimeViper, err = removeKey(runtimeViper, "profile")
 	if err != nil {
@@ -49,14 +39,14 @@ func (p *Profile) RemoveProfile() error {
 	}
 
 	runtimeViper.SetConfigType("toml")
-	runtimeViper.SetConfigFile(p.Config.GlobalConfig.ConfigFileUsed())
-	p.Config.GlobalConfig = runtimeViper
-	return p.Config.WriteGlobalConfig()
+	runtimeViper.SetConfigFile(p.Config.viper.ConfigFileUsed())
+	p.Config.viper = runtimeViper
+	return p.Config.writeConfig()
 }
 
 func (p *Profile) UseProfile() error {
-	p.Config.GlobalConfig.Set("profile", p.Name)
-	return p.Config.WriteGlobalConfig()
+	p.Config.viper.Set("profile", p.Name)
+	return p.Config.writeConfig()
 }
 
 func (p *Profile) ValidateAPIKey() error {
