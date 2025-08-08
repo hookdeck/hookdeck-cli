@@ -59,17 +59,22 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 			}
 		}
 
+		prompt := &survey.Select{
+			Message: "Select Project",
+			Options: projectDisplayNames,
+		}
+
+		if currentProjectName != "" {
+			prompt.Default = currentProjectName
+		}
+
 		answers := struct {
 			SelectedFullName string `survey:"selected_full_name"`
 		}{}
 		qs := []*survey.Question{
 			{
-				Name: "selected_full_name",
-				Prompt: &survey.Select{
-					Message: "Select Project",
-					Options: projectDisplayNames,
-					Default: currentProjectName,
-				},
+				Name:     "selected_full_name",
+				Prompt:   prompt,
 				Validate: survey.Required,
 			},
 		}
