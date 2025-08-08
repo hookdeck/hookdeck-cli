@@ -5,8 +5,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
-	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 type projectUseCmd struct {
@@ -47,14 +47,19 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		}
 	}
 
+	prompt := &survey.Select{
+		Message: "Select Project",
+		Options: projectNames,
+	}
+
+	if currentProjectName != "" {
+		prompt.Default = currentProjectName
+	}
+
 	var qs = []*survey.Question{
 		{
-			Name: "project_name",
-			Prompt: &survey.Select{
-				Message: "Select Project",
-				Options: projectNames,
-				Default: currentProjectName,
-			},
+			Name:     "project_name",
+			Prompt:   prompt,
 			Validate: survey.Required,
 		},
 	}
