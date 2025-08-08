@@ -16,22 +16,22 @@ type ValidateAPIKeyResponse struct {
 	UserEmail        string `json:"user_email"`
 	OrganizationName string `json:"organization_name"`
 	OrganizationID   string `json:"organization_id"`
-	TeamID           string `json:"team_id"`
-	TeamName         string `json:"team_name_no_org"`
-	TeamMode         string `json:"team_mode"`
+	ProjectID        string `json:"team_id"`
+	ProjectName      string `json:"team_name_no_org"`
+	ProjectMode      string `json:"team_mode"`
 	ClientID         string `json:"client_id"`
 }
 
-func ValidateKey(baseURL string, key string, teamId string) (*ValidateAPIKeyResponse, error) {
+func ValidateKey(baseURL string, key string, projectId string) (*ValidateAPIKeyResponse, error) {
 	parsedBaseURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
-		APIKey:  key,
-		TeamID:  teamId,
+		BaseURL:   parsedBaseURL,
+		APIKey:    key,
+		ProjectID: projectId,
 	}
 
 	res, err := client.Get(context.Background(), "/cli-auth/validate", "", nil)

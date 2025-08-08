@@ -37,8 +37,8 @@ type Config struct {
 	DeviceName string
 	// Key is the API key used to authenticate with Hookdeck
 	Key              string
-	TeamID           string
-	TeamMode         string
+	ProjectID        string
+	ProjectMode      string
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string
@@ -125,7 +125,7 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			p.cfg.WSBaseURL,
 			session.Id,
 			p.cfg.Key,
-			p.cfg.TeamID,
+			p.cfg.ProjectID,
 			&websocket.Config{
 				Log:          p.cfg.Log,
 				NoWSS:        p.cfg.NoWSS,
@@ -207,9 +207,9 @@ func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
-		APIKey:  p.cfg.Key,
-		TeamID:  p.cfg.TeamID,
+		BaseURL:   parsedBaseURL,
+		APIKey:    p.cfg.Key,
+		ProjectID: p.cfg.ProjectID,
 	}
 
 	var connectionIDs []string
@@ -318,7 +318,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	localTime := time.Now().Format(timeLayout)
 	color := ansi.Color(os.Stdout)
 	var url = p.cfg.DashboardBaseURL + "/cli/events/" + webhookEvent.Body.EventID
-	if p.cfg.TeamMode == "console" {
+	if p.cfg.ProjectMode == "console" {
 		url = p.cfg.ConsoleBaseURL + "/?event_id=" + webhookEvent.Body.EventID
 	}
 	outputStr := fmt.Sprintf("%s [%d] %s %s | %s",

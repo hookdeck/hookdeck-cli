@@ -97,7 +97,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
 
-	rootCmd.PersistentFlags().StringVar(&Config.LocalConfigFile, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
 
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
 

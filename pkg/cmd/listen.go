@@ -38,7 +38,6 @@ func normalizeCliPathFlag(f *pflag.FlagSet, name string) pflag.NormalizedName {
 	switch name {
 	case "cli-path":
 		name = "path"
-		break
 	}
 	return pflag.NormalizedName(name)
 }
