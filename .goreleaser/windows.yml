@@ -22,10 +22,7 @@ builds:
       - amd64
       - 386
 archives:
-  - format_overrides:
-      - goos: windows
-        format: zip
-    files:
+  - files:
       - none*
 changelog:
   sort: asc
