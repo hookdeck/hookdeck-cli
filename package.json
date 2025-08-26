@@ -29,6 +29,6 @@
     "url": "https://github.com/hookdeck/hookdeck-cli/releases/download/v{{version}}/hookdeck_{{version}}_{{platform}}_{{arch}}.tar.gz"
   },
   "dependencies": {
-    "go-npm-next": "^1.0.6"
+    "go-npm-next": "^1.1.0"
   }
 }
