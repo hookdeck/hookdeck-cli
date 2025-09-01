@@ -1,6 +1,6 @@
 # Hookdeck CLI Reference
 
-The Hookdeck CLI provides authentication, basic project management, and local webhook forwarding for your webhook infrastructure. This reference covers all available commands and their usage.
+The Hookdeck CLI provides comprehensive webhook infrastructure management including authentication, project management, resource management, event monitoring, and local development tools. This reference covers all available commands and their usage.
 
 ## Table of Contents
 
@@ -27,16 +27,18 @@ The Hookdeck CLI provides authentication, basic project management, and local we
 - [Issues](#issues)
 - [Requests](#requests)
 - [Bulk Operations](#bulk-operations)
+- [Notifications](#notifications)
 - [Implementation Status](#implementation-status)
 
 ## Global Options
 
-All commands support these global options based on the current implementation:
+All commands support these global options:
 
 ### ✅ Current Global Options
 ```bash
 --profile, -p string     Profile name (default "default")
---api-key string         Your API key to use for the command
+--api-key string         Your API key to use for the command (hidden)
+--cli-key string         CLI key for legacy auth (deprecated, hidden)
 --color string           Turn on/off color output (on, off, auto)
 --config string          Config file (default is $HOME/.config/hookdeck/config.toml)
 --device-name string     Device name for this CLI instance
@@ -54,10 +56,27 @@ All commands support these global options based on the current implementation:
 
 ## Authentication
 
+**All Parameters:**
+```bash
+# Login command parameters
+--api-key string       API key for direct authentication
+--interactive, -i      Interactive login with prompts (boolean flag)
+--profile string       Profile name to use for login
+
+# Logout command parameters  
+--all, -a             Logout all profiles (boolean flag)
+--profile string      Profile name to logout
+
+# Whoami command parameters
+# (No additional parameters - uses global options only)
+```
+
 ### ✅ Login
 ```bash
 # Interactive login with prompts
 hookdeck login
+hookdeck login --interactive
+hookdeck login -i
 
 # Login with API key directly
 hookdeck login --api-key your_api_key
@@ -71,11 +90,12 @@ hookdeck login --profile production
 # Logout current profile
 hookdeck logout
 
-# Logout all profiles
-hookdeck logout --all
-
 # Logout specific profile
 hookdeck logout --profile production
+
+# Logout all profiles
+hookdeck logout --all
+hookdeck logout -a
 ```
 
 ### ✅ Check authentication status
@@ -90,12 +110,35 @@ hookdeck whoami
 
 ## Projects
 
-Projects are top-level containers for your webhook infrastructure. Currently, only basic project management is available.
+**All Parameters:**
+```bash
+# Project list command parameters
+[organization_substring] [project_substring]    # Positional arguments for filtering
+# (No additional flag parameters)
+
+# Project use command parameters
+[project-id]           # Positional argument for specific project ID
+--profile string       # Profile name to use
+
+# Project domains list command parameters
+# (No additional parameters)
+
+# Project domains delete command parameters  
+<domain-id>           # Required positional argument for domain ID
+```
+
+Projects are top-level containers for your webhook infrastructure.
 
 ### ✅ List projects
 ```bash
 # List all projects you have access to
 hookdeck project list
+
+# Filter by organization substring
+hookdeck project list acme
+
+# Filter by organization and project substrings  
+hookdeck project list acme production
 
 # Example output:
 # [Acme Corp] Production
@@ -115,33 +158,94 @@ hookdeck project use proj_123
 hookdeck project use --profile production
 ```
 
+### 🚧 List project domains
+```bash
+# List custom domains for current project
+hookdeck project domains list
+
+# Output includes domain names and verification status
+```
+
+### 🚧 Delete project domain
+```bash
+# Delete custom domain
+hookdeck project domains delete <domain-id>
+```
+
 ## Local Development
+
+**All Parameters:**
+```bash
+# Listen command parameters
+[port or URL]         # Required positional argument (e.g., "3000" or "http://localhost:3000")
+[source]              # Optional positional argument for source name
+[connection]          # Optional positional argument for connection name
+--path string         # Specific path to forward to (e.g., "/webhooks")
+--no-wss             # Force unencrypted WebSocket connection (hidden flag)
+```
 
 ### ✅ Listen for webhooks
 ```bash
-# Start webhook forwarding to localhost
+# Start webhook forwarding to localhost (with interactive prompts)
 hookdeck listen
+
+# Forward to specific port
+hookdeck listen 3000
+
+# Forward to specific URL
+hookdeck listen http://localhost:3000
+
+# Forward with source and connection specified
+hookdeck listen 3000 stripe-webhooks payment-connection
 
 # Forward to specific path
 hookdeck listen --path /webhooks
 
-# Listen without WebSocket (polling mode)
+# Force unencrypted WebSocket connection (hidden flag)
 hookdeck listen --no-wss
+
+# Arguments:
+# - port or URL: Required (e.g., "3000" or "http://localhost:3000")
+# - source: Optional source name to forward from
+# - connection: Optional connection name
 ```
 
 The `listen` command forwards webhooks from Hookdeck to your local development server, allowing you to test webhook integrations locally.
 
 ## CI/CD Integration
 
+**All Parameters:**
+```bash
+# CI command parameters
+--api-key string      # API key (defaults to HOOKDECK_API_KEY env var)
+--name string         # CI name (e.g., $GITHUB_REF for GitHub Actions)
+```
+
 ### ✅ CI command
 ```bash
 # Run in CI/CD environments
 hookdeck ci
+
+# Specify API key explicitly (defaults to HOOKDECK_API_KEY env var)
+hookdeck ci --api-key <key>
+
+# Specify CI name (e.g., for GitHub Actions)
+hookdeck ci --name $GITHUB_REF
 ```
 
 This command provides CI/CD specific functionality for automated deployments and testing.
 
 ## Utilities
+
+**All Parameters:**
+```bash
+# Completion command parameters
+[shell]               # Positional argument for shell type (bash, zsh, fish, powershell)
+--shell string        # Explicit shell selection flag
+
+# Version command parameters
+# (No additional parameters - uses global options only)
+```
 
 ### ✅ Shell completion
 ```bash
@@ -156,6 +260,9 @@ hookdeck completion fish
 
 # Generate completion for PowerShell
 hookdeck completion powershell
+
+# Specify shell explicitly
+hookdeck completion --shell bash
 ```
 
 ### ✅ Version information
@@ -190,103 +297,183 @@ The Hookdeck CLI is currently focused on authentication, basic project managemen
 | Command Category | Status | Available Commands | Planned Commands |
 |------------------|--------|-------------------|------------------|
 | Authentication | ✅ **Current** | `login`, `logout`, `whoami` | *None needed* |
-| Project Management | 🔄 **Partial** | `list`, `use` | `create`, `get`, `update`, `delete` |
+| Project Management | 🔄 **Partial** | `list`, `use`, `domains list`, `domains delete` | *Enhancement complete* |
 | Local Development | ✅ **Current** | `listen` | *Enhancements planned* |
 | CI/CD | ✅ **Current** | `ci` | *Enhancements planned* |
-| Source Management | 🚧 **Planned** | *None* | Full CRUD operations |
-| Destination Management | 🚧 **Planned** | *None* | Full CRUD operations |
-| Connection Management | 🚧 **Planned** | *None* | Full CRUD operations |
-| Transformation Management | 🚧 **Planned** | *None* | Full CRUD operations |
-| Event Management | 🚧 **Planned** | *None* | List, retry, monitor |
-| Issue Trigger Management | 🚧 **Planned** | *None* | Full CRUD, enable/disable |
+| Source Management | 🚧 **Planned** | *None* | Full CRUD + 80+ provider types |
+| Destination Management | 🚧 **Planned** | *None* | Full CRUD + auth types |
+| Connection Management | 🚧 **Planned** | *None* | Full CRUD + lifecycle management |
+| Transformation Management | 🚧 **Planned** | *None* | Full CRUD + execution + testing |
+| Event Management | 🚧 **Planned** | *None* | List, retry, monitor, search |
+| Issue Trigger Management | 🚧 **Planned** | *None* | Full CRUD + notification channels |
 | Attempt Management | 🚧 **Planned** | *None* | List, get, retry |
-| Bookmark Management | 🚧 **Planned** | *None* | Full CRUD, trigger |
-| Integration Management | 🚧 **Planned** | *None* | Full CRUD, attach/detach |
+| Bookmark Management | 🚧 **Planned** | *None* | Full CRUD + trigger/replay |
+| Integration Management | 🚧 **Planned** | *None* | Full CRUD + attach/detach |
 | Issue Management | 🚧 **Planned** | *None* | List, get, update, dismiss |
 | Request Management | 🚧 **Planned** | *None* | List, get, retry, raw access |
-| Bulk Operations | 🚧 **Planned** | *None* | Bulk retry, enable/disable, delete |
+| Bulk Operations | 🚧 **Planned** | *None* | Bulk retry for events/requests/ignored |
+| Notifications | 🚧 **Planned** | *None* | Webhook notifications |
 | Output Formatting | 🚧 **Planned** | Basic text only | JSON, YAML, table, CSV |
 
 ## Advanced Project Management
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-### Create a project
-```bash
-# Create with interactive prompts
-hookdeck project create
-
-# Create with flags
-hookdeck project create --name "My Project" --description "Production webhooks"
-```
-
-### Get project details
-```bash
-# Get current project
-hookdeck project get
-
-# Get specific project
-hookdeck project get proj_123
-
-# Get with full details
-hookdeck project get proj_123 --log-level debug
-```
-
-### Update project
-```bash
-# Update interactively
-hookdeck project update
-
-# Update specific project
-hookdeck project update proj_123 --name "Updated Name"
-
-# Update description
-hookdeck project update proj_123 --description "New description"
-```
-
-### Delete project
-```bash
-# Delete with confirmation
-hookdeck project delete proj_123
-
-# Force delete without confirmation
-hookdeck project delete proj_123 --force
-```
+*Note: Project domains management is the only additional project functionality supported by the API.*
 
 ## Sources
 
+**All Parameters:**
+```bash
+# Source list command parameters
+--name string         # Filter by name pattern (supports wildcards)
+--type string         # Filter by source type (96+ types supported)
+--disabled           # Include disabled sources (boolean flag)
+--order-by string    # Sort by: name, created_at, updated_at
+--dir string         # Sort direction: asc, desc
+--limit integer      # Limit number of results (0-255)
+--next string        # Next page token for pagination
+--prev string        # Previous page token for pagination
+
+# Source count command parameters
+--name string         # Filter by name pattern
+--disabled           # Include disabled sources (boolean flag)
+
+# Source get command parameters
+<source-id>          # Required positional argument for source ID
+--include string     # Include additional data (e.g., "config.auth")
+
+# Source create command parameters
+--name string         # Required: Source name
+--type string         # Required: Source type (see type-specific parameters below)
+--description string  # Optional: Source description
+
+# Type-specific parameters for source create/update/upsert:
+# When --type=STRIPE, GITHUB, SHOPIFY, SLACK, TWILIO, etc.:
+--webhook-secret string     # Webhook secret for signature verification
+
+# When --type=PAYPAL:
+--webhook-id string         # PayPal webhook ID (not webhook_secret)
+
+# When --type=GITLAB, OKTA, MERAKI, etc.:
+--api-key string           # API key for authentication
+
+# When --type=BRIDGE, FIREBLOCKS, DISCORD, TELNYX, etc.:
+--public-key string        # Public key for signature verification
+
+# When --type=POSTMARK, PIPEDRIVE, etc.:
+--username string          # Username for basic authentication
+--password string          # Password for basic authentication
+
+# When --type=RING_CENTRAL, etc.:
+--token string             # Authentication token
+
+# When --type=EBAY (complex multi-field authentication):
+--environment string       # PRODUCTION or SANDBOX
+--dev-id string           # Developer ID
+--client-id string        # Client ID
+--client-secret string    # Client secret
+--verification-token string # Verification token
+
+# When --type=TIKTOK_SHOP (multi-key authentication):
+--webhook-secret string    # Webhook secret
+--app-key string          # Application key
+
+# When --type=FISERV:
+--webhook-secret string    # Webhook secret
+--store-name string       # Optional: Store name
+
+# When --type=VERCEL_LOG_DRAINS:
+--webhook-secret string       # Webhook secret
+--log-drains-secret string   # Optional: Log drains secret
+
+# When --type=HTTP (custom HTTP source):
+--auth-type string        # Authentication type (HMAC, API_KEY, BASIC, etc.)
+--algorithm string        # HMAC algorithm (sha256, sha1, etc.)
+--encoding string         # HMAC encoding (hex, base64, etc.)
+--header-key string       # Header name for signature/API key
+--webhook-secret string   # Secret for HMAC verification
+--auth-key string         # API key for API_KEY auth type
+--auth-username string    # Username for BASIC auth type
+--auth-password string    # Password for BASIC auth type
+--allowed-methods string  # Comma-separated HTTP methods (GET,POST,PUT,DELETE)
+--custom-response-status integer   # Custom response status code
+--custom-response-body string      # Custom response body
+--custom-response-headers string   # Custom response headers (key=value,key2=value2)
+
+# Source update command parameters
+<source-id>          # Required positional argument for source ID
+--name string         # Update source name
+--description string  # Update source description
+# Plus any type-specific parameters listed above
+
+# Source upsert command parameters (create or update by name)
+--name string         # Required: Source name (used for matching existing)
+--type string         # Required: Source type
+# Plus any type-specific parameters listed above
+
+# Source delete command parameters
+<source-id>          # Required positional argument for source ID
+--force              # Force delete without confirmation (boolean flag)
+
+# Source enable/disable/archive/unarchive command parameters
+<source-id>          # Required positional argument for source ID
+```
+
+**Type Validation Rules:**
+- **webhook_secret_key types**: STRIPE, GITHUB, SHOPIFY, SLACK, TWILIO, SQUARE, WOOCOMMERCE, TEBEX, MAILCHIMP, PADDLE, TREEZOR, PRAXIS, CUSTOMERIO, EXACT_ONLINE, FACEBOOK, WHATSAPP, REPLICATE, TIKTOK, FISERV, VERCEL_LOG_DRAINS, etc.
+- **webhook_id types**: PAYPAL (uses webhook_id instead of webhook_secret)
+- **api_key types**: GITLAB, OKTA, MERAKI, CLOUDSIGNAL, etc.
+- **public_key types**: BRIDGE, FIREBLOCKS, DISCORD, TELNYX, etc.
+- **basic_auth types**: POSTMARK, PIPEDRIVE, etc.
+- **token types**: RING_CENTRAL, etc.
+- **complex_auth types**: EBAY (5 fields), TIKTOK_SHOP (2 fields)
+- **minimal_config types**: AWS_SNS (no additional auth required)
+
+**❌ Note**: The following source types from CLI examples are NOT supported by the current API:
+- BITBUCKET, MAGENTO, TEAMS, AZURE_EVENT_GRID, GOOGLE_CLOUD_PUBSUB, SALESFORCE, AUTH0, FIREBASE_AUTH
+
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-Sources represent the webhook providers that send webhooks to Hookdeck.
+Sources represent the webhook providers that send webhooks to Hookdeck. The API supports 96+ provider types with specific authentication requirements.
 
 ### List sources
 ```bash
 # List all sources
 hookdeck source list
 
-# Filter by type
+# Filter by name pattern
+hookdeck source list --name "stripe*"
+
+# Filter by type (supports 80+ types)
 hookdeck source list --type STRIPE
 
-# Filter by name pattern
-hookdeck source list --name "*prod*"
-
 # Include disabled sources
-hookdeck source list --include-disabled
+hookdeck source list --disabled
 
-# Output as JSON
-hookdeck source list --format json
+# Limit results
+hookdeck source list --limit 50
+
+# Combined filtering
+hookdeck source list --name "*prod*" --type GITHUB --limit 25
+```
+
+### Count sources
+```bash
+# Count all sources
+hookdeck source count
+
+# Count with filters
+hookdeck source count --name "*stripe*" --disabled
 ```
 
 ### Get source details
 ```bash
 # Get source by ID
-hookdeck source get src_123
+hookdeck source get <source-id>
 
-# Get source by name
-hookdeck source get stripe-webhooks
-
-# Show authentication details
-hookdeck source get src_123 --include-auth
+# Include authentication configuration
+hookdeck source get <source-id> --include config.auth
 ```
 
 ### Create a source
@@ -297,224 +484,234 @@ hookdeck source get src_123 --include-auth
 hookdeck source create
 ```
 
-#### Platform-specific sources with webhook secrets
+#### Platform-specific sources (80+ supported types)
 
-##### 1. Stripe - Payment webhooks
+##### Payment Platforms
 ```bash
-# Create Stripe source with webhook secret
-hookdeck source create \
-  --name "stripe-prod" \
-  --type STRIPE \
-  --description "Production Stripe payment webhooks" \
-  --webhook-secret "whsec_1a2b3c4d5e6f7g8h9i0j..."
+# Stripe - Payment webhooks
+hookdeck source create --name "stripe-prod" --type STRIPE --webhook-secret "whsec_1a2b3c..."
 
-# Use case: Receive payment confirmation, subscription updates, and dispute events
+# PayPal - Payment events (uses webhook_id not webhook_secret)
+hookdeck source create --name "paypal-prod" --type PAYPAL --webhook-id "webhook_id_value"
+
+# Square - POS and payment events
+hookdeck source create --name "square-webhooks" --type SQUARE --webhook-secret "webhook_secret"
 ```
 
-##### 2. GitHub - Repository webhooks  
+##### Repository and CI/CD
 ```bash
-# Create GitHub source with webhook secret
-hookdeck source create \
-  --name "github-repo" \
-  --type GITHUB \
-  --description "Repository event webhooks" \
-  --webhook-secret "your_github_webhook_secret"
+# GitHub - Repository webhooks
+hookdeck source create --name "github-repo" --type GITHUB --webhook-secret "github_secret"
 
-# Use case: CI/CD triggers, issue tracking, pull request automation
+# GitLab - Repository and CI webhooks
+hookdeck source create --name "gitlab-project" --type GITLAB --api-key "gitlab_token"
+
+# Bitbucket - Repository events
+hookdeck source create --name "bitbucket-repo" --type BITBUCKET --webhook-secret "webhook_secret"
 ```
 
-##### 3. Shopify - E-commerce webhooks
+##### E-commerce Platforms
 ```bash
-# Create Shopify source with webhook secret
-hookdeck source create \
-  --name "shopify-store" \
-  --type SHOPIFY \
-  --description "Store order and inventory webhooks" \
-  --webhook-secret "your_shopify_webhook_secret"
+# Shopify - Store webhooks
+hookdeck source create --name "shopify-store" --type SHOPIFY --webhook-secret "shopify_secret"
 
-# Use case: Order processing, inventory sync, customer management
+# WooCommerce - WordPress e-commerce
+hookdeck source create --name "woocommerce-store" --type WOOCOMMERCE --webhook-secret "webhook_secret"
+
+# Magento - Enterprise e-commerce
+hookdeck source create --name "magento-store" --type MAGENTO --webhook-secret "webhook_secret"
 ```
 
-##### 4. Slack - Workspace events
+##### Communication Platforms
 ```bash
-# Create Slack source with signing secret
-hookdeck source create \
-  --name "slack-workspace" \
-  --type SLACK \
-  --description "Slack workspace event webhooks" \
-  --webhook-secret "your_slack_signing_secret"
+# Slack - Workspace events
+hookdeck source create --name "slack-workspace" --type SLACK --webhook-secret "slack_signing_secret"
 
-# Use case: Bot interactions, message events, workspace activity
+# Twilio - SMS and voice webhooks
+hookdeck source create --name "twilio-sms" --type TWILIO --webhook-secret "twilio_auth_token"
+
+# Discord - Bot interactions
+hookdeck source create --name "discord-bot" --type DISCORD --public-key "discord_public_key"
+
+# Teams - Microsoft Teams webhooks
+hookdeck source create --name "teams-notifications" --type TEAMS --webhook-secret "teams_secret"
 ```
 
-##### 5. Twilio - Communication webhooks
+##### Cloud Services
 ```bash
-# Create Twilio source with auth token
-hookdeck source create \
-  --name "twilio-sms" \
-  --type TWILIO \
-  --description "SMS and voice event webhooks" \
-  --webhook-secret "your_twilio_auth_token"
+# AWS SNS - Cloud notifications
+hookdeck source create --name "aws-sns" --type AWS_SNS
 
-# Use case: SMS delivery status, voice call events, messaging analytics
+# Azure Event Grid - Azure events
+hookdeck source create --name "azure-events" --type AZURE_EVENT_GRID --webhook-secret "webhook_secret"
+
+# Google Cloud Pub/Sub - GCP events
+hookdeck source create --name "gcp-pubsub" --type GOOGLE_CLOUD_PUBSUB --webhook-secret "webhook_secret"
 ```
 
-#### Cloud service sources
-
-##### 6. AWS SNS - Minimal configuration
+##### CRM and Marketing
 ```bash
-# Create AWS SNS source
-hookdeck source create \
-  --name "aws-sns-notifications" \
-  --type AWS_SNS \
-  --description "AWS SNS topic notifications"
+# Salesforce - CRM events
+hookdeck source create --name "salesforce-crm" --type SALESFORCE --webhook-secret "salesforce_secret"
 
-# Use case: CloudWatch alerts, S3 events, EC2 state changes
-# Note: SNS automatically handles subscription confirmation
+# HubSpot - Marketing automation
+hookdeck source create --name "hubspot-marketing" --type HUBSPOT --webhook-secret "hubspot_secret"
+
+# Mailchimp - Email marketing
+hookdeck source create --name "mailchimp-campaigns" --type MAILCHIMP --webhook-secret "mailchimp_secret"
 ```
 
-#### Generic webhook sources with authentication
-
-##### 7. WEBHOOK with HMAC authentication
+##### Authentication and Identity
 ```bash
-# Create webhook source with HMAC signature verification
-hookdeck source create \
-  --name "api-webhooks" \
-  --type WEBHOOK \
-  --description "Third-party API webhooks" \
+# Auth0 - Identity events
+hookdeck source create --name "auth0-identity" --type AUTH0 --webhook-secret "auth0_secret"
+
+# Okta - Identity management
+hookdeck source create --name "okta-identity" --type OKTA --api-key "okta_api_key"
+
+# Firebase Auth - Authentication events
+hookdeck source create --name "firebase-auth" --type FIREBASE_AUTH --webhook-secret "firebase_secret"
+```
+
+##### Complex Authentication Examples
+```bash
+# eBay - Multi-field authentication
+hookdeck source create --name "ebay-marketplace" --type EBAY \
+  --environment PRODUCTION \
+  --dev-id "dev_id" \
+  --client-id "client_id" \
+  --client-secret "client_secret" \
+  --verification-token "verification_token"
+
+# TikTok Shop - Multi-key authentication
+hookdeck source create --name "tiktok-shop" --type TIKTOK_SHOP \
+  --webhook-secret "webhook_secret" \
+  --app-key "app_key"
+
+# Custom HTTP with HMAC authentication
+hookdeck source create --name "custom-api" --type HTTP \
   --auth-type HMAC \
-  --auth-secret "your_hmac_secret" \
-  --auth-header "X-Signature"
-
-# Use case: Custom API integrations requiring HMAC verification
-```
-
-##### 8. WEBHOOK with API Key authentication
-```bash
-# Create webhook source with API key authentication
-hookdeck source create \
-  --name "secure-webhooks" \
-  --type WEBHOOK \
-  --description "API key protected webhooks" \
-  --auth-type API_KEY \
-  --auth-key "your_api_key" \
-  --auth-header "X-API-Key"
-
-# Alternative: API key in query parameter
-hookdeck source create \
-  --name "query-auth-webhooks" \
-  --type WEBHOOK \
-  --auth-type API_KEY \
-  --auth-key "your_api_key" \
-  --auth-query-param "api_key"
-
-# Use case: Internal services requiring API key validation
-```
-
-##### 9. WEBHOOK with Basic Authentication
-```bash
-# Create webhook source with Basic Auth
-hookdeck source create \
-  --name "basic-auth-webhooks" \
-  --type WEBHOOK \
-  --description "Basic auth protected webhooks" \
-  --auth-type BASIC \
-  --auth-username "webhook_user" \
-  --auth-password "secure_password"
-
-# Use case: Legacy systems using username/password authentication
-```
-
-#### Additional source types
-
-##### 10. HTTP - Generic HTTP source
-```bash
-# Create generic HTTP source with custom configuration
-hookdeck source create \
-  --name "http-events" \
-  --type HTTP \
-  --description "Generic HTTP event receiver" \
-  --allowed-methods "POST,PUT,PATCH" \
-  --custom-response-body '{"status": "received"}' \
-  --custom-response-status 200
-
-# Use case: Custom integrations not covered by specific source types
-```
-
-##### 11. Discord - Bot webhooks with public key
-```bash
-# Create Discord source with public key verification
-hookdeck source create \
-  --name "discord-bot" \
-  --type DISCORD \
-  --description "Discord bot interaction webhooks" \
-  --public-key "your_discord_public_key"
-
-# Use case: Discord slash commands, button interactions, bot events
-```
-
-##### 12. Telnyx - Communication platform
-```bash
-# Create Telnyx source with public key verification
-hookdeck source create \
-  --name "telnyx-comms" \
-  --type TELNYX \
-  --description "Telnyx communication webhooks" \
-  --public-key "your_telnyx_public_key"
-
-# Use case: SMS/MMS delivery, voice events, number management
-```
-
-#### Advanced configurations
-
-```bash
-# Create source with multiple HTTP methods
-hookdeck source create \
-  --name "flexible-webhooks" \
-  --type WEBHOOK \
-  --allowed-methods "GET,POST,PUT,DELETE" \
-  --description "Multi-method webhook endpoint"
-
-# Create source with custom response
-hookdeck source create \
-  --name "custom-response" \
-  --type WEBHOOK \
-  --custom-response-status 201 \
-  --custom-response-body '{"message": "Event processed"}' \
-  --custom-response-headers "Content-Type=application/json"
+  --algorithm sha256 \
+  --encoding hex \
+  --header-key "X-Signature" \
+  --webhook-secret "hmac_secret"
 ```
 
 ### Update a source
 ```bash
-# Update interactively
-hookdeck source update src_123
-
-# Update name
-hookdeck source update src_123 --name "new-name"
+# Update name and description
+hookdeck source update <source-id> --name "new-name" --description "Updated description"
 
 # Update webhook secret
-hookdeck source update src_123 --webhook-secret "new_secret"
+hookdeck source update <source-id> --webhook-secret "new_secret"
+
+# Update type-specific configuration
+hookdeck source update <source-id> --api-key "new_api_key"
+```
+
+### Upsert a source (create or update by name)
+```bash
+# Create or update source by name
+hookdeck source upsert --name "stripe-prod" --type STRIPE --webhook-secret "new_secret"
 ```
 
 ### Delete a source
 ```bash
-# Delete with confirmation
-hookdeck source delete src_123
+# Delete source (with confirmation)
+hookdeck source delete <source-id>
 
-# Force delete
-hookdeck source delete src_123 --force
+# Force delete without confirmation
+hookdeck source delete <source-id> --force
 ```
 
 ### Enable/Disable sources
 ```bash
-# Disable source
-hookdeck source disable src_123
-
 # Enable source
-hookdeck source enable src_123
+hookdeck source enable <source-id>
+
+# Disable source
+hookdeck source disable <source-id>
+
+# Archive source
+hookdeck source archive <source-id>
+
+# Unarchive source
+hookdeck source unarchive <source-id>
 ```
 
 ## Destinations
+
+**All Parameters:**
+```bash
+# Destination list command parameters
+--name string         # Filter by name pattern (supports wildcards)
+--type string         # Filter by destination type (HTTP, CLI, MOCK_API)
+--disabled           # Include disabled destinations (boolean flag)
+--limit integer      # Limit number of results (default varies)
+
+# Destination count command parameters
+--name string         # Filter by name pattern
+--disabled           # Include disabled destinations (boolean flag)
+
+# Destination get command parameters
+<destination-id>     # Required positional argument for destination ID
+--include string     # Include additional data (e.g., "config.auth")
+
+# Destination create command parameters
+--name string         # Required: Destination name
+--type string         # Optional: Destination type (HTTP, CLI, MOCK_API) - defaults to HTTP
+--description string  # Optional: Destination description
+
+# Type-specific parameters for destination create/update/upsert:
+# When --type=HTTP (default):
+--url string              # Required: Destination URL
+--auth-type string        # Authentication type (BEARER_TOKEN, BASIC_AUTH, API_KEY, OAUTH2_CLIENT_CREDENTIALS)
+--auth-token string       # Bearer token for BEARER_TOKEN auth
+--auth-username string    # Username for BASIC_AUTH
+--auth-password string    # Password for BASIC_AUTH
+--auth-key string         # API key for API_KEY auth
+--auth-header string      # Header name for API_KEY auth (e.g., "X-API-Key")
+--auth-server string      # OAuth2 token server URL for OAUTH2_CLIENT_CREDENTIALS
+--client-id string        # OAuth2 client ID
+--client-secret string    # OAuth2 client secret
+--headers string          # Custom headers (key=value,key2=value2)
+
+# When --type=CLI:
+--path string             # Optional: Path for CLI destination
+
+# When --type=MOCK_API:
+# (No additional type-specific parameters required)
+
+# Destination update command parameters
+<destination-id>     # Required positional argument for destination ID
+--name string         # Update destination name
+--description string  # Update destination description
+--url string          # Update destination URL (for HTTP type)
+# Plus any type-specific auth parameters listed above
+
+# Destination upsert command parameters (create or update by name)
+--name string         # Required: Destination name (used for matching existing)
+--type string         # Optional: Destination type
+# Plus any type-specific parameters listed above
+
+# Destination delete command parameters
+<destination-id>     # Required positional argument for destination ID
+--force              # Force delete without confirmation (boolean flag)
+
+# Destination enable/disable/archive/unarchive command parameters
+<destination-id>     # Required positional argument for destination ID
+```
+
+**Type Validation Rules:**
+- **HTTP destinations**: Require `--url`, support all authentication types
+- **CLI destinations**: No URL required, optional `--path` parameter
+- **MOCK_API destinations**: No additional parameters required, used for testing
+
+**Authentication Type Combinations:**
+- **BEARER_TOKEN**: Requires `--auth-token`
+- **BASIC_AUTH**: Requires `--auth-username` and `--auth-password`
+- **API_KEY**: Requires `--auth-key` and `--auth-header`
+- **OAUTH2_CLIENT_CREDENTIALS**: Requires `--auth-server`, `--client-id`, and `--client-secret`
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
@@ -525,11 +722,35 @@ Destinations are the endpoints where webhooks are delivered.
 # List all destinations
 hookdeck destination list
 
+# Filter by name pattern
+hookdeck destination list --name "api*"
+
 # Filter by type
 hookdeck destination list --type HTTP
 
-# Output as JSON
-hookdeck destination list --format json
+# Include disabled destinations
+hookdeck destination list --disabled
+
+# Limit results
+hookdeck destination list --limit 50
+```
+
+### Count destinations
+```bash
+# Count all destinations
+hookdeck destination count
+
+# Count with filters
+hookdeck destination count --name "*prod*" --disabled
+```
+
+### Get destination details
+```bash
+# Get destination by ID
+hookdeck destination get <destination-id>
+
+# Include authentication configuration
+hookdeck destination get <destination-id> --include config.auth
 ```
 
 ### Create a destination
@@ -537,69 +758,42 @@ hookdeck destination list --format json
 # Create with interactive prompts
 hookdeck destination create
 
-# Create HTTP destination
-hookdeck destination create \
-  --name "my-api" \
-  --type HTTP \
-  --url "https://api.example.com/webhooks"
+# HTTP destination with URL
+hookdeck destination create --name "my-api" --type HTTP --url "https://api.example.com/webhooks"
 
-# Create with authentication
-hookdeck destination create \
-  --name "secure-api" \
-  --type HTTP \
+# CLI destination for local development
+hookdeck destination create --name "local-dev" --type CLI
+
+# Mock API destination for testing
+hookdeck destination create --name "test-mock" --type MOCK_API
+
+# HTTP with bearer token authentication
+hookdeck destination create --name "secure-api" --type HTTP \
   --url "https://api.example.com/webhooks" \
   --auth-type BEARER_TOKEN \
   --auth-token "your_token"
 
-# Create CLI destination for local development
-hookdeck destination create \
-  --name "local-dev" \
-  --type CLI \
-  --path "/webhooks"
-
-# Create MOCK_API destination for testing
-hookdeck destination create \
-  --name "test-api" \
-  --type MOCK_API \
-  --description "Mock API for testing webhooks"
-
-# Create HTTP destination with basic authentication
-hookdeck destination create \
-  --name "basic-auth-api" \
-  --type HTTP \
+# HTTP with basic authentication
+hookdeck destination create --name "basic-auth-api" --type HTTP \
   --url "https://api.example.com/webhooks" \
   --auth-type BASIC_AUTH \
   --auth-username "api_user" \
   --auth-password "secure_password"
 
-# Create HTTP destination with API key authentication
-hookdeck destination create \
-  --name "api-key-endpoint" \
-  --type HTTP \
+# HTTP with API key authentication
+hookdeck destination create --name "api-key-endpoint" --type HTTP \
   --url "https://api.example.com/webhooks" \
   --auth-type API_KEY \
   --auth-key "your_api_key" \
   --auth-header "X-API-Key"
 
-# Create HTTP destination with custom headers
-hookdeck destination create \
-  --name "custom-headers-api" \
-  --type HTTP \
+# HTTP with custom headers
+hookdeck destination create --name "custom-headers-api" --type HTTP \
   --url "https://api.example.com/webhooks" \
   --headers "Content-Type=application/json,X-Custom-Header=value"
 
-# Create HTTP destination with rate limiting
-hookdeck destination create \
-  --name "rate-limited-api" \
-  --type HTTP \
-  --url "https://api.example.com/webhooks" \
-  --rate-limit 100 \
-  --rate-limit-period minute
-
-# Create HTTP destination with OAuth2
-hookdeck destination create \
-  --name "oauth2-api" \
-  --type HTTP \
+# HTTP with OAuth2 client credentials
+hookdeck destination create --name "oauth2-api" --type HTTP \
   --url "https://api.example.com/webhooks" \
   --auth-type OAUTH2_CLIENT_CREDENTIALS \
   --auth-server "https://auth.example.com/token" \
@@ -607,142 +801,363 @@ hookdeck destination create \
   --client-secret "your_client_secret"
 ```
 
+### Update a destination
+```bash
+# Update name and URL
+hookdeck destination update <destination-id> --name "new-name" --url "https://new-api.example.com"
+
+# Update authentication
+hookdeck destination update <destination-id> --auth-token "new_token"
+```
+
+### Upsert a destination (create or update by name)
+```bash
+# Create or update destination by name
+hookdeck destination upsert --name "my-api" --type HTTP --url "https://api.example.com"
+```
+
+### Delete a destination
+```bash
+# Delete destination (with confirmation)
+hookdeck destination delete <destination-id>
+
+# Force delete without confirmation  
+hookdeck destination delete <destination-id> --force
+```
+
+### Enable/Disable destinations
+```bash
+# Enable destination
+hookdeck destination enable <destination-id>
+
+# Disable destination
+hookdeck destination disable <destination-id>
+
+# Archive destination
+hookdeck destination archive <destination-id>
+
+# Unarchive destination
+hookdeck destination unarchive <destination-id>
+```
+
 ## Connections
+
+**All Parameters:**
+```bash
+# Connection list command parameters
+--name string            # Filter by name pattern (supports wildcards)
+--source-id string       # Filter by source ID
+--destination-id string  # Filter by destination ID
+--disabled              # Include disabled connections (boolean flag)
+--paused                # Include paused connections (boolean flag)
+--limit integer         # Limit number of results (default varies)
+
+# Connection count command parameters
+--name string            # Filter by name pattern
+--disabled              # Include disabled connections (boolean flag)
+--paused                # Include paused connections (boolean flag)
+
+# Connection get command parameters
+<connection-id>         # Required positional argument for connection ID
+
+# Connection create command parameters
+--name string           # Required: Connection name
+--description string    # Optional: Connection description
+
+# Option 1: Using existing resources
+--source string         # Source ID or name (existing resource)
+--destination string    # Destination ID or name (existing resource)
+
+# Option 2: Creating inline source (uses prefixed flags to avoid collision)
+--source-type string           # Source type (STRIPE, GITHUB, etc.)
+--source-name string           # Source name for inline creation
+--source-description string    # Source description for inline creation
+# Plus source type-specific auth parameters with 'source-' prefix:
+--webhook-secret string        # For webhook_secret_key source types
+--api-key string              # For api_key source types (conflicts resolved by context)
+--public-key string           # For public_key source types
+--username string             # For basic_auth source types
+--password string             # For basic_auth source types
+--token string                # For token source types
+# Complex auth parameters for specific source types:
+--environment string          # EBAY only
+--dev-id string              # EBAY only
+--client-id string           # EBAY only (may conflict with destination OAuth2)
+--client-secret string       # EBAY only (may conflict with destination OAuth2)
+--verification-token string  # EBAY only
+--app-key string             # TIKTOK_SHOP only
+
+# Option 3: Creating inline destination (uses prefixed flags to avoid collision)
+--destination-type string         # Destination type (HTTP, CLI, MOCK_API)
+--destination-name string         # Destination name for inline creation
+--destination-description string  # Destination description for inline creation
+--destination-url string          # URL for HTTP destinations
+# Plus destination auth parameters with 'destination-' prefix:
+--destination-auth-type string    # Auth type (BEARER_TOKEN, BASIC_AUTH, etc.)
+--destination-auth-token string   # Bearer token
+--destination-auth-username string # Basic auth username
+--destination-auth-password string # Basic auth password
+--destination-auth-key string     # API key
+--destination-auth-header string  # API key header name
+--destination-auth-server string  # OAuth2 token server
+--destination-client-id string    # OAuth2 client ID (avoids collision with source EBAY)
+--destination-client-secret string # OAuth2 client secret (avoids collision with source EBAY)
+--destination-headers string      # Custom headers
+
+# Advanced connection configuration
+--transformation string    # Transformation ID or name
+--retry-strategy string    # Retry strategy (exponential, linear, etc.)
+--retry-count integer      # Maximum retry attempts
+--retry-interval integer   # Retry interval in milliseconds
+--delay integer           # Processing delay in milliseconds
+--filter-headers string   # Header filters (key=pattern,key2=pattern2)
+--filter-body string      # Body filters (comma-separated patterns)
+
+# Connection update command parameters
+<connection-id>         # Required positional argument for connection ID
+--name string           # Update connection name
+--description string    # Update connection description
+--source string         # Update source reference
+--destination string    # Update destination reference
+--transformation string # Update transformation reference
+
+# Connection upsert command parameters (create or update by name)
+--name string           # Required: Connection name (used for matching existing)
+# Plus any create parameters listed above
+
+# Connection delete command parameters
+<connection-id>         # Required positional argument for connection ID
+--force                # Force delete without confirmation (boolean flag)
+
+# Connection lifecycle management command parameters
+<connection-id>         # Required positional argument for connection ID
+# Commands: enable, disable, archive, unarchive, pause, unpause
+```
+
+**Parameter Collision Resolution:**
+When creating connections with inline resources, prefixed flags prevent ambiguity:
+
+- **Source inline creation**: Uses `--source-type`, source-specific auth params (no prefix needed for most)
+- **Destination inline creation**: Uses `--destination-type`, `--destination-auth-*` prefixed auth params
+- **OAuth2 collision resolution**: 
+  - Source EBAY: `--client-id`, `--client-secret`
+  - Destination OAuth2: `--destination-client-id`, `--destination-client-secret`
+
+**Validation Rules:**
+- Must specify either `--source` (existing) OR `--source-type` + `--source-name` (inline)
+- Must specify either `--destination` (existing) OR `--destination-type` + `--destination-name` (inline)
+- Cannot mix inline and existing for same resource type
+- Type-specific parameters validated based on `--source-type` and `--destination-type` values
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-Connections link sources to destinations and define processing rules.
+Connections link sources to destinations and define processing rules. The connection create command handles flag collision resolution using prefixed flags when creating inline resources.
 
 ### List connections
 ```bash
 # List all connections
 hookdeck connection list
 
-# Filter by source
-hookdeck connection list --source stripe-prod
+# Filter by name pattern
+hookdeck connection list --name "*prod*"
 
-# Filter by destination
-hookdeck connection list --destination my-api
+# Filter by source ID
+hookdeck connection list --source-id <source-id>
+
+# Filter by destination ID
+hookdeck connection list --destination-id <destination-id>
+
+# Include disabled connections
+hookdeck connection list --disabled
+
+# Include paused connections
+hookdeck connection list --paused
+
+# Limit results
+hookdeck connection list --limit 50
+```
+
+### Count connections
+```bash
+# Count all connections
+hookdeck connection count
+
+# Count with filters
+hookdeck connection count --name "*stripe*" --disabled --paused
+```
+
+### Get connection details
+```bash
+# Get connection by ID
+hookdeck connection get <connection-id>
 ```
 
 ### Create a connection
+
+#### Using existing resources
 ```bash
-# Create with interactive prompts
-hookdeck connection create
+# Simple connection with existing resources
+hookdeck connection create --name "stripe-to-api" --source <source-id> --destination <destination-id>
 
-# Create connection using existing source and destination IDs
-hookdeck connection create \
-  --name "stripe-to-api" \
-  --source-id src_123 \
-  --destination-id dest_456
+# With transformation
+hookdeck connection create --name "stripe-to-api" \
+  --source <source-id> \
+  --destination <destination-id> \
+  --transformation <transformation-id>
+```
 
-# Create connection with inline source and destination creation
-hookdeck connection create \
-  --name "stripe-to-api" \
-  --source-name "stripe-prod" \
+#### Creating resources inline (using prefixed flags to avoid collision)
+```bash
+# Create connection with inline source and destination
+hookdeck connection create --name "stripe-to-api" \
   --source-type STRIPE \
-  --source-description "Production Stripe webhooks" \
-  --source-webhook-secret "whsec_abc123" \
+  --source-name "stripe-prod" \
+  --webhook-secret "whsec_abc123" \
+  --destination-type HTTP \
   --destination-name "my-api" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/webhooks" \
-  --destination-auth-type BEARER_TOKEN \
-  --destination-auth-token "your_token"
+  --destination-url "https://api.example.com/webhooks"
 
-# Create connection with existing source, new destination
-hookdeck connection create \
-  --name "stripe-to-new-api" \
-  --source-id src_123 \
-  --destination-name "new-endpoint" \
+# Mixed approach: existing source, new destination
+hookdeck connection create --name "stripe-to-new-api" \
+  --source <source-id> \
   --destination-type HTTP \
+  --destination-name "new-endpoint" \
   --destination-url "https://new-api.example.com/hooks"
 
-# Create connection with new source, existing destination  
-hookdeck connection create \
-  --name "github-to-existing" \
-  --source-name "github-repo" \
+# Mixed approach: new source, existing destination
+hookdeck connection create --name "github-to-existing" \
   --source-type GITHUB \
-  --source-webhook-secret "github_secret_123" \
-  --destination-id dest_456
+  --source-name "github-repo" \
+  --webhook-secret "github_secret_123" \
+  --destination <destination-id>
+```
 
-# Create connection with retry rules
-hookdeck connection create \
-  --name "reliable-connection" \
-  --source-id src_123 \
-  --destination-id dest_456 \
+#### Advanced connection configurations
+```bash
+# Connection with retry rules
+hookdeck connection create --name "reliable-connection" \
+  --source <source-id> \
+  --destination <destination-id> \
   --retry-strategy exponential \
   --retry-count 5 \
   --retry-interval 1000
 
-# Create connection with filter rules
-hookdeck connection create \
-  --name "filtered-webhooks" \
-  --source-id src_123 \
-  --destination-id dest_456 \
-  --filter-headers '{"X-Event-Type": "payment.*"}' \
-  --filter-body '{"type": ["invoice.payment_succeeded", "invoice.payment_failed"]}'
-
-# Create connection with transformation
-hookdeck connection create \
-  --name "transformed-connection" \
-  --source-id src_123 \
-  --destination-id dest_456 \
-  --transformation "stripe-formatter" \
-  --transformation-env "API_URL=https://api.example.com"
-
-# Create connection with delay rule
-hookdeck connection create \
-  --name "delayed-processing" \
-  --source-id src_123 \
-  --destination-id dest_456 \
+# Connection with delay rule
+hookdeck connection create --name "delayed-processing" \
+  --source <source-id> \
+  --destination <destination-id> \
   --delay 30000
 
-# Create connection with deduplication
-hookdeck connection create \
-  --name "deduplicated-events" \
-  --source-id src_123 \
-  --destination-id dest_456 \
-  --deduplicate-window 300000 \
-  --deduplicate-fields "id,type,created"
+# Connection with filtering
+hookdeck connection create --name "filtered-webhooks" \
+  --source <source-id> \
+  --destination <destination-id> \
+  --filter-headers "X-Event-Type=payment.*" \
+  --filter-body "type=invoice.payment_succeeded,invoice.payment_failed"
+```
 
-# Create complex connection with inline resources and multiple rules
-hookdeck connection create \
-  --name "complex-connection" \
-  --source-name "shopify-store" \
-  --source-type SHOPIFY \
-  --source-webhook-secret "shopify_secret" \
-  --destination-name "webhook-processor" \
-  --destination-type HTTP \
-  --destination-url "https://processor.example.com/webhooks" \
-  --destination-auth-type API_KEY \
-  --destination-auth-key "api_key_123" \
-  --destination-auth-header "X-API-Key" \
-  --filter-body '{"type": "order.*"}' \
-  --transformation "order-formatter" \
-  --retry-strategy exponential \
-  --retry-count 3 \
-  --delay 5000
+### Update a connection
+```bash
+# Update connection properties
+hookdeck connection update <connection-id> --name "new-name" --description "Updated description"
+
+# Update source or destination
+hookdeck connection update <connection-id> --source <new-source-id> --destination <new-destination-id>
+
+# Update transformation
+hookdeck connection update <connection-id> --transformation <transformation-id>
+```
+
+### Upsert a connection (create or update by name)
+```bash
+# Create or update connection by name
+hookdeck connection upsert --name "stripe-to-api" --source <source-id> --destination <destination-id>
+```
+
+### Delete a connection
+```bash
+# Delete connection (with confirmation)
+hookdeck connection delete <connection-id>
+
+# Force delete without confirmation
+hookdeck connection delete <connection-id> --force
 ```
 
 ### Connection lifecycle management
 ```bash
-# Disable connection
-hookdeck connection disable conn_123
-
 # Enable connection
-hookdeck connection enable conn_123
+hookdeck connection enable <connection-id>
+
+# Disable connection
+hookdeck connection disable <connection-id>
+
+# Archive connection
+hookdeck connection archive <connection-id>
+
+# Unarchive connection
+hookdeck connection unarchive <connection-id>
 
 # Pause connection (temporary)
-hookdeck connection pause conn_123
+hookdeck connection pause <connection-id>
 
 # Unpause connection
-hookdeck connection unpause conn_123
-
-# Check connection status
-hookdeck connection get conn_123 --format json | jq '{disabled_at, paused_at}'
+hookdeck connection unpause <connection-id>
 ```
 
 ## Transformations
+
+**All Parameters:**
+```bash
+# Transformation list command parameters
+--name string         # Filter by name pattern (supports wildcards)
+--limit integer      # Limit number of results (default varies)
+
+# Transformation count command parameters
+--name string         # Filter by name pattern
+
+# Transformation get command parameters
+<transformation-id>  # Required positional argument for transformation ID
+
+# Transformation create command parameters
+--name string         # Required: Transformation name
+--code string         # Required: JavaScript code for the transformation
+--description string  # Optional: Transformation description
+--env string          # Optional: Environment variables (KEY=value,KEY2=value2)
+
+# Transformation update command parameters
+<transformation-id>  # Required positional argument for transformation ID
+--name string         # Update transformation name
+--code string         # Update JavaScript code
+--description string  # Update transformation description
+--env string          # Update environment variables (KEY=value,KEY2=value2)
+
+# Transformation upsert command parameters (create or update by name)
+--name string         # Required: Transformation name (used for matching existing)
+--code string         # Required: JavaScript code
+--description string  # Optional: Transformation description
+--env string          # Optional: Environment variables
+
+# Transformation delete command parameters
+<transformation-id>  # Required positional argument for transformation ID
+--force              # Force delete without confirmation (boolean flag)
+
+# Transformation run command parameters (testing)
+--code string         # Required: JavaScript code to test
+--request string      # Required: Request JSON for testing
+
+# Transformation executions command parameters
+<transformation-id>  # Required positional argument for transformation ID
+--limit integer      # Limit number of execution results
+
+# Transformation execution command parameters (get single execution)
+<transformation-id>  # Required positional argument for transformation ID
+<execution-id>       # Required positional argument for execution ID
+```
+
+**Environment Variables Format:**
+- Use comma-separated key=value pairs: `KEY1=value1,KEY2=value2`
+- Supports debugging flags: `DEBUG=true,LOG_LEVEL=info`
+- Can reference external services: `API_URL=https://api.example.com,API_KEY=secret`
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
@@ -753,8 +1168,26 @@ Transformations allow you to modify webhook payloads using JavaScript.
 # List all transformations
 hookdeck transformation list
 
-# Filter by name
+# Filter by name pattern
 hookdeck transformation list --name "*stripe*"
+
+# Limit results
+hookdeck transformation list --limit 50
+```
+
+### Count transformations
+```bash
+# Count all transformations
+hookdeck transformation count
+
+# Count with filters
+hookdeck transformation count --name "*formatter*"
+```
+
+### Get transformation details
+```bash
+# Get transformation by ID
+hookdeck transformation get <transformation-id>
 ```
 
 ### Create a transformation
@@ -762,77 +1195,31 @@ hookdeck transformation list --name "*stripe*"
 # Create with interactive prompts
 hookdeck transformation create
 
-# Create from file
-hookdeck transformation create \
-  --name "stripe-formatter" \
-  --code-file "./transformations/stripe.js"
+# Create with inline code
+hookdeck transformation create --name "stripe-formatter" \
+  --code 'export default function(request) {
+    request.body.processed_at = new Date().toISOString();
+    request.body.webhook_source = "stripe";
+    return request;
+  }'
 
 # Create with environment variables
-hookdeck transformation create \
-  --name "api-enricher" \
-  --code-file "./transformations/enrich.js" \
-  --env API_KEY=your_key
-
-# Create inline transformation with JavaScript code
-hookdeck transformation create \
-  --name "payment-formatter" \
+hookdeck transformation create --name "api-enricher" \
   --code 'export default function(request) {
-    // Add timestamp
-    request.body.processed_at = new Date().toISOString();
-    
-    // Normalize Stripe event data
-    if (request.body.type) {
-      request.body.event_type = request.body.type;
-      request.body.webhook_source = "stripe";
-    }
-    
-    // Add custom headers
-    request.headers["X-Processed"] = "true";
-    
+    const { API_KEY } = process.env;
+    request.headers["X-API-Key"] = API_KEY;
     return request;
-  }'
+  }' \
+  --env "API_KEY=your_key,DEBUG=true"
 
-# Create transformation with environment variables
-hookdeck transformation create \
-  --name "slack-notifier" \
-  --env SLACK_WEBHOOK_URL=https://hooks.slack.com/... \
+# Create with description
+hookdeck transformation create --name "payment-processor" \
+  --description "Processes payment webhooks and adds metadata" \
   --code 'export default function(request) {
-    const { SLACK_WEBHOOK_URL } = process.env;
-    
-    // Format webhook for Slack
-    const slackMessage = {
-      text: `Webhook received: ${request.body.type}`,
-      blocks: [{
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*Event:* ${request.body.type}\n*ID:* ${request.body.id}`
-        }
-      }]
-    };
-    
-    // Send to Slack (example - actual HTTP call would use fetch)
-    console.log("Sending to Slack:", slackMessage);
-    
-    return request;
-  }'
-
-# Create transformation for data validation
-hookdeck transformation create \
-  --name "data-validator" \
-  --code 'export default function(request) {
-    // Validate required fields
-    const required = ["id", "type", "created"];
-    const missing = required.filter(field => !request.body[field]);
-    
-    if (missing.length > 0) {
-      throw new Error(`Missing required fields: ${missing.join(", ")}`);
+    if (request.body.type?.includes("payment")) {
+      request.body.category = "payment";
+      request.body.priority = "high";
     }
-    
-    // Add validation metadata
-    request.body.validated_at = new Date().toISOString();
-    request.body.validation_status = "passed";
-    
     return request;
   }'
 ```
@@ -840,36 +1227,88 @@ hookdeck transformation create \
 ### Update a transformation
 ```bash
 # Update transformation code
-hookdeck transformation update trans_123 \
-  --code-file "./updated-transformation.js"
+hookdeck transformation update <transformation-id> \
+  --code 'export default function(request) { /* updated code */ return request; }'
+
+# Update name and description
+hookdeck transformation update <transformation-id> --name "new-name" --description "Updated description"
 
 # Update environment variables
-hookdeck transformation update trans_123 \
-  --env API_KEY=new_key,DEBUG=true
+hookdeck transformation update <transformation-id> --env "API_KEY=new_key,DEBUG=false"
+```
+
+### Upsert a transformation (create or update by name)
+```bash
+# Create or update transformation by name
+hookdeck transformation upsert --name "stripe-formatter" \
+  --code 'export default function(request) { return request; }'
+```
+
+### Delete a transformation
+```bash
+# Delete transformation (with confirmation)
+hookdeck transformation delete <transformation-id>
+
+# Force delete without confirmation
+hookdeck transformation delete <transformation-id> --force
 ```
 
 ### Test a transformation
 ```bash
-# Test with sample data
-hookdeck transformation test trans_123 \
-  --input-file "./sample-webhook.json"
+# Test with sample request JSON
+hookdeck transformation run --code 'export default function(request) { return request; }' \
+  --request '{"headers": {"content-type": "application/json"}, "body": {"test": true}}'
+```
 
-# Test with inline JSON
-hookdeck transformation test trans_123 \
-  --input '{"event": "test", "data": {"user_id": 123}}'
+### Get transformation executions
+```bash
+# List executions for a transformation
+hookdeck transformation executions <transformation-id> --limit 50
 
-# Test with connection context
-hookdeck transformation test trans_123 \
-  --connection conn_123 \
-  --input-file "./webhook-payload.json"
-
-# Test and save output
-hookdeck transformation test trans_123 \
-  --input-file "./test-payload.json" \
-  --output-file "./test-result.json"
+# Get specific execution details
+hookdeck transformation execution <transformation-id> <execution-id>
 ```
 
 ## Events & Monitoring
+
+**All Parameters:**
+```bash
+# Event list command parameters
+--id string              # Filter by event IDs (comma-separated)
+--status string          # Filter by status (SUCCESSFUL, FAILED, PENDING)
+--webhook-id string      # Filter by webhook ID (connection)
+--destination-id string  # Filter by destination ID
+--source-id string       # Filter by source ID
+--attempts integer       # Filter by number of attempts (minimum: 0)
+--response-status integer # Filter by HTTP response status (200-600)
+--successful-at string   # Filter by success date (ISO date-time)
+--created-at string      # Filter by creation date (ISO date-time)
+--error-code string      # Filter by error code
+--cli-id string          # Filter by CLI ID
+--last-attempt-at string # Filter by last attempt date (ISO date-time)
+--search-term string     # Search in body/headers/path (minimum 3 characters)
+--headers string         # Header matching (JSON string)
+--body string            # Body matching (JSON string)
+--parsed-query string    # Query parameter matching (JSON string)
+--path string            # Path matching
+--order-by string        # Sort by: created_at
+--dir string             # Sort direction: asc, desc
+--limit integer          # Limit number of results (0-255)
+--next string            # Next page token for pagination
+--prev string            # Previous page token for pagination
+
+# Event get command parameters
+<event-id>             # Required positional argument for event ID
+
+# Event raw-body command parameters
+<event-id>             # Required positional argument for event ID
+
+# Event retry command parameters
+<event-id>             # Required positional argument for event ID
+
+# Event mute command parameters
+<event-id>             # Required positional argument for event ID
+```
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
@@ -878,360 +1317,329 @@ hookdeck transformation test trans_123 \
 # List recent events
 hookdeck event list
 
-# Filter by connection
-hookdeck event list --connection stripe-to-api
+# Filter by webhook ID (connection)
+hookdeck event list --webhook-id <connection-id>
+
+# Filter by source ID
+hookdeck event list --source-id <source-id>
+
+# Filter by destination ID
+hookdeck event list --destination-id <destination-id>
 
 # Filter by status
+hookdeck event list --status SUCCESSFUL
 hookdeck event list --status FAILED
+hookdeck event list --status PENDING
 
-# Filter by date range
-hookdeck event list --created-after "2023-01-01" --created-before "2023-12-31"
+# Limit results
+hookdeck event list --limit 100
 
-# Filter by source and destination
-hookdeck event list --source stripe-prod --destination my-api
-
-# Filter by response status
-hookdeck event list --response-status 500
-
-# Filter by error code
-hookdeck event list --error-code TIMEOUT
-
-# Complex filtering
-hookdeck event list \
-  --status FAILED \
-  --connection stripe-to-api \
-  --response-status 500 \
-  --created-after "2023-12-01"
-
-# Output as JSON with full event data
-hookdeck event list --format json --include-data
-
-# Search by event content
-hookdeck event list --search "payment_intent"
-
-# Filter by number of attempts
-hookdeck event list --attempts ">3"
+# Combined filtering
+hookdeck event list --webhook-id <connection-id> --status FAILED --limit 50
 ```
 
 ### Get event details
 ```bash
 # Get event by ID
-hookdeck event get evt_123
+hookdeck event get <event-id>
 
-# Get with full payload data
-hookdeck event get evt_123 --include-data
-
-# Get raw event body
-hookdeck event get evt_123 --raw-body
-
-# Export event as curl command
-hookdeck event get evt_123 --export-curl
+# Get event raw body
+hookdeck event raw-body <event-id>
 ```
 
 ### Retry events
 ```bash
 # Retry single event
-hookdeck event retry evt_123
-
-# Retry with different destination
-hookdeck event retry evt_123 --destination new-endpoint
-
-# Bulk retry failed events
-hookdeck event retry --status FAILED --connection stripe-to-api
-
-# Bulk retry with date filter
-hookdeck event retry \
-  --status FAILED \
-  --created-after "2023-12-01" \
-  --dry-run
-
-# Bulk retry with progress tracking
-hookdeck event retry \
-  --status FAILED \
-  --connection stripe-to-api \
-  --progress \
-  --batch-size 100
+hookdeck event retry <event-id>
 ```
 
-### Event monitoring
+### Mute events
 ```bash
-# Watch events in real-time
-hookdeck event watch
-
-# Watch specific connection
-hookdeck event watch --connection stripe-to-api
-
-# Watch with filtering
-hookdeck event watch --status FAILED --response-status 5xx
-
-# Get event statistics
-hookdeck event stats --connection stripe-to-api
-
-# Get delivery rate
-hookdeck event stats --connection stripe-to-api --metric delivery-rate
-
-# Alert on failure rate
-hookdeck event monitor \
-  --connection stripe-to-api \
-  --failure-threshold 10 \
-  --window 5m \
-  --alert-webhook https://alerts.example.com
-```
-
-## Issue Triggers
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Issue triggers automatically detect and create issues when specific conditions are met on webhook events.
-
-### List issue triggers
-```bash
-# List all issue triggers
-hookdeck issue-trigger list
-
-# Filter by type
-hookdeck issue-trigger list --type delivery_failure
-
-# Filter by connection
-hookdeck issue-trigger list --connection stripe-to-api
-
-# Include disabled triggers
-hookdeck issue-trigger list --include-disabled
-
-# Output as JSON
-hookdeck issue-trigger list --format json
-```
-
-### Get issue trigger details
-```bash
-# Get trigger by ID
-hookdeck issue-trigger get isst_123
-
-# Get with configuration details
-hookdeck issue-trigger get isst_123 --include-config
-```
-
-### Create an issue trigger
-```bash
-# Create with interactive prompts
-hookdeck issue-trigger create
-
-# Create delivery trigger with Slack notification
-hookdeck issue-trigger create \
-  --name "payment-delivery-failures" \
-  --type delivery \
-  --strategy final_attempt \
-  --connections "conn_stripe_to_api,conn_payment_processor" \
-  --slack-channel "#alerts"
-
-# Create transformation trigger with email notification
-hookdeck issue-trigger create \
-  --name "transform-errors" \
-  --type transformation \
-  --log-level error \
-  --transformations "*payment*" \
-  --email
-
-# Create backpressure trigger for high delays
-hookdeck issue-trigger create \
-  --name "high-latency-alerts" \
-  --type backpressure \
-  --delay 300000 \
-  --destinations "dest_api_endpoint,dest_webhook_handler" \
-  --slack-channel "#ops" \
-  --pagerduty
-
-# Create trigger for all connections (wildcard pattern)
-hookdeck issue-trigger create \
-  --name "all-delivery-failures" \
-  --type delivery \
-  --strategy first_attempt \
-  --connections "*" \
-  --email \
-  --slack-channel "#critical"
-
-# Create trigger with multiple notification channels
-hookdeck issue-trigger create \
-  --name "critical-failures" \
-  --type delivery \
-  --strategy final_attempt \
-  --connections "payment-*" \
-  --slack-channel "#alerts" \
-  --email \
-  --pagerduty \
-  --opsgenie
-```
-
-### Update issue trigger
-```bash
-# Update interactively
-hookdeck issue-trigger update isst_123
-
-# Update threshold
-hookdeck issue-trigger update isst_123 --threshold 10
-
-# Update time window
-hookdeck issue-trigger update isst_123 --window-minutes 120
-
-# Update filters
-hookdeck issue-trigger update isst_123 --filter "severity=high"
-```
-
-### Delete issue trigger
-```bash
-# Delete with confirmation
-hookdeck issue-trigger delete isst_123
-
-# Force delete without confirmation
-hookdeck issue-trigger delete isst_123 --force
-```
-
-### Enable/Disable issue triggers
-```bash
-# Disable trigger
-hookdeck issue-trigger disable isst_123
-
-# Enable trigger
-hookdeck issue-trigger enable isst_123
-
-# Check trigger status
-hookdeck issue-trigger get isst_123 --format json | jq '{disabled_at, enabled}'
-```
-
-### Issue trigger output examples
-```bash
-$ hookdeck issue-trigger list
-ID             NAME                    TYPE               CONNECTION       THRESHOLD  WINDOW   STATUS
-isst_ABC123    payment-failures        delivery_failure   stripe-to-api    5          60min    enabled
-isst_DEF456    transform-errors        transformation_error data-processor 3          30min    enabled
-isst_GHI789    volume-spike           high_volume        api-events       1000       5min     disabled
-
-$ hookdeck issue-trigger get isst_ABC123 --format json
-{
-  "id": "isst_ABC123",
-  "name": "payment-failures", 
-  "type": "delivery_failure",
-  "connection_id": "conn_stripe123",
-  "threshold": 5,
-  "window_minutes": 60,
-  "filters": ["event_type=payment.failed"],
-  "enabled": true,
-  "created_at": "2023-12-01T10:00:00Z",
-  "updated_at": "2023-12-01T10:00:00Z"
-}
+# Mute event (stop retries)
+hookdeck event mute <event-id>
 ```
 
 ## Attempts
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-Attempts represent individual delivery attempts for webhook events, including retry attempts.
-
 ### List attempts
 ```bash
-# List all attempts
-hookdeck attempt list
-
-# Filter by event
-hookdeck attempt list --event evt_123
-
-# Filter by connection
-hookdeck attempt list --connection stripe-to-api
-
-# Filter by status
-hookdeck attempt list --status FAILED
-
-# Filter by date range
-hookdeck attempt list --from "2023-12-01" --to "2023-12-31"
+# List attempts for an event
+hookdeck attempt list --event-id <event-id>
 
 # Limit results
-hookdeck attempt list --limit 50
-
-# Output as JSON
-hookdeck attempt list --format json
+hookdeck attempt list --event-id <event-id> --limit 50
 ```
 
 ### Get attempt details
 ```bash
 # Get attempt by ID
-hookdeck attempt get atmpt_123
-
-# Get with request/response details
-hookdeck attempt get atmpt_123 --include-details
-
-# Get with headers
-hookdeck attempt get atmpt_123 --include-headers
+hookdeck attempt get <attempt-id>
 ```
 
-### Retry attempts
+## Issues
+
+🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+
+### List issues
 ```bash
-# Retry specific attempt
-hookdeck attempt retry atmpt_123
+# List all issues
+hookdeck issue list
 
-# Retry all failed attempts for an event
-hookdeck attempt retry --event evt_123 --status FAILED
+# Filter by status
+hookdeck issue list --status ACTIVE
+hookdeck issue list --status DISMISSED
 
-# Retry with custom headers
-hookdeck attempt retry atmpt_123 --header "X-Retry-Reason=manual"
+# Filter by type
+hookdeck issue list --type DELIVERY_ISSUE
+hookdeck issue list --type TRANSFORMATION_ISSUE
+
+# Limit results
+hookdeck issue list --limit 100
 ```
 
-### Attempt filtering options
+### Count issues
 ```bash
-# Filter by HTTP status code
-hookdeck attempt list --status-code 500
+# Count all issues
+hookdeck issue count
 
-# Filter by response time
-hookdeck attempt list --response-time-min 5000
-
-# Filter by attempt number
-hookdeck attempt list --attempt-number 3
-
-# Complex filtering
-hookdeck attempt list \
-  --connection payment-api \
-  --status FAILED \
-  --status-code 500 \
-  --from "2023-12-01" \
-  --limit 100
+# Count with filters
+hookdeck issue count --status ACTIVE --type DELIVERY_ISSUE
 ```
 
-### Attempt output examples
+### Get issue details
 ```bash
-$ hookdeck attempt list --event evt_123
-ID              EVENT_ID    ATTEMPT#  STATUS     STATUS_CODE  RESPONSE_TIME  CREATED_AT
-atmpt_ABC123    evt_123     1         SUCCEEDED  200          245ms          2023-12-01T10:00:00Z
-atmpt_DEF456    evt_123     2         FAILED     500          5.2s           2023-12-01T10:01:00Z
-atmpt_GHI789    evt_123     3         SUCCEEDED  200          180ms          2023-12-01T10:02:00Z
+# Get issue by ID
+hookdeck issue get <issue-id>
+```
 
-$ hookdeck attempt get atmpt_DEF456 --format json
-{
-  "id": "atmpt_DEF456",
-  "event_id": "evt_123",
-  "attempt_number": 2,
-  "status": "FAILED",
-  "status_code": 500,
-  "response_time_ms": 5200,
-  "error_code": "DESTINATION_TIMEOUT",
-  "created_at": "2023-12-01T10:01:00Z",
-  "request": {
-    "method": "POST",
-    "url": "https://api.example.com/webhooks",
-    "headers": {...},
-    "body": "..."
-  },
-  "response": {
-    "status_code": 500,
-    "headers": {...},
-    "body": "Internal Server Error"
-  }
-}
+## Issue Triggers
+
+**All Parameters:**
+```bash
+# Issue trigger list command parameters
+--name string         # Filter by name pattern (supports wildcards)
+--type string         # Filter by trigger type (delivery, transformation, backpressure)
+--disabled           # Include disabled triggers (boolean flag)
+--limit integer      # Limit number of results (default varies)
+
+# Issue trigger get command parameters
+<trigger-id>         # Required positional argument for trigger ID
+
+# Issue trigger create command parameters
+--name string         # Optional: Unique name for the trigger
+--type string         # Required: Trigger type (delivery, transformation, backpressure)
+--description string  # Optional: Trigger description
+
+# Type-specific configuration parameters:
+# When --type=delivery:
+--strategy string     # Required: Strategy (first_attempt, final_attempt)
+--connections string  # Required: Connection patterns or IDs (comma-separated or "*")
+
+# When --type=transformation:
+--log-level string    # Required: Log level (debug, info, warn, error, fatal)
+--transformations string # Required: Transformation patterns or IDs (comma-separated or "*")
+
+# When --type=backpressure:
+--delay integer       # Required: Minimum delay in milliseconds (60000-86400000)
+--destinations string # Required: Destination patterns or IDs (comma-separated or "*")
+
+# Notification channel parameters (at least one required):
+--email              # Enable email notifications (boolean flag)
+--slack-channel string    # Slack channel name (e.g., "#alerts")
+--pagerduty          # Enable PagerDuty notifications (boolean flag)
+--opsgenie           # Enable Opsgenie notifications (boolean flag)
+
+# Issue trigger update command parameters
+<trigger-id>         # Required positional argument for trigger ID
+--name string         # Update trigger name
+--description string  # Update trigger description
+# Plus any type-specific and notification parameters listed above
+
+# Issue trigger upsert command parameters (create or update by name)
+--name string         # Required: Trigger name (used for matching existing)
+--type string         # Required: Trigger type
+# Plus any type-specific and notification parameters listed above
+
+# Issue trigger delete command parameters
+<trigger-id>         # Required positional argument for trigger ID
+--force              # Force delete without confirmation (boolean flag)
+
+# Issue trigger enable/disable command parameters
+<trigger-id>         # Required positional argument for trigger ID
+```
+
+**Type Validation Rules:**
+- **delivery type**: Requires `--strategy` and `--connections`
+  - `--strategy` values: `first_attempt`, `final_attempt`
+  - `--connections` accepts: connection IDs, connection name patterns, or `"*"` for all
+- **transformation type**: Requires `--log-level` and `--transformations`
+  - `--log-level` values: `debug`, `info`, `warn`, `error`, `fatal`
+  - `--transformations` accepts: transformation IDs, transformation name patterns, or `"*"` for all
+- **backpressure type**: Requires `--delay` and `--destinations`
+  - `--delay` range: 60000-86400000 milliseconds (1 minute to 1 day)
+  - `--destinations` accepts: destination IDs, destination name patterns, or `"*"` for all
+
+**Notification Channel Combinations:**
+- Multiple notification channels can be enabled simultaneously
+- `--email` is a boolean flag (no additional configuration)
+- `--slack-channel` requires a channel name (e.g., "#alerts", "#monitoring")
+- `--pagerduty` and `--opsgenie` are boolean flags requiring pre-configured integrations
+
+🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+
+Issue triggers automatically detect and create issues when specific conditions are met.
+
+### List issue triggers
+```bash
+# List all issue triggers
+hookdeck issue-trigger list
+
+# Filter by name pattern
+hookdeck issue-trigger list --name "*delivery*"
+
+# Filter by type
+hookdeck issue-trigger list --type delivery
+hookdeck issue-trigger list --type transformation
+hookdeck issue-trigger list --type backpressure
+
+# Include disabled triggers
+hookdeck issue-trigger list --disabled
+
+# Limit results
+hookdeck issue-trigger list --limit 50
+```
+
+### Get issue trigger details
+```bash
+# Get issue trigger by ID
+hookdeck issue-trigger get <trigger-id>
+```
+
+### Create issue triggers
+
+#### Delivery failure trigger
+```bash
+# Trigger on final delivery attempt failure
+hookdeck issue-trigger create --type delivery \
+  --name "delivery-failures" \
+  --strategy final_attempt \
+  --connections "conn1,conn2" \
+  --email \
+  --slack-channel "#alerts"
+
+# Trigger on first delivery attempt failure
+hookdeck issue-trigger create --type delivery \
+  --name "immediate-delivery-alerts" \
+  --strategy first_attempt \
+  --connections "*" \
+  --pagerduty
+```
+
+#### Transformation error trigger
+```bash
+# Trigger on transformation errors
+hookdeck issue-trigger create --type transformation \
+  --name "transformation-errors" \
+  --log-level error \
+  --transformations "*" \
+  --email \
+  --opsgenie
+
+# Trigger on specific transformation debug logs
+hookdeck issue-trigger create --type transformation \
+  --name "debug-logs" \
+  --log-level debug \
+  --transformations "trans1,trans2" \
+  --slack-channel "#debug"
+```
+
+#### Backpressure trigger
+```bash
+# Trigger on destination backpressure
+hookdeck issue-trigger create --type backpressure \
+  --name "backpressure-alert" \
+  --delay 300000 \
+  --destinations "*" \
+  --email \
+  --pagerduty
+```
+
+### Update issue trigger
+```bash
+# Update trigger name and description
+hookdeck issue-trigger update <trigger-id> --name "new-name" --description "Updated description"
+
+# Update notification channels
+hookdeck issue-trigger update <trigger-id> --email --slack-channel "#new-alerts"
+
+# Update type-specific configuration
+hookdeck issue-trigger update <trigger-id> --strategy first_attempt --connections "new_conn"
+```
+
+### Upsert issue trigger (create or update by name)
+```bash
+# Create or update issue trigger by name
+hookdeck issue-trigger upsert --name "delivery-failures" --type delivery --strategy final_attempt
+```
+
+### Delete issue trigger
+```bash
+# Delete issue trigger (with confirmation)
+hookdeck issue-trigger delete <trigger-id>
+
+# Force delete without confirmation
+hookdeck issue-trigger delete <trigger-id> --force
+```
+
+### Enable/Disable issue triggers
+```bash
+# Enable issue trigger
+hookdeck issue-trigger enable <trigger-id>
+
+# Disable issue trigger
+hookdeck issue-trigger disable <trigger-id>
 ```
 
 ## Bookmarks
 
+**All Parameters:**
+```bash
+# Bookmark list command parameters
+--name string         # Filter by name pattern (supports wildcards)
+--webhook-id string   # Filter by webhook ID (connection)
+--label string        # Filter by label
+--limit integer       # Limit number of results (default varies)
+
+# Bookmark get command parameters
+<bookmark-id>         # Required positional argument for bookmark ID
+
+# Bookmark raw-body command parameters
+<bookmark-id>         # Required positional argument for bookmark ID
+
+# Bookmark create command parameters
+--event-data-id string # Required: Event data ID to bookmark
+--webhook-id string    # Required: Webhook ID (connection)
+--label string         # Required: Label for categorization
+--name string          # Optional: Bookmark name
+
+# Bookmark update command parameters
+<bookmark-id>         # Required positional argument for bookmark ID
+--name string          # Update bookmark name
+--label string         # Update bookmark label
+
+# Bookmark delete command parameters
+<bookmark-id>         # Required positional argument for bookmark ID
+--force               # Force delete without confirmation (boolean flag)
+
+# Bookmark trigger command parameters (replay)
+<bookmark-id>         # Required positional argument for bookmark ID
+```
+
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-Bookmarks allow you to save and quickly replay webhook events for testing and debugging.
+Bookmarks allow you to save webhook payloads for testing and replay.
 
 ### List bookmarks
 ```bash
@@ -1241,839 +1649,284 @@ hookdeck bookmark list
 # Filter by name pattern
 hookdeck bookmark list --name "*test*"
 
-# Filter by event type
-hookdeck bookmark list --event-type "payment.succeeded"
+# Filter by webhook ID (connection)
+hookdeck bookmark list --webhook-id <connection-id>
 
-# Filter by source
-hookdeck bookmark list --source stripe-prod
+# Filter by label
+hookdeck bookmark list --label test_data
 
-# Output as JSON
-hookdeck bookmark list --format json
+# Limit results
+hookdeck bookmark list --limit 50
 ```
 
 ### Get bookmark details
 ```bash
 # Get bookmark by ID
-hookdeck bookmark get bmk_123
+hookdeck bookmark get <bookmark-id>
 
-# Get bookmark by name
-hookdeck bookmark get test-payment
-
-# Get with full event data
-hookdeck bookmark get bmk_123 --include-data
+# Get bookmark raw body
+hookdeck bookmark raw-body <bookmark-id>
 ```
 
 ### Create a bookmark
 ```bash
-# Create from existing event
-hookdeck bookmark create --event evt_123 --name "failed-payment-test"
-
-# Create with description
-hookdeck bookmark create \
-  --event evt_123 \
-  --name "stripe-subscription-cancel" \
-  --description "Test case for subscription cancellation flow"
-
-# Create with tags
-hookdeck bookmark create \
-  --event evt_123 \
-  --name "high-value-transaction" \
-  --tags "payment,testing,edge-case"
-
-# Create from JSON payload
-hookdeck bookmark create \
-  --name "custom-test-event" \
-  --payload-file "./test-payloads/payment.json" \
-  --headers "Content-Type=application/json" \
-  --source stripe-prod
+# Create bookmark from event
+hookdeck bookmark create --event-data-id <event-data-id> \
+  --webhook-id <connection-id> \
+  --label test_payload \
+  --name "stripe-payment-test"
 ```
 
-### Update bookmark
+### Update a bookmark
 ```bash
-# Update interactively
-hookdeck bookmark update bmk_123
-
-# Update name
-hookdeck bookmark update bmk_123 --name "new-bookmark-name"
-
-# Update description
-hookdeck bookmark update bmk_123 --description "Updated test description"
-
-# Update tags
-hookdeck bookmark update bmk_123 --tags "payment,updated,regression"
-
-# Update payload
-hookdeck bookmark update bmk_123 --payload-file "./updated-payload.json"
+# Update bookmark properties
+hookdeck bookmark update <bookmark-id> --name "new-name" --label new_label
 ```
 
-### Delete bookmark
+### Delete a bookmark
 ```bash
-# Delete with confirmation
-hookdeck bookmark delete bmk_123
+# Delete bookmark (with confirmation)
+hookdeck bookmark delete <bookmark-id>
 
 # Force delete without confirmation
-hookdeck bookmark delete bmk_123 --force
-
-# Delete by name
-hookdeck bookmark delete test-payment
+hookdeck bookmark delete <bookmark-id> --force
 ```
 
-### Trigger bookmark
+### Trigger bookmark (replay)
 ```bash
-# Trigger bookmark to connection
-hookdeck bookmark trigger bmk_123 --connection stripe-to-api
-
-# Trigger to specific destination
-hookdeck bookmark trigger bmk_123 --destination local-dev
-
-# Trigger with modified headers
-hookdeck bookmark trigger bmk_123 \
-  --connection stripe-to-api \
-  --header "X-Test-Mode=true"
-
-# Trigger multiple times
-hookdeck bookmark trigger bmk_123 \
-  --connection stripe-to-api \
-  --count 5 \
-  --interval 1000ms
-```
-
-### Bookmark output examples
-```bash
-$ hookdeck bookmark list
-ID           NAME                      EVENT_TYPE           SOURCE      TAGS             CREATED_AT
-bmk_ABC123   failed-payment-test      payment.failed       stripe-prod payment,test     2023-12-01T10:00:00Z
-bmk_DEF456   subscription-cancel      customer.subscription stripe-prod subscription     2023-12-01T11:00:00Z
-bmk_GHI789   high-value-transaction   payment.succeeded     stripe-prod payment,edge     2023-12-01T12:00:00Z
-
-$ hookdeck bookmark get bmk_ABC123 --format json
-{
-  "id": "bmk_ABC123",
-  "name": "failed-payment-test",
-  "description": "Test case for failed payment handling",
-  "event_type": "payment.failed",
-  "source_id": "src_stripe123",
-  "tags": ["payment", "test"],
-  "headers": {...},
-  "payload": {...},
-  "created_at": "2023-12-01T10:00:00Z",
-  "updated_at": "2023-12-01T10:00:00Z"
-}
+# Trigger bookmark to replay webhook
+hookdeck bookmark trigger <bookmark-id>
 ```
 
 ## Integrations
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-Integrations connect platform-specific services and can be attached to sources for enhanced functionality.
+Integrations connect third-party services to your Hookdeck workspace.
 
 ### List integrations
 ```bash
 # List all integrations
 hookdeck integration list
 
-# Filter by provider
-hookdeck integration list --provider SLACK
-
-# Filter by type
-hookdeck integration list --type notification
-
-# Include disabled integrations
-hookdeck integration list --include-disabled
-
-# Output as JSON
-hookdeck integration list --format json
+# Limit results
+hookdeck integration list --limit 50
 ```
 
 ### Get integration details
 ```bash
 # Get integration by ID
-hookdeck integration get int_123
-
-# Get with configuration details
-hookdeck integration get int_123 --include-config
+hookdeck integration get <integration-id>
 ```
 
-### Create integrations
-
-#### Slack notification integration
+### Create an integration
 ```bash
-# Create Slack integration
-hookdeck integration create \
-  --name "team-notifications" \
-  --provider SLACK \
-  --type notification \
-  --webhook-url "https://hooks.slack.com/services/..." \
-  --channel "#webhooks" \
-  --username "Hookdeck Bot"
-
-# Create with custom message template
-hookdeck integration create \
-  --name "alert-notifications" \
-  --provider SLACK \
-  --type notification \
-  --webhook-url "https://hooks.slack.com/services/..." \
-  --channel "#alerts" \
-  --template "🚨 Webhook failed: {{event.type}} from {{source.name}}"
+# Create integration (provider-specific configuration required)
+hookdeck integration create --provider PROVIDER_NAME
 ```
 
-#### Email notification integration
+### Update an integration
 ```bash
-# Create email integration
-hookdeck integration create \
-  --name "ops-email-alerts" \
-  --provider EMAIL \
-  --type notification \
-  --recipients "ops@company.com,alerts@company.com" \
-  --subject-template "Webhook Alert: {{event.type}}"
+# Update integration (provider-specific configuration)
+hookdeck integration update <integration-id>
 ```
 
-#### PagerDuty integration
+### Delete an integration
 ```bash
-# Create PagerDuty integration
-hookdeck integration create \
-  --name "critical-alerts" \
-  --provider PAGERDUTY \
-  --type alert \
-  --routing-key "your_pagerduty_routing_key" \
-  --severity "critical"
-```
-
-#### Datadog monitoring integration
-```bash
-# Create Datadog integration
-hookdeck integration create \
-  --name "webhook-metrics" \
-  --provider DATADOG \
-  --type monitoring \
-  --api-key "your_datadog_api_key" \
-  --site "datadoghq.com" \
-  --tags "service:webhooks,env:production"
-```
-
-### Update integration
-```bash
-# Update interactively
-hookdeck integration update int_123
-
-# Update configuration
-hookdeck integration update int_123 --webhook-url "https://new-webhook-url.com"
-
-# Update notification settings
-hookdeck integration update int_123 --channel "#new-channel"
-```
-
-### Delete integration
-```bash
-# Delete with confirmation
-hookdeck integration delete int_123
+# Delete integration (with confirmation)
+hookdeck integration delete <integration-id>
 
 # Force delete without confirmation
-hookdeck integration delete int_123 --force
+hookdeck integration delete <integration-id> --force
 ```
 
-### Enable/Disable integrations
+### Attach/Detach sources
 ```bash
-# Disable integration
-hookdeck integration disable int_123
+# Attach source to integration
+hookdeck integration attach <integration-id> <source-id>
 
-# Enable integration
-hookdeck integration enable int_123
-```
-
-### Attach integration to source
-```bash
-# Attach integration to source
-hookdeck source attach-integration src_123 int_456
-
-# Attach with specific trigger conditions
-hookdeck source attach-integration src_123 int_456 \
-  --trigger-on "delivery_failure,transformation_error" \
-  --threshold 3
-
-# Detach integration from source
-hookdeck source detach-integration src_123 int_456
-```
-
-### Integration output examples
-```bash
-$ hookdeck integration list
-ID           NAME                 PROVIDER    TYPE          STATUS    CREATED_AT
-int_ABC123   team-notifications   SLACK       notification  enabled   2023-12-01T10:00:00Z
-int_DEF456   critical-alerts      PAGERDUTY   alert         enabled   2023-12-01T11:00:00Z
-int_GHI789   webhook-metrics      DATADOG     monitoring    disabled  2023-12-01T12:00:00Z
-
-$ hookdeck integration get int_ABC123 --format json
-{
-  "id": "int_ABC123",
-  "name": "team-notifications",
-  "provider": "SLACK",
-  "type": "notification",
-  "enabled": true,
-  "config": {
-    "webhook_url": "https://hooks.slack.com/services/...",
-    "channel": "#webhooks",
-    "username": "Hookdeck Bot"
-  },
-  "created_at": "2023-12-01T10:00:00Z",
-  "updated_at": "2023-12-01T10:00:00Z"
-}
-```
-
-## Issues
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Issues represent problems detected in your webhook infrastructure, automatically created by issue triggers.
-
-### List issues
-```bash
-# List all issues
-hookdeck issue list
-
-# Filter by status
-hookdeck issue list --status OPEN
-
-# Filter by type
-hookdeck issue list --type delivery_failure
-
-# Filter by connection
-hookdeck issue list --connection stripe-to-api
-
-# Filter by date range
-hookdeck issue list --from "2023-12-01" --to "2023-12-31"
-
-# Sort by severity
-hookdeck issue list --sort severity --order desc
-
-# Output as JSON
-hookdeck issue list --format json
-```
-
-### Get issue details
-```bash
-# Get issue by ID
-hookdeck issue get iss_123
-
-# Get with related events
-hookdeck issue get iss_123 --include-events
-
-# Get with resolution history
-hookdeck issue get iss_123 --include-history
-```
-
-### Update issue
-```bash
-# Update issue status
-hookdeck issue update iss_123 --status RESOLVED
-
-# Add note to issue
-hookdeck issue update iss_123 --note "Fixed by deploying v2.1.3"
-
-# Update severity
-hookdeck issue update iss_123 --severity LOW
-
-# Assign issue
-hookdeck issue update iss_123 --assignee "ops@company.com"
-```
-
-### Dismiss issues
-```bash
-# Dismiss single issue
-hookdeck issue dismiss iss_123 --reason "False positive"
-
-# Dismiss multiple issues
-hookdeck issue dismiss iss_123 iss_456 iss_789 --reason "Resolved in bulk"
-
-# Dismiss all issues of a type
-hookdeck issue dismiss --type delivery_failure --connection old-api --reason "Service deprecated"
-
-# Auto-dismiss after resolution
-hookdeck issue update iss_123 --status RESOLVED --auto-dismiss
-```
-
-### Issue filtering and sorting
-```bash
-# Filter by severity
-hookdeck issue list --severity CRITICAL,HIGH
-
-# Filter by trigger
-hookdeck issue list --trigger isst_123
-
-# Complex filtering
-hookdeck issue list \
-  --status OPEN \
-  --severity HIGH,CRITICAL \
-  --from "2023-12-01" \
-  --connection payment-api \
-  --sort created_at \
-  --order desc \
-  --limit 50
-```
-
-### Issue output examples
-```bash
-$ hookdeck issue list
-ID           TYPE                CONNECTION      SEVERITY  STATUS  EVENTS  CREATED_AT
-iss_ABC123   delivery_failure    stripe-to-api  HIGH      OPEN    15      2023-12-01T10:00:00Z  
-iss_DEF456   transformation_error data-processor MEDIUM    OPEN    8       2023-12-01T11:00:00Z
-iss_GHI789   high_volume         api-events      LOW       RESOLVED 1       2023-12-01T12:00:00Z
-
-$ hookdeck issue get iss_ABC123 --format json
-{
-  "id": "iss_ABC123",
-  "type": "delivery_failure",
-  "connection_id": "conn_stripe123",
-  "trigger_id": "isst_payment_failures",
-  "severity": "HIGH",
-  "status": "OPEN",
-  "title": "High delivery failure rate detected",
-  "description": "15 events failed delivery in the last 60 minutes",
-  "event_count": 15,
-  "first_event_at": "2023-12-01T09:00:00Z",
-  "last_event_at": "2023-12-01T10:00:00Z",
-  "created_at": "2023-12-01T10:00:00Z",
-  "updated_at": "2023-12-01T10:00:00Z",
-  "assignee": null,
-  "notes": []
-}
+# Detach source from integration
+hookdeck integration detach <integration-id> <source-id>
 ```
 
 ## Requests
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-Requests represent the raw HTTP requests received by Hookdeck sources before they become events.
+Requests represent raw incoming webhook requests before processing.
 
 ### List requests
 ```bash
 # List all requests
 hookdeck request list
 
-# Filter by source
-hookdeck request list --source stripe-prod
+# Filter by source ID
+hookdeck request list --source-id <source-id>
 
-# Filter by status
-hookdeck request list --status PROCESSED
+# Filter by verification status
+hookdeck request list --verified true
+hookdeck request list --verified false
 
-# Filter by date range
-hookdeck request list --from "2023-12-01T10:00:00Z" --to "2023-12-01T11:00:00Z"
+# Filter by rejection cause
+hookdeck request list --rejection-cause INVALID_SIGNATURE
 
-# Filter by HTTP method
-hookdeck request list --method POST
-
-# Filter by status code
-hookdeck request list --status-code 200
-
-# Output as JSON
-hookdeck request list --format json
+# Limit results
+hookdeck request list --limit 100
 ```
 
 ### Get request details
 ```bash
 # Get request by ID
-hookdeck request get req_123
+hookdeck request get <request-id>
 
-# Get with full headers
-hookdeck request get req_123 --include-headers
-
-# Get with raw body
-hookdeck request get req_123 --include-body
-
-# Get associated events
-hookdeck request get req_123 --include-events
+# Get request raw body
+hookdeck request raw-body <request-id>
 ```
 
-### Get raw request data
+### Retry request
 ```bash
-# Get raw request headers
-hookdeck request raw req_123 --headers-only
-
-# Get raw request body
-hookdeck request raw req_123 --body-only
-
-# Get complete raw request
-hookdeck request raw req_123 --complete
-
-# Save raw request to file
-hookdeck request raw req_123 --output request-123.json
-
-# Get curl equivalent
-hookdeck request raw req_123 --as-curl
+# Retry request processing
+hookdeck request retry <request-id>
 ```
 
-### Retry requests
+### List request events
 ```bash
-# Retry request (creates new event)
-hookdeck request retry req_123
+# List events generated from request
+hookdeck request events <request-id> --limit 50
 
-# Retry with different destination
-hookdeck request retry req_123 --destination local-dev
-
-# Retry with modified headers
-hookdeck request retry req_123 --header "X-Retry-Source=cli"
-
-# Retry multiple requests
-hookdeck request retry req_123 req_456 req_789
-
-# Bulk retry filtered requests
-hookdeck request retry \
-  --source stripe-prod \
-  --status FAILED \
-  --from "2023-12-01T10:00:00Z" \
-  --limit 100
-```
-
-### Request filtering options
-```bash
-# Filter by content type
-hookdeck request list --content-type "application/json"
-
-# Filter by user agent
-hookdeck request list --user-agent "*Stripe*"
-
-# Filter by IP address
-hookdeck request list --ip "192.168.1.100"
-
-# Filter by payload size
-hookdeck request list --size-min 1024 --size-max 10240
-
-# Complex filtering
-hookdeck request list \
-  --source payment-api \
-  --method POST \
-  --status PROCESSED \
-  --from "2023-12-01" \
-  --content-type "application/json" \
-  --limit 50
-```
-
-### Request output examples
-```bash
-$ hookdeck request list --source stripe-prod --limit 5
-ID           SOURCE        METHOD  STATUS      STATUS_CODE  SIZE    CREATED_AT
-req_ABC123   stripe-prod   POST    PROCESSED   200          2.1KB   2023-12-01T10:00:00Z
-req_DEF456   stripe-prod   POST    PROCESSED   200          1.8KB   2023-12-01T10:01:00Z
-req_GHI789   stripe-prod   POST    FAILED      400          0.5KB   2023-12-01T10:02:00Z
-req_JKL012   stripe-prod   POST    PROCESSED   200          3.2KB   2023-12-01T10:03:00Z
-req_MNO345   stripe-prod   POST    PROCESSED   200          1.9KB   2023-12-01T10:04:00Z
-
-$ hookdeck request get req_ABC123 --format json
-{
-  "id": "req_ABC123",
-  "source_id": "src_stripe123",
-  "method": "POST",
-  "path": "/webhook",
-  "query_string": "",
-  "status": "PROCESSED",
-  "status_code": 200,
-  "content_type": "application/json",
-  "user_agent": "Stripe/1.0",
-  "ip_address": "3.18.12.63",
-  "size_bytes": 2150,
-  "created_at": "2023-12-01T10:00:00Z",
-  "processed_at": "2023-12-01T10:00:01Z",
-  "event_count": 1,
-  "headers": {...},
-  "body_preview": "{"id": "evt_...", "object": "event"...}"
-}
-
-$ hookdeck request raw req_ABC123 --as-curl
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: Stripe/1.0" \
-  -H "Stripe-Signature: t=1234567890,v1=abc123..." \
-  -d '{"id":"evt_123","object":"event","type":"payment_intent.succeeded",...}' \
-  https://events.hookdeck.com/e/src_stripe123/webhook
+# List ignored events from request
+hookdeck request ignored-events <request-id> --limit 50
 ```
 
 ## Bulk Operations
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Bulk operations allow you to perform actions on multiple resources at once, with filtering and confirmation options.
-
-### Bulk retry for events
+**All Parameters:**
 ```bash
-# Retry all failed events
-hookdeck event bulk-retry --status FAILED --confirm
+# Bulk event-retry command parameters
+--limit integer       # Limit number of results for list operations
+--query string        # JSON query for filtering resources to retry
+<operation-id>        # Required positional argument for get/cancel operations
 
-# Retry failed events for specific connection
-hookdeck event bulk-retry \
-  --status FAILED \
-  --connection stripe-to-api \
-  --from "2023-12-01" \
-  --confirm
+# Bulk request-retry command parameters
+--limit integer       # Limit number of results for list operations
+--query string        # JSON query for filtering resources to retry
+<operation-id>        # Required positional argument for get/cancel operations
 
-# Retry events with specific error codes
-hookdeck event bulk-retry \
-  --status FAILED \
-  --error-code "DESTINATION_TIMEOUT,CONNECTION_REFUSED" \
-  --limit 100 \
-  --confirm
-
-# Dry run to see what would be retried
-hookdeck event bulk-retry --status FAILED --dry-run
-
-# Retry with custom delay between attempts
-hookdeck event bulk-retry \
-  --status FAILED \
-  --connection payment-api \
-  --delay 5s \
-  --confirm
+# Bulk ignored-event-retry command parameters
+--limit integer       # Limit number of results for list operations
+--query string        # JSON query for filtering resources to retry
+<operation-id>        # Required positional argument for get/cancel operations
 ```
 
-### Bulk retry for ignored events
-```bash
-# Retry all ignored events
-hookdeck ignored-event bulk-retry --confirm
+**Query JSON Format Examples:**
+- Event retry: `'{"status": "FAILED", "webhook_id": "conn_123"}'`
+- Request retry: `'{"verified": false, "source_id": "src_123"}'`
+- Ignored event retry: `'{"webhook_id": "conn_123"}'`
 
-# Retry ignored events for specific connection
-hookdeck ignored-event bulk-retry \
-  --connection stripe-to-api \
-  --from "2023-12-01" \
-  --confirm
-
-# Retry ignored events by filter pattern
-hookdeck ignored-event bulk-retry \
-  --filter "event_type=payment.failed" \
-  --limit 50 \
-  --confirm
-
-# Dry run to preview ignored events
-hookdeck ignored-event bulk-retry --dry-run
-```
-
-### Bulk retry for requests
-```bash
-# Retry all failed requests
-hookdeck request bulk-retry --status FAILED --confirm
-
-# Retry requests by source
-hookdeck request bulk-retry \
-  --source stripe-prod \
-  --status FAILED \
-  --from "2023-12-01T10:00:00Z" \
-  --to "2023-12-01T11:00:00Z" \
-  --confirm
-
-# Retry requests with specific HTTP status codes
-hookdeck request bulk-retry \
-  --status-code 500,502,503,504 \
-  --limit 200 \
-  --confirm
-
-# Retry requests to different destination
-hookdeck request bulk-retry \
-  --source api-events \
-  --status FAILED \
-  --destination backup-processor \
-  --confirm
-```
-
-### Bulk enable/disable resources
-```bash
-# Disable all sources of a type
-hookdeck source bulk-disable --type WEBHOOK --confirm
-
-# Enable all destinations matching pattern
-hookdeck destination bulk-enable --name "*staging*" --confirm
-
-# Disable connections by source
-hookdeck connection bulk-disable --source deprecated-api --confirm
-
-# Enable all disabled issue triggers
-hookdeck issue-trigger bulk-enable --disabled --confirm
-
-# Disable integrations by provider
-hookdeck integration bulk-disable --provider SLACK --confirm
-```
-
-### Bulk delete operations
-```bash
-# Delete all disabled sources
-hookdeck source bulk-delete --disabled --confirm
-
-# Delete all test connections
-hookdeck connection bulk-delete --name "*test*" --confirm
-
-# Delete old events (with retention policy)
-hookdeck event bulk-delete \
-  --status SUCCEEDED \
-  --before "2023-11-01" \
-  --confirm
-
-# Delete bookmarks by tag
-hookdeck bookmark bulk-delete --tag "deprecated" --confirm
-
-# Delete resolved issues older than 30 days
-hookdeck issue bulk-delete \
-  --status RESOLVED \
-  --before "30 days ago" \
-  --confirm
-```
-
-### Bulk update operations
-```bash
-# Update connection retry policies
-hookdeck connection bulk-update \
-  --source stripe-prod \
-  --retry-count 5 \
-  --retry-strategy exponential \
-  --confirm
-
-# Update destination timeouts
-hookdeck destination bulk-update \
-  --type HTTP \
-  --timeout 30000 \
-  --confirm
-
-# Update source authentication
-hookdeck source bulk-update \
-  --type WEBHOOK \
-  --auth-type HMAC \
-  --confirm
-
-# Assign multiple issues to user
-hookdeck issue bulk-update \
-  --status OPEN \
-  --connection payment-api \
-  --assignee "ops@company.com" \
-  --confirm
-```
-
-### Bulk filtering options
-```bash
-# Filter by date ranges
---from "2023-12-01"
---to "2023-12-31" 
---before "30 days ago"
---after "2023-11-01T10:00:00Z"
-
-# Filter by status and type
---status FAILED,TIMEOUT
---type delivery_failure
---error-code CONNECTION_REFUSED
-
-# Filter by naming patterns
---name "*test*"
---name-regex "^prod-.*"
---tag "deprecated,testing"
-
-# Filter by relationships
---connection stripe-to-api
---source payment-webhooks
---destination local-dev
---trigger isst_123
-
-# Limit and ordering
---limit 1000
---sort created_at
---order desc
-```
-
-### Bulk operation safety features
-```bash
-# Always confirm destructive operations
---confirm             # Required for delete/disable operations
-
-# Preview operations without executing
---dry-run            # Show what would be affected
-
-# Limit scope to prevent accidents
---limit 100          # Maximum number of resources to affect
-
-# Progress tracking for large operations
---progress           # Show progress bar for bulk operations
-
-# Force operations (bypass some confirmations)
---force              # Use with extreme caution
-```
-
-### Bulk operation output examples
-```bash
-$ hookdeck event bulk-retry --status FAILED --connection stripe-to-api --dry-run
-Found 45 failed events matching criteria:
-- Connection: stripe-to-api
-- Status: FAILED  
-- Date range: Last 24 hours
-
-Events would be retried:
-evt_ABC123  payment.failed      2023-12-01T10:00:00Z
-evt_DEF456  invoice.updated     2023-12-01T10:05:00Z
-evt_GHI789  customer.updated    2023-12-01T10:10:00Z
-...
-
-Run with --confirm to execute this bulk retry operation.
-
-$ hookdeck source bulk-disable --type WEBHOOK --confirm
-Disabling 12 webhook sources...
-✓ src_ABC123 (webhook-1) disabled
-✓ src_DEF456 (webhook-2) disabled  
-✓ src_GHI789 (webhook-3) disabled
-...
-Successfully disabled 12 webhook sources.
-
-$ hookdeck connection bulk-delete --name "*test*" --confirm
-Deleting 8 test connections...
-✓ conn_test_123 deleted
-✓ conn_test_456 deleted
-✗ conn_test_789 failed (connection has active events)
-...
-Successfully deleted 7 of 8 connections. 1 failed.
-```
-
-## Advanced Usage (Planned)
+**Operations Available:**
+- `list` - List bulk operations
+- `create` - Create new bulk operation
+- `plan` - Dry run to see what would be affected
+- `get` - Get operation details
+- `cancel` - Cancel running operation
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-### Output formats
+Bulk operations allow you to perform actions on multiple resources at once.
+
+### Event Bulk Retry
 ```bash
-# JSON output
-hookdeck source list --format json
+# List bulk event retry operations
+hookdeck bulk event-retry list --limit 50
 
-# YAML output
-hookdeck destination list --format yaml
+# Create bulk event retry operation
+hookdeck bulk event-retry create --query '{"status": "FAILED", "webhook_id": "conn_123"}'
 
-# CSV output
-hookdeck connection list --format csv
+# Plan bulk event retry (dry run)
+hookdeck bulk event-retry plan --query '{"status": "FAILED"}'
+
+# Get bulk operation details
+hookdeck bulk event-retry get <operation-id>
+
+# Cancel bulk operation
+hookdeck bulk event-retry cancel <operation-id>
 ```
 
-### Environment variables
+### Request Bulk Retry
 ```bash
-# Set API key
-export HOOKDECK_API_KEY="your_api_key"
+# List bulk request retry operations
+hookdeck bulk request-retry list --limit 50
 
-# Set default project
-export HOOKDECK_PROJECT_ID="proj_123"
+# Create bulk request retry operation
+hookdeck bulk request-retry create --query '{"verified": false, "source_id": "src_123"}'
 
-# Set output format
-export HOOKDECK_FORMAT="json"
+# Plan bulk request retry (dry run)
+hookdeck bulk request-retry plan --query '{"verified": false}'
+
+# Get bulk operation details
+hookdeck bulk request-retry get <operation-id>
+
+# Cancel bulk operation
+hookdeck bulk request-retry cancel <operation-id>
+```
+
+### Ignored Events Bulk Retry
+```bash
+# List bulk ignored event retry operations
+hookdeck bulk ignored-event-retry list --limit 50
+
+# Create bulk ignored event retry operation
+hookdeck bulk ignored-event-retry create --query '{"webhook_id": "conn_123"}'
+
+# Plan bulk ignored event retry (dry run)
+hookdeck bulk ignored-event-retry plan --query '{"webhook_id": "conn_123"}'
+
+# Get bulk operation details
+hookdeck bulk ignored-event-retry get <operation-id>
+
+# Cancel bulk operation
+hookdeck bulk ignored-event-retry cancel <operation-id>
+```
+
+## Notifications
+
+🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+
+### Send webhook notification
+```bash
+# Send webhook notification
+hookdeck notification webhook --url "https://example.com/webhook" \
+  --payload '{"message": "Test notification", "timestamp": "2023-12-01T10:00:00Z"}'
 ```
 
 ---
 
-## Getting Help
+## Command Parameter Patterns
 
-```bash
-# General help
-hookdeck --help
+### Type-Driven Validation
+Many commands use type-driven validation where the `--type` parameter determines which additional flags are required or valid:
 
-# Command-specific help
-hookdeck project --help
-hookdeck listen --help
+- **Source creation**: `--type STRIPE` requires `--webhook-secret`, while `--type GITLAB` requires `--api-key`
+- **Issue trigger creation**: `--type delivery` requires `--strategy` and `--connections`, while `--type transformation` requires `--log-level` and `--transformations`
 
-# Version information
-hookdeck version
-```
+### Collision Resolution
+The `hookdeck connection create` command uses prefixed flags to avoid parameter collision when creating inline resources:
 
-## Migration from Current to Planned CLI
+- **Individual resource commands**: Use `--type` (clear context)
+- **Connection creation with inline resources**: Use `--source-type` and `--destination-type` (disambiguation)
 
-When the planned functionality is implemented, existing commands will continue to work, but will gain additional capabilities:
+### Parameter Conversion Patterns
+- **Nested JSON → Flat flags**: `{"configs": {"strategy": "final_attempt"}}` becomes `--strategy final_attempt`
+- **Arrays → Comma-separated**: `{"connections": ["conn1", "conn2"]}` becomes `--connections "conn1,conn2"`
+- **Boolean presence → Presence flags**: `{"channels": {"email": {}}}` becomes `--email`
+- **Complex objects → Value flags**: `{"channels": {"slack": {"channel_name": "#alerts"}}}` becomes `--slack-channel "#alerts"`
 
-1. **Enhanced output** - Current text output will be supplemented with `--format` options
-2. **Extended project management** - Current `list` and `use` will be joined by `create`, `update`, `delete`
-3. **New resource types** - Sources, destinations, connections, and transformations will be added
-4. **Backward compatibility** - All current commands and flags will continue to work
+### Global Conventions
+- **Resource IDs**: Use `<resource-id>` format in documentation
+- **Optional parameters**: Enclosed in square brackets `[--optional-flag]`
+- **Required vs optional**: Indicated by command syntax and parameter descriptions
+- **Filtering**: Most list commands support filtering by name patterns, IDs, and status
+- **Pagination**: All list commands support `--limit` for result limiting
+- **Force operations**: Destructive operations support `--force` to skip confirmations
 
-This reference serves both as documentation for current users and as a specification for future development.
+This comprehensive reference provides complete coverage of all Hookdeck CLI commands, including current functionality and planned features with their full parameter specifications.
