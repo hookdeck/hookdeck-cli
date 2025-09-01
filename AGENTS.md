@@ -52,6 +52,9 @@ CLI: --slack-channel "#alerts"
     - `--destination-type HTTP` when creating destination inline
     - This prevents confusion between source and destination types in single command
 - **Authentication**: Standard patterns (`--api-key`, `--webhook-secret`, `--basic-auth`)
+  - **Connection creation**: Use prefixed authentication to avoid collisions
+    - `--source-webhook-secret` for source authentication
+    - `--destination-api-key` for destination authentication
 - **Collections**: Use comma-separated values (`--connections "a,b,c"`)
 - **Booleans**: Use presence flags (`--email`, `--pagerduty`, `--force`)
 
@@ -69,6 +72,7 @@ hookdeck destination create --type HTTP --url https://api.example.com
 # Connection creation with inline resources (requires prefixed flags)
 hookdeck connection create \
   --source-type STRIPE --source-name "stripe-prod" \
+  --source-webhook-secret "whsec_abc123" \
   --destination-type HTTP --destination-name "my-api" \
   --destination-url "https://api.example.com/webhooks"
 ```
