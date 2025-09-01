@@ -1,6 +1,6 @@
 # Hookdeck CLI Reference
 
-The Hookdeck CLI provides comprehensive webhook infrastructure management including authentication, project management, resource management, event monitoring, and local development tools. This reference covers all available commands and their usage.
+The Hookdeck CLI provides comprehensive webhook infrastructure management including authentication, project management, resource management, event and attempt querying, and local development tools. This reference covers all available commands and their usage.
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@ The Hookdeck CLI provides comprehensive webhook infrastructure management includ
 - [Destinations](#destinations)
 - [Connections](#connections)
 - [Transformations](#transformations)
-- [Events & Monitoring](#events--monitoring)
+- [Events](#events)
 - [Issue Triggers](#issue-triggers)
 - [Attempts](#attempts)
 - [Bookmarks](#bookmarks)
@@ -277,7 +277,7 @@ The Hookdeck CLI is currently focused on authentication, basic project managemen
 - ❌ **No `--format` flag** - Cannot output JSON, YAML, or tables
 - ❌ **No resource management** - Cannot manage sources, destinations, or connections
 - ❌ **No transformation management** - Cannot create or manage JavaScript transformations
-- ❌ **No event monitoring** - Cannot view or retry webhook events
+- ❌ **No event querying** - Cannot view or retry webhook events
 - ❌ **No bulk operations** - Cannot perform batch operations on resources
 - ❌ **No advanced filtering** - Limited query capabilities
 - ❌ **No project creation** - Cannot create, update, or delete projects via CLI
@@ -300,9 +300,9 @@ The Hookdeck CLI is currently focused on authentication, basic project managemen
 | Destination Management | 🚧 **Planned** | *None* | Full CRUD + auth types |
 | Connection Management | 🚧 **Planned** | *None* | Full CRUD + lifecycle management |
 | Transformation Management | 🚧 **Planned** | *None* | Full CRUD + execution + testing |
-| Event Management | 🚧 **Planned** | *None* | List, retry, monitor, search |
+| Event Querying | 🚧 **Planned** | *None* | List, get, retry, search |
 | Issue Trigger Management | 🚧 **Planned** | *None* | Full CRUD + notification channels |
-| Attempt Management | 🚧 **Planned** | *None* | List, get, retry |
+| Attempt Management | 🚧 **Planned** | *None* | List, get, retry, filter, analyze |
 | Bookmark Management | 🚧 **Planned** | *None* | Full CRUD + trigger/replay |
 | Integration Management | 🚧 **Planned** | *None* | Full CRUD + attach/detach |
 | Issue Management | 🚧 **Planned** | *None* | List, get, update, dismiss |
@@ -1307,7 +1307,7 @@ hookdeck transformation executions <transformation-id> --limit 50
 hookdeck transformation execution <transformation-id> <execution-id>
 ```
 
-## Events & Monitoring
+## Events
 
 **All Parameters:**
 ```bash
@@ -1399,22 +1399,102 @@ hookdeck event mute <event-id>
 
 ## Attempts
 
+**All Parameters:**
+```bash
+# Attempt list command parameters
+--event-id string     # Filter by specific event ID
+--destination-id string # Filter by destination ID
+--status string       # Filter by attempt status (FAILED, SUCCESSFUL)
+--trigger string      # Filter by trigger type (INITIAL, MANUAL, BULK_RETRY, UNPAUSE, AUTOMATIC)
+--error-code string   # Filter by error code (TIMEOUT, CONNECTION_REFUSED, etc.)
+--bulk-retry-id string # Filter by bulk retry operation ID
+--successful-at string # Filter by success timestamp (ISO format or operators)
+--delivered-at string  # Filter by delivery timestamp (ISO format or operators)
+--responded-at string  # Filter by response timestamp (ISO format or operators)
+--order-by string     # Sort by field (created_at, delivered_at, responded_at)
+--dir string          # Sort direction (asc, desc)
+--limit integer       # Limit number of results (0-255)
+--next string         # Next page token for pagination
+--prev string         # Previous page token for pagination
+
+# Attempt get command parameters
+<attempt-id>          # Required positional argument for attempt ID
+
+# Attempt retry command parameters
+<attempt-id>          # Required positional argument for attempt ID to retry
+--force              # Force retry without confirmation (boolean flag)
+```
+
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+
+Attempts represent individual delivery attempts for webhook events, including success/failure status, response details, and performance metrics.
 
 ### List attempts
 ```bash
-# List attempts for an event
-hookdeck attempt list --event-id <event-id>
+# List all attempts
+hookdeck attempt list
 
-# Limit results
-hookdeck attempt list --event-id <event-id> --limit 50
+# List attempts for a specific event
+hookdeck attempt list --event-id evt_123
+
+# List attempts for a destination
+hookdeck attempt list --destination-id dest_456
+
+# Filter by status
+hookdeck attempt list --status FAILED
+hookdeck attempt list --status SUCCESSFUL
+
+# Filter by trigger type
+hookdeck attempt list --trigger MANUAL
+hookdeck attempt list --trigger BULK_RETRY
+
+# Filter by error code
+hookdeck attempt list --error-code TIMEOUT
+hookdeck attempt list --error-code CONNECTION_REFUSED
+
+# Filter by bulk retry operation
+hookdeck attempt list --bulk-retry-id retry_789
+
+# Filter by timestamp (various operators supported)
+hookdeck attempt list --delivered-at "2024-01-01T00:00:00Z"
+hookdeck attempt list --successful-at ">2024-01-01T00:00:00Z"
+
+# Sort and limit results
+hookdeck attempt list --order-by delivered_at --dir desc --limit 100
+
+# Pagination
+hookdeck attempt list --limit 50 --next <token>
+
+# Combined filtering
+hookdeck attempt list --event-id evt_123 --status FAILED --error-code TIMEOUT
 ```
 
 ### Get attempt details
 ```bash
 # Get attempt by ID
-hookdeck attempt get <attempt-id>
+hookdeck attempt get att_123
+
+# Example output includes:
+# - Attempt ID and number
+# - Event and destination IDs
+# - HTTP method and requested URL
+# - Response status and body
+# - Trigger type and error code
+# - Delivery and response latency
+# - Timestamps (delivered_at, responded_at, successful_at)
 ```
+
+### Retry attempts
+```bash
+# Retry a specific attempt
+hookdeck attempt retry att_123
+
+# Force retry without confirmation
+hookdeck attempt retry att_123 --force
+
+# Note: This creates a new attempt for the same event
+```
+
 
 ## Issues
 
