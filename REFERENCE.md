@@ -468,9 +468,6 @@ hookdeck project delete proj_123 --force
 - **complex_auth types**: EBAY (5 fields), TIKTOK_SHOP (2 fields)
 - **minimal_config types**: AWS_SNS (no additional auth required)
 
-**❌ Note**: The following source types from CLI examples are NOT supported by the current API:
-- BITBUCKET, MAGENTO, TEAMS, AZURE_EVENT_GRID, GOOGLE_CLOUD_PUBSUB, SALESFORCE, AUTH0, FIREBASE_AUTH
-
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
 Sources represent the webhook providers that send webhooks to Hookdeck. The API supports 96+ provider types with specific authentication requirements.
