@@ -120,11 +120,21 @@ hookdeck whoami
 [project-id]           # Positional argument for specific project ID
 --profile string       # Profile name to use
 
-# Project domains list command parameters
-# (No additional parameters)
+# Project create command parameters (planned)
+--name string          # Required: Project name
+--description string   # Optional: Project description
 
-# Project domains delete command parameters  
-<domain-id>           # Required positional argument for domain ID
+# Project get command parameters (planned)
+[project-id]           # Positional argument for specific project ID
+
+# Project update command parameters (planned)
+<project-id>          # Required positional argument for project ID
+--name string         # Update project name
+--description string  # Update project description
+
+# Project delete command parameters (planned)
+<project-id>          # Required positional argument for project ID
+--force              # Force delete without confirmation (boolean flag)
 ```
 
 Projects are top-level containers for your webhook infrastructure.
@@ -156,20 +166,6 @@ hookdeck project use proj_123
 
 # Use with different profile
 hookdeck project use --profile production
-```
-
-### 🚧 List project domains
-```bash
-# List custom domains for current project
-hookdeck project domains list
-
-# Output includes domain names and verification status
-```
-
-### 🚧 Delete project domain
-```bash
-# Delete custom domain
-hookdeck project domains delete <domain-id>
 ```
 
 ## Local Development
@@ -297,7 +293,7 @@ The Hookdeck CLI is currently focused on authentication, basic project managemen
 | Command Category | Status | Available Commands | Planned Commands |
 |------------------|--------|-------------------|------------------|
 | Authentication | ✅ **Current** | `login`, `logout`, `whoami` | *None needed* |
-| Project Management | 🔄 **Partial** | `list`, `use`, `domains list`, `domains delete` | *Enhancement complete* |
+| Project Management | 🔄 **Partial** | `list`, `use` | `create`, `get`, `update`, `delete` |
 | Local Development | ✅ **Current** | `listen` | *Enhancements planned* |
 | CI/CD | ✅ **Current** | `ci` | *Enhancements planned* |
 | Source Management | 🚧 **Planned** | *None* | Full CRUD + 80+ provider types |
@@ -319,7 +315,49 @@ The Hookdeck CLI is currently focused on authentication, basic project managemen
 
 🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
 
-*Note: Project domains management is the only additional project functionality supported by the API.*
+*Note: These project management commands are planned for implementation as documented in `.plans/resource-management-implementation.md` and are being developed in the `feat/project-create` branch.*
+
+### Create a project
+```bash
+# Create with interactive prompts
+hookdeck project create
+
+# Create with flags
+hookdeck project create --name "My Project" --description "Production webhooks"
+```
+
+### Get project details
+```bash
+# Get current project
+hookdeck project get
+
+# Get specific project
+hookdeck project get proj_123
+
+# Get with full details
+hookdeck project get proj_123 --log-level debug
+```
+
+### Update project
+```bash
+# Update interactively
+hookdeck project update
+
+# Update specific project
+hookdeck project update proj_123 --name "Updated Name"
+
+# Update description
+hookdeck project update proj_123 --description "New description"
+```
+
+### Delete project
+```bash
+# Delete with confirmation
+hookdeck project delete proj_123
+
+# Force delete without confirmation
+hookdeck project delete proj_123 --force
+```
 
 ## Sources
 
