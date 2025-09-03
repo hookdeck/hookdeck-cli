@@ -2,6 +2,7 @@ package listen
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
@@ -18,11 +19,11 @@ func printListenMessage(config *config.Config, isMultiSource bool) {
 }
 
 func printDashboardInformation(config *config.Config, guestURL string) {
-	fmt.Println(ansi.Bold("Dashboard"))
+
 	if guestURL != "" {
-		fmt.Println("👤 Console URL: " + guestURL)
-		fmt.Println("Sign up in the Console to make your webhook URL permanent.")
+		fmt.Printf("─ %s ──────────────────────────────────────────────────────\n", "Console")
 		fmt.Println()
+		fmt.Println("👉  Sign up to make your webhook URL permanent: %s", guestURL)
 	} else {
 		var url = config.DashboardBaseURL
 		if config.Profile.ProjectId != "" {
@@ -31,21 +32,37 @@ func printDashboardInformation(config *config.Config, guestURL string) {
 		if config.Profile.ProjectMode == "console" {
 			url = config.ConsoleBaseURL
 		}
-		fmt.Println("👉 Inspect and replay events: " + url)
+		fmt.Printf("─ %s ──────────────────────────────────────────────────────\n", "Dashboard")
+		fmt.Println()
+		fmt.Printf("👉 Inspect, retry & boomark events: %s\n", url)
 	}
 }
 
-func printSources(config *config.Config, sources []*hookdecksdk.Source) {
-	fmt.Println(ansi.Bold("Sources"))
-
-	for _, source := range sources {
-		fmt.Printf("🔌 %s URL: %s\n", source.Name, source.Url)
-	}
-}
-
-func printConnections(config *config.Config, connections []*hookdecksdk.Connection) {
-	fmt.Println(ansi.Bold("Connections"))
+func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection, targetURL *url.URL) {
+	// Group connections by source ID
+	sourceConnections := make(map[string][]*hookdecksdk.Connection)
 	for _, connection := range connections {
-		fmt.Println(*connection.FullName + " forwarding to " + *connection.Destination.CliPath)
+		sourceID := connection.Source.Id
+		sourceConnections[sourceID] = append(sourceConnections[sourceID], connection)
+	}
+
+	// Print the Sources title line
+	fmt.Printf("─ %s ───────────────────────────────────────────────────\n", "Listening on")
+	fmt.Println()
+
+	// Print each source with its connections
+	for _, source := range sources {
+		// Print the source URL
+		fmt.Printf("%s: %s\n", ansi.Bold(source.Name), source.Url)
+
+		// Print connections for this source
+		if sourceConns, exists := sourceConnections[source.Id]; exists {
+			for _, connection := range sourceConns {
+				// Calculate indentation based on source name length
+				indent := len(source.Name) + 2 // +2 for ": "
+				fullPath := targetURL.Scheme + "://" + targetURL.Host + *connection.Destination.CliPath
+				fmt.Printf("%*s↳ %s → %s\n", indent, "", *connection.Name, fullPath)
+			}
+		}
 	}
 }

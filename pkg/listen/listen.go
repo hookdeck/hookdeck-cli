@@ -121,9 +121,7 @@ Specify a single destination to update the path. For example, pass a connection 
 	fmt.Println()
 	printDashboardInformation(config, guestURL)
 	fmt.Println()
-	printSources(config, sources)
-	fmt.Println()
-	printConnections(config, connections)
+	printSourcesWithConnections(config, sources, connections, URL)
 	fmt.Println()
 
 	p := proxy.New(&proxy.Config{
