@@ -11,13 +11,17 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -60,6 +64,9 @@ type Proxy struct {
 	connections     []*hookdecksdk.Connection
 	webSocketClient *websocket.Client
 	connectionTimer *time.Timer
+	latestEventID   string
+	terminalMutex   sync.Mutex
+	rawModeState    *term.State
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -75,6 +82,103 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 		cancel()
 	}()
 	return ctx
+}
+
+// safePrintf temporarily disables raw mode, prints the message, then re-enables raw mode
+func (p *Proxy) safePrintf(format string, args ...interface{}) {
+	p.terminalMutex.Lock()
+	defer p.terminalMutex.Unlock()
+
+	// Temporarily restore normal terminal mode for printing
+	if p.rawModeState != nil {
+		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+	}
+
+	// Print the message
+	fmt.Printf(format, args...)
+
+	// Re-enable raw mode
+	if p.rawModeState != nil {
+		term.MakeRaw(int(os.Stdin.Fd()))
+	}
+}
+
+func (p *Proxy) startKeyboardListener(ctx context.Context) {
+	// Check if we're in a terminal
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return
+	}
+
+	go func() {
+		// Enter raw mode once and keep it
+		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+		if err != nil {
+			return
+		}
+
+		// Store the raw mode state for use in safePrintf
+		p.rawModeState = oldState
+
+		// Ensure we restore terminal state when this goroutine exits
+		defer func() {
+			p.terminalMutex.Lock()
+			term.Restore(int(os.Stdin.Fd()), oldState)
+			p.terminalMutex.Unlock()
+		}()
+
+		// Create a buffered channel for reading stdin
+		inputCh := make(chan byte, 1)
+
+		// Start a separate goroutine to read from stdin
+		go func() {
+			defer close(inputCh)
+			buf := make([]byte, 1)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					n, err := os.Stdin.Read(buf)
+					if err != nil || n != 1 {
+						return
+					}
+					select {
+					case inputCh <- buf[0]:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+
+		// Main loop to process keyboard input
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case key, ok := <-inputCh:
+				if !ok {
+					return
+				}
+
+				// Process the key
+				switch key {
+				case 0x72, 0x52: // 'r' or 'R'
+					p.retryLatestEvent()
+				case 0x6F, 0x4F: // 'o' or 'O'
+					p.openLatestEventURL()
+				case 0x03: // Ctrl+C
+					proc, _ := os.FindProcess(os.Getpid())
+					proc.Signal(os.Interrupt)
+					return
+				case 0x71, 0x51: // 'q' or 'Q'
+					proc, _ := os.FindProcess(os.Getpid())
+					proc.Signal(os.Interrupt)
+					return
+				}
+			}
+		}
+	}()
 }
 
 // Run manages the connection to Hookdeck.
@@ -104,6 +208,9 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			"prefix": "proxy.Proxy.Run",
 		}).Debug("Ctrl+C received, cleaning up...")
 	})
+
+	// Start keyboard listener for Ctrl+R/Cmd+R shortcuts
+	p.startKeyboardListener(signalCtx)
 
 	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
 
@@ -136,11 +243,20 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		// Monitor the websocket for connection and update the spinner appropriately.
 		go func() {
 			<-p.webSocketClient.Connected()
-			msg := "Ready! (^C to quit)"
+			msg := "Ready... ⌨️ [r] Retry latest • [o] Open latest • [q] Quit"
 			if hasConnectedOnce {
 				msg = "Reconnected!"
 			}
+			// Stop the spinner and print the message safely
+			p.terminalMutex.Lock()
+			if p.rawModeState != nil {
+				term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+			}
 			ansi.StopSpinner(s, msg, p.cfg.Log.Out)
+			if p.rawModeState != nil {
+				term.MakeRaw(int(os.Stdin.Fd()))
+			}
+			p.terminalMutex.Unlock()
 			hasConnectedOnce = true
 		}()
 
@@ -244,12 +360,15 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 	webhookEvent := msg.Attempt
 
+	// Store the latest event ID for retry/open functionality
+	p.latestEventID = webhookEvent.Body.EventID
+
 	p.cfg.Log.WithFields(log.Fields{
 		"prefix": "proxy.Proxy.processAttempt",
 	}).Debugf("Processing webhook event")
 
 	if p.cfg.PrintJSON {
-		fmt.Println(webhookEvent.Body.Request.DataString)
+		p.safePrintf("%s\n", webhookEvent.Body.Request.DataString)
 	} else {
 		url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
 		tr := &http.Transport{
@@ -268,13 +387,13 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
 		if err != nil {
-			fmt.Printf("Error: %s\n", err)
+			p.safePrintf("Error: %s\n", err)
 			return
 		}
 		x := make(map[string]json.RawMessage)
 		err = json.Unmarshal(webhookEvent.Body.Request.Headers, &x)
 		if err != nil {
-			fmt.Printf("Error: %s\n", err)
+			p.safePrintf("Error: %s\n", err)
 			return
 		}
 
@@ -299,7 +418,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 				err,
 			)
 
-			fmt.Println(errStr)
+			p.safePrintf("%s\n", errStr)
 			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
 				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
 					Event: "attempt_response",
@@ -317,7 +436,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *http.Response) {
 	localTime := time.Now().Format(timeLayout)
 	color := ansi.Color(os.Stdout)
-	var url = p.cfg.DashboardBaseURL + "/cli/events/" + webhookEvent.Body.EventID
+	var url = p.cfg.DashboardBaseURL + "/events/cli/" + webhookEvent.Body.EventID
 	if p.cfg.ProjectMode == "console" {
 		url = p.cfg.ConsoleBaseURL + "/?event_id=" + webhookEvent.Body.EventID
 	}
@@ -328,7 +447,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 		resp.Request.URL,
 		url,
 	)
-	fmt.Println(outputStr)
+	p.safePrintf("%s\n", outputStr)
 
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -354,6 +473,106 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 				},
 			}})
 	}
+}
+
+func (p *Proxy) retryLatestEvent() {
+	eventID := p.latestEventID
+
+	if eventID == "" {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] No event to retry\n",
+			color.Yellow("WARN"),
+		)
+		return
+	}
+
+	// Create HTTP client for retry request
+	parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
+	if err != nil {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] Failed to parse API URL for retry: %v\n",
+			color.Red("ERROR"),
+			err,
+		)
+		return
+	}
+
+	client := &hookdeck.Client{
+		BaseURL:   parsedBaseURL,
+		APIKey:    p.cfg.Key,
+		ProjectID: p.cfg.ProjectID,
+	}
+
+	// Make retry request to Hookdeck API
+	retryURL := fmt.Sprintf("/events/%s/retry", eventID)
+	resp, err := client.Post(context.Background(), retryURL, []byte("{}"), nil)
+	if err != nil {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] Failed to retry event %s\n",
+			color.Red("ERROR"),
+			eventID,
+		)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] Failed to retry event %s\n",
+			color.Red("ERROR"),
+			eventID,
+		)
+	}
+}
+
+func (p *Proxy) openLatestEventURL() {
+	eventID := p.latestEventID
+
+	if eventID == "" {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] No event to open\n",
+			color.Yellow("WARN"),
+		)
+		return
+	}
+
+	// Build event URL based on project mode
+	var eventURL string
+	if p.cfg.ProjectMode == "console" {
+		eventURL = p.cfg.ConsoleBaseURL + "/?event_id=" + eventID
+	} else {
+		eventURL = p.cfg.DashboardBaseURL + "/events/cli/" + eventID
+	}
+
+	// Open URL in browser
+	err := p.openBrowser(eventURL)
+	if err != nil {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] Failed to open browser: %v\n",
+			color.Red("ERROR"),
+			err,
+		)
+		return
+	}
+}
+
+func (p *Proxy) openBrowser(url string) error {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start", url}
+	case "darwin":
+		cmd = "open"
+		args = []string{url}
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xdg-open"
+		args = []string{url}
+	}
+
+	return exec.Command(cmd, args...).Start()
 }
 
 //
