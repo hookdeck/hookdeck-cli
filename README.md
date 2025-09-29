@@ -167,7 +167,7 @@ twilio -> cli-twilio forwarding to /webhooks/twilio
 
 #### Listen to a subset of connections
 
-The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
+The 3rd param, `connection-query` specifies which connection with a CLI destination to adopt for listening. By default, the first connection with a CLI destination type will be used. If a connection with the specified name doesn't exist, a new connection will be created with the passed value. The connection query is checked against the `connection` name, `alias`, and the `path` values.
 
 ```sh
 $ hookdeck listen 3000 shopify orders
