@@ -27,7 +27,7 @@ func printDashboardInformation(config *config.Config, guestURL string) {
 	} else {
 		var url = config.DashboardBaseURL
 		if config.Profile.ProjectId != "" {
-			url += "?team_id=" + config.Profile.ProjectId
+			url += "/events/cli?team_id=" + config.Profile.ProjectId
 		}
 		if config.Profile.ProjectMode == "console" {
 			url = config.ConsoleBaseURL

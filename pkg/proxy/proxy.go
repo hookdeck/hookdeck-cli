@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,13 +61,19 @@ type Config struct {
 // webhook events, forwards them to the local endpoint and sends the response
 // back to Hookdeck.
 type Proxy struct {
-	cfg             *Config
-	connections     []*hookdecksdk.Connection
-	webSocketClient *websocket.Client
-	connectionTimer *time.Timer
-	latestEventID   string
-	terminalMutex   sync.Mutex
-	rawModeState    *term.State
+	cfg                *Config
+	connections        []*hookdecksdk.Connection
+	webSocketClient    *websocket.Client
+	connectionTimer    *time.Timer
+	latestEventID      string
+	latestEventStatus  int
+	latestEventSuccess bool
+	latestEventTime    time.Time
+	latestEventData    *websocket.Attempt
+	hasReceivedEvent   bool
+	statusLineShown    bool
+	terminalMutex      sync.Mutex
+	rawModeState       *term.State
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -96,6 +103,86 @@ func (p *Proxy) safePrintf(format string, args ...interface{}) {
 
 	// Print the message
 	fmt.Printf(format, args...)
+
+	// Re-enable raw mode
+	if p.rawModeState != nil {
+		term.MakeRaw(int(os.Stdin.Fd()))
+	}
+}
+
+// printEventAndUpdateStatus prints the event log and updates the status line in one operation
+func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
+	p.terminalMutex.Lock()
+	defer p.terminalMutex.Unlock()
+
+	// Temporarily restore normal terminal mode for printing
+	if p.rawModeState != nil {
+		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+	}
+
+	// If we have a previous status line, clear it and the blank line above it
+	if p.statusLineShown {
+		fmt.Printf("\033[2A\033[K\033[1B\033[K")
+	}
+
+	// Print the event log
+	fmt.Printf("%s\n", eventLog)
+
+	// Add a blank line for visual separation
+	fmt.Println()
+
+	// Generate and print the new status message
+	var statusMsg string
+	color := ansi.Color(os.Stdout)
+	if p.latestEventSuccess {
+		statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
+			color.Green("✓"), p.latestEventStatus)
+	} else {
+		statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
+			color.Red("⨯"), p.latestEventStatus)
+	}
+
+	fmt.Printf("%s\n", statusMsg)
+	p.statusLineShown = true
+
+	// Re-enable raw mode
+	if p.rawModeState != nil {
+		term.MakeRaw(int(os.Stdin.Fd()))
+	}
+}
+
+// updateStatusLine updates the bottom status line with the latest event information
+func (p *Proxy) updateStatusLine() {
+	p.terminalMutex.Lock()
+	defer p.terminalMutex.Unlock()
+
+	// Temporarily restore normal terminal mode for printing
+	if p.rawModeState != nil {
+		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+	}
+
+	var statusMsg string
+	if !p.hasReceivedEvent {
+		statusMsg = "> Ready..."
+	} else {
+		color := ansi.Color(os.Stdout)
+		if p.latestEventSuccess {
+			statusMsg = fmt.Sprintf("> %s Last event succeeded (%d) ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
+				color.Green("✓"), p.latestEventStatus)
+		} else {
+			statusMsg = fmt.Sprintf("> %s Last event failed (%d) ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
+				color.Red("⚠️"), p.latestEventStatus)
+		}
+	}
+
+	if p.statusLineShown {
+		// If we've shown a status before, move up one line and clear it
+		fmt.Printf("\033[1A\033[K%s\n", statusMsg)
+	} else {
+		// First time showing status
+		fmt.Printf("%s\n", statusMsg)
+		p.statusLineShown = true
+	}
 
 	// Re-enable raw mode
 	if p.rawModeState != nil {
@@ -167,6 +254,8 @@ func (p *Proxy) startKeyboardListener(ctx context.Context) {
 					p.retryLatestEvent()
 				case 0x6F, 0x4F: // 'o' or 'O'
 					p.openLatestEventURL()
+				case 0x64, 0x44: // 'd' or 'D'
+					p.showLatestEventDetails()
 				case 0x03: // Ctrl+C
 					proc, _ := os.FindProcess(os.Getpid())
 					proc.Signal(os.Interrupt)
@@ -243,20 +332,30 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		// Monitor the websocket for connection and update the spinner appropriately.
 		go func() {
 			<-p.webSocketClient.Connected()
-			msg := "Ready... ⌨️ [r] Retry latest • [o] Open latest • [q] Quit"
 			if hasConnectedOnce {
-				msg = "Reconnected!"
+				// Stop the spinner and print the message safely
+				p.terminalMutex.Lock()
+				if p.rawModeState != nil {
+					term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+				}
+				ansi.StopSpinner(s, "Reconnected!", p.cfg.Log.Out)
+				if p.rawModeState != nil {
+					term.MakeRaw(int(os.Stdin.Fd()))
+				}
+				p.terminalMutex.Unlock()
+			} else {
+				// Stop the spinner without a message and use our status line
+				p.terminalMutex.Lock()
+				if p.rawModeState != nil {
+					term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+				}
+				ansi.StopSpinner(s, "", p.cfg.Log.Out)
+				if p.rawModeState != nil {
+					term.MakeRaw(int(os.Stdin.Fd()))
+				}
+				p.terminalMutex.Unlock()
+				p.updateStatusLine()
 			}
-			// Stop the spinner and print the message safely
-			p.terminalMutex.Lock()
-			if p.rawModeState != nil {
-				term.Restore(int(os.Stdin.Fd()), p.rawModeState)
-			}
-			ansi.StopSpinner(s, msg, p.cfg.Log.Out)
-			if p.rawModeState != nil {
-				term.MakeRaw(int(os.Stdin.Fd()))
-			}
-			p.terminalMutex.Unlock()
 			hasConnectedOnce = true
 		}()
 
@@ -360,8 +459,9 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 	webhookEvent := msg.Attempt
 
-	// Store the latest event ID for retry/open functionality
+	// Store the latest event ID and data for retry/open/details functionality
 	p.latestEventID = webhookEvent.Body.EventID
+	p.latestEventData = webhookEvent
 
 	p.cfg.Log.WithFields(log.Fields{
 		"prefix": "proxy.Proxy.processAttempt",
@@ -418,7 +518,15 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 				err,
 			)
 
-			p.safePrintf("%s\n", errStr)
+			// Track the failed event first
+			p.latestEventStatus = 0 // Use 0 for connection errors
+			p.latestEventSuccess = false
+			p.latestEventTime = time.Now()
+			p.hasReceivedEvent = true
+
+			// Print the error and update status line in one operation
+			p.printEventAndUpdateStatus(errStr)
+
 			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
 				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
 					Event: "attempt_response",
@@ -436,18 +544,26 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *http.Response) {
 	localTime := time.Now().Format(timeLayout)
 	color := ansi.Color(os.Stdout)
-	var url = p.cfg.DashboardBaseURL + "/events/cli/" + webhookEvent.Body.EventID
+	var url = p.cfg.DashboardBaseURL + "/events/" + webhookEvent.Body.EventID
 	if p.cfg.ProjectMode == "console" {
 		url = p.cfg.ConsoleBaseURL + "/?event_id=" + webhookEvent.Body.EventID
 	}
-	outputStr := fmt.Sprintf("%s [%d] %s %s | %s",
+	outputStr := fmt.Sprintf("%s [%d] %s %s %s %s",
 		color.Faint(localTime),
 		ansi.ColorizeStatus(resp.StatusCode),
 		resp.Request.Method,
 		resp.Request.URL,
-		url,
+		color.Faint("→"),
+		color.Faint(url),
 	)
-	p.safePrintf("%s\n", outputStr)
+	// Track the event status first
+	p.latestEventStatus = resp.StatusCode
+	p.latestEventSuccess = resp.StatusCode >= 200 && resp.StatusCode < 300
+	p.latestEventTime = time.Now()
+	p.hasReceivedEvent = true
+
+	// Print the event log and update status line in one operation
+	p.printEventAndUpdateStatus(outputStr)
 
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -541,7 +657,7 @@ func (p *Proxy) openLatestEventURL() {
 	if p.cfg.ProjectMode == "console" {
 		eventURL = p.cfg.ConsoleBaseURL + "/?event_id=" + eventID
 	} else {
-		eventURL = p.cfg.DashboardBaseURL + "/events/cli/" + eventID
+		eventURL = p.cfg.DashboardBaseURL + "/events/" + eventID
 	}
 
 	// Open URL in browser
@@ -573,6 +689,84 @@ func (p *Proxy) openBrowser(url string) error {
 	}
 
 	return exec.Command(cmd, args...).Start()
+}
+
+func (p *Proxy) showLatestEventDetails() {
+	if p.latestEventData == nil {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] No event to show details for\n",
+			color.Yellow("WARN"),
+		)
+		return
+	}
+
+	webhookEvent := p.latestEventData
+
+	p.terminalMutex.Lock()
+	defer p.terminalMutex.Unlock()
+
+	// Temporarily restore normal terminal mode for printing
+	if p.rawModeState != nil {
+		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+	}
+
+	// Clear the status line
+	if p.statusLineShown {
+		fmt.Printf("\033[2A\033[K\033[1B\033[K")
+	}
+
+	// Print the event details with title
+	color := ansi.Color(os.Stdout)
+	fmt.Printf("│  %s %s%s\n", color.Bold(webhookEvent.Body.Request.Method), color.Bold(p.cfg.URL.String()), color.Bold(webhookEvent.Body.Path))
+	fmt.Printf("│\n")
+
+	// Parse and display headers (no title)
+	if len(webhookEvent.Body.Request.Headers) > 0 {
+		var headers map[string]json.RawMessage
+		if err := json.Unmarshal(webhookEvent.Body.Request.Headers, &headers); err == nil {
+			// Get keys and sort them alphabetically
+			keys := make([]string, 0, len(headers))
+			for key := range headers {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+
+			// Print headers in alphabetical order
+			for _, key := range keys {
+				unquoted, _ := strconv.Unquote(string(headers[key]))
+				fmt.Printf("│  %s: %s\n", strings.ToLower(key), unquoted)
+			}
+		}
+	}
+
+	// Add blank line before body
+	fmt.Printf("│\n")
+
+	// Display body (no title)
+	if len(webhookEvent.Body.Request.DataString) > 0 {
+		// Split body into lines and add left border to each line
+		bodyLines := strings.Split(webhookEvent.Body.Request.DataString, "\n")
+		for _, line := range bodyLines {
+			fmt.Printf("│  %s\n", line)
+		}
+	}
+
+	// Restore the status line
+	fmt.Println()
+	var statusMsg string
+	if p.latestEventSuccess {
+		statusMsg = fmt.Sprintf("> %s Last event succeeded (%d) ⌨️ [r] Retry now • [o] Open link • [d] Details • [q] Quit",
+			color.Green("✓"), p.latestEventStatus)
+	} else {
+		statusMsg = fmt.Sprintf("> %s Last event failed (%d) ⌨️ [r] Retry now • [o] Open link • [d] Details • [q] Quit",
+			color.Red("⚠️"), p.latestEventStatus)
+	}
+	fmt.Printf("%s\n", statusMsg)
+
+	// Re-enable raw mode
+	if p.rawModeState != nil {
+		term.MakeRaw(int(os.Stdin.Fd()))
+	}
 }
 
 //
