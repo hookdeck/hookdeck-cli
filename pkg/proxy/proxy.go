@@ -176,7 +176,7 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 		needToRedrawForExitingEvents = true
 	}
 
-	// Also check if the current selection will be pushed out
+	// Check if we need to redraw due to selection changes
 	needToClearOldSelection := false
 	if p.userNavigated && len(p.eventHistory) > 0 {
 		// Calculate what the navigable range will be after adding the new event
@@ -186,7 +186,8 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 			futureNavigableStartIdx = 0
 		}
 
-		// If current selection will be outside future navigable range
+		// If current selection will be outside future navigable range, we need to redraw
+		// (The selected event will be pinned in the display, breaking chronological order)
 		if p.selectedEventIndex < futureNavigableStartIdx {
 			needToClearOldSelection = true
 		}
@@ -287,22 +288,11 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	}
 
 	// Auto-select the latest event unless user has navigated away
-	selectionAdjusted := false
 	if !p.userNavigated {
 		p.selectedEventIndex = len(p.eventHistory) - 1
-	} else {
-		// If user has navigated, check if selected event is still in navigable range
-		navigableStartIdx := len(p.eventHistory) - maxNavigableEvents
-		if navigableStartIdx < 0 {
-			navigableStartIdx = 0
-		}
-
-		// If selected event is now outside navigable range, move to oldest navigable event
-		if p.selectedEventIndex < navigableStartIdx {
-			p.selectedEventIndex = navigableStartIdx
-			selectionAdjusted = true // Need to redraw to show new selection
-		}
 	}
+	// Note: If user has navigated, we DON'T change selectedEventIndex
+	// The display logic will handle showing it even if it's outside the normal navigable range
 
 	// Temporarily restore normal terminal mode for printing
 	if p.rawModeState != nil {
@@ -317,8 +307,9 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	numNavigableEvents := len(p.eventHistory) - navigableStartIdx
 
 	// If we have multiple navigable events and auto-selecting, redraw navigable window
-	// Also redraw if selection was adjusted
-	if numNavigableEvents > 1 && (!p.userNavigated || selectionAdjusted) {
+	// Also redraw if user has navigated (to show pinned selection)
+	if numNavigableEvents > 1 && !p.userNavigated {
+		// Auto-selecting mode: redraw to move selection to latest
 		// Move cursor up to first navigable event and clear everything
 		linesToMoveUp := numNavigableEvents - 1 + 2 // previous navigable events + blank + status
 		fmt.Printf("\033[%dA", linesToMoveUp)
@@ -332,8 +323,26 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 				fmt.Printf("%s\n", p.eventHistory[i].LogLine) // No indentation
 			}
 		}
+	} else if p.userNavigated && numNavigableEvents > 1 {
+		// User has navigated: redraw to show pinned selected event
+		// Get the navigable events (includes pinned selected event if applicable)
+		navigableIndices := p.getNavigableEvents()
+
+		// Move cursor up and redraw all navigable events
+		linesToMoveUp := len(navigableIndices) - 1 + 2 // previous navigable events + blank + status
+		fmt.Printf("\033[%dA", linesToMoveUp)
+		fmt.Print("\033[J")
+
+		// Print navigable events (including pinned event) with selection indicator
+		for _, idx := range navigableIndices {
+			if idx == p.selectedEventIndex {
+				fmt.Printf("> %s\n", p.eventHistory[idx].LogLine)
+			} else {
+				fmt.Printf("%s\n", p.eventHistory[idx].LogLine)
+			}
+		}
 	} else {
-		// First event or user has navigated - simple append
+		// First event - simple append
 		if p.statusLineShown {
 			if len(p.eventHistory) == 1 {
 				// First event - only clear the "waiting" status line
@@ -361,14 +370,14 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	var statusMsg string
 	color := ansi.Color(os.Stdout)
 	if p.latestEventSuccess {
-		statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+		statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 			color.Green("✓"), p.latestEventStatus)
 	} else {
 		if p.latestEventStatus == 0 {
-			statusMsg = fmt.Sprintf("> %s Last event failed with error ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Last event failed with error ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 				color.Red("x").Bold())
 		} else {
-			statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 				color.Red("x").Bold(), p.latestEventStatus)
 		}
 	}
@@ -577,33 +586,88 @@ func (p *Proxy) processKeyboardInput(input []byte) {
 	}
 }
 
-// navigateEvents moves the selection up or down in the event history (only within last 10 events)
+// getNavigableEvents returns the indices of events that should be shown in the "Latest events" section
+// This includes the last (maxNavigableEvents-1) chronological events, plus the selected event if it's outside this range
+func (p *Proxy) getNavigableEvents() []int {
+	historySize := len(p.eventHistory)
+
+	// Calculate the normal navigable range (last 10 events)
+	normalStartIdx := historySize - maxNavigableEvents
+	if normalStartIdx < 0 {
+		normalStartIdx = 0
+	}
+
+	// If user hasn't navigated or selected event is within normal range, return normal range
+	if !p.userNavigated || p.selectedEventIndex >= normalStartIdx {
+		indices := make([]int, 0, historySize-normalStartIdx)
+		for i := normalStartIdx; i < historySize; i++ {
+			indices = append(indices, i)
+		}
+		return indices
+	}
+
+	// Selected event is outside normal range - include it as the first navigable event
+	// Show: selected event + last 9 chronological events
+	indices := make([]int, 0, maxNavigableEvents)
+	indices = append(indices, p.selectedEventIndex) // Add selected event first
+
+	// Add the last 9 events (skip one to make room for the pinned event)
+	startIdx := historySize - (maxNavigableEvents - 1)
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	for i := startIdx; i < historySize; i++ {
+		// Skip the selected event if it's also in the last 9 (edge case)
+		if i != p.selectedEventIndex {
+			indices = append(indices, i)
+		}
+	}
+
+	return indices
+}
+
+// navigateEvents moves the selection up or down in the event history (within navigable events)
 func (p *Proxy) navigateEvents(direction int) {
 	if len(p.eventHistory) == 0 {
 		return
 	}
 
-	// Calculate the navigable window (last 10 events)
-	navigableStartIdx := len(p.eventHistory) - maxNavigableEvents
-	if navigableStartIdx < 0 {
-		navigableStartIdx = 0
+	// Get the navigable events (includes pinned selected event if applicable)
+	navigableIndices := p.getNavigableEvents()
+	if len(navigableIndices) == 0 {
+		return
 	}
 
-	newIndex := p.selectedEventIndex + direction
+	// Find current position in the navigable indices
+	currentPos := -1
+	for i, idx := range navigableIndices {
+		if idx == p.selectedEventIndex {
+			currentPos = i
+			break
+		}
+	}
+
+	if currentPos == -1 {
+		// Selected event not in navigable list (shouldn't happen), default to first
+		currentPos = 0
+	}
+
+	// Calculate new position
+	newPos := currentPos + direction
 
 	// Clamp to navigable range
-	if newIndex < navigableStartIdx {
-		newIndex = navigableStartIdx
-	} else if newIndex >= len(p.eventHistory) {
-		newIndex = len(p.eventHistory) - 1
+	if newPos < 0 {
+		newPos = 0
+	} else if newPos >= len(navigableIndices) {
+		newPos = len(navigableIndices) - 1
 	}
 
-	if newIndex != p.selectedEventIndex {
-		p.selectedEventIndex = newIndex
+	if newPos != currentPos {
+		p.selectedEventIndex = navigableIndices[newPos]
 		p.userNavigated = true // Mark that user has manually navigated
 
 		// Reset userNavigated if user navigates back to the latest event
-		if newIndex == len(p.eventHistory)-1 {
+		if p.selectedEventIndex == len(p.eventHistory)-1 {
 			p.userNavigated = false
 		}
 
@@ -625,17 +689,20 @@ func (p *Proxy) redrawEventsWithSelection() {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	// Calculate the navigable window (last 10 events)
-	navigableStartIdx := len(p.eventHistory) - maxNavigableEvents
-	if navigableStartIdx < 0 {
-		navigableStartIdx = 0
+	// Get the navigable events (includes pinned selected event if applicable)
+	navigableIndices := p.getNavigableEvents()
+	numNavigableEvents := len(navigableIndices)
+
+	// Calculate the normal navigable start for determining if we need separator
+	normalNavigableStartIdx := len(p.eventHistory) - maxNavigableEvents
+	if normalNavigableStartIdx < 0 {
+		normalNavigableStartIdx = 0
 	}
-	numNavigableEvents := len(p.eventHistory) - navigableStartIdx
 
 	// Move cursor up to start of navigable events and clear everything below
 	linesToMoveUp := numNavigableEvents + 2 // navigable events + blank + status
 	// If we have a separator, add 3 more lines (blank line + "Recent events" + blank line)
-	if navigableStartIdx > 0 {
+	if normalNavigableStartIdx > 0 {
 		linesToMoveUp += 3
 	}
 	fmt.Printf("\033[%dA", linesToMoveUp)
@@ -644,17 +711,17 @@ func (p *Proxy) redrawEventsWithSelection() {
 	// NOTE: We NEVER redraw the "Events" title - it was printed once and stays permanent
 
 	// Add separator if there are historical events
-	if navigableStartIdx > 0 {
+	if normalNavigableStartIdx > 0 {
 		color := ansi.Color(os.Stdout)
 		fmt.Printf("\n%s\n\n", color.Faint("Latest events (↑↓ to navigate)")) // Extra newline after separator
 	}
 
-	// Print only the navigable events with selection indicator
-	for i := navigableStartIdx; i < len(p.eventHistory); i++ {
-		if i == p.selectedEventIndex {
-			fmt.Printf("> %s\n", p.eventHistory[i].LogLine) // Selected event with >
+	// Print the navigable events (including pinned event if applicable) with selection indicator
+	for _, idx := range navigableIndices {
+		if idx == p.selectedEventIndex {
+			fmt.Printf("> %s\n", p.eventHistory[idx].LogLine) // Selected event with >
 		} else {
-			fmt.Printf("%s\n", p.eventHistory[i].LogLine) // No indentation
+			fmt.Printf("%s\n", p.eventHistory[idx].LogLine) // No indentation
 		}
 	}
 
@@ -666,14 +733,14 @@ func (p *Proxy) redrawEventsWithSelection() {
 	color := ansi.Color(os.Stdout)
 	selectedEvent := p.eventHistory[p.selectedEventIndex]
 	if selectedEvent.Success {
-		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 			color.Green("✓"), selectedEvent.Status)
 	} else {
 		if selectedEvent.Status == 0 {
-			statusMsg = fmt.Sprintf("> %s Selected event failed with error ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Selected event failed with error ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 				color.Red("x").Bold())
 		} else {
-			statusMsg = fmt.Sprintf("> %s Selected event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Selected event failed with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 				color.Red("x").Bold(), selectedEvent.Status)
 		}
 	}
