@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
@@ -119,11 +120,9 @@ Specify a single destination to update the path. For example, pass a connection 
 	// Start proxy
 	printListenMessage(config, isMultiSource)
 	fmt.Println()
-	printDashboardInformation(config, guestURL)
+	printSourcesWithConnections(config, sources, connections, URL, guestURL)
 	fmt.Println()
-	printSourcesWithConnections(config, sources, connections, URL)
-	fmt.Println()
-	fmt.Printf("─ %s ──────────────────────────────────────────────────────\n", "Events")
+	fmt.Printf("%s\n", ansi.Faint("Events"))
 	fmt.Println()
 
 	p := proxy.New(&proxy.Config{

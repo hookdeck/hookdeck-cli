@@ -88,6 +88,9 @@ type Proxy struct {
 	eventHistory       []EventInfo
 	selectedEventIndex int
 	userNavigated      bool // Track if user has manually navigated away from latest event
+	// Waiting animation
+	waitingAnimationFrame int
+	stopWaitingAnimation  chan bool
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -198,8 +201,13 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 
 	// First event or user has navigated - simple case
 	if p.statusLineShown {
-		// Clear the status line and blank line above it, then move back to the new event position
-		fmt.Printf("\033[2A\033[K\033[1B\033[K\033[1A")
+		if len(p.eventHistory) == 1 {
+			// First event - only clear the status line (cursor is already at the right position)
+			fmt.Printf("\033[1A\033[K")
+		} else {
+			// Subsequent events - clear the status line and blank line above it, then move back to the new event position
+			fmt.Printf("\033[2A\033[K\033[1B\033[K\033[1A")
+		}
 	}
 
 	// Print the event log with selection indicator
@@ -233,6 +241,29 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	}
 }
 
+// startWaitingAnimation starts an animation for the waiting indicator
+func (p *Proxy) startWaitingAnimation(ctx context.Context) {
+	p.stopWaitingAnimation = make(chan bool, 1)
+
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.stopWaitingAnimation:
+				return
+			case <-ticker.C:
+				if !p.hasReceivedEvent && p.statusLineShown {
+					p.updateStatusLine()
+				}
+			}
+		}
+	}()
+}
+
 // updateStatusLine updates the bottom status line with the latest event information
 func (p *Proxy) updateStatusLine() {
 	p.terminalMutex.Lock()
@@ -245,7 +276,16 @@ func (p *Proxy) updateStatusLine() {
 
 	var statusMsg string
 	if !p.hasReceivedEvent {
-		statusMsg = "Connected. Waiting for events..."
+		// Animated green dot (alternates between ● and ○)
+		color := ansi.Color(os.Stdout)
+		var dot string
+		if p.waitingAnimationFrame%2 == 0 {
+			dot = fmt.Sprintf("%s", color.Green("●"))
+		} else {
+			dot = fmt.Sprintf("%s", color.Green("○"))
+		}
+		p.waitingAnimationFrame++
+		statusMsg = fmt.Sprintf("%s Connected. Waiting for events...", dot)
 	} else {
 		color := ansi.Color(os.Stdout)
 		if p.latestEventSuccess {
@@ -261,8 +301,8 @@ func (p *Proxy) updateStatusLine() {
 		// If we've shown a status before, move up one line and clear it
 		fmt.Printf("\033[1A\033[K%s\n", statusMsg)
 	} else {
-		// First time showing status - add a newline before it for spacing
-		fmt.Printf("\n%s\n", statusMsg)
+		// First time showing status
+		fmt.Printf("%s\n", statusMsg)
 		p.statusLineShown = true
 	}
 
@@ -489,6 +529,9 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 	// Start keyboard listener for Ctrl+R/Cmd+R shortcuts
 	p.startKeyboardListener(signalCtx)
 
+	// Start waiting animation
+	p.startWaitingAnimation(signalCtx)
+
 	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
 
 	session, err := p.createSession(signalCtx)
@@ -710,7 +753,13 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 			p.latestEventStatus = 0 // Use 0 for connection errors
 			p.latestEventSuccess = false
 			p.latestEventTime = time.Now()
-			p.hasReceivedEvent = true
+			if !p.hasReceivedEvent {
+				p.hasReceivedEvent = true
+				// Stop the waiting animation
+				if p.stopWaitingAnimation != nil {
+					p.stopWaitingAnimation <- true
+				}
+			}
 
 			// Print the error and update status line in one operation
 			p.printEventAndUpdateStatus(errStr)
@@ -748,7 +797,13 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	p.latestEventStatus = resp.StatusCode
 	p.latestEventSuccess = resp.StatusCode >= 200 && resp.StatusCode < 300
 	p.latestEventTime = time.Now()
-	p.hasReceivedEvent = true
+	if !p.hasReceivedEvent {
+		p.hasReceivedEvent = true
+		// Stop the waiting animation
+		if p.stopWaitingAnimation != nil {
+			p.stopWaitingAnimation <- true
+		}
+	}
 
 	// Print the event log and update status line in one operation
 	p.printEventAndUpdateStatus(outputStr)

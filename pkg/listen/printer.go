@@ -18,27 +18,7 @@ func printListenMessage(config *config.Config, isMultiSource bool) {
 	fmt.Println("Listening for events on Sources that have Connections with CLI Destinations")
 }
 
-func printDashboardInformation(config *config.Config, guestURL string) {
-
-	if guestURL != "" {
-		fmt.Printf("─ %s ──────────────────────────────────────────────────────\n", "Console")
-		fmt.Println()
-		fmt.Println("👉  Sign up to make your webhook URL permanent: %s", guestURL)
-	} else {
-		var url = config.DashboardBaseURL
-		if config.Profile.ProjectId != "" {
-			url += "/events/cli?team_id=" + config.Profile.ProjectId
-		}
-		if config.Profile.ProjectMode == "console" {
-			url = config.ConsoleBaseURL
-		}
-		fmt.Printf("─ %s ──────────────────────────────────────────────────────\n", "Dashboard")
-		fmt.Println()
-		fmt.Printf("👉 Inspect, retry & boomark events: %s\n", url)
-	}
-}
-
-func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection, targetURL *url.URL) {
+func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection, targetURL *url.URL, guestURL string) {
 	// Group connections by source ID
 	sourceConnections := make(map[string][]*hookdecksdk.Connection)
 	for _, connection := range connections {
@@ -47,22 +27,65 @@ func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.S
 	}
 
 	// Print the Sources title line
-	fmt.Printf("─ %s ───────────────────────────────────────────────────\n", "Listening on")
+	fmt.Printf("%s\n", ansi.Faint("Listening on"))
 	fmt.Println()
 
 	// Print each source with its connections
-	for _, source := range sources {
-		// Print the source URL
-		fmt.Printf("%s: %s\n", ansi.Bold(source.Name), source.Url)
+	for i, source := range sources {
+		// Print source name
+		fmt.Printf("%s\n", ansi.Bold(source.Name))
 
 		// Print connections for this source
 		if sourceConns, exists := sourceConnections[source.Id]; exists {
-			for _, connection := range sourceConns {
-				// Calculate indentation based on source name length
-				indent := len(source.Name) + 2 // +2 for ": "
-				fullPath := targetURL.Scheme + "://" + targetURL.Host + *connection.Destination.CliPath
-				fmt.Printf("%*s↳ %s → %s\n", indent, "", *connection.Name, fullPath)
+			numConns := len(sourceConns)
+
+			// Print webhook URL with tree connector
+			if numConns > 0 {
+				fmt.Printf("├─ Request sent to → %s\n", source.Url)
+			} else {
+				fmt.Printf("└─ Request sent to → %s\n", source.Url)
 			}
+
+			// Print each connection
+			for j, connection := range sourceConns {
+				fullPath := targetURL.Scheme + "://" + targetURL.Host + *connection.Destination.CliPath
+
+				if j == numConns-1 {
+					// Last connection - use └─
+					fmt.Printf("└─ Forwards to     → %s %s\n", fullPath, ansi.Faint(fmt.Sprintf("(%s)", *connection.Name)))
+				} else {
+					// Not last connection - use ├─
+					fmt.Printf("├─ Forwards to     → %s %s\n", fullPath, ansi.Faint(fmt.Sprintf("(%s)", *connection.Name)))
+				}
+			}
+		} else {
+			// No connections, just show webhook URL
+			fmt.Printf("└─ Request sent to → %s\n", source.Url)
 		}
+
+		// Add spacing between sources (but not after the last one)
+		if i < len(sources)-1 {
+			fmt.Println()
+		}
+	}
+
+	// Print dashboard hint
+	fmt.Println()
+	if guestURL != "" {
+		fmt.Printf("💡 Sign up to make your webhook URL permanent: %s\n", guestURL)
+	} else {
+		var url = config.DashboardBaseURL
+		var displayURL = config.DashboardBaseURL
+		if config.Profile.ProjectId != "" {
+			url += "/events/cli?team_id=" + config.Profile.ProjectId
+			displayURL += "/events/cli"
+		}
+		if config.Profile.ProjectMode == "console" {
+			url = config.ConsoleBaseURL
+			displayURL = config.ConsoleBaseURL
+		}
+		// Create clickable link with OSC 8 hyperlink sequence
+		// Format: \033]8;;URL\033\\DISPLAY_TEXT\033]8;;\033\\
+		fmt.Printf("💡 View dashboard to inspect, retry & boomark events: \033]8;;%s\033\\%s\033]8;;\033\\\n", url, displayURL)
 	}
 }
