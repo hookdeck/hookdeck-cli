@@ -67,7 +67,11 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		if guestURL == "" {
 			return err
 		}
+	} else if config.Profile.GuestURL != "" && config.Profile.APIKey != "" {
+		// User is logged in with a guest account (has both GuestURL and APIKey)
+		guestURL = config.Profile.GuestURL
 	}
+	// If user has permanent account (APIKey but no GuestURL), guestURL remains empty
 
 	sdkClient := config.GetClient()
 

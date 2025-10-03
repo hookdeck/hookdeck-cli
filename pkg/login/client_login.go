@@ -98,6 +98,7 @@ func Login(config *config.Config, input io.Reader) error {
 	config.Profile.APIKey = response.APIKey
 	config.Profile.ProjectId = response.ProjectID
 	config.Profile.ProjectMode = response.ProjectMode
+	config.Profile.GuestURL = "" // Clear guest URL when logging in with permanent account
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err
@@ -144,6 +145,7 @@ func GuestLogin(config *config.Config) (string, error) {
 	config.Profile.APIKey = response.APIKey
 	config.Profile.ProjectId = response.ProjectID
 	config.Profile.ProjectMode = response.ProjectMode
+	config.Profile.GuestURL = guest_user.Url
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return "", err

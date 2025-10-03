@@ -3,6 +3,7 @@ package listen
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
@@ -50,12 +51,25 @@ func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.S
 			for j, connection := range sourceConns {
 				fullPath := targetURL.Scheme + "://" + targetURL.Host + *connection.Destination.CliPath
 
+				// Get connection name from FullName (format: "source -> destination")
+				// Split on "->" and take the second part (destination)
+				connNameDisplay := ""
+				if connection.FullName != nil && *connection.FullName != "" {
+					parts := strings.Split(*connection.FullName, "->")
+					if len(parts) == 2 {
+						destinationName := strings.TrimSpace(parts[1])
+						if destinationName != "" {
+							connNameDisplay = " " + ansi.Faint(fmt.Sprintf("(%s)", destinationName))
+						}
+					}
+				}
+
 				if j == numConns-1 {
 					// Last connection - use └─
-					fmt.Printf("└─ Forwards to     → %s %s\n", fullPath, ansi.Faint(fmt.Sprintf("(%s)", *connection.Name)))
+					fmt.Printf("└─ Forwards to     → %s%s\n", fullPath, connNameDisplay)
 				} else {
 					// Not last connection - use ├─
-					fmt.Printf("├─ Forwards to     → %s %s\n", fullPath, ansi.Faint(fmt.Sprintf("(%s)", *connection.Name)))
+					fmt.Printf("├─ Forwards to     → %s%s\n", fullPath, connNameDisplay)
 				}
 			}
 		} else {

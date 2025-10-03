@@ -31,6 +31,8 @@ import (
 )
 
 const timeLayout = "2006-01-02 15:04:05"
+const maxHistorySize = 50     // Maximum events to keep in memory
+const maxNavigableEvents = 10 // Only last 10 events are navigable
 
 //
 // Public types
@@ -85,14 +87,17 @@ type Proxy struct {
 	terminalMutex      sync.Mutex
 	rawModeState       *term.State
 	// Event navigation
-	eventHistory       []EventInfo
-	selectedEventIndex int
-	userNavigated      bool // Track if user has manually navigated away from latest event
+	eventHistory         []EventInfo
+	selectedEventIndex   int
+	userNavigated        bool // Track if user has manually navigated away from latest event
+	eventsTitleDisplayed bool // Track if "Events" title has been displayed
 	// Waiting animation
 	waitingAnimationFrame int
 	stopWaitingAnimation  chan bool
 	// Details view
 	showingDetails bool // Track if we're in alternate screen showing details
+	// Connection state
+	isConnected bool // Track if we're currently connected (disable actions during reconnection)
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -134,6 +139,127 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	p.terminalMutex.Lock()
 	defer p.terminalMutex.Unlock()
 
+	// Check if this is the 11th event - need to add "Events" title before the first historical event
+	isEleventhEvent := len(p.eventHistory) == maxNavigableEvents && !p.eventsTitleDisplayed
+
+	// If this is the 11th event, print the "Events" title now (before adding the event)
+	if isEleventhEvent {
+		// Temporarily restore normal terminal mode for printing
+		if p.rawModeState != nil {
+			term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+		}
+
+		// Move up to clear status line and blank line
+		fmt.Print("\033[2A\033[2K\r\033[1B\033[2K\r\033[1A")
+
+		// Print "Events" title with newline above
+		color := ansi.Color(os.Stdout)
+		fmt.Printf("\n%s\n\n", color.Faint("Events"))
+
+		// Print blank line and status that will be replaced
+		fmt.Println()
+		statusMsg := fmt.Sprintf("%s Adding...", color.Faint("●"))
+		fmt.Printf("%s\n", statusMsg)
+
+		p.eventsTitleDisplayed = true
+
+		// Re-enable raw mode
+		if p.rawModeState != nil {
+			term.MakeRaw(int(os.Stdin.Fd()))
+		}
+	}
+
+	// Check if any event will exit the navigable window when we add this new event
+	// We need to remove indentation from events becoming immutable
+	needToRedrawForExitingEvents := false
+	if len(p.eventHistory) >= maxNavigableEvents {
+		needToRedrawForExitingEvents = true
+	}
+
+	// Also check if the current selection will be pushed out
+	needToClearOldSelection := false
+	if p.userNavigated && len(p.eventHistory) > 0 {
+		// Calculate what the navigable range will be after adding the new event
+		futureHistorySize := len(p.eventHistory) + 1
+		futureNavigableStartIdx := futureHistorySize - maxNavigableEvents
+		if futureNavigableStartIdx < 0 {
+			futureNavigableStartIdx = 0
+		}
+
+		// If current selection will be outside future navigable range
+		if p.selectedEventIndex < futureNavigableStartIdx {
+			needToClearOldSelection = true
+		}
+	}
+
+	// Redraw navigable window if events are exiting or selection is being cleared
+	// BUT skip if we just printed the Events title (11th event case)
+	if (needToRedrawForExitingEvents || needToClearOldSelection) && !isEleventhEvent {
+		// Temporarily restore normal terminal mode for printing
+		if p.rawModeState != nil {
+			term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+		}
+
+		// Calculate current navigable window
+		currentNavigableStartIdx := len(p.eventHistory) - maxNavigableEvents
+		if currentNavigableStartIdx < 0 {
+			currentNavigableStartIdx = 0
+		}
+		currentNumNavigableEvents := len(p.eventHistory) - currentNavigableStartIdx
+
+		// Calculate future navigable window to determine which event will become immutable
+		futureHistorySize := len(p.eventHistory) + 1
+		futureNavigableStartIdx := futureHistorySize - maxNavigableEvents
+		if futureNavigableStartIdx < 0 {
+			futureNavigableStartIdx = 0
+		}
+
+		// Move cursor up and clear
+		// Account for: navigable events + separator (3 lines if present) + blank + status
+		linesToMoveUp := currentNumNavigableEvents + 2 // events + blank + status
+		// If we'll have a separator, add 3 more lines (blank line + "Recent events" + blank line)
+		if futureNavigableStartIdx > 0 {
+			linesToMoveUp += 3
+		}
+		fmt.Printf("\033[%dA", linesToMoveUp)
+		fmt.Print("\033[J")
+
+		// NOTE: We NEVER redraw the "Events" title - it was printed once and stays permanent
+
+		// Redraw events
+		for i := currentNavigableStartIdx; i < len(p.eventHistory); i++ {
+			// Events that will become immutable (fall outside future navigable range) have no indentation
+			if i < futureNavigableStartIdx {
+				fmt.Printf("%s\n", p.eventHistory[i].LogLine) // No indentation
+			} else {
+				// Add "Latest events" separator before first navigable event
+				if i == futureNavigableStartIdx {
+					color := ansi.Color(os.Stdout)
+					fmt.Printf("\n%s\n\n", color.Faint("Latest events (↑↓ to navigate)")) // Extra newline after separator
+				}
+				// Only indent selected event with ">", others have no indentation
+				if i == p.selectedEventIndex {
+					fmt.Printf("> %s\n", p.eventHistory[i].LogLine) // Selected
+				} else {
+					fmt.Printf("%s\n", p.eventHistory[i].LogLine) // No indentation
+				}
+			}
+		}
+
+		// Blank line
+		fmt.Println()
+
+		// Status message (will be replaced soon)
+		color := ansi.Color(os.Stdout)
+		statusMsg := fmt.Sprintf("%s Updating...", color.Faint("●"))
+		fmt.Printf("%s\n", statusMsg)
+
+		// Re-enable raw mode
+		if p.rawModeState != nil {
+			term.MakeRaw(int(os.Stdin.Fd()))
+		}
+	}
+
 	// Add event to history
 	eventInfo := EventInfo{
 		ID:      p.latestEventID,
@@ -145,9 +271,37 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	}
 	p.eventHistory = append(p.eventHistory, eventInfo)
 
+	// Limit history to last 50 events - trim old ones
+	if len(p.eventHistory) > maxHistorySize {
+		// Remove oldest event
+		removedCount := len(p.eventHistory) - maxHistorySize
+		p.eventHistory = p.eventHistory[removedCount:]
+
+		// Adjust selected index if it was pointing to a removed event
+		if p.selectedEventIndex < removedCount {
+			p.selectedEventIndex = 0
+			p.userNavigated = false // Reset navigation since selected event was removed
+		} else {
+			p.selectedEventIndex -= removedCount
+		}
+	}
+
 	// Auto-select the latest event unless user has navigated away
+	selectionAdjusted := false
 	if !p.userNavigated {
 		p.selectedEventIndex = len(p.eventHistory) - 1
+	} else {
+		// If user has navigated, check if selected event is still in navigable range
+		navigableStartIdx := len(p.eventHistory) - maxNavigableEvents
+		if navigableStartIdx < 0 {
+			navigableStartIdx = 0
+		}
+
+		// If selected event is now outside navigable range, move to oldest navigable event
+		if p.selectedEventIndex < navigableStartIdx {
+			p.selectedEventIndex = navigableStartIdx
+			selectionAdjusted = true // Need to redraw to show new selection
+		}
 	}
 
 	// Temporarily restore normal terminal mode for printing
@@ -155,83 +309,68 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	// If we have multiple events and auto-selection is enabled, redraw all events
-	if len(p.eventHistory) > 1 && !p.userNavigated {
-		// Move cursor up to the first event line
-		// From current position (after cursor), we need to move up:
-		// - 1 line for previous status
-		// - 1 line for blank line
-		// - (len(p.eventHistory) - 1) lines for all previous events
-		if p.statusLineShown {
-			linesToMoveUp := 1 + 1 + (len(p.eventHistory) - 1)
-			fmt.Printf("\033[%dA", linesToMoveUp)
-		}
+	// Calculate the navigable window (last 10 events)
+	navigableStartIdx := len(p.eventHistory) - maxNavigableEvents
+	if navigableStartIdx < 0 {
+		navigableStartIdx = 0
+	}
+	numNavigableEvents := len(p.eventHistory) - navigableStartIdx
 
-		// Print all events with selection indicator, clearing each line
-		for i, event := range p.eventHistory {
-			fmt.Printf("\033[2K") // Clear the entire current line
+	// If we have multiple navigable events and auto-selecting, redraw navigable window
+	// Also redraw if selection was adjusted
+	if numNavigableEvents > 1 && (!p.userNavigated || selectionAdjusted) {
+		// Move cursor up to first navigable event and clear everything
+		linesToMoveUp := numNavigableEvents - 1 + 2 // previous navigable events + blank + status
+		fmt.Printf("\033[%dA", linesToMoveUp)
+		fmt.Print("\033[J")
+
+		// Print navigable events with selection on the latest
+		for i := navigableStartIdx; i < len(p.eventHistory); i++ {
 			if i == p.selectedEventIndex {
-				fmt.Printf("> %s\n", event.LogLine)
+				fmt.Printf("> %s\n", p.eventHistory[i].LogLine)
 			} else {
-				fmt.Printf("  %s\n", event.LogLine)
+				fmt.Printf("%s\n", p.eventHistory[i].LogLine) // No indentation
+			}
+		}
+	} else {
+		// First event or user has navigated - simple append
+		if p.statusLineShown {
+			if len(p.eventHistory) == 1 {
+				// First event - only clear the "waiting" status line
+				fmt.Print("\033[1A\033[2K\r")
+			} else {
+				// Clear status line and blank line
+				fmt.Print("\033[2A\033[2K\r\033[1B\033[2K\r\033[1A")
 			}
 		}
 
-		// Add a newline before the status line (clear the line first)
-		fmt.Printf("\033[2K\n")
-
-		// Generate and print the new status message
-		var statusMsg string
-		color := ansi.Color(os.Stdout)
-		if p.latestEventSuccess {
-			statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-				color.Green("✓"), p.latestEventStatus)
+		// Print the new event
+		newEventIndex := len(p.eventHistory) - 1
+		// Only indent if selected, otherwise no indentation
+		if p.selectedEventIndex == newEventIndex {
+			fmt.Printf("> %s\n", p.eventHistory[newEventIndex].LogLine)
 		} else {
-			statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-				color.Red("x").Bold(), p.latestEventStatus)
-		}
-
-		fmt.Printf("\033[2K%s\n", statusMsg)
-		p.statusLineShown = true
-
-		// Re-enable raw mode
-		if p.rawModeState != nil {
-			term.MakeRaw(int(os.Stdin.Fd()))
-		}
-		return
-	}
-
-	// First event or user has navigated - simple case
-	if p.statusLineShown {
-		if len(p.eventHistory) == 1 {
-			// First event - only clear the status line (cursor is already at the right position)
-			fmt.Printf("\033[1A\033[K")
-		} else {
-			// Subsequent events - clear the status line and blank line above it, then move back to the new event position
-			fmt.Printf("\033[2A\033[K\033[1B\033[K\033[1A")
+			fmt.Printf("%s\n", p.eventHistory[newEventIndex].LogLine) // No indentation
 		}
 	}
 
-	// Print the event log with selection indicator
-	newEventIndex := len(p.eventHistory) - 1
-	if p.selectedEventIndex == newEventIndex {
-		fmt.Printf("> %s\n", p.eventHistory[newEventIndex].LogLine)
-	} else {
-		fmt.Printf("  %s\n", p.eventHistory[newEventIndex].LogLine)
-	}
-
-	// Add a newline before the status line
+	// Blank line
 	fmt.Println()
 
-	// Generate and print the new status message
+	// Generate status message
 	var statusMsg string
 	color := ansi.Color(os.Stdout)
 	if p.latestEventSuccess {
 		statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 			color.Green("✓"), p.latestEventStatus)
 	} else {
-		statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-			color.Red("x").Bold(), p.latestEventStatus)
+		if p.latestEventStatus == 0 {
+			statusMsg = fmt.Sprintf("> %s Last event failed with error ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Red("x").Bold())
+		} else {
+			statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Red("x").Bold(), p.latestEventStatus)
+		}
 	}
 
 	fmt.Printf("%s\n", statusMsg)
@@ -271,37 +410,30 @@ func (p *Proxy) updateStatusLine() {
 	p.terminalMutex.Lock()
 	defer p.terminalMutex.Unlock()
 
+	// Only update if we haven't received any events yet (just the waiting animation)
+	if p.hasReceivedEvent {
+		return
+	}
+
 	// Temporarily restore normal terminal mode for printing
 	if p.rawModeState != nil {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	var statusMsg string
-	if !p.hasReceivedEvent {
-		// Animated green dot (alternates between ● and ○)
-		color := ansi.Color(os.Stdout)
-		var dot string
-		if p.waitingAnimationFrame%2 == 0 {
-			dot = fmt.Sprintf("%s", color.Green("●"))
-		} else {
-			dot = fmt.Sprintf("%s", color.Green("○"))
-		}
-		p.waitingAnimationFrame++
-		statusMsg = fmt.Sprintf("%s Connected. Waiting for events...", dot)
+	// Animated green dot (alternates between ● and ○)
+	color := ansi.Color(os.Stdout)
+	var dot string
+	if p.waitingAnimationFrame%2 == 0 {
+		dot = fmt.Sprintf("%s", color.Green("●"))
 	} else {
-		color := ansi.Color(os.Stdout)
-		if p.latestEventSuccess {
-			statusMsg = fmt.Sprintf("> %s Last event succeeded (%d) ⌨️ [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-				color.Green("✓"), p.latestEventStatus)
-		} else {
-			statusMsg = fmt.Sprintf("> %s Last event failed (%d) ⌨️ [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-				color.Red("x").Bold(), p.latestEventStatus)
-		}
+		dot = fmt.Sprintf("%s", color.Green("○"))
 	}
+	p.waitingAnimationFrame++
+	statusMsg := fmt.Sprintf("%s Connected. Waiting for events...", dot)
 
 	if p.statusLineShown {
 		// If we've shown a status before, move up one line and clear it
-		fmt.Printf("\033[1A\033[K%s\n", statusMsg)
+		fmt.Printf("\033[1A\033[2K\r%s\n", statusMsg)
 	} else {
 		// First time showing status
 		fmt.Printf("%s\n", statusMsg)
@@ -404,8 +536,8 @@ func (p *Proxy) processKeyboardInput(input []byte) {
 		}
 	}
 
-	// Disable all other shortcuts until first event is received
-	if !p.hasReceivedEvent {
+	// Disable all other shortcuts until first event is received or while not connected
+	if !p.hasReceivedEvent || !p.isConnected {
 		return
 	}
 
@@ -445,15 +577,23 @@ func (p *Proxy) processKeyboardInput(input []byte) {
 	}
 }
 
-// navigateEvents moves the selection up or down in the event history
+// navigateEvents moves the selection up or down in the event history (only within last 10 events)
 func (p *Proxy) navigateEvents(direction int) {
 	if len(p.eventHistory) == 0 {
 		return
 	}
 
+	// Calculate the navigable window (last 10 events)
+	navigableStartIdx := len(p.eventHistory) - maxNavigableEvents
+	if navigableStartIdx < 0 {
+		navigableStartIdx = 0
+	}
+
 	newIndex := p.selectedEventIndex + direction
-	if newIndex < 0 {
-		newIndex = 0
+
+	// Clamp to navigable range
+	if newIndex < navigableStartIdx {
+		newIndex = navigableStartIdx
 	} else if newIndex >= len(p.eventHistory) {
 		newIndex = len(p.eventHistory) - 1
 	}
@@ -471,7 +611,7 @@ func (p *Proxy) navigateEvents(direction int) {
 	}
 }
 
-// redrawEventsWithSelection updates the selection indicators without clearing the screen
+// redrawEventsWithSelection updates the selection indicators without clearing the screen (only last 10 events)
 func (p *Proxy) redrawEventsWithSelection() {
 	if len(p.eventHistory) == 0 {
 		return
@@ -485,36 +625,60 @@ func (p *Proxy) redrawEventsWithSelection() {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	// Move cursor up to start of events section
-	// Count total lines: events + blank line + status line
-	totalLines := len(p.eventHistory) + 2
-	fmt.Printf("\033[%dA", totalLines)
+	// Calculate the navigable window (last 10 events)
+	navigableStartIdx := len(p.eventHistory) - maxNavigableEvents
+	if navigableStartIdx < 0 {
+		navigableStartIdx = 0
+	}
+	numNavigableEvents := len(p.eventHistory) - navigableStartIdx
 
-	// Print all events with selection indicator, clearing each line
-	for i, event := range p.eventHistory {
-		fmt.Printf("\033[2K") // Clear the entire current line
+	// Move cursor up to start of navigable events and clear everything below
+	linesToMoveUp := numNavigableEvents + 2 // navigable events + blank + status
+	// If we have a separator, add 3 more lines (blank line + "Recent events" + blank line)
+	if navigableStartIdx > 0 {
+		linesToMoveUp += 3
+	}
+	fmt.Printf("\033[%dA", linesToMoveUp)
+	fmt.Print("\033[J")
+
+	// NOTE: We NEVER redraw the "Events" title - it was printed once and stays permanent
+
+	// Add separator if there are historical events
+	if navigableStartIdx > 0 {
+		color := ansi.Color(os.Stdout)
+		fmt.Printf("\n%s\n\n", color.Faint("Latest events (↑↓ to navigate)")) // Extra newline after separator
+	}
+
+	// Print only the navigable events with selection indicator
+	for i := navigableStartIdx; i < len(p.eventHistory); i++ {
 		if i == p.selectedEventIndex {
-			fmt.Printf("> %s\n", event.LogLine)
+			fmt.Printf("> %s\n", p.eventHistory[i].LogLine) // Selected event with >
 		} else {
-			fmt.Printf("  %s\n", event.LogLine)
+			fmt.Printf("%s\n", p.eventHistory[i].LogLine) // No indentation
 		}
 	}
 
 	// Add a newline before the status line
-	fmt.Printf("\033[2K\n") // Clear entire line and add newline
+	fmt.Println()
 
 	// Generate and print the status message for the selected event
 	var statusMsg string
 	color := ansi.Color(os.Stdout)
-	if p.eventHistory[p.selectedEventIndex].Success {
+	selectedEvent := p.eventHistory[p.selectedEventIndex]
+	if selectedEvent.Success {
 		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-			color.Green("✓"), p.eventHistory[p.selectedEventIndex].Status)
+			color.Green("✓"), selectedEvent.Status)
 	} else {
-		statusMsg = fmt.Sprintf("> %s Selected event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-			color.Red("⨯"), p.eventHistory[p.selectedEventIndex].Status)
+		if selectedEvent.Status == 0 {
+			statusMsg = fmt.Sprintf("> %s Selected event failed with error ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Red("x").Bold())
+		} else {
+			statusMsg = fmt.Sprintf("> %s Selected event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Red("x").Bold(), selectedEvent.Status)
+		}
 	}
 
-	fmt.Printf("\033[2K%s\n", statusMsg) // Clear entire line and print status
+	fmt.Printf("%s\n", statusMsg)
 	p.statusLineShown = true
 
 	// Re-enable raw mode
@@ -529,18 +693,17 @@ func (p *Proxy) redrawEventsWithSelection() {
 //   - Create a new websocket connection
 func (p *Proxy) Run(parentCtx context.Context) error {
 	const maxConnectAttempts = 10
+	const maxReconnectAttempts = 10 // Also limit reconnection attempts
 	nAttempts := 0
 
 	// Track whether or not we have connected successfully.
-	// Once we have connected we no longer limit the number
-	// of connection attempts that will be made and will retry
-	// until the connection is successful or the user terminates
-	// the program.
 	hasConnectedOnce := false
 	canConnect := func() bool {
 		if hasConnectedOnce {
-			return true
+			// After first successful connection, allow limited reconnection attempts
+			return nAttempts < maxReconnectAttempts
 		} else {
+			// Initial connection attempts
 			return nAttempts < maxConnectAttempts
 		}
 	}
@@ -591,17 +754,10 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 	for canConnect() {
 		// Apply backoff delay BEFORE creating new client (except for first attempt)
 		if nAttempts > 0 {
-			// For initial connection attempts (before first successful connection),
-			// use a fixed delay. After first connection, use exponential backoff.
-			var sleepDurationMS int
-			if hasConnectedOnce {
-				// Exponential backoff for reconnection attempts
-				attemptsOverMax := math.Max(0, float64(nAttempts-maxConnectAttempts))
-				sleepDurationMS = int(math.Round(math.Min(100, math.Pow(attemptsOverMax, 2)) * 100))
-			} else {
-				// Fixed 3 second delay between initial connection attempts
-				sleepDurationMS = 3000
-			}
+			// Exponential backoff: 100ms * 2^(attempt-1), capped at 30 seconds
+			// Attempt 1: 100ms, 2: 200ms, 3: 400ms, 4: 800ms, 5: 1.6s, 6: 3.2s, 7: 6.4s, 8: 12.8s, 9+: 30s
+			backoffMS := math.Min(100*math.Pow(2, float64(nAttempts-1)), 30000)
+			sleepDurationMS := int(backoffMS)
 
 			log.WithField(
 				"prefix", "proxy.Proxy.Run",
@@ -612,6 +768,15 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			// Reset the timer to the next duration
 			p.connectionTimer.Stop()
 			p.connectionTimer.Reset(time.Duration(sleepDurationMS) * time.Millisecond)
+
+			// Clear the status line before showing reconnection spinner
+			p.terminalMutex.Lock()
+			if p.statusLineShown {
+				// Move up and clear the status line
+				fmt.Print("\033[1A\033[2K\r")
+				p.statusLineShown = false
+			}
+			p.terminalMutex.Unlock()
 
 			// Block with a spinner while waiting
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
@@ -646,28 +811,27 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		// Monitor the websocket for connection and update the spinner appropriately.
 		go func() {
 			<-p.webSocketClient.Connected()
-			if hasConnectedOnce {
-				// Stop the spinner and print the message safely
-				p.terminalMutex.Lock()
-				if p.rawModeState != nil {
-					term.Restore(int(os.Stdin.Fd()), p.rawModeState)
-				}
-				ansi.StopSpinner(s, "Reconnected!", p.cfg.Log.Out)
-				if p.rawModeState != nil {
-					term.MakeRaw(int(os.Stdin.Fd()))
-				}
-				p.terminalMutex.Unlock()
+			// Mark as connected and reset attempt counter
+			p.isConnected = true
+			nAttempts = 0
+
+			// Stop the spinner and update status line
+			p.terminalMutex.Lock()
+			if p.rawModeState != nil {
+				term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+			}
+			ansi.StopSpinner(s, "", p.cfg.Log.Out)
+			if p.rawModeState != nil {
+				term.MakeRaw(int(os.Stdin.Fd()))
+			}
+			p.terminalMutex.Unlock()
+
+			// Always update the status line to show current state
+			if hasConnectedOnce || p.hasReceivedEvent {
+				// If we've reconnected or have events, just update the status
+				p.updateStatusLine()
 			} else {
-				// Stop the spinner without a message and use our status line
-				p.terminalMutex.Lock()
-				if p.rawModeState != nil {
-					term.Restore(int(os.Stdin.Fd()), p.rawModeState)
-				}
-				ansi.StopSpinner(s, "", p.cfg.Log.Out)
-				if p.rawModeState != nil {
-					term.MakeRaw(int(os.Stdin.Fd()))
-				}
-				p.terminalMutex.Unlock()
+				// First connection, show initial status
 				p.updateStatusLine()
 			}
 			hasConnectedOnce = true
@@ -683,6 +847,9 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
 			return nil
 		case <-p.webSocketClient.NotifyExpired:
+			// Mark as disconnected
+			p.isConnected = false
+
 			if !canConnect() {
 				// Stop the spinner and restore terminal state before fatal error
 				p.terminalMutex.Lock()
@@ -1064,12 +1231,16 @@ func (p *Proxy) enterDetailsView() {
 	timestampStr := selectedEvent.Time.Format(timeLayout)
 	statusIcon := color.Green("✓")
 	statusText := "succeeded"
+	statusDisplay := color.Bold(fmt.Sprintf("%d", selectedEvent.Status))
 	if !selectedEvent.Success {
-		statusIcon = color.Red("❌")
+		statusIcon = color.Red("x").Bold()
 		statusText = "failed"
+		if selectedEvent.Status == 0 {
+			statusDisplay = color.Bold("error")
+		}
 	}
 
-	content.WriteString(fmt.Sprintf("%s Event %s with status %s at %s\n", statusIcon, statusText, color.Bold(fmt.Sprintf("%d", selectedEvent.Status)), ansi.Faint(timestampStr)))
+	content.WriteString(fmt.Sprintf("%s Event %s with status %s at %s\n", statusIcon, statusText, statusDisplay, ansi.Faint(timestampStr)))
 	content.WriteString("\n")
 
 	// Dashboard URL

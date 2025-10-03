@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -35,7 +35,10 @@ func newCICmd() *ciCmd {
 func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
 	err := validators.APIKey(lc.apiKey)
 	if err != nil {
-		log.Fatal(err)
+		if err == validators.ErrAPIKeyNotConfigured {
+			return fmt.Errorf("Provide a project API key using the --api-key flag. Example: hookdeck ci --api-key YOUR_KEY")
+		}
+		return err
 	}
 	return login.CILogin(&Config, lc.apiKey, lc.name)
 }
