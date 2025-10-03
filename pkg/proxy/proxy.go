@@ -115,6 +115,26 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 	return ctx
 }
 
+// calculateEventLines calculates how many terminal lines an event log occupies
+// accounting for line wrapping based on terminal width
+func (p *Proxy) calculateEventLines(logLine string) int {
+	// Get terminal width
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 {
+		width = 80 // Default fallback
+	}
+
+	// Add 2 for the potential "> " prefix or "  " indentation
+	lineLength := len(logLine) + 2
+
+	// Calculate how many lines this will occupy
+	lines := (lineLength + width - 1) / width // Ceiling division
+	if lines < 1 {
+		lines = 1
+	}
+	return lines
+}
+
 // safePrintf temporarily disables raw mode, prints the message, then re-enables raw mode
 func (p *Proxy) safePrintf(format string, args ...interface{}) {
 	p.terminalMutex.Lock()
@@ -261,7 +281,7 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 		}
 	}
 
-	// Add event to history
+	// Create event info
 	eventInfo := EventInfo{
 		ID:      p.latestEventID,
 		Status:  p.latestEventStatus,
@@ -270,7 +290,22 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 		Data:    p.latestEventData,
 		LogLine: eventLog,
 	}
-	p.eventHistory = append(p.eventHistory, eventInfo)
+
+	// Check if this exact event (same ID AND timestamp) already exists
+	// This prevents true duplicates but allows retries (same ID, different timestamp) as separate entries
+	isDuplicate := false
+	for i := len(p.eventHistory) - 1; i >= 0; i-- {
+		if p.eventHistory[i].ID == p.latestEventID && p.eventHistory[i].Time.Equal(p.latestEventTime) {
+			isDuplicate = true
+			break
+		}
+	}
+
+	if !isDuplicate {
+		// Add to history (either new event or retry with different timestamp)
+		p.eventHistory = append(p.eventHistory, eventInfo)
+	}
+	// If it's a duplicate (same ID and timestamp), just skip adding it
 
 	// Limit history to last 50 events - trim old ones
 	if len(p.eventHistory) > maxHistorySize {
@@ -310,8 +345,12 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	// Also redraw if user has navigated (to show pinned selection)
 	if numNavigableEvents > 1 && !p.userNavigated {
 		// Auto-selecting mode: redraw to move selection to latest
-		// Move cursor up to first navigable event and clear everything
-		linesToMoveUp := numNavigableEvents - 1 + 2 // previous navigable events + blank + status
+		// Calculate total terminal lines occupied by previous navigable events
+		totalEventLines := 0
+		for i := navigableStartIdx; i < len(p.eventHistory)-1; i++ {
+			totalEventLines += p.calculateEventLines(p.eventHistory[i].LogLine)
+		}
+		linesToMoveUp := totalEventLines + 2 // previous event lines + blank + status
 		fmt.Printf("\033[%dA", linesToMoveUp)
 		fmt.Print("\033[J")
 
@@ -328,8 +367,12 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 		// Get the navigable events (includes pinned selected event if applicable)
 		navigableIndices := p.getNavigableEvents()
 
-		// Move cursor up and redraw all navigable events
-		linesToMoveUp := len(navigableIndices) - 1 + 2 // previous navigable events + blank + status
+		// Calculate total terminal lines occupied by previous navigable events
+		totalEventLines := 0
+		for i := 0; i < len(navigableIndices)-1; i++ {
+			totalEventLines += p.calculateEventLines(p.eventHistory[navigableIndices[i]].LogLine)
+		}
+		linesToMoveUp := totalEventLines + 2 // previous event lines + blank + status
 		fmt.Printf("\033[%dA", linesToMoveUp)
 		fmt.Print("\033[J")
 
@@ -369,16 +412,35 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	// Generate status message
 	var statusMsg string
 	color := ansi.Color(os.Stdout)
-	if p.latestEventSuccess {
-		statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-			color.Green("✓"), p.latestEventStatus)
-	} else {
-		if p.latestEventStatus == 0 {
-			statusMsg = fmt.Sprintf("> %s Last event failed with error ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-				color.Red("x").Bold())
+
+	// If user has navigated, show selected event status; otherwise show latest event status
+	if p.userNavigated && p.selectedEventIndex >= 0 && p.selectedEventIndex < len(p.eventHistory) {
+		selectedEvent := p.eventHistory[p.selectedEventIndex]
+		if selectedEvent.Success {
+			statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Green("✓"), selectedEvent.Status)
 		} else {
-			statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-				color.Red("x").Bold(), p.latestEventStatus)
+			if selectedEvent.Status == 0 {
+				statusMsg = fmt.Sprintf("> %s Selected event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+					color.Red("x").Bold())
+			} else {
+				statusMsg = fmt.Sprintf("> %s Selected event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+					color.Red("x").Bold(), selectedEvent.Status)
+			}
+		}
+	} else {
+		// Auto-selecting latest event
+		if p.latestEventSuccess {
+			statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Green("✓"), p.latestEventStatus)
+		} else {
+			if p.latestEventStatus == 0 {
+				statusMsg = fmt.Sprintf("> %s Last event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+					color.Red("x").Bold())
+			} else {
+				statusMsg = fmt.Sprintf("> %s Last event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+					color.Red("x").Bold(), p.latestEventStatus)
+			}
 		}
 	}
 
@@ -691,7 +753,6 @@ func (p *Proxy) redrawEventsWithSelection() {
 
 	// Get the navigable events (includes pinned selected event if applicable)
 	navigableIndices := p.getNavigableEvents()
-	numNavigableEvents := len(navigableIndices)
 
 	// Calculate the normal navigable start for determining if we need separator
 	normalNavigableStartIdx := len(p.eventHistory) - maxNavigableEvents
@@ -699,9 +760,15 @@ func (p *Proxy) redrawEventsWithSelection() {
 		normalNavigableStartIdx = 0
 	}
 
+	// Calculate total terminal lines occupied by navigable events
+	totalEventLines := 0
+	for _, idx := range navigableIndices {
+		totalEventLines += p.calculateEventLines(p.eventHistory[idx].LogLine)
+	}
+
 	// Move cursor up to start of navigable events and clear everything below
-	linesToMoveUp := numNavigableEvents + 2 // navigable events + blank + status
-	// If we have a separator, add 3 more lines (blank line + "Recent events" + blank line)
+	linesToMoveUp := totalEventLines + 2 // event lines + blank + status
+	// If we have a separator, add 3 more lines (blank line + "Latest events" + blank line)
 	if normalNavigableStartIdx > 0 {
 		linesToMoveUp += 3
 	}
@@ -733,14 +800,14 @@ func (p *Proxy) redrawEventsWithSelection() {
 	color := ansi.Color(os.Stdout)
 	selectedEvent := p.eventHistory[p.selectedEventIndex]
 	if selectedEvent.Success {
-		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 			color.Green("✓"), selectedEvent.Status)
 	} else {
 		if selectedEvent.Status == 0 {
-			statusMsg = fmt.Sprintf("> %s Selected event failed with error ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Selected event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 				color.Red("x").Bold())
 		} else {
-			statusMsg = fmt.Sprintf("> %s Selected event failed with status %d ⌨️  [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Selected event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 				color.Red("x").Bold(), selectedEvent.Status)
 		}
 	}
@@ -1187,23 +1254,6 @@ func (p *Proxy) retrySelectedEvent() {
 		return
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] Failed to retry event %s (status: %d)\n",
-			color.Red("ERROR").Bold(),
-			eventID,
-			resp.StatusCode,
-		)
-		return
-	}
-
-	// Success feedback
-	color := ansi.Color(os.Stdout)
-	p.safePrintf("[%s] Event %s retry requested successfully\n",
-		color.Green("SUCCESS"),
-		eventID,
-	)
 }
 
 func (p *Proxy) openSelectedEventURL() {
@@ -1289,7 +1339,7 @@ func (p *Proxy) enterDetailsView() {
 	// Header with navigation hints
 	content.WriteString(ansi.Bold("Event Details"))
 	content.WriteString("\n")
-	content.WriteString(ansi.Faint("⌨️  Press 'q' to return to events • Use arrow keys/Page Up/Down to scroll"))
+	content.WriteString(ansi.Faint("| Press 'q' to return to events • Use arrow keys/Page Up/Down to scroll"))
 	content.WriteString("\n")
 	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
 	content.WriteString("\n\n")
@@ -1326,7 +1376,9 @@ func (p *Proxy) enterDetailsView() {
 	// Request section
 	content.WriteString(ansi.Bold("Request"))
 	content.WriteString("\n\n")
-	content.WriteString(fmt.Sprintf("%s %s%s\n", color.Bold(webhookEvent.Body.Request.Method), p.cfg.URL.String(), webhookEvent.Body.Path))
+	// Construct the full URL with query params the same way as in processAttempt
+	fullURL := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
+	content.WriteString(fmt.Sprintf("%s %s\n", color.Bold(webhookEvent.Body.Request.Method), fullURL))
 	content.WriteString("\n")
 	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
 	content.WriteString("\n\n")
