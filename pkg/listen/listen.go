@@ -123,6 +123,8 @@ Specify a single destination to update the path. For example, pass a connection 
 	fmt.Println()
 	printSourcesWithConnections(config, sources, connections, URL)
 	fmt.Println()
+	fmt.Printf("─ %s ──────────────────────────────────────────────────────\n", "Events")
+	fmt.Println()
 
 	p := proxy.New(&proxy.Config{
 		DeviceName:       config.DeviceName,

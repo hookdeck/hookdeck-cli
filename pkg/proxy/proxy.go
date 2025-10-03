@@ -57,6 +57,16 @@ type Config struct {
 	Insecure bool
 }
 
+// EventInfo represents a single event for navigation
+type EventInfo struct {
+	ID      string
+	Status  int
+	Success bool
+	Time    time.Time
+	Data    *websocket.Attempt
+	LogLine string
+}
+
 // A Proxy opens a websocket connection with Hookdeck, listens for incoming
 // webhook events, forwards them to the local endpoint and sends the response
 // back to Hookdeck.
@@ -74,6 +84,10 @@ type Proxy struct {
 	statusLineShown    bool
 	terminalMutex      sync.Mutex
 	rawModeState       *term.State
+	// Event navigation
+	eventHistory       []EventInfo
+	selectedEventIndex int
+	userNavigated      bool // Track if user has manually navigated away from latest event
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -115,31 +129,99 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	p.terminalMutex.Lock()
 	defer p.terminalMutex.Unlock()
 
+	// Add event to history
+	eventInfo := EventInfo{
+		ID:      p.latestEventID,
+		Status:  p.latestEventStatus,
+		Success: p.latestEventSuccess,
+		Time:    p.latestEventTime,
+		Data:    p.latestEventData,
+		LogLine: eventLog,
+	}
+	p.eventHistory = append(p.eventHistory, eventInfo)
+
+	// Auto-select the latest event unless user has navigated away
+	if !p.userNavigated {
+		p.selectedEventIndex = len(p.eventHistory) - 1
+	}
+
 	// Temporarily restore normal terminal mode for printing
 	if p.rawModeState != nil {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	// If we have a previous status line, clear it and the blank line above it
-	if p.statusLineShown {
-		fmt.Printf("\033[2A\033[K\033[1B\033[K")
+	// If we have multiple events and auto-selection is enabled, redraw all events
+	if len(p.eventHistory) > 1 && !p.userNavigated {
+		// Move cursor up to the first event line
+		// From current position (after cursor), we need to move up:
+		// - 1 line for previous status
+		// - 1 line for blank line
+		// - (len(p.eventHistory) - 1) lines for all previous events
+		if p.statusLineShown {
+			linesToMoveUp := 1 + 1 + (len(p.eventHistory) - 1)
+			fmt.Printf("\033[%dA", linesToMoveUp)
+		}
+
+		// Print all events with selection indicator, clearing each line
+		for i, event := range p.eventHistory {
+			fmt.Printf("\033[2K") // Clear the entire current line
+			if i == p.selectedEventIndex {
+				fmt.Printf("> %s\n", event.LogLine)
+			} else {
+				fmt.Printf("  %s\n", event.LogLine)
+			}
+		}
+
+		// Add a newline before the status line (clear the line first)
+		fmt.Printf("\033[2K\n")
+
+		// Generate and print the new status message
+		var statusMsg string
+		color := ansi.Color(os.Stdout)
+		if p.latestEventSuccess {
+			statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Green("✓"), p.latestEventStatus)
+		} else {
+			statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Red("x").Bold(), p.latestEventStatus)
+		}
+
+		fmt.Printf("\033[2K%s\n", statusMsg)
+		p.statusLineShown = true
+
+		// Re-enable raw mode
+		if p.rawModeState != nil {
+			term.MakeRaw(int(os.Stdin.Fd()))
+		}
+		return
 	}
 
-	// Print the event log
-	fmt.Printf("%s\n", eventLog)
+	// First event or user has navigated - simple case
+	if p.statusLineShown {
+		// Clear the status line and blank line above it, then move back to the new event position
+		fmt.Printf("\033[2A\033[K\033[1B\033[K\033[1A")
+	}
 
-	// Add a blank line for visual separation
+	// Print the event log with selection indicator
+	newEventIndex := len(p.eventHistory) - 1
+	if p.selectedEventIndex == newEventIndex {
+		fmt.Printf("> %s\n", p.eventHistory[newEventIndex].LogLine)
+	} else {
+		fmt.Printf("  %s\n", p.eventHistory[newEventIndex].LogLine)
+	}
+
+	// Add a newline before the status line
 	fmt.Println()
 
 	// Generate and print the new status message
 	var statusMsg string
 	color := ansi.Color(os.Stdout)
 	if p.latestEventSuccess {
-		statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
+		statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 			color.Green("✓"), p.latestEventStatus)
 	} else {
-		statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
-			color.Red("⨯"), p.latestEventStatus)
+		statusMsg = fmt.Sprintf("> %s Last event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			color.Red("x").Bold(), p.latestEventStatus)
 	}
 
 	fmt.Printf("%s\n", statusMsg)
@@ -163,15 +245,15 @@ func (p *Proxy) updateStatusLine() {
 
 	var statusMsg string
 	if !p.hasReceivedEvent {
-		statusMsg = "> Ready..."
+		statusMsg = "Connected. Waiting for events..."
 	} else {
 		color := ansi.Color(os.Stdout)
 		if p.latestEventSuccess {
-			statusMsg = fmt.Sprintf("> %s Last event succeeded (%d) ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Last event succeeded (%d) ⌨️ [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
 				color.Green("✓"), p.latestEventStatus)
 		} else {
-			statusMsg = fmt.Sprintf("> %s Last event failed (%d) ⌨️ [r] Retry • [o] Open link • [d] Details • [q] Quit",
-				color.Red("⚠️"), p.latestEventStatus)
+			statusMsg = fmt.Sprintf("> %s Last event failed (%d) ⌨️ [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				color.Red("x").Bold(), p.latestEventStatus)
 		}
 	}
 
@@ -179,8 +261,8 @@ func (p *Proxy) updateStatusLine() {
 		// If we've shown a status before, move up one line and clear it
 		fmt.Printf("\033[1A\033[K%s\n", statusMsg)
 	} else {
-		// First time showing status
-		fmt.Printf("%s\n", statusMsg)
+		// First time showing status - add a newline before it for spacing
+		fmt.Printf("\n%s\n", statusMsg)
 		p.statusLineShown = true
 	}
 
@@ -209,28 +291,33 @@ func (p *Proxy) startKeyboardListener(ctx context.Context) {
 		// Ensure we restore terminal state when this goroutine exits
 		defer func() {
 			p.terminalMutex.Lock()
+			defer p.terminalMutex.Unlock()
 			term.Restore(int(os.Stdin.Fd()), oldState)
-			p.terminalMutex.Unlock()
 		}()
 
 		// Create a buffered channel for reading stdin
-		inputCh := make(chan byte, 1)
+		inputCh := make(chan []byte, 1)
 
 		// Start a separate goroutine to read from stdin
 		go func() {
 			defer close(inputCh)
-			buf := make([]byte, 1)
+			buf := make([]byte, 3) // Buffer for escape sequences
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				default:
 					n, err := os.Stdin.Read(buf)
-					if err != nil || n != 1 {
+					if err != nil {
+						// Log the error but don't crash the application
+						log.WithField("prefix", "proxy.startKeyboardListener").Debugf("Error reading stdin: %v", err)
 						return
 					}
+					if n == 0 {
+						continue
+					}
 					select {
-					case inputCh <- buf[0]:
+					case inputCh <- buf[:n]:
 					case <-ctx.Done():
 						return
 					}
@@ -243,31 +330,132 @@ func (p *Proxy) startKeyboardListener(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case key, ok := <-inputCh:
+			case input, ok := <-inputCh:
 				if !ok {
 					return
 				}
 
-				// Process the key
-				switch key {
-				case 0x72, 0x52: // 'r' or 'R'
-					p.retryLatestEvent()
-				case 0x6F, 0x4F: // 'o' or 'O'
-					p.openLatestEventURL()
-				case 0x64, 0x44: // 'd' or 'D'
-					p.showLatestEventDetails()
-				case 0x03: // Ctrl+C
-					proc, _ := os.FindProcess(os.Getpid())
-					proc.Signal(os.Interrupt)
-					return
-				case 0x71, 0x51: // 'q' or 'Q'
-					proc, _ := os.FindProcess(os.Getpid())
-					proc.Signal(os.Interrupt)
-					return
-				}
+				// Process the input
+				p.processKeyboardInput(input)
 			}
 		}
 	}()
+}
+
+// processKeyboardInput handles keyboard input including arrow keys
+func (p *Proxy) processKeyboardInput(input []byte) {
+	if len(input) == 0 {
+		return
+	}
+
+	// Handle escape sequences (arrow keys)
+	if len(input) == 3 && input[0] == 0x1B && input[1] == 0x5B {
+		switch input[2] {
+		case 0x41: // Up arrow
+			p.navigateEvents(-1)
+		case 0x42: // Down arrow
+			p.navigateEvents(1)
+		}
+		return
+	}
+
+	// Handle single character keys
+	if len(input) == 1 {
+		switch input[0] {
+		case 0x72, 0x52: // 'r' or 'R'
+			p.retrySelectedEvent()
+		case 0x6F, 0x4F: // 'o' or 'O'
+			p.openSelectedEventURL()
+		case 0x64, 0x44: // 'd' or 'D'
+			p.showSelectedEventDetails()
+		case 0x03: // Ctrl+C
+			proc, _ := os.FindProcess(os.Getpid())
+			proc.Signal(os.Interrupt)
+			return
+		case 0x71, 0x51: // 'q' or 'Q'
+			proc, _ := os.FindProcess(os.Getpid())
+			proc.Signal(os.Interrupt)
+			return
+		}
+	}
+}
+
+// navigateEvents moves the selection up or down in the event history
+func (p *Proxy) navigateEvents(direction int) {
+	if len(p.eventHistory) == 0 {
+		return
+	}
+
+	newIndex := p.selectedEventIndex + direction
+	if newIndex < 0 {
+		newIndex = 0
+	} else if newIndex >= len(p.eventHistory) {
+		newIndex = len(p.eventHistory) - 1
+	}
+
+	if newIndex != p.selectedEventIndex {
+		p.selectedEventIndex = newIndex
+		p.userNavigated = true // Mark that user has manually navigated
+
+		// Reset userNavigated if user navigates back to the latest event
+		if newIndex == len(p.eventHistory)-1 {
+			p.userNavigated = false
+		}
+
+		p.redrawEventsWithSelection()
+	}
+}
+
+// redrawEventsWithSelection updates the selection indicators without clearing the screen
+func (p *Proxy) redrawEventsWithSelection() {
+	if len(p.eventHistory) == 0 {
+		return
+	}
+
+	p.terminalMutex.Lock()
+	defer p.terminalMutex.Unlock()
+
+	// Temporarily restore normal terminal mode for printing
+	if p.rawModeState != nil {
+		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+	}
+
+	// Move cursor up to redraw all events with correct selection indicators
+	// We need to move up (number of events + 1 for blank line + 1 for status line) lines
+	totalLines := len(p.eventHistory) + 2
+	fmt.Printf("\033[%dA", totalLines)
+
+	// Print all events with selection indicator, clearing each line first
+	for i, event := range p.eventHistory {
+		fmt.Printf("\033[2K") // Clear the entire current line
+		if i == p.selectedEventIndex {
+			fmt.Printf("> %s\n", event.LogLine)
+		} else {
+			fmt.Printf("  %s\n", event.LogLine)
+		}
+	}
+
+	// Add a newline before the status line
+	fmt.Printf("\033[2K\n") // Clear entire line and add newline
+
+	// Generate and print the status message for the selected event
+	var statusMsg string
+	color := ansi.Color(os.Stdout)
+	if p.eventHistory[p.selectedEventIndex].Success {
+		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			color.Green("✓"), p.eventHistory[p.selectedEventIndex].Status)
+	} else {
+		statusMsg = fmt.Sprintf("> %s Selected event failed with status %d ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			color.Red("⨯"), p.eventHistory[p.selectedEventIndex].Status)
+	}
+
+	fmt.Printf("\033[2K%s\n", statusMsg) // Clear entire line and print status
+	p.statusLineShown = true
+
+	// Re-enable raw mode
+	if p.rawModeState != nil {
+		term.MakeRaw(int(os.Stdin.Fd()))
+	}
 }
 
 // Run manages the connection to Hookdeck.
@@ -513,7 +701,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 			errStr := fmt.Sprintf("%s [%s] Failed to %s: %v",
 				color.Faint(localTime),
-				color.Red("ERROR"),
+				color.Red("ERROR").Bold(),
 				webhookEvent.Body.Request.Method,
 				err,
 			)
@@ -569,7 +757,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	if err != nil {
 		errStr := fmt.Sprintf("%s [%s] Failed to read response from endpoint, error = %v\n",
 			color.Faint(localTime),
-			color.Red("ERROR"),
+			color.Red("ERROR").Bold(),
 			err,
 		)
 		log.Errorf(errStr)
@@ -591,12 +779,19 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	}
 }
 
-func (p *Proxy) retryLatestEvent() {
-	eventID := p.latestEventID
+func (p *Proxy) retrySelectedEvent() {
+	if len(p.eventHistory) == 0 || p.selectedEventIndex < 0 || p.selectedEventIndex >= len(p.eventHistory) {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] No event selected to retry\n",
+			color.Yellow("WARN"),
+		)
+		return
+	}
 
+	eventID := p.eventHistory[p.selectedEventIndex].ID
 	if eventID == "" {
 		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] No event to retry\n",
+		p.safePrintf("[%s] Selected event has no ID to retry\n",
 			color.Yellow("WARN"),
 		)
 		return
@@ -607,7 +802,7 @@ func (p *Proxy) retryLatestEvent() {
 	if err != nil {
 		color := ansi.Color(os.Stdout)
 		p.safePrintf("[%s] Failed to parse API URL for retry: %v\n",
-			color.Red("ERROR"),
+			color.Red("ERROR").Bold(),
 			err,
 		)
 		return
@@ -624,9 +819,10 @@ func (p *Proxy) retryLatestEvent() {
 	resp, err := client.Post(context.Background(), retryURL, []byte("{}"), nil)
 	if err != nil {
 		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] Failed to retry event %s\n",
-			color.Red("ERROR"),
+		p.safePrintf("[%s] Failed to retry event %s: %v\n",
+			color.Red("ERROR").Bold(),
 			eventID,
+			err,
 		)
 		return
 	}
@@ -634,19 +830,35 @@ func (p *Proxy) retryLatestEvent() {
 
 	if resp.StatusCode != http.StatusOK {
 		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] Failed to retry event %s\n",
-			color.Red("ERROR"),
+		p.safePrintf("[%s] Failed to retry event %s (status: %d)\n",
+			color.Red("ERROR").Bold(),
 			eventID,
+			resp.StatusCode,
 		)
+		return
 	}
+
+	// Success feedback
+	color := ansi.Color(os.Stdout)
+	p.safePrintf("[%s] Event %s retry requested successfully\n",
+		color.Green("SUCCESS"),
+		eventID,
+	)
 }
 
-func (p *Proxy) openLatestEventURL() {
-	eventID := p.latestEventID
+func (p *Proxy) openSelectedEventURL() {
+	if len(p.eventHistory) == 0 || p.selectedEventIndex < 0 || p.selectedEventIndex >= len(p.eventHistory) {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] No event selected to open\n",
+			color.Yellow("WARN"),
+		)
+		return
+	}
 
+	eventID := p.eventHistory[p.selectedEventIndex].ID
 	if eventID == "" {
 		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] No event to open\n",
+		p.safePrintf("[%s] Selected event has no ID to open\n",
 			color.Yellow("WARN"),
 		)
 		return
@@ -665,7 +877,7 @@ func (p *Proxy) openLatestEventURL() {
 	if err != nil {
 		color := ansi.Color(os.Stdout)
 		p.safePrintf("[%s] Failed to open browser: %v\n",
-			color.Red("ERROR"),
+			color.Red("ERROR").Bold(),
 			err,
 		)
 		return
@@ -691,16 +903,25 @@ func (p *Proxy) openBrowser(url string) error {
 	return exec.Command(cmd, args...).Start()
 }
 
-func (p *Proxy) showLatestEventDetails() {
-	if p.latestEventData == nil {
+func (p *Proxy) showSelectedEventDetails() {
+	if len(p.eventHistory) == 0 || p.selectedEventIndex < 0 || p.selectedEventIndex >= len(p.eventHistory) {
 		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] No event to show details for\n",
+		p.safePrintf("[%s] No event selected to show details for\n",
 			color.Yellow("WARN"),
 		)
 		return
 	}
 
-	webhookEvent := p.latestEventData
+	selectedEvent := p.eventHistory[p.selectedEventIndex]
+	if selectedEvent.Data == nil {
+		color := ansi.Color(os.Stdout)
+		p.safePrintf("[%s] Selected event has no data to show details for\n",
+			color.Yellow("WARN"),
+		)
+		return
+	}
+
+	webhookEvent := selectedEvent.Data
 
 	p.terminalMutex.Lock()
 	defer p.terminalMutex.Unlock()
@@ -710,7 +931,7 @@ func (p *Proxy) showLatestEventDetails() {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	// Clear the status line
+	// Clear the status line and the blank line above it
 	if p.statusLineShown {
 		fmt.Printf("\033[2A\033[K\033[1B\033[K")
 	}
@@ -754,12 +975,12 @@ func (p *Proxy) showLatestEventDetails() {
 	// Restore the status line
 	fmt.Println()
 	var statusMsg string
-	if p.latestEventSuccess {
-		statusMsg = fmt.Sprintf("> %s Last event succeeded (%d) ⌨️ [r] Retry now • [o] Open link • [d] Details • [q] Quit",
-			color.Green("✓"), p.latestEventStatus)
+	if selectedEvent.Success {
+		statusMsg = fmt.Sprintf("> %s Selected event succeeded (%d) ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			color.Green("✓"), selectedEvent.Status)
 	} else {
-		statusMsg = fmt.Sprintf("> %s Last event failed (%d) ⌨️ [r] Retry now • [o] Open link • [d] Details • [q] Quit",
-			color.Red("⚠️"), p.latestEventStatus)
+		statusMsg = fmt.Sprintf("> %s Selected event failed (%d) ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			color.Red("⨯"), selectedEvent.Status)
 	}
 	fmt.Printf("%s\n", statusMsg)
 
@@ -780,9 +1001,10 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 	}
 
 	p := &Proxy{
-		cfg:             cfg,
-		connections:     connections,
-		connectionTimer: time.NewTimer(0), // Defaults to no delay
+		cfg:                cfg,
+		connections:        connections,
+		connectionTimer:    time.NewTimer(0), // Defaults to no delay
+		selectedEventIndex: -1,               // Initialize to invalid index
 	}
 
 	return p

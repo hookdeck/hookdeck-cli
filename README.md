@@ -117,6 +117,19 @@ Hookdeck works by routing events received for a given `source` (i.e., Shopify, G
 
 Each `source` is assigned an Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
+#### Interactive Keyboard Shortcuts
+
+While the listen command is running, you can use the following keyboard shortcuts:
+
+- `↑` / `↓` - Navigate between events (select different events)
+- `r` - Retry the selected event
+- `o` - Open the selected event in the Hookdeck dashboard
+- `d` - Show detailed request information for the selected event (headers, body, etc.)
+- `q` - Quit the application
+- `Ctrl+C` - Also quits the application
+
+The selected event is indicated by a `>` character at the beginning of the line. All actions (retry, open, details) work on the currently selected event, not just the latest one. These shortcuts are displayed in the status line at the bottom of the terminal.
+
 Contrary to ngrok, **Hookdeck does not allow to append a path to your event URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
 
 > The `port-or-URL` param is mandatory, events will be forwarded to http://localhost:$PORT/$DESTINATION_PATH when inputing a valid port or your provided URL.
