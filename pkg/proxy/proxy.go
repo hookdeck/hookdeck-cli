@@ -91,6 +91,8 @@ type Proxy struct {
 	// Waiting animation
 	waitingAnimationFrame int
 	stopWaitingAnimation  chan bool
+	// Details view
+	showingDetails bool // Track if we're in alternate screen showing details
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -388,8 +390,32 @@ func (p *Proxy) processKeyboardInput(input []byte) {
 		return
 	}
 
+	// Handle single character keys
+	if len(input) == 1 {
+		switch input[0] {
+		case 0x03: // Ctrl+C
+			proc, _ := os.FindProcess(os.Getpid())
+			proc.Signal(os.Interrupt)
+			return
+		case 0x71, 0x51: // 'q' or 'Q'
+			proc, _ := os.FindProcess(os.Getpid())
+			proc.Signal(os.Interrupt)
+			return
+		}
+	}
+
+	// Disable all other shortcuts until first event is received
+	if !p.hasReceivedEvent {
+		return
+	}
+
 	// Handle escape sequences (arrow keys)
 	if len(input) == 3 && input[0] == 0x1B && input[1] == 0x5B {
+		// Disable navigation while in details view
+		if p.showingDetails {
+			return
+		}
+
 		switch input[2] {
 		case 0x41: // Up arrow
 			p.navigateEvents(-1)
@@ -399,23 +425,22 @@ func (p *Proxy) processKeyboardInput(input []byte) {
 		return
 	}
 
-	// Handle single character keys
+	// Handle single character keys (after quit/ctrl+c check)
 	if len(input) == 1 {
 		switch input[0] {
 		case 0x72, 0x52: // 'r' or 'R'
-			p.retrySelectedEvent()
+			if !p.showingDetails {
+				p.retrySelectedEvent()
+			}
 		case 0x6F, 0x4F: // 'o' or 'O'
 			p.openSelectedEventURL()
 		case 0x64, 0x44: // 'd' or 'D'
-			p.showSelectedEventDetails()
-		case 0x03: // Ctrl+C
-			proc, _ := os.FindProcess(os.Getpid())
-			proc.Signal(os.Interrupt)
-			return
-		case 0x71, 0x51: // 'q' or 'Q'
-			proc, _ := os.FindProcess(os.Getpid())
-			proc.Signal(os.Interrupt)
-			return
+			// Toggle alternate screen details view
+			if p.showingDetails {
+				p.exitDetailsView()
+			} else {
+				p.enterDetailsView()
+			}
 		}
 	}
 }
@@ -460,12 +485,12 @@ func (p *Proxy) redrawEventsWithSelection() {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	// Move cursor up to redraw all events with correct selection indicators
-	// We need to move up (number of events + 1 for blank line + 1 for status line) lines
+	// Move cursor up to start of events section
+	// Count total lines: events + blank line + status line
 	totalLines := len(p.eventHistory) + 2
 	fmt.Printf("\033[%dA", totalLines)
 
-	// Print all events with selection indicator, clearing each line first
+	// Print all events with selection indicator, clearing each line
 	for i, event := range p.eventHistory {
 		fmt.Printf("\033[2K") // Clear the entire current line
 		if i == p.selectedEventIndex {
@@ -958,91 +983,178 @@ func (p *Proxy) openBrowser(url string) error {
 	return exec.Command(cmd, args...).Start()
 }
 
-func (p *Proxy) showSelectedEventDetails() {
-	if len(p.eventHistory) == 0 || p.selectedEventIndex < 0 || p.selectedEventIndex >= len(p.eventHistory) {
-		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] No event selected to show details for\n",
-			color.Yellow("WARN"),
-		)
+// enterDetailsView shows event details using less pager for scrolling
+func (p *Proxy) enterDetailsView() {
+	if p.selectedEventIndex < 0 || p.selectedEventIndex >= len(p.eventHistory) {
 		return
 	}
 
 	selectedEvent := p.eventHistory[p.selectedEventIndex]
 	if selectedEvent.Data == nil {
-		color := ansi.Color(os.Stdout)
-		p.safePrintf("[%s] Selected event has no data to show details for\n",
-			color.Yellow("WARN"),
-		)
 		return
 	}
 
-	webhookEvent := selectedEvent.Data
-
 	p.terminalMutex.Lock()
-	defer p.terminalMutex.Unlock()
 
-	// Temporarily restore normal terminal mode for printing
+	// Temporarily restore normal terminal mode
 	if p.rawModeState != nil {
 		term.Restore(int(os.Stdin.Fd()), p.rawModeState)
 	}
 
-	// Clear the status line and the blank line above it
-	if p.statusLineShown {
-		fmt.Printf("\033[2A\033[K\033[1B\033[K")
+	// Build the details content
+	webhookEvent := selectedEvent.Data
+	color := ansi.Color(os.Stdout)
+	var content strings.Builder
+
+	// Header with navigation hints
+	content.WriteString(ansi.Bold("Event Details"))
+	content.WriteString("\n")
+	content.WriteString(ansi.Faint("⌨️  Press 'q' to return to events • Use arrow keys/Page Up/Down to scroll"))
+	content.WriteString("\n")
+	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
+	content.WriteString("\n\n")
+
+	// Event metadata
+	timestampStr := selectedEvent.Time.Format(timeLayout)
+	statusIcon := color.Green("✓")
+	statusText := "succeeded"
+	if !selectedEvent.Success {
+		statusIcon = color.Red("❌")
+		statusText = "failed"
 	}
 
-	// Print the event details with title
-	color := ansi.Color(os.Stdout)
-	fmt.Printf("│  %s %s%s\n", color.Bold(webhookEvent.Body.Request.Method), color.Bold(p.cfg.URL.String()), color.Bold(webhookEvent.Body.Path))
-	fmt.Printf("│\n")
+	content.WriteString(fmt.Sprintf("%s Event %s with status %s at %s\n", statusIcon, statusText, color.Bold(fmt.Sprintf("%d", selectedEvent.Status)), ansi.Faint(timestampStr)))
+	content.WriteString("\n")
 
-	// Parse and display headers (no title)
+	// Dashboard URL
+	dashboardURL := p.cfg.DashboardBaseURL
+	if p.cfg.ProjectID != "" {
+		dashboardURL += "/cli/events/" + selectedEvent.ID
+	}
+	if p.cfg.ProjectMode == "console" {
+		dashboardURL = p.cfg.ConsoleBaseURL
+	}
+	content.WriteString(fmt.Sprintf("%s %s\n", ansi.Faint("🔗"), ansi.Faint(dashboardURL)))
+	content.WriteString("\n")
+	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
+	content.WriteString("\n\n")
+
+	// Request section
+	content.WriteString(ansi.Bold("Request"))
+	content.WriteString("\n\n")
+	content.WriteString(fmt.Sprintf("%s %s%s\n", color.Bold(webhookEvent.Body.Request.Method), p.cfg.URL.String(), webhookEvent.Body.Path))
+	content.WriteString("\n")
+	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
+	content.WriteString("\n\n")
+
+	// Headers section
 	if len(webhookEvent.Body.Request.Headers) > 0 {
+		content.WriteString(ansi.Bold("Headers"))
+		content.WriteString("\n\n")
+
 		var headers map[string]json.RawMessage
 		if err := json.Unmarshal(webhookEvent.Body.Request.Headers, &headers); err == nil {
-			// Get keys and sort them alphabetically
 			keys := make([]string, 0, len(headers))
 			for key := range headers {
 				keys = append(keys, key)
 			}
 			sort.Strings(keys)
 
-			// Print headers in alphabetical order
 			for _, key := range keys {
 				unquoted, _ := strconv.Unquote(string(headers[key]))
-				fmt.Printf("│  %s: %s\n", strings.ToLower(key), unquoted)
+				content.WriteString(fmt.Sprintf("%s: %s\n", ansi.Faint(strings.ToLower(key)), unquoted))
 			}
 		}
+		content.WriteString("\n")
+		content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
+		content.WriteString("\n\n")
 	}
 
-	// Add blank line before body
-	fmt.Printf("│\n")
-
-	// Display body (no title)
+	// Body section
 	if len(webhookEvent.Body.Request.DataString) > 0 {
-		// Split body into lines and add left border to each line
-		bodyLines := strings.Split(webhookEvent.Body.Request.DataString, "\n")
-		for _, line := range bodyLines {
-			fmt.Printf("│  %s\n", line)
+		content.WriteString(ansi.Bold("Body"))
+		content.WriteString("\n\n")
+
+		var bodyData interface{}
+		if err := json.Unmarshal([]byte(webhookEvent.Body.Request.DataString), &bodyData); err == nil {
+			prettyJSON, err := json.MarshalIndent(bodyData, "", "  ")
+			if err == nil {
+				content.WriteString(string(prettyJSON))
+				content.WriteString("\n")
+			}
+		} else {
+			content.WriteString(webhookEvent.Body.Request.DataString)
+			content.WriteString("\n")
 		}
 	}
 
-	// Restore the status line
-	fmt.Println()
-	var statusMsg string
-	if selectedEvent.Success {
-		statusMsg = fmt.Sprintf("> %s Selected event succeeded (%d) ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-			color.Green("✓"), selectedEvent.Status)
-	} else {
-		statusMsg = fmt.Sprintf("> %s Selected event failed (%d) ⌨️ [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
-			color.Red("⨯"), selectedEvent.Status)
+	// Footer
+	content.WriteString("\n")
+	content.WriteString(fmt.Sprintf("%s Use arrow keys/Page Up/Down to scroll • Press 'q' to return to events\n", ansi.Faint("⌨️")))
+
+	// Set the flag before launching pager
+	p.showingDetails = true
+
+	p.terminalMutex.Unlock()
+
+	// Use less with standard options
+	// Note: Custom key bindings are unreliable, so we stick with 'q' to quit
+	// We use echo to pipe content to less, which allows less to read keyboard from terminal
+
+	cmd := exec.Command("sh", "-c", "less -R")
+
+	// Create stdin pipe to send content
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		// Fallback: print directly
+		p.terminalMutex.Lock()
+		fmt.Print(content.String())
+		p.showingDetails = false
+		if p.rawModeState != nil {
+			term.MakeRaw(int(os.Stdin.Fd()))
+		}
+		p.terminalMutex.Unlock()
+		return
 	}
-	fmt.Printf("%s\n", statusMsg)
+
+	// Connect to terminal
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Start less
+	if err := cmd.Start(); err != nil {
+		// Fallback: print directly
+		p.terminalMutex.Lock()
+		fmt.Print(content.String())
+		p.showingDetails = false
+		if p.rawModeState != nil {
+			term.MakeRaw(int(os.Stdin.Fd()))
+		}
+		p.terminalMutex.Unlock()
+		return
+	}
+
+	// Write content to less
+	stdinPipe.Write([]byte(content.String()))
+	stdinPipe.Close()
+
+	// Wait for less to exit
+	cmd.Wait()
+
+	// After pager exits, restore state
+	p.terminalMutex.Lock()
+	p.showingDetails = false
 
 	// Re-enable raw mode
 	if p.rawModeState != nil {
 		term.MakeRaw(int(os.Stdin.Fd()))
 	}
+	p.terminalMutex.Unlock()
+}
+
+// exitDetailsView is called when user presses 'd' or 'q' while in details view
+func (p *Proxy) exitDetailsView() {
+	p.showingDetails = false
 }
 
 //
