@@ -528,7 +528,7 @@ func (p *Proxy) redrawEventsWithSelection() {
 //   - Create a new CLI session
 //   - Create a new websocket connection
 func (p *Proxy) Run(parentCtx context.Context) error {
-	const maxConnectAttempts = 3
+	const maxConnectAttempts = 10
 	nAttempts := 0
 
 	// Track whether or not we have connected successfully.
@@ -561,18 +561,76 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 
 	session, err := p.createSession(signalCtx)
 	if err != nil {
+		// Stop spinner and restore terminal state before fatal error
+		p.terminalMutex.Lock()
 		ansi.StopSpinner(s, "", p.cfg.Log.Out)
+		if p.rawModeState != nil {
+			term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+		}
+		fmt.Print("\033[2K\r")
+		p.terminalMutex.Unlock()
+
 		p.cfg.Log.Fatalf("Error while authenticating with Hookdeck: %v", err)
 	}
 
 	if session.Id == "" {
+		// Stop spinner and restore terminal state before fatal error
+		p.terminalMutex.Lock()
 		ansi.StopSpinner(s, "", p.cfg.Log.Out)
+		if p.rawModeState != nil {
+			term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+		}
+		fmt.Print("\033[2K\r")
+		p.terminalMutex.Unlock()
+
 		p.cfg.Log.Fatalf("Error while starting a new session")
 	}
 
 	// Main loop to keep attempting to connect to Hookdeck once
 	// we have created a session.
 	for canConnect() {
+		// Apply backoff delay BEFORE creating new client (except for first attempt)
+		if nAttempts > 0 {
+			// For initial connection attempts (before first successful connection),
+			// use a fixed delay. After first connection, use exponential backoff.
+			var sleepDurationMS int
+			if hasConnectedOnce {
+				// Exponential backoff for reconnection attempts
+				attemptsOverMax := math.Max(0, float64(nAttempts-maxConnectAttempts))
+				sleepDurationMS = int(math.Round(math.Min(100, math.Pow(attemptsOverMax, 2)) * 100))
+			} else {
+				// Fixed 3 second delay between initial connection attempts
+				sleepDurationMS = 3000
+			}
+
+			log.WithField(
+				"prefix", "proxy.Proxy.Run",
+			).Debugf(
+				"Connect backoff (%dms)", sleepDurationMS,
+			)
+
+			// Reset the timer to the next duration
+			p.connectionTimer.Stop()
+			p.connectionTimer.Reset(time.Duration(sleepDurationMS) * time.Millisecond)
+
+			// Block with a spinner while waiting
+			ansi.StopSpinner(s, "", p.cfg.Log.Out)
+			// Use different message based on whether we've connected before
+			if hasConnectedOnce {
+				s = ansi.StartNewSpinner("Connection lost, reconnecting...", p.cfg.Log.Out)
+			} else {
+				s = ansi.StartNewSpinner("Connecting...", p.cfg.Log.Out)
+			}
+			select {
+			case <-p.connectionTimer.C:
+				// Continue to retry
+			case <-signalCtx.Done():
+				p.connectionTimer.Stop()
+				ansi.StopSpinner(s, "", p.cfg.Log.Out)
+				return nil
+			}
+		}
+
 		p.webSocketClient = websocket.NewClient(
 			p.cfg.WSBaseURL,
 			session.Id,
@@ -625,36 +683,24 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
 			return nil
 		case <-p.webSocketClient.NotifyExpired:
-			if canConnect() {
+			if !canConnect() {
+				// Stop the spinner and restore terminal state before fatal error
+				p.terminalMutex.Lock()
 				ansi.StopSpinner(s, "", p.cfg.Log.Out)
-				s = ansi.StartNewSpinner("Connection lost, reconnecting...", p.cfg.Log.Out)
-			} else {
-				p.cfg.Log.Fatalf("Session expired. Terminating after %d failed attempts to reauthorize", nAttempts)
+				if p.rawModeState != nil {
+					term.Restore(int(os.Stdin.Fd()), p.rawModeState)
+				}
+				// Clear the spinner line
+				fmt.Print("\033[2K\r")
+				p.terminalMutex.Unlock()
+
+				// Print error without timestamp (use fmt instead of log to avoid formatter)
+				color := ansi.Color(os.Stdout)
+				fmt.Fprintf(os.Stderr, "%s Could not establish connection. Terminating after %d attempts to connect.\n",
+					color.Red("FATAL"), nAttempts)
+				os.Exit(1)
 			}
-		}
-
-		// Determine if we should backoff the connection retries.
-		attemptsOverMax := math.Max(0, float64(nAttempts-maxConnectAttempts))
-		if canConnect() && attemptsOverMax > 0 {
-			// Determine the time to wait to reconnect, maximum of 10 second intervals
-			sleepDurationMS := int(math.Round(math.Min(100, math.Pow(attemptsOverMax, 2)) * 100))
-			log.WithField(
-				"prefix", "proxy.Proxy.Run",
-			).Debugf(
-				"Connect backoff (%dms)", sleepDurationMS,
-			)
-
-			// Reset the timer to the next duration
-			p.connectionTimer.Stop()
-			p.connectionTimer.Reset(time.Duration(sleepDurationMS) * time.Millisecond)
-
-			// Block until the timer completes or we get interrupted by the user
-			select {
-			case <-p.connectionTimer.C:
-			case <-signalCtx.Done():
-				p.connectionTimer.Stop()
-				return nil
-			}
+			// Connection lost, loop will retry (backoff happens at start of next iteration)
 		}
 	}
 
