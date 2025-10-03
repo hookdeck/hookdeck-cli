@@ -60,6 +60,7 @@ type Proxy struct {
 	connections     []*hookdecksdk.Connection
 	webSocketClient *websocket.Client
 	connectionTimer *time.Timer
+	httpClient      *http.Client
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -252,21 +253,17 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		fmt.Println(webhookEvent.Body.Request.DataString)
 	} else {
 		url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: p.cfg.Insecure},
-		}
 
 		timeout := webhookEvent.Body.Request.Timeout
 		if timeout == 0 {
 			timeout = 1000 * 30
 		}
 
-		client := &http.Client{
-			Timeout:   time.Duration(timeout) * time.Millisecond,
-			Transport: tr,
-		}
+		// Create a context with timeout for this specific request
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
+		defer cancel()
 
-		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
+		req, err := http.NewRequestWithContext(ctx, webhookEvent.Body.Request.Method, url, nil)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
 			return
@@ -286,7 +283,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
 		req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
 
-		res, err := client.Do(req)
+		res, err := p.httpClient.Do(req)
 
 		if err != nil {
 			color := ansi.Color(os.Stdout)
@@ -366,10 +363,28 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
 
+	// Create a shared HTTP transport with connection pooling and DNS caching
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.Insecure},
+		// Enable connection pooling
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+		// DNS cache settings
+		DisableKeepAlives: false,
+	}
+
+	// Create a shared HTTP client
+	httpClient := &http.Client{
+		Transport: tr,
+		// Note: timeout is set per-request using context
+	}
+
 	p := &Proxy{
 		cfg:             cfg,
 		connections:     connections,
 		connectionTimer: time.NewTimer(0), // Defaults to no delay
+		httpClient:      httpClient,
 	}
 
 	return p
