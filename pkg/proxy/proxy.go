@@ -60,6 +60,7 @@ type Proxy struct {
 	connections     []*hookdecksdk.Connection
 	webSocketClient *websocket.Client
 	connectionTimer *time.Timer
+	httpClient      *http.Client
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -252,21 +253,17 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		fmt.Println(webhookEvent.Body.Request.DataString)
 	} else {
 		url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: p.cfg.Insecure},
-		}
 
+		// Create request with context for timeout control
 		timeout := webhookEvent.Body.Request.Timeout
 		if timeout == 0 {
 			timeout = 1000 * 30
 		}
 
-		client := &http.Client{
-			Timeout:   time.Duration(timeout) * time.Millisecond,
-			Transport: tr,
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
+		defer cancel()
 
-		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
+		req, err := http.NewRequestWithContext(ctx, webhookEvent.Body.Request.Method, url, nil)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
 			return
@@ -286,8 +283,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
 		req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
 
-		res, err := client.Do(req)
-
+		res, err := p.httpClient.Do(req)
 		if err != nil {
 			color := ansi.Color(os.Stdout)
 			localTime := time.Now().Format(timeLayout)
@@ -309,6 +305,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 					},
 				}})
 		} else {
+			defer res.Body.Close()
 			p.processEndpointResponse(webhookEvent, res)
 		}
 	}
@@ -366,10 +363,25 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
 
+	// Create a shared HTTP transport with connection pooling
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.Insecure},
+		// Connection pool settings for better performance
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		DisableKeepAlives:   false,
+	}
+
 	p := &Proxy{
 		cfg:             cfg,
 		connections:     connections,
 		connectionTimer: time.NewTimer(0), // Defaults to no delay
+		httpClient: &http.Client{
+			Transport: tr,
+			// Default timeout can be overridden per request
+			Timeout: 30 * time.Second,
+		},
 	}
 
 	return p
