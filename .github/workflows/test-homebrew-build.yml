@@ -1,4 +1,4 @@
-name: Homebrew Build Validation
+name: Homebrew Build and Installation Tests
 
 on:
   pull_request:
@@ -49,7 +49,6 @@ jobs:
         run: ./test-scripts/test-homebrew-build.sh
 
       - name: Run installation tests
-        if: github.event.inputs.run_install_tests == 'true'
         run: ./test-scripts/test-homebrew-build.sh --install
 
       - name: Upload generated Homebrew files
