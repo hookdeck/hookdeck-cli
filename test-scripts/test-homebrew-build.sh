@@ -12,7 +12,6 @@
 #   - Formula references completion files correctly
 #   - Cask has proper bash_completion directive
 #   - Cask has proper zsh_completion directive
-#   - Cask has conflicts with formula
 #   - Completion files are bundled in the tarball
 #
 # Usage:
@@ -263,14 +262,6 @@ validate_cask() {
         return 1
     fi
     
-    # Check for conflicts with formula
-    if grep -q 'conflicts.*formula.*hookdeck' "$cask_file"; then
-        echo_success "Cask contains conflicts with formula directive"
-    else
-        echo_error "Cask missing conflicts with formula directive"
-        return 1
-    fi
-    
     echo_success "Cask validation passed"
     return 0
 }
@@ -486,57 +477,6 @@ test_cask_installation() {
     return 0
 }
 
-# Test conflict detection
-test_conflict_detection() {
-    echo_section "Testing Conflict Detection"
-    
-    local tap_name="hookdeck-test/hookdeck-test/hookdeck"
-    
-    # First, install formula with --formula flag to ensure it's installed as formula
-    echo_info "Installing formula first: brew install --formula $tap_name"
-    if brew install --formula "$tap_name"; then
-        echo_success "Formula installed successfully"
-        FORMULA_INSTALLED=true
-    else
-        echo_error "Formula installation failed"
-        return 1
-    fi
-    
-    # Ensure the formula is linked
-    echo_info "Ensuring formula is linked..."
-    if brew link hookdeck 2>/dev/null || true; then
-        echo_success "Formula linked"
-    fi
-    
-    # Try to install cask - should fail with conflict
-    echo_info "Attempting to install cask (should fail with conflict)..."
-    local output
-    if output=$(brew install --cask "$tap_name" 2>&1); then
-        # Check if it's actually refusing to upgrade/install due to formula being present
-        if echo "$output" | grep -qi "already installed"; then
-            echo_success "Conflict implicitly detected (formula already installed, cask refused to overwrite)"
-            echo_info "Message: $(echo "$output" | grep -i "already installed")"
-        else
-            echo_error "Cask installation succeeded (should have failed with conflict!)"
-            echo_error "Output: $output"
-            return 1
-        fi
-    else
-        # Check if the error is about conflicts
-        if echo "$output" | grep -qi "conflict"; then
-            echo_success "Conflict properly detected"
-            echo_info "Conflict message: $(echo "$output" | grep -i conflict)"
-        else
-            echo_error "Installation failed, but NOT due to conflict"
-            echo_error "Output: $output"
-            return 1
-        fi
-    fi
-    
-    echo_success "Conflict detection validation passed"
-    return 0
-}
-
 # Run installation tests
 run_installation_tests() {
     echo_section "Running Installation Tests"
@@ -569,19 +509,6 @@ run_installation_tests() {
     
     # Test 2: Cask installation
     if ! test_cask_installation; then
-        all_passed=false
-    fi
-    
-    # Clean up cask before conflict test
-    if [ "$CASK_INSTALLED" = true ]; then
-        echo_info "Uninstalling cask before conflict test..."
-        brew uninstall --cask hookdeck 2>/dev/null || true
-        CASK_INSTALLED=false
-        echo_success "Cask uninstalled"
-    fi
-    
-    # Test 3: Conflict detection
-    if ! test_conflict_detection; then
         all_passed=false
     fi
     
@@ -635,12 +562,10 @@ main() {
         echo "  ✓ Formula has deprecation warnings"
         echo "  ✓ Formula has proper completion directives"
         echo "  ✓ Cask has proper completion directives"
-        echo "  ✓ Cask has conflicts with formula"
         
         if [ "$RUN_INSTALL_TESTS" = true ]; then
             echo "  ✓ Formula installs correctly from local tap"
             echo "  ✓ Cask installs correctly from local tap"
-            echo "  ✓ Conflict detection works (formula vs cask)"
             echo "  ✓ Completions are installed in correct locations"
             echo "  ✓ Binary is functional after installation"
         else

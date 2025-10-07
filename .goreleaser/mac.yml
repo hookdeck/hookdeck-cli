@@ -87,13 +87,15 @@ homebrew_casks:
       bash: "completions/hookdeck.bash"
       zsh: "completions/_hookdeck"
     
-    # Prevent installation alongside the deprecated formula
-    # Note: The deprecated 'conflicts' field no longer works, so we use custom_block
-    custom_block: |
-      conflicts_with formula: "hookdeck"
-    
-    caveats: |
+    caveats: |-
       Thanks for installing the Hookdeck CLI!
       
-      If this is your first time using the CLI, run:
+      ⚠️  If you see an error about a binary already existing:
+        brew uninstall hookdeck
+        brew install --cask hookdeck/hookdeck/hookdeck
+      
+      Shell completions have been installed automatically.
+      You may need to restart your shell for them to take effect.
+      
+      First time using the CLI? Run:
         hookdeck login

@@ -430,6 +430,24 @@ There are also some hidden flags that are mainly used for development and debugg
 *   `--console-base`: Sets the web console base URL.
 *   `--ws-base`: Sets the Websocket base URL.
 
+## Troubleshooting
+
+### Homebrew: Binary Already Exists Error
+
+If you previously installed Hookdeck via the Homebrew formula and are upgrading to the cask version, you may see:
+
+```
+Warning: It seems there is already a Binary at '/opt/homebrew/bin/hookdeck'
+from formula hookdeck; skipping link.
+```
+
+To resolve this, uninstall the old formula version first, then install the cask:
+
+```sh
+brew uninstall hookdeck
+brew install --cask hookdeck/hookdeck/hookdeck
+```
+
 
 ## Developing
 
