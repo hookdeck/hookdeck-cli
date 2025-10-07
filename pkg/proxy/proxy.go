@@ -277,16 +277,21 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 		activeCount := atomic.LoadInt32(&p.activeRequests)
 
+		// Calculate warning thresholds proportionally to max connections
+		maxConns := int32(p.transport.MaxConnsPerHost)
+		warningThreshold := int32(float64(maxConns) * 0.8) // Warn at 80% capacity
+		resetThreshold := int32(float64(maxConns) * 0.6)   // Reset warning at 60% capacity
+
 		// Warn when approaching connection limit
-		if activeCount > 40 && !p.maxConnWarned {
+		if activeCount > warningThreshold && !p.maxConnWarned {
 			p.maxConnWarned = true
 			color := ansi.Color(os.Stdout)
 			fmt.Printf("\n%s High connection load detected (%d active requests)\n",
 				color.Yellow("⚠ WARNING:"), activeCount)
 			fmt.Printf("  The CLI is limited to %d concurrent connections per host.\n", p.transport.MaxConnsPerHost)
 			fmt.Printf("  Consider reducing request rate or increasing connection limit.\n")
-			fmt.Printf("  Run with --max-connections=100 to increase the limit.\n\n")
-		} else if activeCount < 30 && p.maxConnWarned {
+			fmt.Printf("  Run with --max-connections=%d to increase the limit.\n\n", maxConns*2)
+		} else if activeCount < resetThreshold && p.maxConnWarned {
 			// Reset warning flag when load decreases
 			p.maxConnWarned = false
 		}
@@ -424,8 +429,7 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 		transport:       tr,
 		httpClient: &http.Client{
 			Transport: tr,
-			// Default timeout can be overridden per request
-			Timeout: 30 * time.Second,
+			// Timeout is controlled per-request via context in processAttempt
 		},
 	}
 
