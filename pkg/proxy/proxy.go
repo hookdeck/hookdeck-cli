@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -50,6 +51,13 @@ type Config struct {
 	// Force use of unencrypted ws:// protocol instead of wss://
 	NoWSS    bool
 	Insecure bool
+	// MaxConnections allows tuning the maximum concurrent connections per host.
+	// Default: 50 concurrent connections
+	// This can be increased for high-volume testing scenarios where the local
+	// endpoint can handle more concurrent requests.
+	// Example: Set to 100+ when load testing with many parallel webhooks.
+	// Warning: Setting this too high may cause resource exhaustion.
+	MaxConnections int
 }
 
 // A Proxy opens a websocket connection with Hookdeck, listens for incoming
@@ -61,6 +69,9 @@ type Proxy struct {
 	webSocketClient *websocket.Client
 	connectionTimer *time.Timer
 	httpClient      *http.Client
+	transport       *http.Transport
+	activeRequests  int32
+	maxConnWarned   bool  // Track if we've warned about connection limit
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -260,6 +271,26 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 			timeout = 1000 * 30
 		}
 
+		// Track active requests
+		atomic.AddInt32(&p.activeRequests, 1)
+		defer atomic.AddInt32(&p.activeRequests, -1)
+
+		activeCount := atomic.LoadInt32(&p.activeRequests)
+
+		// Warn when approaching connection limit
+		if activeCount > 40 && !p.maxConnWarned {
+			p.maxConnWarned = true
+			color := ansi.Color(os.Stdout)
+			fmt.Printf("\n%s High connection load detected (%d active requests)\n",
+				color.Yellow("⚠ WARNING:"), activeCount)
+			fmt.Printf("  The CLI is limited to %d concurrent connections per host.\n", p.transport.MaxConnsPerHost)
+			fmt.Printf("  Consider reducing request rate or increasing connection limit.\n")
+			fmt.Printf("  Run with --max-connections=100 to increase the limit.\n\n")
+		} else if activeCount < 30 && p.maxConnWarned {
+			// Reset warning flag when load decreases
+			p.maxConnWarned = false
+		}
+
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
 		defer cancel()
 
@@ -288,7 +319,8 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 			color := ansi.Color(os.Stdout)
 			localTime := time.Now().Format(timeLayout)
 
-			errStr := fmt.Sprintf("%s [%s] Failed to %s: %v",
+			// Use the original error message
+			errStr := fmt.Sprintf("%s [%s] Failed to %s: %s",
 				color.Faint(localTime),
 				color.Red("ERROR"),
 				webhookEvent.Body.Request.Method,
@@ -305,8 +337,11 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 					},
 				}})
 		} else {
-			defer res.Body.Close()
+			// Process the response (this reads the entire body)
 			p.processEndpointResponse(webhookEvent, res)
+
+			// Close the body - connection can be reused since body was fully read
+			res.Body.Close()
 		}
 	}
 }
@@ -363,20 +398,30 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
 
+	// Default to 50 connections if not specified
+	maxConns := cfg.MaxConnections
+	if maxConns <= 0 {
+		maxConns = 50
+	}
+
 	// Create a shared HTTP transport with connection pooling
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.Insecure},
-		// Connection pool settings for better performance
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
+		// Connection pool settings - sensible defaults for typical usage
+		MaxIdleConns:        20,   // Total idle connections across all hosts
+		MaxIdleConnsPerHost: 10,   // Keep some idle connections for reuse
+		IdleConnTimeout:     30 * time.Second, // Clean up idle connections
 		DisableKeepAlives:   false,
+		// Limit concurrent connections to prevent resource exhaustion
+		MaxConnsPerHost:       maxConns,  // User-configurable (default: 50)
+		ResponseHeaderTimeout: 60 * time.Second,
 	}
 
 	p := &Proxy{
 		cfg:             cfg,
 		connections:     connections,
 		connectionTimer: time.NewTimer(0), // Defaults to no delay
+		transport:       tr,
 		httpClient: &http.Client{
 			Transport: tr,
 			// Default timeout can be overridden per request
