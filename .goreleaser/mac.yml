@@ -5,6 +5,7 @@ before:
   hooks:
     - go mod download
     - go generate ./...
+    - ./scripts/completions.sh
 project_name: hookdeck
 builds:
   - id: hookdeck-darwin
@@ -37,29 +38,57 @@ checksum:
   name_template: "{{ .ProjectName }}-checksums.txt"
 snapshot:
   name_template: "{{ .Tag }}-next"
-homebrew_casks:
+archives:
+  - id: hookdeck
+    files:
+      - completions/*
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+brews:
   - name: hookdeck
+    ids:
+      - hookdeck
     repository:
       owner: hookdeck
       name: homebrew-hookdeck
-    commit_author:
-      name: hookdeck
-      email: support@hookdeck.com
+    directory: Formula
     homepage: https://hookdeck.com
-    description: Hookdeck CLI utility
-    caveats: "❤ Thanks for installing the Hookdeck CLI! If this is your first time using the CLI, be sure to run `hookdeck login` first."
-    custom_block: |
-      postflight do
-        system "hookdeck", "completion", "--shell", "bash"
-        system "hookdeck", "completion", "--shell", "zsh"
-        bash_completion.install "hookdeck-completion.bash"
-        zsh_completion.install "hookdeck-completion.zsh"
-        (zsh_completion/"_hookdeck").write <<~EOS
-          #compdef hookdeck
-          _hookdeck () {
-            local e
-            e=$(dirname ${funcsourcetrace[1]%:*})/hookdeck-completion.zsh
-            if [[ -f $e ]]; then source $e; fi
-          }
-        EOS
-      end
+    description: Alternative to ngrok for localhost webhook development
+    
+    install: |
+      bin.install "hookdeck"
+      
+      # Install completions from pre-generated files
+      bash_completion.install "completions/hookdeck.bash" => "hookdeck"
+      zsh_completion.install "completions/_hookdeck"
+    
+    caveats: |
+      ⚠️  WARNING: This formula is deprecated!
+      
+      Please migrate to the cask version for the latest updates:
+        brew uninstall hookdeck
+        brew install --cask hookdeck/hookdeck/hookdeck
+      
+      The formula distribution will be removed in approximately 3-6 months.
+      Learn more: https://goreleaser.com/blog/goreleaser-v2.10/#homebrew-casks
+
+homebrew_casks:
+  - name: hookdeck
+    ids:
+      - hookdeck
+    repository:
+      owner: hookdeck
+      name: homebrew-hookdeck
+    homepage: https://hookdeck.com
+    description: Alternative to ngrok for localhost webhook development
+    # Install shell completions automatically
+    completions:
+      bash: "completions/hookdeck.bash"
+      zsh: "completions/_hookdeck"
+    
+    caveats: |
+      Thanks for installing the Hookdeck CLI!
+      
+      If this is your first time using the CLI, run:
+        hookdeck login

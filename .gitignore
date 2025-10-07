@@ -1,4 +1,5 @@
 
+completions/
 dist/
 bin/
 coverage.txt
