@@ -54,7 +54,7 @@ brews:
       name: homebrew-hookdeck
     directory: Formula
     homepage: https://hookdeck.com
-    description: Alternative to ngrok for localhost webhook development
+    description: Receive events (e.g. webhooks) on your localhost with event history, replay, and team collaboration
     
     install: |
       bin.install "hookdeck"
@@ -81,7 +81,7 @@ homebrew_casks:
       owner: hookdeck
       name: homebrew-hookdeck
     homepage: https://hookdeck.com
-    description: Alternative to ngrok for localhost webhook development
+    description: Receive events (e.g. webhooks) on your localhost with event history, replay, and team collaboration
     # Install shell completions automatically
     completions:
       bash: "completions/hookdeck.bash"
