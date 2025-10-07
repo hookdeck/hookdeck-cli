@@ -417,28 +417,28 @@ func (p *Proxy) printEventAndUpdateStatus(eventLog string) {
 	if p.userNavigated && p.selectedEventIndex >= 0 && p.selectedEventIndex < len(p.eventHistory) {
 		selectedEvent := p.eventHistory[p.selectedEventIndex]
 		if selectedEvent.Success {
-			statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
 				color.Green("✓"), selectedEvent.Status)
 		} else {
 			if selectedEvent.Status == 0 {
-				statusMsg = fmt.Sprintf("> %s Selected event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				statusMsg = fmt.Sprintf("> %s Selected event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data & • [Ctrl+C] Quit",
 					color.Red("x").Bold())
 			} else {
-				statusMsg = fmt.Sprintf("> %s Selected event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				statusMsg = fmt.Sprintf("> %s Selected event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
 					color.Red("x").Bold(), selectedEvent.Status)
 			}
 		}
 	} else {
 		// Auto-selecting latest event
 		if p.latestEventSuccess {
-			statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Last event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
 				color.Green("✓"), p.latestEventStatus)
 		} else {
 			if p.latestEventStatus == 0 {
-				statusMsg = fmt.Sprintf("> %s Last event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				statusMsg = fmt.Sprintf("> %s Last event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit",
 					color.Red("x").Bold())
 			} else {
-				statusMsg = fmt.Sprintf("> %s Last event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+				statusMsg = fmt.Sprintf("> %s Last event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit",
 					color.Red("x").Bold(), p.latestEventStatus)
 			}
 		}
@@ -597,10 +597,6 @@ func (p *Proxy) processKeyboardInput(input []byte) {
 	if len(input) == 1 {
 		switch input[0] {
 		case 0x03: // Ctrl+C
-			proc, _ := os.FindProcess(os.Getpid())
-			proc.Signal(os.Interrupt)
-			return
-		case 0x71, 0x51: // 'q' or 'Q'
 			proc, _ := os.FindProcess(os.Getpid())
 			proc.Signal(os.Interrupt)
 			return
@@ -800,14 +796,14 @@ func (p *Proxy) redrawEventsWithSelection() {
 	color := ansi.Color(os.Stdout)
 	selectedEvent := p.eventHistory[p.selectedEventIndex]
 	if selectedEvent.Success {
-		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+		statusMsg = fmt.Sprintf("> %s Selected event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit",
 			color.Green("✓"), selectedEvent.Status)
 	} else {
 		if selectedEvent.Status == 0 {
-			statusMsg = fmt.Sprintf("> %s Selected event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Selected event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit",
 				color.Red("x").Bold())
 		} else {
-			statusMsg = fmt.Sprintf("> %s Selected event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [q] Quit",
+			statusMsg = fmt.Sprintf("> %s Selected event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit",
 				color.Red("x").Bold(), selectedEvent.Status)
 		}
 	}

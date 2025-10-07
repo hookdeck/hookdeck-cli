@@ -40,12 +40,8 @@ func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.S
 		if sourceConns, exists := sourceConnections[source.Id]; exists {
 			numConns := len(sourceConns)
 
-			// Print webhook URL with tree connector
-			if numConns > 0 {
-				fmt.Printf("├─ Request sent to → %s\n", source.Url)
-			} else {
-				fmt.Printf("└─ Request sent to → %s\n", source.Url)
-			}
+			// Print webhook URL with vertical line only (no horizontal branch)
+			fmt.Printf("│  Requests to → %s\n", source.Url)
 
 			// Print each connection
 			for j, connection := range sourceConns {
@@ -66,15 +62,15 @@ func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.S
 
 				if j == numConns-1 {
 					// Last connection - use └─
-					fmt.Printf("└─ Forwards to     → %s%s\n", fullPath, connNameDisplay)
+					fmt.Printf("└─ Forwards to → %s%s\n", fullPath, connNameDisplay)
 				} else {
 					// Not last connection - use ├─
-					fmt.Printf("├─ Forwards to     → %s%s\n", fullPath, connNameDisplay)
+					fmt.Printf("├─ Forwards to → %s%s\n", fullPath, connNameDisplay)
 				}
 			}
 		} else {
 			// No connections, just show webhook URL
-			fmt.Printf("└─ Request sent to → %s\n", source.Url)
+			fmt.Printf("   Request sents to → %s\n", source.Url)
 		}
 
 		// Add spacing between sources (but not after the last one)
