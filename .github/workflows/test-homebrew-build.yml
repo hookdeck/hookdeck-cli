@@ -1,0 +1,63 @@
+name: Homebrew Build Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".goreleaser/**"
+      - "scripts/completions.sh"
+      - "test-scripts/test-homebrew-build.sh"
+      - ".github/workflows/test-homebrew-build.yml"
+
+  workflow_dispatch:
+    inputs:
+      run_install_tests:
+        description: "Run installation tests"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  test-homebrew-build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Verify Homebrew is installed
+        run: |
+          echo "Homebrew version:"
+          brew --version
+
+      - name: Install GoReleaser
+        run: brew install goreleaser
+
+      - name: Make test script executable
+        run: chmod +x test-scripts/test-homebrew-build.sh
+
+      - name: Run build validation
+        run: ./test-scripts/test-homebrew-build.sh
+
+      - name: Run installation tests
+        if: github.event.inputs.run_install_tests == 'true'
+        run: ./test-scripts/test-homebrew-build.sh --install
+
+      - name: Upload generated Homebrew files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-files
+          path: |
+            dist/homebrew/Formula/hookdeck.rb
+            dist/homebrew/Casks/hookdeck.rb
+          retention-days: 7

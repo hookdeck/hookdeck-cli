@@ -87,6 +87,11 @@ homebrew_casks:
       bash: "completions/hookdeck.bash"
       zsh: "completions/_hookdeck"
     
+    # Prevent installation alongside the deprecated formula
+    # Note: The deprecated 'conflicts' field no longer works, so we use custom_block
+    custom_block: |
+      conflicts_with formula: "hookdeck"
+    
     caveats: |
       Thanks for installing the Hookdeck CLI!
       
