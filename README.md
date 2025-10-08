@@ -117,53 +117,18 @@ Hookdeck works by routing events received for a given `source` (i.e., Shopify, G
 
 Each `source` is assigned an Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
-#### Interactive Event Navigation
+#### Interactive Keyboard Shortcuts
 
-The listen command provides an interactive terminal experience that lets you view, navigate, and interact with incoming events in real-time.
+While the listen command is running, you can use the following keyboard shortcuts:
 
-**Event Display:**
-- Events are displayed as they arrive, showing timestamp, status code, HTTP method, URL, and dashboard link
-- The most recent event is automatically selected (indicated by a `>` prefix)
-- Up to 10 recent events remain navigable; older events become part of the scrollback history
-- A status line at the bottom shows the selected event's status and available keyboard shortcuts
+- `↑` / `↓` - Navigate between events (select different events)
+- `r` - Retry the selected event
+- `o` - Open the selected event in the Hookdeck dashboard
+- `d` - Show detailed request information for the selected event (headers, body, etc.)
+- `q` - Quit the application
+- `Ctrl+C` - Also quits the application
 
-**Keyboard Shortcuts:**
-
-| Key | Action | Description |
-|-----|--------|-------------|
-| `↑` / `↓` | Navigate | Move selection between recent events |
-| `r` | Retry | Resend the selected event to your local server |
-| `o` | Open | Open the selected event in the Hookdeck dashboard |
-| `d` | Details | View full event details (headers, body, etc.) in a scrollable view |
-| `Ctrl+C` | Quit | Exit the listen session |
-
-**How It Works:**
-1. When events arrive, they appear in the event list with their status (success ✓ or failure ✗)
-2. Use `↑` / `↓` arrow keys to select any of the last 10 events
-3. Press `r` to retry an event, `o` to inspect it in the dashboard, or `d` to see full request details
-4. The details view opens in a pager (use arrow keys/Page Up/Down to scroll, `q` to return)
-5. All actions operate on the currently selected event (shown with `>` prefix)
-
-**Example Session:**
-```
-Listening on
-
-shopify
-│  Requests to → https://events.hookdeck.com/e/src_ABC123
-└─ Forwards to → http://localhost:3000/webhooks/shopify
-
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli
-
-Events
-
-2025-01-15 14:23:45 [200] POST http://localhost:3000/webhooks/shopify → https://...
-2025-01-15 14:24:12 [200] POST http://localhost:3000/webhooks/shopify → https://...
-> 2025-01-15 14:24:33 [500] POST http://localhost:3000/webhooks/shopify → https://...
-
-> ✗ Selected event failed with status 500 | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit
-```
-
-In this example, the third event (with status 500) is selected. You can press `r` to retry it, `o` to open it in the dashboard, or `d` to view the full request details including headers and body.
+The selected event is indicated by a `>` character at the beginning of the line. All actions (retry, open, details) work on the currently selected event, not just the latest one. These shortcuts are displayed in the status line at the bottom of the terminal.
 
 Contrary to ngrok, **Hookdeck does not allow to append a path to your event URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
 
@@ -176,18 +141,17 @@ The second param, `source-alias` is used to select a specific source to listen o
 ```sh
 $ hookdeck listen 3000 shopify
 
-Listening on
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
-shopify
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
-├─ Forwards to → http://localhost:3000/webhooks/shopify/inventory (cli-shopify)
-└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (cli-shopify)
+Shopify Source
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli
+Connections
+Inventory Service forwarding to /webhooks/shopify/inventory
+Orders Service forwarding to /webhooks/shopify/orders
 
-Events
 
-● Connected. Waiting for events...
+⣾ Getting ready...
 
 ```
 
@@ -198,25 +162,19 @@ Events
 ```sh
 $ hookdeck listen 3000 '*'
 
-Listening on
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
-stripe
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn01
-└─ Forwards to → http://localhost:3000/webhooks/stripe (cli-stripe)
+Sources
+🔌 stripe URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn01
+🔌 shopify URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn02
+🔌 twilio URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn03
 
-shopify
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn02
-└─ Forwards to → http://localhost:3000/webhooks/shopify (cli-shopify)
+Connections
+stripe -> cli-stripe forwarding to /webhooks/stripe
+shopify -> cli-shopify forwarding to /webhooks/shopify
+twilio -> cli-twilio forwarding to /webhooks/twilio
 
-twilio
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn03
-└─ Forwards to → http://localhost:3000/webhooks/twilio (cli-twilio)
-
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli
-
-Events
-
-● Connected. Waiting for events...
+⣾ Getting ready...
 
 ```
 
@@ -227,17 +185,16 @@ The 3rd param, `connection-query` can be used to filter the list of connections 
 ```sh
 $ hookdeck listen 3000 shopify orders
 
-Listening on
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
-shopify
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
-└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (orders)
+Shopify Source
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli
+Connections
+Orders Service forwarding to /webhooks/shopify/orders
 
-Events
 
-● Connected. Waiting for events...
+⣾ Getting ready...
 
 ```
 
@@ -248,17 +205,16 @@ The `--path` flag sets the path to which events are forwarded.
 ```sh
 $ hookdeck listen 3000 shopify orders --path /events/shopify/orders
 
-Listening on
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
-shopify
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
-└─ Forwards to → http://localhost:3000/events/shopify/orders (orders)
+Shopify Source
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli
+Connections
+Orders Service forwarding to /events/shopify/orders
 
-Events
 
-● Connected. Waiting for events...
+⣾ Getting ready...
 
 ```
 
@@ -313,17 +269,16 @@ Done! The Hookdeck CLI is configured in project MyProject
 
 $ hookdeck listen 3000 shopify orders
 
-Listening on
+👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
 
-shopify
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
-└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (orders)
+Shopify Source
+🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli
+Connections
+Inventory Service forwarding to /webhooks/shopify/inventory
 
-Events
 
-● Connected. Waiting for events...
+⣾ Getting ready...
 
 ```
 
