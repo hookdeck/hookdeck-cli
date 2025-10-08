@@ -15,6 +15,11 @@ type EventInfo struct {
 	Time    time.Time
 	Data    *websocket.Attempt
 	LogLine string
+	// Response data
+	ResponseStatus   int
+	ResponseHeaders  map[string][]string
+	ResponseBody     string
+	ResponseDuration time.Duration
 }
 
 // EventHistory manages the history of events and navigation state

@@ -91,19 +91,23 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 }
 
 // printEventAndUpdateStatus prints the event log and updates the status line in one operation
-func (p *Proxy) printEventAndUpdateStatus(eventID string, status int, success bool, eventTime time.Time, eventData *websocket.Attempt, eventLog string) {
+func (p *Proxy) printEventAndUpdateStatus(eventID string, status int, success bool, eventTime time.Time, eventData *websocket.Attempt, eventLog string, responseStatus int, responseHeaders map[string][]string, responseBody string, responseDuration time.Duration) {
 	// Create event info with all data passed as parameters (no shared state)
 	eventInfo := EventInfo{
-		ID:      eventID,
-		Status:  status,
-		Success: success,
-		Time:    eventTime,
-		Data:    eventData,
-		LogLine: eventLog,
+		ID:               eventID,
+		Status:           status,
+		Success:          success,
+		Time:             eventTime,
+		Data:             eventData,
+		LogLine:          eventLog,
+		ResponseStatus:   responseStatus,
+		ResponseHeaders:  responseHeaders,
+		ResponseBody:     responseBody,
+		ResponseDuration: responseDuration,
 	}
 
-	// Delegate rendering to UI
-	p.ui.PrintEventAndUpdateStatus(eventInfo, p.hasReceivedEvent)
+	// Delegate rendering to UI (pass showingDetails flag to block rendering while less is open)
+	p.ui.PrintEventAndUpdateStatus(eventInfo, p.hasReceivedEvent, p.showingDetails)
 }
 
 // startWaitingAnimation starts an animation for the waiting indicator
@@ -140,9 +144,16 @@ func (p *Proxy) toggleDetailsView() {
 	if p.showingDetails {
 		p.showingDetails = false
 	} else {
+		// Set flag BEFORE calling ShowEventDetails, since it blocks until less exits
+		p.showingDetails = true
 		shown, _ := p.eventActions.ShowEventDetails()
+		// Reset flag after less exits
+		p.showingDetails = false
+
 		if shown {
-			p.showingDetails = true
+			// After less exits, we need to redraw the entire event list
+			// because less has taken over the screen
+			p.ui.RedrawAfterDetailsView(p.hasReceivedEvent)
 		}
 	}
 }
@@ -399,6 +410,8 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
 		req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
 
+		// Track request start time for duration calculation
+		requestStartTime := time.Now()
 		res, err := client.Do(req)
 
 		if err != nil {
@@ -421,8 +434,8 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 				}
 			}
 
-			// Print the error and update status line with event-specific data
-			p.printEventAndUpdateStatus(eventID, 0, false, time.Now(), webhookEvent, errStr)
+			// Print the error and update status line with event-specific data (no response data for errors)
+			p.printEventAndUpdateStatus(eventID, 0, false, time.Now(), webhookEvent, errStr, 0, nil, "", 0)
 
 			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
 				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
@@ -433,12 +446,12 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 					},
 				}})
 		} else {
-			p.processEndpointResponse(webhookEvent, res)
+			p.processEndpointResponse(webhookEvent, res, requestStartTime)
 		}
 	}
 }
 
-func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *http.Response) {
+func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *http.Response, requestStartTime time.Time) {
 	eventTime := time.Now()
 	localTime := eventTime.Format(timeLayout)
 	color := ansi.Color(os.Stdout)
@@ -460,18 +473,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	eventSuccess := resp.StatusCode >= 200 && resp.StatusCode < 300
 	eventID := webhookEvent.Body.EventID
 
-	// Mark as having received first event
-	if !p.hasReceivedEvent {
-		p.hasReceivedEvent = true
-		// Stop the waiting animation
-		if p.stopWaitingAnimation != nil {
-			p.stopWaitingAnimation <- true
-		}
-	}
-
-	// Print the event log and update status line with event-specific data
-	p.printEventAndUpdateStatus(eventID, eventStatus, eventSuccess, eventTime, webhookEvent, outputStr)
-
+	// Read response body
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		errStr := fmt.Sprintf("%s [%s] Failed to read response from endpoint, error = %v\n",
@@ -483,6 +485,27 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 
 		return
 	}
+
+	// Capture response data
+	responseStatus := resp.StatusCode
+	responseHeaders := make(map[string][]string)
+	for key, values := range resp.Header {
+		responseHeaders[key] = values
+	}
+	responseBody := string(buf)
+	responseDuration := eventTime.Sub(requestStartTime)
+
+	// Mark as having received first event
+	if !p.hasReceivedEvent {
+		p.hasReceivedEvent = true
+		// Stop the waiting animation
+		if p.stopWaitingAnimation != nil {
+			p.stopWaitingAnimation <- true
+		}
+	}
+
+	// Print the event log and update status line with event-specific data including response
+	p.printEventAndUpdateStatus(eventID, eventStatus, eventSuccess, eventTime, webhookEvent, outputStr, responseStatus, responseHeaders, responseBody, responseDuration)
 
 	if p.webSocketClient != nil {
 		p.webSocketClient.SendMessage(&websocket.OutgoingMessage{

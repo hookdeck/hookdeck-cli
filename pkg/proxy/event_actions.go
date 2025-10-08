@@ -159,36 +159,7 @@ func (ea *EventActions) ShowEventDetails() (bool, error) {
 	// Header with navigation hints
 	content.WriteString(ansi.Bold("Event Details"))
 	content.WriteString("\n")
-	content.WriteString(ansi.Faint("| Press 'q' to return to events • Use arrow keys/Page Up/Down to scroll"))
-	content.WriteString("\n")
-	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
-	content.WriteString("\n\n")
-
-	// Event metadata
-	timestampStr := selectedEvent.Time.Format(timeLayout)
-	statusIcon := color.Green("✓")
-	statusText := "succeeded"
-	statusDisplay := color.Bold(fmt.Sprintf("%d", selectedEvent.Status))
-	if !selectedEvent.Success {
-		statusIcon = color.Red("x").Bold()
-		statusText = "failed"
-		if selectedEvent.Status == 0 {
-			statusDisplay = color.Bold("error")
-		}
-	}
-
-	content.WriteString(fmt.Sprintf("%s Event %s with status %s at %s\n", statusIcon, statusText, statusDisplay, ansi.Faint(timestampStr)))
-	content.WriteString("\n")
-
-	// Dashboard URL
-	dashboardURL := ea.cfg.DashboardBaseURL
-	if ea.cfg.ProjectID != "" {
-		dashboardURL += "/cli/events/" + selectedEvent.ID
-	}
-	if ea.cfg.ProjectMode == "console" {
-		dashboardURL = ea.cfg.ConsoleBaseURL
-	}
-	content.WriteString(fmt.Sprintf("%s %s\n", ansi.Faint("🔗"), ansi.Faint(dashboardURL)))
+	content.WriteString(ansi.Faint("Press 'q' to return to events • Use arrow keys/Page Up/Down to scroll"))
 	content.WriteString("\n")
 	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
 	content.WriteString("\n\n")
@@ -198,10 +169,7 @@ func (ea *EventActions) ShowEventDetails() (bool, error) {
 	content.WriteString("\n\n")
 	// Construct the full URL with query params
 	fullURL := ea.cfg.URL.Scheme + "://" + ea.cfg.URL.Host + ea.cfg.URL.Path + webhookEvent.Body.Path
-	content.WriteString(fmt.Sprintf("%s %s\n", color.Bold(webhookEvent.Body.Request.Method), fullURL))
-	content.WriteString("\n")
-	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
-	content.WriteString("\n\n")
+	content.WriteString(fmt.Sprintf("%s %s\n\n", color.Bold(webhookEvent.Body.Request.Method), fullURL))
 
 	// Headers section
 	if len(webhookEvent.Body.Request.Headers) > 0 {
@@ -222,8 +190,6 @@ func (ea *EventActions) ShowEventDetails() (bool, error) {
 			}
 		}
 		content.WriteString("\n")
-		content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
-		content.WriteString("\n\n")
 	}
 
 	// Body section
@@ -244,38 +210,122 @@ func (ea *EventActions) ShowEventDetails() (bool, error) {
 		}
 	}
 
+	// Response section
+	content.WriteString("\n")
+	content.WriteString(ansi.Faint("───────────────────────────────────────────────────────────────────────────────"))
+	content.WriteString("\n\n")
+
+	// Check if this was an error (no response received)
+	if selectedEvent.ResponseStatus == 0 && selectedEvent.ResponseBody == "" {
+		// Request failed - no response received
+		content.WriteString(ansi.Bold("Response"))
+		content.WriteString("\n\n")
+		content.WriteString(color.Red("Request failed - no response received").String())
+		content.WriteString("\n")
+	} else {
+		// Response header with status and duration
+		responseStatusText := fmt.Sprintf("%d", selectedEvent.ResponseStatus)
+		if selectedEvent.ResponseStatus >= 200 && selectedEvent.ResponseStatus < 300 {
+			responseStatusText = color.Green(responseStatusText).String()
+		} else if selectedEvent.ResponseStatus >= 400 {
+			responseStatusText = color.Red(responseStatusText).String()
+		} else if selectedEvent.ResponseStatus >= 300 {
+			responseStatusText = color.Yellow(responseStatusText).String()
+		}
+
+		durationMs := selectedEvent.ResponseDuration.Milliseconds()
+		content.WriteString(fmt.Sprintf("%s • %s • %dms\n\n",
+			ansi.Bold("Response"),
+			responseStatusText,
+			durationMs,
+		))
+
+		// Response headers section
+		if len(selectedEvent.ResponseHeaders) > 0 {
+			content.WriteString(ansi.Bold("Headers"))
+			content.WriteString("\n\n")
+
+			// Sort header keys for consistent display
+			keys := make([]string, 0, len(selectedEvent.ResponseHeaders))
+			for key := range selectedEvent.ResponseHeaders {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+
+			for _, key := range keys {
+				values := selectedEvent.ResponseHeaders[key]
+				// Join multiple values with comma
+				content.WriteString(fmt.Sprintf("%s: %s\n",
+					ansi.Faint(strings.ToLower(key)),
+					strings.Join(values, ", "),
+				))
+			}
+			content.WriteString("\n")
+		}
+
+		// Response body section
+		if len(selectedEvent.ResponseBody) > 0 {
+			content.WriteString(ansi.Bold("Body"))
+			content.WriteString("\n\n")
+
+			var bodyData interface{}
+			if err := json.Unmarshal([]byte(selectedEvent.ResponseBody), &bodyData); err == nil {
+				prettyJSON, err := json.MarshalIndent(bodyData, "", "  ")
+				if err == nil {
+					content.WriteString(string(prettyJSON))
+					content.WriteString("\n")
+				}
+			} else {
+				content.WriteString(selectedEvent.ResponseBody)
+				content.WriteString("\n")
+			}
+		} else {
+			content.WriteString(ansi.Faint("(empty)"))
+			content.WriteString("\n\n")
+		}
+	}
+
 	// Footer
 	content.WriteString("\n")
-	content.WriteString(fmt.Sprintf("%s Use arrow keys/Page Up/Down to scroll • Press 'q' to return to events\n", ansi.Faint("⌨️")))
+	content.WriteString(ansi.Faint("Press 'q' to return to events • Use arrow keys/Page Up/Down to scroll"))
+	content.WriteString("\n")
 
-	// Use less with standard options
-	cmd := exec.Command("sh", "-c", "less -R")
+	// Use less with options:
+	// -R: Allow ANSI color codes
+	// (alternate screen is enabled by default, which restores terminal content on exit)
+	cmd := exec.Command("less", "-R")
 
-	// Create stdin pipe to send content
-	stdinPipe, err := cmd.StdinPipe()
+	// Connect less to the terminal for interactive control
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Create a temporary file for the content (less reads from file, not pipe)
+	tmpfile, err := os.CreateTemp("", "hookdeck-event-*.txt")
 	if err != nil {
 		// Fallback: print directly
 		fmt.Print(content.String())
 		return false, nil
 	}
+	defer os.Remove(tmpfile.Name())
 
-	// Connect to terminal
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Write content to temp file
+	if _, err := tmpfile.Write([]byte(content.String())); err != nil {
+		tmpfile.Close()
+		fmt.Print(content.String())
+		return false, nil
+	}
+	tmpfile.Close()
 
-	// Start less
-	if err := cmd.Start(); err != nil {
+	// Point less to the temp file
+	cmd.Args = append(cmd.Args, tmpfile.Name())
+
+	// Run less and wait for it to exit (it takes over terminal control)
+	if err := cmd.Run(); err != nil {
 		// Fallback: print directly
 		fmt.Print(content.String())
 		return false, nil
 	}
-
-	// Write content to less
-	stdinPipe.Write([]byte(content.String()))
-	stdinPipe.Close()
-
-	// Wait for less to exit
-	cmd.Wait()
 
 	return true, nil
 }

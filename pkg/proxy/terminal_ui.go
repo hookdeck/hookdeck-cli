@@ -156,9 +156,17 @@ func (ui *TerminalUI) UpdateStatusLine(hasReceivedEvent bool) {
 }
 
 // PrintEventAndUpdateStatus prints the event log and updates the status line in one operation
-func (ui *TerminalUI) PrintEventAndUpdateStatus(eventInfo EventInfo, hasReceivedEvent bool) {
+func (ui *TerminalUI) PrintEventAndUpdateStatus(eventInfo EventInfo, hasReceivedEvent bool, showingDetails bool) {
 	ui.terminalMutex.Lock()
 	defer ui.terminalMutex.Unlock()
+
+	// Always add event to history (so it's available when returning from details view)
+	ui.eventHistory.AddEvent(eventInfo)
+
+	// Skip all terminal rendering if details view is showing (less has control of the screen)
+	if showingDetails {
+		return
+	}
 
 	// Check if this is the 11th event - need to add "Events" title before the first historical event
 	isEleventhEvent := ui.eventHistory.Count() == maxNavigableEvents && !ui.eventHistory.IsEventsTitleDisplayed()
@@ -285,9 +293,8 @@ func (ui *TerminalUI) PrintEventAndUpdateStatus(eventInfo EventInfo, hasReceived
 		}
 	}
 
-	// Add event to history (includes all data from caller)
-	// Note: AddEvent handles deduplication, history size limits, and auto-selection
-	ui.eventHistory.AddEvent(eventInfo)
+	// Note: Event was already added to history at the start of this function
+	// (before the showingDetails check, so events are still tracked while viewing details)
 
 	// Temporarily restore normal terminal mode for printing
 	if ui.rawModeState != nil {
@@ -373,6 +380,84 @@ func (ui *TerminalUI) PrintEventAndUpdateStatus(eventInfo EventInfo, hasReceived
 	fmt.Println()
 
 	// Generate and print status message
+	statusMsg := ui.BuildStatusMessage(hasReceivedEvent)
+	fmt.Printf("%s\n", statusMsg)
+	ui.statusLineShown = true
+
+	// Re-enable raw mode
+	if ui.rawModeState != nil {
+		term.MakeRaw(int(os.Stdin.Fd()))
+	}
+}
+
+// RedrawAfterDetailsView redraws the event list after returning from the details view
+// less uses alternate screen, so the original screen content should be restored automatically
+// We just need to redraw the events that may have arrived while viewing details
+func (ui *TerminalUI) RedrawAfterDetailsView(hasReceivedEvent bool) {
+	ui.terminalMutex.Lock()
+	defer ui.terminalMutex.Unlock()
+
+	// Temporarily restore normal terminal mode for printing
+	if ui.rawModeState != nil {
+		term.Restore(int(os.Stdin.Fd()), ui.rawModeState)
+	}
+
+	// After less exits, the terminal should have restored the original screen
+	// We need to redraw the entire navigable events section since events may have arrived
+
+	events := ui.eventHistory.GetEvents()
+	if len(events) == 0 {
+		// Re-enable raw mode
+		if ui.rawModeState != nil {
+			term.MakeRaw(int(os.Stdin.Fd()))
+		}
+		return
+	}
+
+	selectedIndex := ui.eventHistory.GetSelectedIndex()
+
+	// Get the navigable events (includes pinned selected event if applicable)
+	navigableIndices := ui.eventHistory.GetNavigableEvents()
+
+	// Calculate the normal navigable start for determining if we need separator
+	normalNavigableStartIdx := len(events) - maxNavigableEvents
+	if normalNavigableStartIdx < 0 {
+		normalNavigableStartIdx = 0
+	}
+
+	// Calculate how many lines to move up: navigable events + separator (if present) + blank + status
+	totalEventLines := 0
+	for _, idx := range navigableIndices {
+		totalEventLines += ui.calculateEventLines(events[idx].LogLine)
+	}
+	linesToMoveUp := totalEventLines + 2 // event lines + blank + status
+	if normalNavigableStartIdx > 0 {
+		linesToMoveUp += 3 // blank + "Latest events" + blank
+	}
+
+	// Move cursor up and clear everything below
+	fmt.Printf("\033[%dA", linesToMoveUp)
+	fmt.Print("\033[J")
+
+	// Add separator if there are historical events
+	if normalNavigableStartIdx > 0 {
+		color := ansi.Color(os.Stdout)
+		fmt.Printf("\n%s\n\n", color.Faint("Latest events (↑↓ to navigate)"))
+	}
+
+	// Print the navigable events with selection indicator
+	for _, idx := range navigableIndices {
+		if idx == selectedIndex {
+			fmt.Printf("> %s\n", events[idx].LogLine) // Selected event with >
+		} else {
+			fmt.Printf("%s\n", events[idx].LogLine) // No indentation
+		}
+	}
+
+	// Add a newline before the status line
+	fmt.Println()
+
+	// Generate and print the status message for the selected event
 	statusMsg := ui.BuildStatusMessage(hasReceivedEvent)
 	fmt.Printf("%s\n", statusMsg)
 	ui.statusLineShown = true
