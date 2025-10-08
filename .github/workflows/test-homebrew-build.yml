@@ -51,6 +51,7 @@ jobs:
       - name: Run installation tests
         run: ./test-scripts/test-homebrew-build.sh --install
 
+      # Upload generated Homebrew formula (cask distribution has been disabled)
       - name: Upload generated Homebrew files
         if: always()
         uses: actions/upload-artifact@v4
@@ -58,5 +59,4 @@ jobs:
           name: homebrew-files
           path: |
             dist/homebrew/Formula/hookdeck.rb
-            dist/homebrew/Casks/hookdeck.rb
           retention-days: 7
