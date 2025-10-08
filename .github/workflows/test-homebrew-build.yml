@@ -4,11 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - ".goreleaser/**"
-      - "scripts/completions.sh"
-      - "test-scripts/test-homebrew-build.sh"
-      - ".github/workflows/test-homebrew-build.yml"
 
   workflow_dispatch:
     inputs:
