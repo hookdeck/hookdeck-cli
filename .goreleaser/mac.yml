@@ -64,38 +64,38 @@ brews:
       zsh_completion.install "completions/_hookdeck"
     
     caveats: |
-      ⚠️  WARNING: This formula is deprecated!
+      ❤ Thanks for installing the Hookdeck CLI!
       
-      Please migrate to the cask version for the latest updates:
-        brew uninstall hookdeck
-        brew install --cask hookdeck/hookdeck/hookdeck
-      
-      The formula distribution will be removed in approximately 3-6 months.
-      Learn more: https://goreleaser.com/blog/goreleaser-v2.10/#homebrew-casks
-
-homebrew_casks:
-  - name: hookdeck
-    ids:
-      - hookdeck
-    repository:
-      owner: hookdeck
-      name: homebrew-hookdeck
-    homepage: https://hookdeck.com
-    description: Receive events (e.g. webhooks) on your localhost with event history, replay, and team collaboration
-    # Install shell completions automatically
-    completions:
-      bash: "completions/hookdeck.bash"
-      zsh: "completions/_hookdeck"
-    
-    caveats: |-
-      Thanks for installing the Hookdeck CLI!
-      
-      ⚠️  If you see an error about a binary already existing:
-        brew uninstall hookdeck
-        brew install --cask hookdeck/hookdeck/hookdeck
-      
-      Shell completions have been installed automatically.
-      You may need to restart your shell for them to take effect.
-      
-      First time using the CLI? Run:
+      If this is your first time using the CLI, run:
         hookdeck login
+
+# TODO: Temporarily disabled until we implement code signing
+# Cask distribution causes Gatekeeper issues with unsigned binaries
+# Will re-enable once Apple Developer certificate is in place
+#
+# homebrew_casks:
+#   - name: hookdeck
+#     ids:
+#       - hookdeck
+#     repository:
+#       owner: hookdeck
+#       name: homebrew-hookdeck
+#     homepage: https://hookdeck.com
+#     description: Receive events (e.g. webhooks) on your localhost with event history, replay, and team collaboration
+#     # Install shell completions automatically
+#     completions:
+#       bash: "completions/hookdeck.bash"
+#       zsh: "completions/_hookdeck"
+#
+#     caveats: |-
+#       Thanks for installing the Hookdeck CLI!
+#
+#       ⚠️  If you see an error about a binary already existing:
+#         brew uninstall hookdeck
+#         brew install --cask hookdeck/hookdeck/hookdeck
+#
+#       Shell completions have been installed automatically.
+#       You may need to restart your shell for them to take effect.
+#
+#       First time using the CLI? Run:
+#         hookdeck login

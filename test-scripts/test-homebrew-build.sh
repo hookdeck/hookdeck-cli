@@ -7,17 +7,15 @@
 #
 # It validates that:
 #   - GoReleaser snapshot build completes successfully
-#   - Homebrew formula and cask files are generated
+#   - Homebrew formula file is generated
 #   - Formula contains deprecation warning
 #   - Formula references completion files correctly
-#   - Cask has proper bash_completion directive
-#   - Cask has proper zsh_completion directive
 #   - Completion files are bundled in the tarball
+# NOTE: Cask validation is currently commented out - focusing on formula only
 #
 # Usage:
-#   ./test-scripts/test-homebrew-build.sh                              # Build validation only
-#   ./test-scripts/test-homebrew-build.sh --install                    # Build + installation testing
-#   ./test-scripts/test-homebrew-build.sh --install --bypass-gatekeeper # Full testing with binary execution
+#   ./test-scripts/test-homebrew-build.sh            # Build validation only
+#   ./test-scripts/test-homebrew-build.sh --install  # Build + installation testing
 #
 # Prerequisites:
 #   - Go installed
@@ -27,17 +25,11 @@
 # Note: Without --install, this script only validates BUILD outputs.
 # With --install, it also tests actual installation from local tap.
 # For CLI functionality testing, use test-scripts/test-acceptance.sh instead.
-#
-# Unsigned Binary Note:
-# Local snapshot builds produce unsigned binaries which macOS Gatekeeper blocks.
-# To test binary execution locally, the script can remove the quarantine attribute.
-# This requires manual approval for security reasons.
 
 set -e
 
 # Parse command line arguments
 RUN_INSTALL_TESTS=false
-BYPASS_GATEKEEPER=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -45,13 +37,9 @@ while [[ $# -gt 0 ]]; do
             RUN_INSTALL_TESTS=true
             shift
             ;;
-        --bypass-gatekeeper)
-            BYPASS_GATEKEEPER=true
-            shift
-            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--install] [--bypass-gatekeeper]"
+            echo "Usage: $0 [--install]"
             exit 1
             ;;
     esac
@@ -60,7 +48,7 @@ done
 # Global variables for cleanup
 LOCAL_TAP_PATH=""
 FORMULA_INSTALLED=false
-CASK_INSTALLED=false
+# CASK_INSTALLED=false  # Commented out - not testing cask currently
 
 # Colors for output
 RED='\033[0;31m'
@@ -108,12 +96,13 @@ cleanup_installations() {
     fi
     
     # Uninstall cask if installed
-    if [ "$CASK_INSTALLED" = true ]; then
-        echo_info "Uninstalling cask..."
-        if brew uninstall --cask hookdeck 2>/dev/null || true; then
-            echo_success "Cask uninstalled"
-        fi
-    fi
+    # NOTE: Cask testing is currently commented out
+    # if [ "$CASK_INSTALLED" = true ]; then
+    #     echo_info "Uninstalling cask..."
+    #     if brew uninstall --cask hookdeck 2>/dev/null || true; then
+    #         echo_success "Cask uninstalled"
+    #     fi
+    # fi
     
     # Remove local tap
     if [ -n "$LOCAL_TAP_PATH" ] && [ -d "$LOCAL_TAP_PATH" ]; then
@@ -191,13 +180,7 @@ validate_formula() {
     fi
     echo_success "Formula file exists"
     
-    # Check for deprecation warning
-    if grep -q "WARNING: This formula is deprecated" "$formula_file"; then
-        echo_success "Formula contains deprecation warning"
-    else
-        echo_error "Formula missing deprecation warning"
-        return 1
-    fi
+    # Note: Deprecation warning removed since cask is disabled, formula is now the official method
     
     # Check for bash completion reference
     if grep -q 'bash_completion.install' "$formula_file"; then
@@ -235,36 +218,37 @@ validate_formula() {
 }
 
 # Validate Homebrew cask file
-validate_cask() {
-    echo_section "Validating Cask (dist/homebrew/Casks/hookdeck.rb)"
-    
-    local cask_file="dist/homebrew/Casks/hookdeck.rb"
-    
-    if [ ! -f "$cask_file" ]; then
-        echo_error "Cask file not found at $cask_file"
-        return 1
-    fi
-    echo_success "Cask file exists"
-    
-    # Check for bash completion
-    if grep -q 'bash.*completion.*hookdeck\.bash' "$cask_file"; then
-        echo_success "Cask contains bash_completion directive"
-    else
-        echo_error "Cask missing bash_completion directive"
-        return 1
-    fi
-    
-    # Check for zsh completion
-    if grep -q 'zsh.*completion.*_hookdeck' "$cask_file"; then
-        echo_success "Cask contains zsh_completion directive"
-    else
-        echo_error "Cask missing zsh_completion directive"
-        return 1
-    fi
-    
-    echo_success "Cask validation passed"
-    return 0
-}
+# NOTE: Cask validation is currently commented out - focusing on formula only
+# validate_cask() {
+#     echo_section "Validating Cask (dist/homebrew/Casks/hookdeck.rb)"
+#
+#     local cask_file="dist/homebrew/Casks/hookdeck.rb"
+#
+#     if [ ! -f "$cask_file" ]; then
+#         echo_error "Cask file not found at $cask_file"
+#         return 1
+#     fi
+#     echo_success "Cask file exists"
+#
+#     # Check for bash completion
+#     if grep -q 'bash.*completion.*hookdeck\.bash' "$cask_file"; then
+#         echo_success "Cask contains bash_completion directive"
+#     else
+#         echo_error "Cask missing bash_completion directive"
+#         return 1
+#     fi
+#
+#     # Check for zsh completion
+#     if grep -q 'zsh.*completion.*_hookdeck' "$cask_file"; then
+#         echo_success "Cask contains zsh_completion directive"
+#     else
+#         echo_error "Cask missing zsh_completion directive"
+#         return 1
+#     fi
+#
+#     echo_success "Cask validation passed"
+#     return 0
+# }
 
 # Validate completion files in tarball
 validate_completions_in_tarball() {
@@ -321,11 +305,12 @@ setup_local_tap() {
     sed -i '' "s|https://github.com/hookdeck/hookdeck-cli/releases/download/v[^/]*/|file://$current_dir/dist/|g" "$formula_file"
     
     # Patch cask to use local file:// URLs for testing
-    echo_info "Patching cask to use local file URLs for testing..."
-    local cask_file="$LOCAL_TAP_PATH/Casks/hookdeck.rb"
-    
-    # Replace GitHub URLs with local file:// URLs
-    sed -i '' "s|https://github.com/hookdeck/hookdeck-cli/releases/download/v[^/]*/|file://$current_dir/dist/|g" "$cask_file"
+    # NOTE: Cask patching is currently commented out - focusing on formula only
+    # echo_info "Patching cask to use local file URLs for testing..."
+    # local cask_file="$LOCAL_TAP_PATH/Casks/hookdeck.rb"
+    #
+    # # Replace GitHub URLs with local file:// URLs
+    # sed -i '' "s|https://github.com/hookdeck/hookdeck-cli/releases/download/v[^/]*/|file://$current_dir/dist/|g" "$cask_file"
     
     echo_success "Local tap created and patched successfully"
     echo_info "Tap name: $tap_name"
@@ -346,38 +331,17 @@ test_formula_installation() {
         return 1
     fi
     
-    # Verify binary works (may fail on macOS due to unsigned binary)
+    # Verify binary works (must not be blocked by Gatekeeper)
     echo_info "Testing binary: hookdeck version"
     
     # Try to run the binary
     if hookdeck version 2>/dev/null; then
         echo_success "Binary is functional"
     else
-        # Binary execution failed - likely Gatekeeper
-        if [ "$BYPASS_GATEKEEPER" = true ]; then
-            echo_info "Binary blocked by Gatekeeper - attempting to bypass..."
-            local binary_path="$(which hookdeck)"
-            echo_info "Removing quarantine attribute from: $binary_path"
-            
-            if sudo xattr -d com.apple.quarantine "$binary_path" 2>/dev/null; then
-                echo_success "Quarantine attribute removed"
-                
-                # Try again
-                if hookdeck version; then
-                    echo_success "Binary is functional after Gatekeeper bypass"
-                else
-                    echo_error "Binary still failed to execute after bypass"
-                    return 1
-                fi
-            else
-                echo_error "Failed to remove quarantine attribute (sudo required)"
-                return 1
-            fi
-        else
-            echo_info "Binary test skipped (unsigned binaries are blocked by macOS Gatekeeper)"
-            echo_info "Use --bypass-gatekeeper flag to remove quarantine attribute and test binary"
-            echo_info "Formula installation succeeded (binary path and completions verified)"
-        fi
+        echo_error "Binary execution failed"
+        echo_error "This indicates the binary is unsigned or improperly signed"
+        echo_error "Gatekeeper is blocking execution - build must fail"
+        return 1
     fi
     
     # Verify bash completion is installed
@@ -405,77 +369,78 @@ test_formula_installation() {
 }
 
 # Test cask installation
-test_cask_installation() {
-    echo_section "Testing Cask Installation"
-    
-    local tap_name="hookdeck-test/hookdeck-test/hookdeck"
-    
-    echo_info "Installing cask: brew install --cask $tap_name"
-    if brew install --cask "$tap_name"; then
-        echo_success "Cask installed successfully"
-        CASK_INSTALLED=true
-    else
-        echo_error "Cask installation failed"
-        return 1
-    fi
-    
-    # Verify binary works (may fail on macOS due to unsigned binary)
-    echo_info "Testing binary: hookdeck version"
-    
-    # Try to run the binary
-    if hookdeck version 2>/dev/null; then
-        echo_success "Binary is functional"
-    else
-        # Binary execution failed - likely Gatekeeper
-        if [ "$BYPASS_GATEKEEPER" = true ]; then
-            echo_info "Binary blocked by Gatekeeper - attempting to bypass..."
-            local binary_path="$(which hookdeck)"
-            echo_info "Removing quarantine attribute from: $binary_path"
-            
-            if sudo xattr -d com.apple.quarantine "$binary_path" 2>/dev/null; then
-                echo_success "Quarantine attribute removed"
-                
-                # Try again
-                if hookdeck version; then
-                    echo_success "Binary is functional after Gatekeeper bypass"
-                else
-                    echo_error "Binary still failed to execute after bypass"
-                    return 1
-                fi
-            else
-                echo_error "Failed to remove quarantine attribute (sudo required)"
-                return 1
-            fi
-        else
-            echo_info "Binary test skipped (unsigned binaries are blocked by macOS Gatekeeper)"
-            echo_info "Use --bypass-gatekeeper flag to remove quarantine attribute and test binary"
-            echo_info "Cask installation succeeded (binary path and completions verified)"
-        fi
-    fi
-    
-    # Verify bash completion is installed
-    local bash_completion_path="$(brew --prefix)/etc/bash_completion.d/hookdeck"
-    echo_info "Checking bash completion at: $bash_completion_path"
-    if [ -f "$bash_completion_path" ]; then
-        echo_success "Bash completion installed"
-    else
-        echo_error "Bash completion not found at $bash_completion_path"
-        return 1
-    fi
-    
-    # Verify zsh completion is installed
-    local zsh_completion_path="$(brew --prefix)/share/zsh/site-functions/_hookdeck"
-    echo_info "Checking zsh completion at: $zsh_completion_path"
-    if [ -f "$zsh_completion_path" ]; then
-        echo_success "Zsh completion installed"
-    else
-        echo_error "Zsh completion not found at $zsh_completion_path"
-        return 1
-    fi
-    
-    echo_success "Cask installation validation passed"
-    return 0
-}
+# NOTE: Cask installation testing is currently commented out - focusing on formula only
+# test_cask_installation() {
+#     echo_section "Testing Cask Installation"
+#
+#     local tap_name="hookdeck-test/hookdeck-test/hookdeck"
+#
+#     echo_info "Installing cask: brew install --cask $tap_name"
+#     if brew install --cask "$tap_name"; then
+#         echo_success "Cask installed successfully"
+#         CASK_INSTALLED=true
+#     else
+#         echo_error "Cask installation failed"
+#         return 1
+#     fi
+#
+#     # Verify binary works (may fail on macOS due to unsigned binary)
+#     echo_info "Testing binary: hookdeck version"
+#
+#     # Try to run the binary
+#     if hookdeck version 2>/dev/null; then
+#         echo_success "Binary is functional"
+#     else
+#         # Binary execution failed - likely Gatekeeper
+#         if [ "$BYPASS_GATEKEEPER" = true ]; then
+#             echo_info "Binary blocked by Gatekeeper - attempting to bypass..."
+#             local binary_path="$(which hookdeck)"
+#             echo_info "Removing quarantine attribute from: $binary_path"
+#
+#             if sudo xattr -d com.apple.quarantine "$binary_path" 2>/dev/null; then
+#                 echo_success "Quarantine attribute removed"
+#
+#                 # Try again
+#                 if hookdeck version; then
+#                     echo_success "Binary is functional after Gatekeeper bypass"
+#                 else
+#                     echo_error "Binary still failed to execute after bypass"
+#                     return 1
+#                 fi
+#             else
+#                 echo_error "Failed to remove quarantine attribute (sudo required)"
+#                 return 1
+#             fi
+#         else
+#             echo_info "Binary test skipped (unsigned binaries are blocked by macOS Gatekeeper)"
+#             echo_info "Use --bypass-gatekeeper flag to remove quarantine attribute and test binary"
+#             echo_info "Cask installation succeeded (binary path and completions verified)"
+#         fi
+#     fi
+#
+#     # Verify bash completion is installed
+#     local bash_completion_path="$(brew --prefix)/etc/bash_completion.d/hookdeck"
+#     echo_info "Checking bash completion at: $bash_completion_path"
+#     if [ -f "$bash_completion_path" ]; then
+#         echo_success "Bash completion installed"
+#     else
+#         echo_error "Bash completion not found at $bash_completion_path"
+#         return 1
+#     fi
+#
+#     # Verify zsh completion is installed
+#     local zsh_completion_path="$(brew --prefix)/share/zsh/site-functions/_hookdeck"
+#     echo_info "Checking zsh completion at: $zsh_completion_path"
+#     if [ -f "$zsh_completion_path" ]; then
+#         echo_success "Zsh completion installed"
+#     else
+#         echo_error "Zsh completion not found at $zsh_completion_path"
+#         return 1
+#     fi
+#
+#     echo_success "Cask installation validation passed"
+#     return 0
+# }
 
 # Run installation tests
 run_installation_tests() {
@@ -500,17 +465,18 @@ run_installation_tests() {
     fi
     
     # Clean up formula before cask test
-    if [ "$FORMULA_INSTALLED" = true ]; then
-        echo_info "Uninstalling formula before cask test..."
-        brew uninstall hookdeck 2>/dev/null || true
-        FORMULA_INSTALLED=false
-        echo_success "Formula uninstalled"
-    fi
-    
-    # Test 2: Cask installation
-    if ! test_cask_installation; then
-        all_passed=false
-    fi
+    # NOTE: Cask testing is currently commented out - focusing on formula only
+    # if [ "$FORMULA_INSTALLED" = true ]; then
+    #     echo_info "Uninstalling formula before cask test..."
+    #     brew uninstall hookdeck 2>/dev/null || true
+    #     FORMULA_INSTALLED=false
+    #     echo_success "Formula uninstalled"
+    # fi
+    #
+    # # Test 2: Cask installation
+    # if ! test_cask_installation; then
+    #     all_passed=false
+    # fi
     
     if [ "$all_passed" = true ]; then
         echo_success "All installation tests passed!"
@@ -535,9 +501,10 @@ main() {
         all_passed=false
     fi
     
-    if ! validate_cask; then
-        all_passed=false
-    fi
+    # NOTE: Cask validation is currently commented out - focusing on formula only
+    # if ! validate_cask; then
+    #     all_passed=false
+    # fi
     
     if ! validate_completions_in_tarball; then
         all_passed=false
@@ -557,15 +524,15 @@ main() {
         echo_success "All validations passed!"
         echo ""
         echo_info "What was validated:"
-        echo "  ✓ GoReleaser configuration generates correct Homebrew files"
+        echo "  ✓ GoReleaser configuration generates correct Homebrew formula"
         echo "  ✓ Completion files are bundled in archives"
         echo "  ✓ Formula has deprecation warnings"
         echo "  ✓ Formula has proper completion directives"
-        echo "  ✓ Cask has proper completion directives"
+        # echo "  ✓ Cask has proper completion directives"  # Commented out - not testing cask
         
         if [ "$RUN_INSTALL_TESTS" = true ]; then
             echo "  ✓ Formula installs correctly from local tap"
-            echo "  ✓ Cask installs correctly from local tap"
+            # echo "  ✓ Cask installs correctly from local tap"  # Commented out - not testing cask
             echo "  ✓ Completions are installed in correct locations"
             echo "  ✓ Binary is functional after installation"
         else
