@@ -30,6 +30,20 @@ func (ui *TerminalUI) SetRawModeState(state *term.State) {
 	ui.rawModeState = state
 }
 
+// TemporarilyRestoreNormalMode restores normal terminal mode (call before launching external programs like less)
+func (ui *TerminalUI) TemporarilyRestoreNormalMode() {
+	if ui.rawModeState != nil {
+		term.Restore(int(os.Stdin.Fd()), ui.rawModeState)
+	}
+}
+
+// ReEnableRawMode re-enables raw mode (call after external programs exit)
+func (ui *TerminalUI) ReEnableRawMode() {
+	if ui.rawModeState != nil {
+		term.MakeRaw(int(os.Stdin.Fd()))
+	}
+}
+
 // SafePrintf temporarily disables raw mode, prints the message, then re-enables raw mode
 func (ui *TerminalUI) SafePrintf(format string, args ...interface{}) {
 	ui.terminalMutex.Lock()
@@ -58,8 +72,11 @@ func (ui *TerminalUI) calculateEventLines(logLine string) int {
 		width = 80 // Default fallback
 	}
 
+	// Strip ANSI codes to get actual visual length
+	visualLine := ansi.StripANSI(logLine)
+
 	// Add 2 for the potential "> " prefix or "  " indentation
-	lineLength := len(logLine) + 2
+	lineLength := len(visualLine) + 2
 
 	// Calculate how many lines this will occupy
 	lines := (lineLength + width - 1) / width // Ceiling division

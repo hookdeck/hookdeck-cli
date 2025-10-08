@@ -139,22 +139,30 @@ func (p *Proxy) quit() {
 	proc.Signal(os.Interrupt)
 }
 
-// toggleDetailsView toggles between showing and hiding event details
+// toggleDetailsView shows event details (blocking until user exits less with 'q')
 func (p *Proxy) toggleDetailsView() {
-	if p.showingDetails {
-		p.showingDetails = false
-	} else {
-		// Set flag BEFORE calling ShowEventDetails, since it blocks until less exits
-		p.showingDetails = true
-		shown, _ := p.eventActions.ShowEventDetails()
-		// Reset flag after less exits
-		p.showingDetails = false
+	// Set flag BEFORE calling ShowEventDetails, since it blocks until less exits
+	p.showingDetails = true
 
-		if shown {
-			// After less exits, we need to redraw the entire event list
-			// because less has taken over the screen
-			p.ui.RedrawAfterDetailsView(p.hasReceivedEvent)
-		}
+	// Pause keyboard handler to prevent it from processing keypresses meant for less
+	p.keyboardHandler.Pause()
+
+	// Ensure cleanup happens after less exits
+	defer func() {
+		// Drain any buffered input that was meant for less but leaked to our keyboard handler
+		p.keyboardHandler.DrainBufferedInput()
+
+		// Resume normal keyboard processing
+		p.keyboardHandler.Resume()
+		p.showingDetails = false
+	}()
+
+	shown, _ := p.eventActions.ShowEventDetails()
+
+	if shown {
+		// After less exits, we need to redraw the entire event list
+		// because less has taken over the screen
+		p.ui.RedrawAfterDetailsView(p.hasReceivedEvent)
 	}
 }
 
@@ -412,6 +420,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 		// Track request start time for duration calculation
 		requestStartTime := time.Now()
+
 		res, err := client.Do(req)
 
 		if err != nil {
@@ -459,11 +468,17 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 	if p.cfg.ProjectMode == "console" {
 		url = p.cfg.ConsoleBaseURL + "/?event_id=" + webhookEvent.Body.EventID
 	}
-	outputStr := fmt.Sprintf("%s [%d] %s %s %s %s",
+
+	// Calculate response duration
+	responseDuration := eventTime.Sub(requestStartTime)
+	durationMs := responseDuration.Milliseconds()
+
+	outputStr := fmt.Sprintf("%s [%d] %s %s %s %s %s",
 		color.Faint(localTime),
 		ansi.ColorizeStatus(resp.StatusCode),
 		resp.Request.Method,
 		resp.Request.URL,
+		color.Faint(fmt.Sprintf("(%dms)", durationMs)),
 		color.Faint("→"),
 		color.Faint(url),
 	)
@@ -493,7 +508,6 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 		responseHeaders[key] = values
 	}
 	responseBody := string(buf)
-	responseDuration := eventTime.Sub(requestStartTime)
 
 	// Mark as having received first event
 	if !p.hasReceivedEvent {

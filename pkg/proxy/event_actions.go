@@ -290,17 +290,7 @@ func (ea *EventActions) ShowEventDetails() (bool, error) {
 	content.WriteString(ansi.Faint("Press 'q' to return to events • Use arrow keys/Page Up/Down to scroll"))
 	content.WriteString("\n")
 
-	// Use less with options:
-	// -R: Allow ANSI color codes
-	// (alternate screen is enabled by default, which restores terminal content on exit)
-	cmd := exec.Command("less", "-R")
-
-	// Connect less to the terminal for interactive control
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// Create a temporary file for the content (less reads from file, not pipe)
+	// Create a temporary file for the content
 	tmpfile, err := os.CreateTemp("", "hookdeck-event-*.txt")
 	if err != nil {
 		// Fallback: print directly
@@ -317,11 +307,39 @@ func (ea *EventActions) ShowEventDetails() (bool, error) {
 	}
 	tmpfile.Close()
 
-	// Point less to the temp file
-	cmd.Args = append(cmd.Args, tmpfile.Name())
+	// Use less with options:
+	// -R: Allow ANSI color codes
+	// -P: Custom prompt to hide filename (show blank or custom message)
+	cmd := exec.Command("less", "-R", "-P?eEND:.", tmpfile.Name())
+
+	// CRITICAL: Restore normal terminal mode BEFORE opening /dev/tty
+	// Our keyboard handler has put stdin in raw mode, and /dev/tty shares the same terminal
+	// We need to restore normal mode so less can properly initialize its terminal handling
+	ea.ui.TemporarilyRestoreNormalMode()
+
+	// CRITICAL: Open /dev/tty directly so less doesn't use stdin (which our keyboard handler is reading from)
+	// This gives less exclusive terminal access and prevents our keyboard handler from seeing its input
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		// Fallback: use stdin (but this means keyboard handler might see input)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		defer tty.Close()
+		// Give less exclusive access via /dev/tty
+		cmd.Stdin = tty
+		cmd.Stdout = tty
+		cmd.Stderr = tty
+	}
 
 	// Run less and wait for it to exit (it takes over terminal control)
-	if err := cmd.Run(); err != nil {
+	err = cmd.Run()
+
+	// Re-enable raw mode after less exits
+	ea.ui.ReEnableRawMode()
+
+	if err != nil {
 		// Fallback: print directly
 		fmt.Print(content.String())
 		return false, nil

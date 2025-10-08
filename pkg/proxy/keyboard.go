@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"os"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/term"
@@ -14,12 +15,15 @@ type KeyboardHandler struct {
 	hasReceivedEvent *bool
 	isConnected      *bool
 	showingDetails   *bool
+	paused           bool // Flag to pause input processing
+	pauseMutex       sync.Mutex
+	inputCh          chan []byte // Channel for buffered keyboard input
 	// Callbacks for actions
-	onNavigate     func(direction int)
-	onRetry        func()
-	onOpen         func()
+	onNavigate      func(direction int)
+	onRetry         func()
+	onOpen          func()
 	onToggleDetails func()
-	onQuit         func()
+	onQuit          func()
 }
 
 // NewKeyboardHandler creates a new KeyboardHandler instance
@@ -47,6 +51,45 @@ func (kh *KeyboardHandler) SetCallbacks(
 	kh.onQuit = onQuit
 }
 
+// Pause temporarily stops processing keyboard input (while less is running)
+func (kh *KeyboardHandler) Pause() {
+	kh.pauseMutex.Lock()
+	defer kh.pauseMutex.Unlock()
+	kh.paused = true
+	log.WithField("prefix", "KeyboardHandler.Pause").Debug("Keyboard input paused")
+}
+
+// Resume resumes processing keyboard input (after less exits)
+func (kh *KeyboardHandler) Resume() {
+	kh.pauseMutex.Lock()
+	defer kh.pauseMutex.Unlock()
+	kh.paused = false
+	log.WithField("prefix", "KeyboardHandler.Resume").Debug("Keyboard input resumed")
+}
+
+// DrainBufferedInput discards any input that was buffered while paused
+// This should be called after less exits but before Resume() to prevent
+// keypresses meant for less from being processed by the app
+func (kh *KeyboardHandler) DrainBufferedInput() {
+	if kh.inputCh == nil {
+		return
+	}
+	// Drain the channel non-blockingly
+	drained := 0
+	for {
+		select {
+		case <-kh.inputCh:
+			drained++
+		default:
+			// Channel is empty
+			if drained > 0 {
+				log.WithField("prefix", "KeyboardHandler.DrainBufferedInput").Debugf("Drained %d buffered inputs", drained)
+			}
+			return
+		}
+	}
+}
+
 // Start begins listening for keyboard input
 func (kh *KeyboardHandler) Start(ctx context.Context) {
 	// Check if we're in a terminal
@@ -67,12 +110,12 @@ func (kh *KeyboardHandler) Start(ctx context.Context) {
 		// Ensure we restore terminal state when this goroutine exits
 		defer term.Restore(int(os.Stdin.Fd()), oldState)
 
-		// Create a buffered channel for reading stdin
-		inputCh := make(chan []byte, 1)
+		// Create a buffered channel for reading stdin and store it as a field
+		kh.inputCh = make(chan []byte, 1)
 
 		// Start a separate goroutine to read from stdin
 		go func() {
-			defer close(inputCh)
+			defer close(kh.inputCh)
 			buf := make([]byte, 3) // Buffer for escape sequences
 			for {
 				select {
@@ -89,7 +132,7 @@ func (kh *KeyboardHandler) Start(ctx context.Context) {
 						continue
 					}
 					select {
-					case inputCh <- buf[:n]:
+					case kh.inputCh <- buf[:n]:
 					case <-ctx.Done():
 						return
 					}
@@ -102,7 +145,7 @@ func (kh *KeyboardHandler) Start(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case input, ok := <-inputCh:
+			case input, ok := <-kh.inputCh:
 				if !ok {
 					return
 				}
@@ -117,6 +160,17 @@ func (kh *KeyboardHandler) Start(ctx context.Context) {
 // processInput handles keyboard input including arrow keys
 func (kh *KeyboardHandler) processInput(input []byte) {
 	if len(input) == 0 {
+		return
+	}
+
+	// Check if input processing is paused (e.g., while less is running)
+	kh.pauseMutex.Lock()
+	paused := kh.paused
+	kh.pauseMutex.Unlock()
+
+	if paused {
+		// Discard all input while paused
+		log.WithField("prefix", "KeyboardHandler.processInput").Debugf("Discarding input while paused: %v", input)
 		return
 	}
 
@@ -164,12 +218,12 @@ func (kh *KeyboardHandler) processInput(input []byte) {
 				kh.onRetry()
 			}
 		case 0x6F, 0x4F: // 'o' or 'O'
-			if kh.onOpen != nil {
+			if !*kh.showingDetails && kh.onOpen != nil {
 				kh.onOpen()
 			}
 		case 0x64, 0x44: // 'd' or 'D'
-			// Toggle alternate screen details view
-			if kh.onToggleDetails != nil {
+			// Toggle alternate screen details view (but not while already showing)
+			if !*kh.showingDetails && kh.onToggleDetails != nil {
 				kh.onToggleDetails()
 			}
 		}
