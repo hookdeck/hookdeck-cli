@@ -110,7 +110,7 @@ hookdeck login --interactive
 Start a session to forward your events to an HTTP server.
 
 ```sh
-hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--path?]
+hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--path?] [--output?]
 ```
 
 Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
@@ -217,6 +217,56 @@ Orders Service forwarding to /events/shopify/orders
 ⣾ Getting ready...
 
 ```
+
+#### Controlling output verbosity
+
+The `--output` flag controls how events are displayed. This is useful for reducing resource usage in high-throughput scenarios or when running in the background.
+
+**Available modes:**
+
+- `interactive` (default) - Full interactive UI with event history, navigation, and keyboard shortcuts
+- `compact` - Simple one-line logs for all events without interactive features
+- `quiet` - Only displays fatal connection errors (network failures, timeouts), not HTTP errors
+
+All modes display connection information at startup and a connection status message.
+
+**Examples:**
+
+```sh
+# Default - full interactive UI with keyboard shortcuts
+$ hookdeck listen 3000 shopify
+
+# Simple logging mode - prints all events as one-line logs
+$ hookdeck listen 3000 shopify --output compact
+
+# Quiet mode - only shows fatal connection errors
+$ hookdeck listen 3000 shopify --output quiet
+```
+
+**Compact mode output:**
+```
+Listening on
+shopify
+└─ Forwards to → http://localhost:3000
+
+Connected. Waiting for events...
+
+2025-10-08 15:56:53 [200] POST http://localhost:3000 (45ms) → https://...
+2025-10-08 15:56:54 [422] POST http://localhost:3000 (12ms) → https://...
+```
+
+**Quiet mode output:**
+```
+Listening on
+shopify
+└─ Forwards to → http://localhost:3000
+
+Connected. Waiting for events...
+
+2025-10-08 15:56:53 [ERROR] Failed to POST: connection refused
+```
+
+> Note: In `quiet` mode, only fatal errors are shown (connection failures, network unreachable, timeouts). HTTP error responses (4xx, 5xx) are not displayed as they are valid HTTP responses.
 
 #### Viewing and interacting with your events
 

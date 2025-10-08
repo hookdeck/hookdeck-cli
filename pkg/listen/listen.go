@@ -32,8 +32,9 @@ import (
 )
 
 type Flags struct {
-	NoWSS bool
-	Path  string
+	NoWSS  bool
+	Path   string
+	Output string
 }
 
 // listenCmd represents the listen command
@@ -126,8 +127,12 @@ Specify a single destination to update the path. For example, pass a connection 
 	fmt.Println()
 	printSourcesWithConnections(config, sources, connections, URL, guestURL)
 	fmt.Println()
-	fmt.Printf("%s\n", ansi.Faint("Events"))
-	fmt.Println()
+
+	// Only show "Events" header in interactive mode
+	if flags.Output == "" || flags.Output == "interactive" {
+		fmt.Printf("%s\n", ansi.Faint("Events"))
+		fmt.Println()
+	}
 
 	p := proxy.New(&proxy.Config{
 		DeviceName:       config.DeviceName,
@@ -142,6 +147,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		URL:              URL,
 		Log:              log.StandardLogger(),
 		Insecure:         config.Insecure,
+		Output:           flags.Output,
 	}, connections)
 
 	err = p.Run(context.Background())

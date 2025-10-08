@@ -46,12 +46,12 @@ type Config struct {
 	DashboardBaseURL string
 	ConsoleBaseURL   string
 	WSBaseURL        string
-	// Indicates whether to print full JSON objects to stdout
-	PrintJSON bool
-	Log       *log.Logger
+	Log              *log.Logger
 	// Force use of unencrypted ws:// protocol instead of wss://
 	NoWSS    bool
 	Insecure bool
+	// Output mode: interactive, compact, quiet
+	Output string
 }
 
 // A Proxy opens a websocket connection with Hookdeck, listens for incoming
@@ -92,22 +92,37 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 
 // printEventAndUpdateStatus prints the event log and updates the status line in one operation
 func (p *Proxy) printEventAndUpdateStatus(eventID string, status int, success bool, eventTime time.Time, eventData *websocket.Attempt, eventLog string, responseStatus int, responseHeaders map[string][]string, responseBody string, responseDuration time.Duration) {
-	// Create event info with all data passed as parameters (no shared state)
-	eventInfo := EventInfo{
-		ID:               eventID,
-		Status:           status,
-		Success:          success,
-		Time:             eventTime,
-		Data:             eventData,
-		LogLine:          eventLog,
-		ResponseStatus:   responseStatus,
-		ResponseHeaders:  responseHeaders,
-		ResponseBody:     responseBody,
-		ResponseDuration: responseDuration,
-	}
+	switch p.cfg.Output {
+	case "interactive":
+		if p.ui != nil {
+			// Create event info with all data passed as parameters (no shared state)
+			eventInfo := EventInfo{
+				ID:               eventID,
+				Status:           status,
+				Success:          success,
+				Time:             eventTime,
+				Data:             eventData,
+				LogLine:          eventLog,
+				ResponseStatus:   responseStatus,
+				ResponseHeaders:  responseHeaders,
+				ResponseBody:     responseBody,
+				ResponseDuration: responseDuration,
+			}
+			// Delegate rendering to UI (pass showingDetails flag to block rendering while less is open)
+			p.ui.PrintEventAndUpdateStatus(eventInfo, p.hasReceivedEvent, p.showingDetails)
+		}
 
-	// Delegate rendering to UI (pass showingDetails flag to block rendering while less is open)
-	p.ui.PrintEventAndUpdateStatus(eventInfo, p.hasReceivedEvent, p.showingDetails)
+	case "compact":
+		// Print all events (success and HTTP errors)
+		fmt.Println(eventLog)
+
+	case "quiet":
+		// Only print FATAL errors (no response received - responseStatus == 0 && !success)
+		// HTTP 4xx/5xx responses are NOT printed (they're valid HTTP responses)
+		if !success && responseStatus == 0 {
+			fmt.Println(eventLog)
+		}
+	}
 }
 
 // startWaitingAnimation starts an animation for the waiting indicator
@@ -125,7 +140,7 @@ func (p *Proxy) startWaitingAnimation(ctx context.Context) {
 			case <-p.stopWaitingAnimation:
 				return
 			case <-ticker.C:
-				if !p.hasReceivedEvent {
+				if !p.hasReceivedEvent && p.ui != nil {
 					p.ui.UpdateStatusLine(p.hasReceivedEvent)
 				}
 			}
@@ -141,6 +156,11 @@ func (p *Proxy) quit() {
 
 // toggleDetailsView shows event details (blocking until user exits less with 'q')
 func (p *Proxy) toggleDetailsView() {
+	// Only available in interactive mode
+	if p.keyboardHandler == nil || p.eventActions == nil || p.ui == nil {
+		return
+	}
+
 	// Set flag BEFORE calling ShowEventDetails, since it blocks until less exits
 	p.showingDetails = true
 
@@ -168,6 +188,11 @@ func (p *Proxy) toggleDetailsView() {
 
 // navigateEvents moves the selection up or down in the event history (within navigable events)
 func (p *Proxy) navigateEvents(direction int) {
+	// Only available in interactive mode
+	if p.eventHistory == nil || p.ui == nil {
+		return
+	}
+
 	// Delegate to EventHistory and redraw if selection changed
 	if p.eventHistory.Navigate(direction) {
 		p.ui.RedrawEventsWithSelection(p.hasReceivedEvent)
@@ -201,11 +226,11 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		}).Debug("Ctrl+C received, cleaning up...")
 	})
 
-	// Start keyboard listener for keyboard shortcuts
-	p.keyboardHandler.Start(signalCtx)
-
-	// Start waiting animation
-	p.startWaitingAnimation(signalCtx)
+	// Start keyboard listener and waiting animation only for interactive mode
+	if p.cfg.Output == "interactive" && p.keyboardHandler != nil {
+		p.keyboardHandler.Start(signalCtx)
+		p.startWaitingAnimation(signalCtx)
+	}
 
 	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
 
@@ -284,8 +309,15 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			// Stop the spinner
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
 
-			// Always update the status line to show current state
-			p.ui.UpdateStatusLine(p.hasReceivedEvent)
+			// Show connection status based on output mode
+			if p.ui != nil {
+				// Interactive mode: update status line
+				p.ui.UpdateStatusLine(p.hasReceivedEvent)
+			} else {
+				// Compact/quiet mode: print simple connection status
+				color := ansi.Color(os.Stdout)
+				fmt.Printf("%s\n\n", color.Faint("Connected. Waiting for events..."))
+			}
 
 			hasConnectedOnce = true
 		}()
@@ -380,83 +412,85 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		"prefix": "proxy.Proxy.processAttempt",
 	}).Debugf("Processing webhook event")
 
-	if p.cfg.PrintJSON {
-		p.ui.SafePrintf("%s\n", webhookEvent.Body.Request.DataString)
-	} else {
-		url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: p.cfg.Insecure},
-		}
+	url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: p.cfg.Insecure},
+	}
 
-		timeout := webhookEvent.Body.Request.Timeout
-		if timeout == 0 {
-			timeout = 1000 * 30
-		}
+	timeout := webhookEvent.Body.Request.Timeout
+	if timeout == 0 {
+		timeout = 1000 * 30
+	}
 
-		client := &http.Client{
-			Timeout:   time.Duration(timeout) * time.Millisecond,
-			Transport: tr,
-		}
+	client := &http.Client{
+		Timeout:   time.Duration(timeout) * time.Millisecond,
+		Transport: tr,
+	}
 
-		req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
-		if err != nil {
+	req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
+	if err != nil {
+		// Handle error gracefully - only print in interactive mode
+		if p.ui != nil {
 			p.ui.SafePrintf("Error: %s\n", err)
-			return
 		}
-		x := make(map[string]json.RawMessage)
-		err = json.Unmarshal(webhookEvent.Body.Request.Headers, &x)
-		if err != nil {
+		return
+	}
+	x := make(map[string]json.RawMessage)
+	err = json.Unmarshal(webhookEvent.Body.Request.Headers, &x)
+	if err != nil {
+		// Handle error gracefully - only print in interactive mode
+		if p.ui != nil {
 			p.ui.SafePrintf("Error: %s\n", err)
-			return
 		}
+		return
+	}
 
-		for key, value := range x {
-			unquoted_value, _ := strconv.Unquote(string(value))
-			req.Header.Set(key, unquoted_value)
-		}
+	for key, value := range x {
+		unquoted_value, _ := strconv.Unquote(string(value))
+		req.Header.Set(key, unquoted_value)
+	}
 
-		req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
-		req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
+	req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
+	req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
 
-		// Track request start time for duration calculation
-		requestStartTime := time.Now()
+	// Track request start time for duration calculation
+	requestStartTime := time.Now()
 
-		res, err := client.Do(req)
+	res, err := client.Do(req)
 
-		if err != nil {
-			color := ansi.Color(os.Stdout)
-			localTime := time.Now().Format(timeLayout)
+	if err != nil {
+		color := ansi.Color(os.Stdout)
+		localTime := time.Now().Format(timeLayout)
 
-			errStr := fmt.Sprintf("%s [%s] Failed to %s: %v",
-				color.Faint(localTime),
-				color.Red("ERROR").Bold(),
-				webhookEvent.Body.Request.Method,
-				err,
-			)
+		errStr := fmt.Sprintf("%s [%s] Failed to %s: %v",
+			color.Faint(localTime),
+			color.Red("ERROR").Bold(),
+			webhookEvent.Body.Request.Method,
+			err,
+		)
 
-			// Mark as having received first event
-			if !p.hasReceivedEvent {
-				p.hasReceivedEvent = true
-				// Stop the waiting animation
-				if p.stopWaitingAnimation != nil {
-					p.stopWaitingAnimation <- true
-				}
+		// Mark as having received first event
+		if !p.hasReceivedEvent {
+			p.hasReceivedEvent = true
+			// Stop the waiting animation
+			if p.stopWaitingAnimation != nil {
+				p.stopWaitingAnimation <- true
 			}
-
-			// Print the error and update status line with event-specific data (no response data for errors)
-			p.printEventAndUpdateStatus(eventID, 0, false, time.Now(), webhookEvent, errStr, 0, nil, "", 0)
-
-			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
-				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
-					Event: "attempt_response",
-					Body: websocket.ErrorAttemptBody{
-						AttemptId: webhookEvent.Body.AttemptId,
-						Error:     true,
-					},
-				}})
-		} else {
-			p.processEndpointResponse(webhookEvent, res, requestStartTime)
 		}
+
+		// Print the error and update status line with event-specific data (no response data for errors)
+		p.printEventAndUpdateStatus(eventID, 0, false, time.Now(), webhookEvent, errStr, 0, nil, "", 0)
+
+		p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
+			ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
+				Event: "attempt_response",
+				Body: websocket.ErrorAttemptBody{
+					AttemptId: webhookEvent.Body.AttemptId,
+					Error:     true,
+				},
+			}})
+	} else {
+		p.processEndpointResponse(webhookEvent, res, requestStartTime)
 	}
 }
 
@@ -545,29 +579,38 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
 
-	eventHistory := NewEventHistory()
-	ui := NewTerminalUI(eventHistory)
+	// Default to interactive mode if not specified
+	if cfg.Output == "" {
+		cfg.Output = "interactive"
+	}
 
 	p := &Proxy{
 		cfg:             cfg,
 		connections:     connections,
 		connectionTimer: time.NewTimer(0), // Defaults to no delay
-		eventHistory:    eventHistory,
-		ui:              ui,
 	}
 
-	// Create event actions handler
-	p.eventActions = NewEventActions(cfg, eventHistory, ui)
+	// Only create interactive components for interactive mode
+	if cfg.Output == "interactive" {
+		eventHistory := NewEventHistory()
+		ui := NewTerminalUI(eventHistory)
 
-	// Create keyboard handler and set up callbacks
-	p.keyboardHandler = NewKeyboardHandler(ui, &p.hasReceivedEvent, &p.isConnected, &p.showingDetails)
-	p.keyboardHandler.SetCallbacks(
-		p.navigateEvents,
-		p.eventActions.RetrySelectedEvent,
-		p.eventActions.OpenSelectedEventURL,
-		p.toggleDetailsView,
-		p.quit,
-	)
+		p.eventHistory = eventHistory
+		p.ui = ui
+
+		// Create event actions handler
+		p.eventActions = NewEventActions(cfg, eventHistory, ui)
+
+		// Create keyboard handler and set up callbacks
+		p.keyboardHandler = NewKeyboardHandler(ui, &p.hasReceivedEvent, &p.isConnected, &p.showingDetails)
+		p.keyboardHandler.SetCallbacks(
+			p.navigateEvents,
+			p.eventActions.RetrySelectedEvent,
+			p.eventActions.OpenSelectedEventURL,
+			p.toggleDetailsView,
+			p.quit,
+		)
+	}
 
 	return p
 }
