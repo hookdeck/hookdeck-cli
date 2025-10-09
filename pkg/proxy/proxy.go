@@ -26,8 +26,8 @@ import (
 )
 
 const timeLayout = "2006-01-02 15:04:05"
-const maxHistorySize = 50     // Maximum events to keep in memory
 const maxNavigableEvents = 10 // Only last 10 events are navigable
+const maxHistorySize = maxNavigableEvents + 1 // Keep navigable events + 1 for selected event outside range
 
 //
 // Public types
@@ -306,12 +306,13 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			p.isConnected = true
 			nAttempts = 0
 
-			// Stop the spinner
+			// Stop the spinner and clear its line
 			ansi.StopSpinner(s, "", p.cfg.Log.Out)
 
 			// Show connection status based on output mode
 			if p.ui != nil {
-				// Interactive mode: update status line
+				// Interactive mode: clear the spinner line (blank line already exists from listen.go)
+				fmt.Print("\033[2K\r") // Clear current line (where spinner was)
 				p.ui.UpdateStatusLine(p.hasReceivedEvent)
 			} else {
 				// Compact/quiet mode: print simple connection status
@@ -338,7 +339,17 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			if !canConnect() {
 				// Stop the spinner before fatal error (terminal will be restored by defer)
 				ansi.StopSpinner(s, "", p.cfg.Log.Out)
-				fmt.Print("\033[2K\r")
+
+				// In interactive mode, need to clear the status line and move to a new line
+				if p.ui != nil {
+					// Temporarily restore terminal to print the error properly
+					p.ui.TemporarilyRestoreNormalMode()
+					// Move cursor up to status line and clear it, then move down
+					fmt.Print("\033[1A\033[2K\r\n")
+				} else {
+					// Non-interactive mode: just clear the spinner line
+					fmt.Print("\033[2K\r")
+				}
 
 				// Print error without timestamp (use fmt instead of log to avoid formatter)
 				color := ansi.Color(os.Stdout)

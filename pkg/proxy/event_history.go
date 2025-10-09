@@ -56,24 +56,42 @@ func (eh *EventHistory) AddEvent(eventInfo EventInfo) bool {
 	// Add to history (either new event or retry with different timestamp)
 	eh.events = append(eh.events, eventInfo)
 
-	// Limit history to last 50 events - trim old ones
+	// Limit history: keep only navigable events + selected event if outside range
 	if len(eh.events) > maxHistorySize {
-		// Remove oldest event
-		removedCount := len(eh.events) - maxHistorySize
-		eh.events = eh.events[removedCount:]
+		// Determine which events to keep
+		historySize := len(eh.events)
+		navigableStartIdx := historySize - maxNavigableEvents
 
-		// Adjust selected index if it was pointing to a removed event
-		if eh.selectedIndex < removedCount {
-			eh.selectedIndex = 0
-			eh.userNavigated = false // Reset navigation since selected event was removed
+		var eventsToKeep []EventInfo
+		var newSelectedIndex int
+
+		// If user has navigated to an event outside the navigable range, keep it
+		if eh.userNavigated && eh.selectedIndex < navigableStartIdx {
+			// Keep the selected event + all navigable events
+			eventsToKeep = make([]EventInfo, 0, maxNavigableEvents+1)
+			eventsToKeep = append(eventsToKeep, eh.events[eh.selectedIndex])
+			eventsToKeep = append(eventsToKeep, eh.events[navigableStartIdx:]...)
+			newSelectedIndex = 0 // Selected event is now at index 0
 		} else {
-			eh.selectedIndex -= removedCount
+			// Just keep the navigable events
+			eventsToKeep = eh.events[navigableStartIdx:]
+			// Adjust selected index relative to new array
+			if eh.selectedIndex >= navigableStartIdx {
+				newSelectedIndex = eh.selectedIndex - navigableStartIdx
+			} else {
+				// Selected event was outside range and user hasn't navigated, select latest
+				newSelectedIndex = len(eventsToKeep) - 1
+				eh.userNavigated = false
+			}
 		}
-	}
 
-	// Auto-select the latest event unless user has navigated away
-	if !eh.userNavigated {
-		eh.selectedIndex = len(eh.events) - 1
+		eh.events = eventsToKeep
+		eh.selectedIndex = newSelectedIndex
+	} else {
+		// Auto-select the latest event unless user has navigated away
+		if !eh.userNavigated {
+			eh.selectedIndex = len(eh.events) - 1
+		}
 	}
 
 	return true
@@ -100,12 +118,21 @@ func (eh *EventHistory) GetSelectedIndex() int {
 // GetSelectedEvent returns a copy of the currently selected event, or nil if no event is selected
 // Returns a copy to avoid issues with slice reallocation and concurrent modifications
 func (eh *EventHistory) GetSelectedEvent() *EventInfo {
-	eh.mu.RLock()
-	defer eh.mu.RUnlock()
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 
-	if eh.selectedIndex < 0 || eh.selectedIndex >= len(eh.events) {
+	// Bounds checking with automatic correction
+	if len(eh.events) == 0 {
+		eh.selectedIndex = -1
 		return nil
 	}
+
+	// Fix out-of-bounds index by resetting to latest event
+	if eh.selectedIndex < 0 || eh.selectedIndex >= len(eh.events) {
+		eh.selectedIndex = len(eh.events) - 1
+		eh.userNavigated = false // Reset navigation state since we're forcing a valid selection
+	}
+
 	// Return a copy of the event to avoid pointer issues when slice is modified
 	eventCopy := eh.events[eh.selectedIndex]
 	return &eventCopy
@@ -191,6 +218,12 @@ func (eh *EventHistory) Navigate(direction int) bool {
 
 	if len(eh.events) == 0 {
 		return false
+	}
+
+	// Ensure selectedIndex is valid before proceeding
+	if eh.selectedIndex < 0 || eh.selectedIndex >= len(eh.events) {
+		eh.selectedIndex = len(eh.events) - 1
+		eh.userNavigated = false
 	}
 
 	// Calculate navigable indices (inline to avoid double-locking)

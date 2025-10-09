@@ -16,12 +16,45 @@ type TerminalUI struct {
 	statusLineShown       bool
 	waitingAnimationFrame int
 	eventHistory          *EventHistory
+	terminalWidth         int // Cached terminal width, updated on resize
 }
 
 // NewTerminalUI creates a new TerminalUI instance
 func NewTerminalUI(eventHistory *EventHistory) *TerminalUI {
-	return &TerminalUI{
+	ui := &TerminalUI{
 		eventHistory: eventHistory,
+	}
+	ui.updateTerminalWidth()
+	return ui
+}
+
+// updateTerminalWidth updates the cached terminal width
+func (ui *TerminalUI) updateTerminalWidth() {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 {
+		width = 80 // Default fallback
+	}
+	// Enforce minimum width for usability
+	if width < 40 {
+		width = 40
+	}
+	ui.terminalWidth = width
+}
+
+// GetTerminalWidth returns the cached terminal width
+func (ui *TerminalUI) GetTerminalWidth() int {
+	return ui.terminalWidth
+}
+
+// HandleResize updates terminal width and triggers a redraw
+func (ui *TerminalUI) HandleResize(hasReceivedEvent bool) {
+	ui.terminalMutex.Lock()
+	ui.updateTerminalWidth()
+	ui.terminalMutex.Unlock()
+
+	// Trigger a full redraw with the new terminal width
+	if hasReceivedEvent && ui.eventHistory.Count() > 0 {
+		ui.RedrawEventsWithSelection(hasReceivedEvent)
 	}
 }
 
@@ -66,9 +99,9 @@ func (ui *TerminalUI) SafePrintf(format string, args ...interface{}) {
 // calculateEventLines calculates how many terminal lines an event log occupies
 // accounting for line wrapping based on terminal width
 func (ui *TerminalUI) calculateEventLines(logLine string) int {
-	// Get terminal width
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || width <= 0 {
+	// Use cached terminal width
+	width := ui.terminalWidth
+	if width <= 0 {
 		width = 80 // Default fallback
 	}
 
@@ -87,6 +120,7 @@ func (ui *TerminalUI) calculateEventLines(logLine string) int {
 }
 
 // BuildStatusMessage generates the status line message based on the current state
+// Adjusts verbosity based on terminal width
 func (ui *TerminalUI) BuildStatusMessage(hasReceivedEvent bool) string {
 	color := ansi.Color(os.Stdout)
 
@@ -108,35 +142,57 @@ func (ui *TerminalUI) BuildStatusMessage(hasReceivedEvent bool) string {
 		return "" // No events available
 	}
 
-	// If user has navigated, show "Selected event"
+	// Determine verbosity based on terminal width
+	width := ui.terminalWidth
+	isNarrow := width < 100  // Narrow terminals get compact messages
+	isVeryNarrow := width < 60  // Very narrow terminals get minimal messages
+
+	// Build status message based on terminal width
+	var statusMsg string
+	eventType := "Last event"
 	if ui.eventHistory.IsUserNavigated() {
-		if selectedEvent.Success {
-			return fmt.Sprintf("> %s Selected event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
-				color.Green("✓"), selectedEvent.Status)
+		eventType = "Selected event"
+	}
+
+	if selectedEvent.Success {
+		if isVeryNarrow {
+			statusMsg = fmt.Sprintf("> %s %s [%d]", color.Green("✓"), eventType, selectedEvent.Status)
+		} else if isNarrow {
+			statusMsg = fmt.Sprintf("> %s %s succeeded [%d] | [↑↓] [r] [o] [d] [q]",
+				color.Green("✓"), eventType, selectedEvent.Status)
 		} else {
+			statusMsg = fmt.Sprintf("> %s %s succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
+				color.Green("✓"), eventType, selectedEvent.Status)
+		}
+	} else {
+		statusText := "failed"
+		if selectedEvent.Status == 0 {
+			statusText = "failed with error"
+		} else {
+			statusText = fmt.Sprintf("failed with status %d", selectedEvent.Status)
+		}
+
+		if isVeryNarrow {
 			if selectedEvent.Status == 0 {
-				return fmt.Sprintf("> %s Selected event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data & • [Ctrl+C] Quit",
-					color.Red("x").Bold())
+				statusMsg = fmt.Sprintf("> %s %s [ERR]", color.Red("x").Bold(), eventType)
 			} else {
-				return fmt.Sprintf("> %s Selected event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
-					color.Red("x").Bold(), selectedEvent.Status)
+				statusMsg = fmt.Sprintf("> %s %s [%d]", color.Red("x").Bold(), eventType, selectedEvent.Status)
 			}
+		} else if isNarrow {
+			if selectedEvent.Status == 0 {
+				statusMsg = fmt.Sprintf("> %s %s failed | [↑↓] [r] [o] [d] [q]",
+					color.Red("x").Bold(), eventType)
+			} else {
+				statusMsg = fmt.Sprintf("> %s %s failed [%d] | [↑↓] [r] [o] [d] [q]",
+					color.Red("x").Bold(), eventType, selectedEvent.Status)
+			}
+		} else {
+			statusMsg = fmt.Sprintf("> %s %s %s | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
+				color.Red("x").Bold(), eventType, statusText)
 		}
 	}
 
-	// Auto-selecting latest event - show "Last event"
-	if selectedEvent.Success {
-		return fmt.Sprintf("> %s Last event succeeded with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show data • [Ctrl+C] Quit",
-			color.Green("✓"), selectedEvent.Status)
-	} else {
-		if selectedEvent.Status == 0 {
-			return fmt.Sprintf("> %s Last event failed with error | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit",
-				color.Red("x").Bold())
-		} else {
-			return fmt.Sprintf("> %s Last event failed with status %d | [↑↓] Navigate • [r] Retry • [o] Open in dashboard • [d] Show request details • [Ctrl+C] Quit",
-				color.Red("x").Bold(), selectedEvent.Status)
-		}
-	}
+	return statusMsg
 }
 
 // UpdateStatusLine updates the bottom status line with the latest event information

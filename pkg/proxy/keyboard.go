@@ -3,7 +3,9 @@ package proxy
 import (
 	"context"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/term"
@@ -90,12 +92,32 @@ func (kh *KeyboardHandler) DrainBufferedInput() {
 	}
 }
 
-// Start begins listening for keyboard input
+// Start begins listening for keyboard input and terminal resize signals
 func (kh *KeyboardHandler) Start(ctx context.Context) {
 	// Check if we're in a terminal
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return
 	}
+
+	// Set up terminal resize signal handler
+	sigwinchCh := make(chan os.Signal, 1)
+	signal.Notify(sigwinchCh, syscall.SIGWINCH)
+
+	// Start goroutine to handle terminal resize signals
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				signal.Stop(sigwinchCh)
+				close(sigwinchCh)
+				return
+			case <-sigwinchCh:
+				// Terminal was resized - trigger a redraw with new dimensions
+				log.WithField("prefix", "KeyboardHandler.Start").Debug("Terminal resize detected")
+				kh.ui.HandleResize(*kh.hasReceivedEvent)
+			}
+		}
+	}()
 
 	go func() {
 		// Enter raw mode once and keep it
