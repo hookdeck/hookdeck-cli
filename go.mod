@@ -1,6 +1,6 @@
 module github.com/hookdeck/hookdeck-cli
 
-go 1.18
+go 1.24.0
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -19,8 +19,8 @@ require (
 	github.com/stretchr/testify v1.11.0
 	github.com/tidwall/pretty v1.2.1
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
-	golang.org/x/sys v0.28.0
-	golang.org/x/term v0.27.0
+	golang.org/x/sys v0.37.0
+	golang.org/x/term v0.36.0
 )
 
 require (
