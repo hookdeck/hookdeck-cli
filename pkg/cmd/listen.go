@@ -28,10 +28,11 @@ import (
 )
 
 type listenCmd struct {
-	cmd    *cobra.Command
-	noWSS  bool
-	path   string
-	output string
+	cmd            *cobra.Command
+	noWSS          bool
+	path           string
+	maxConnections int
+	output         string
 }
 
 // Map --cli-path to --path
@@ -96,6 +97,7 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().MarkHidden("no-wss")
 
 	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
+	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
 
 	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (only fatal errors)")
 
@@ -175,8 +177,9 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
-		NoWSS:  lc.noWSS,
-		Path:   lc.path,
-		Output: lc.output,
+		NoWSS:          lc.noWSS,
+		Path:           lc.path,
+		Output:         lc.output,
+		MaxConnections: lc.maxConnections,
 	}, &Config)
 }

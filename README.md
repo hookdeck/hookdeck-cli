@@ -212,7 +212,7 @@ Events • [↑↓] Navigate ─────────────────
 
 #### Listen to a subset of connections
 
-The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
+The 3rd param, `connection-query` specifies which connection with a CLI destination to adopt for listening. By default, the first connection with a CLI destination type will be used. If a connection with the specified name doesn't exist, a new connection will be created with the passed value. The connection query is checked against the `connection` name, `alias`, and the `path` values.
 
 ```sh
 $ hookdeck listen 3000 shopify orders
@@ -541,10 +541,29 @@ The following flags can be used with any command:
 
 There are also some hidden flags that are mainly used for development and debugging:
 
-- `--api-base`: Sets the API base URL.
-- `--dashboard-base`: Sets the web dashboard base URL.
-- `--console-base`: Sets the web console base URL.
-- `--ws-base`: Sets the Websocket base URL.
+*   `--api-base`: Sets the API base URL.
+*   `--dashboard-base`: Sets the web dashboard base URL.
+*   `--console-base`: Sets the web console base URL.
+*   `--ws-base`: Sets the Websocket base URL.
+
+## Troubleshooting
+
+### Homebrew: Binary Already Exists Error
+
+If you previously installed Hookdeck via the Homebrew formula and are upgrading to the cask version, you may see:
+
+```
+Warning: It seems there is already a Binary at '/opt/homebrew/bin/hookdeck'
+from formula hookdeck; skipping link.
+```
+
+To resolve this, uninstall the old formula version first, then install the cask:
+
+```sh
+brew uninstall hookdeck
+brew install --cask hookdeck/hookdeck/hookdeck
+```
+
 
 ## Developing
 

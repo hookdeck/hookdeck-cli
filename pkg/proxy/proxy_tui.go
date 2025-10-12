@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -33,6 +34,12 @@ type ProxyTUI struct {
 	webSocketClient *websocket.Client
 	connectionTimer *time.Timer
 
+	// HTTP client with connection pooling
+	httpClient     *http.Client
+	transport      *http.Transport
+	activeRequests int32 // atomic counter
+	maxConnWarned  bool  // Track if we've warned about connection limit
+
 	// Bubble Tea program
 	teaProgram *tea.Program
 	teaModel   *tui.Model
@@ -49,10 +56,34 @@ func NewTUI(cfg *Config, sources []*hookdecksdk.Source, connections []*hookdecks
 		cfg.Output = "interactive"
 	}
 
+	// Default to 50 connections if not specified
+	maxConns := cfg.MaxConnections
+	if maxConns <= 0 {
+		maxConns = 50
+	}
+
+	// Create a shared HTTP transport with connection pooling
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.Insecure},
+		// Connection pool settings - sensible defaults for typical usage
+		MaxIdleConns:        20,   // Total idle connections across all hosts
+		MaxIdleConnsPerHost: 10,   // Keep some idle connections for reuse
+		IdleConnTimeout:     30 * time.Second, // Clean up idle connections
+		DisableKeepAlives:   false,
+		// Limit concurrent connections to prevent resource exhaustion
+		MaxConnsPerHost:       maxConns,  // User-configurable (default: 50)
+		ResponseHeaderTimeout: 60 * time.Second,
+	}
+
 	p := &ProxyTUI{
 		cfg:             cfg,
 		connections:     connections,
 		connectionTimer: time.NewTimer(0),
+		transport:       tr,
+		httpClient: &http.Client{
+			Transport: tr,
+			// Timeout is controlled per-request via context in processAttempt
+		},
 	}
 
 	// Only create Bubble Tea program for interactive mode
@@ -352,21 +383,42 @@ func (p *ProxyTUI) processAttempt(msg websocket.IncomingMessage) {
 	}).Debugf("Processing webhook event")
 
 	url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: p.cfg.Insecure},
-	}
 
+	// Create request with context for timeout control
 	timeout := webhookEvent.Body.Request.Timeout
 	if timeout == 0 {
 		timeout = 1000 * 30
 	}
 
-	client := &http.Client{
-		Timeout:   time.Duration(timeout) * time.Millisecond,
-		Transport: tr,
+	// Track active requests
+	atomic.AddInt32(&p.activeRequests, 1)
+	defer atomic.AddInt32(&p.activeRequests, -1)
+
+	activeCount := atomic.LoadInt32(&p.activeRequests)
+
+	// Calculate warning thresholds proportionally to max connections
+	maxConns := int32(p.transport.MaxConnsPerHost)
+	warningThreshold := int32(float64(maxConns) * 0.8) // Warn at 80% capacity
+	resetThreshold := int32(float64(maxConns) * 0.6)   // Reset warning at 60% capacity
+
+	// Warn when approaching connection limit
+	if activeCount > warningThreshold && !p.maxConnWarned {
+		p.maxConnWarned = true
+		color := ansi.Color(os.Stdout)
+		fmt.Printf("\n%s High connection load detected (%d active requests)\n",
+			color.Yellow("⚠ WARNING:"), activeCount)
+		fmt.Printf("  The CLI is limited to %d concurrent connections per host.\n", p.transport.MaxConnsPerHost)
+		fmt.Printf("  Consider reducing request rate or increasing connection limit.\n")
+		fmt.Printf("  Run with --max-connections=%d to increase the limit.\n\n", maxConns*2)
+	} else if activeCount < resetThreshold && p.maxConnWarned {
+		// Reset warning flag when load decreases
+		p.maxConnWarned = false
 	}
 
-	req, err := http.NewRequest(webhookEvent.Body.Request.Method, url, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, webhookEvent.Body.Request.Method, url, nil)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err)
 		return
@@ -400,7 +452,7 @@ func (p *ProxyTUI) processAttempt(msg websocket.IncomingMessage) {
 
 	// Make HTTP request in goroutine
 	go func() {
-		res, err := client.Do(req)
+		res, err := p.httpClient.Do(req)
 		responseCh <- httpResult{res: res, err: err}
 	}()
 
@@ -557,8 +609,12 @@ func (p *ProxyTUI) updateEventWithResponse(eventID string, webhookEvent *websock
 			err,
 		)
 		log.Errorf(errStr)
+		resp.Body.Close()
 		return
 	}
+
+	// Close the body - connection can be reused since body was fully read
+	resp.Body.Close()
 
 	responseHeaders := make(map[string][]string)
 	for key, values := range resp.Header {
@@ -688,8 +744,12 @@ func (p *ProxyTUI) processEndpointResponse(webhookEvent *websocket.Attempt, resp
 			err,
 		)
 		log.Errorf(errStr)
+		resp.Body.Close()
 		return
 	}
+
+	// Close the body - connection can be reused since body was fully read
+	resp.Body.Close()
 
 	responseHeaders := make(map[string][]string)
 	for key, values := range resp.Header {

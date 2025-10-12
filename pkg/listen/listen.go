@@ -32,9 +32,10 @@ import (
 )
 
 type Flags struct {
-	NoWSS  bool
-	Path   string
-	Output string
+	NoWSS          bool
+	Path           string
+	MaxConnections int
+	Output         string
 }
 
 // listenCmd represents the listen command
@@ -150,6 +151,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		Insecure:         config.Insecure,
 		Output:           flags.Output,
 		GuestURL:         guestURL,
+		MaxConnections:   flags.MaxConnections,
 	}, sources, connections)
 
 	err = p.Run(context.Background())
