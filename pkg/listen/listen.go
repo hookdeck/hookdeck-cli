@@ -123,18 +123,19 @@ Specify a single destination to update the path. For example, pass a connection 
 	}
 
 	// Start proxy
-	printListenMessage(config, isMultiSource)
-	fmt.Println()
-	printSourcesWithConnections(config, sources, connections, URL, guestURL)
-	fmt.Println()
-
-	// Only show "Events" header in interactive mode
-	if flags.Output == "" || flags.Output == "interactive" {
+	// For non-interactive modes, print connection info before starting
+	if flags.Output == "compact" || flags.Output == "quiet" {
+		printListenMessage(config, isMultiSource)
+		fmt.Println()
+		printSourcesWithConnections(config, sources, connections, URL, guestURL)
+		fmt.Println()
 		fmt.Printf("%s\n", ansi.Faint("Events"))
 		fmt.Println()
 	}
+	// For interactive mode, connection info will be shown in TUI
 
-	p := proxy.New(&proxy.Config{
+	// Use new TUI-based proxy
+	p := proxy.NewTUI(&proxy.Config{
 		DeviceName:       config.DeviceName,
 		Key:              config.Profile.APIKey,
 		ProjectID:        config.Profile.ProjectId,
@@ -148,7 +149,8 @@ Specify a single destination to update the path. For example, pass a connection 
 		Log:              log.StandardLogger(),
 		Insecure:         config.Insecure,
 		Output:           flags.Output,
-	}, connections)
+		GuestURL:         guestURL,
+	}, sources, connections)
 
 	err = p.Run(context.Background())
 	if err != nil {
