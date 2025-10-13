@@ -70,7 +70,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case retryResultMsg:
-		// Retry completed, could show notification if needed
+		// Retry completed (new attempt will arrive via websocket as a new event)
 		return m, nil
 
 	case openBrowserResultMsg:
@@ -133,7 +133,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "r", "R":
-		// Retry selected event
+		// Retry selected event (new attempt will arrive via websocket)
 		return m, m.retrySelectedEvent()
 
 	case "o", "O":

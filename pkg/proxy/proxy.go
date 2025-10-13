@@ -20,7 +20,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
@@ -68,7 +67,8 @@ type Proxy struct {
 	httpClient      *http.Client
 	transport       *http.Transport
 	activeRequests  int32
-	maxConnWarned   bool  // Track if we've warned about connection limit
+	maxConnWarned   bool // Track if we've warned about connection limit
+	renderer        Renderer
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -90,7 +90,7 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 //   - Create a new CLI session
 //   - Create a new websocket connection
 func (p *Proxy) Run(parentCtx context.Context) error {
-	const maxConnectAttempts = 3
+	const maxConnectAttempts = 10
 	nAttempts := 0
 
 	// Track whether or not we have connected successfully.
@@ -113,17 +113,20 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		}).Debug("Ctrl+C received, cleaning up...")
 	})
 
-	s := ansi.StartNewSpinner("Getting ready...", p.cfg.Log.Out)
+	// Notify renderer we're connecting
+	p.renderer.OnConnecting()
 
 	session, err := p.createSession(signalCtx)
 	if err != nil {
-		ansi.StopSpinner(s, "", p.cfg.Log.Out)
-		p.cfg.Log.Fatalf("Error while authenticating with Hookdeck: %v", err)
+		p.renderer.OnError(err)
+		p.renderer.Cleanup()
+		return fmt.Errorf("error while authenticating with Hookdeck: %v", err)
 	}
 
 	if session.Id == "" {
-		ansi.StopSpinner(s, "", p.cfg.Log.Out)
-		p.cfg.Log.Fatalf("Error while starting a new session")
+		p.renderer.OnError(fmt.Errorf("error while starting a new session"))
+		p.renderer.Cleanup()
+		return fmt.Errorf("error while starting a new session")
 	}
 
 	// Main loop to keep attempting to connect to Hookdeck once
@@ -141,14 +144,10 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			},
 		)
 
-		// Monitor the websocket for connection and update the spinner appropriately.
+		// Monitor the websocket for connection
 		go func() {
 			<-p.webSocketClient.Connected()
-			msg := "Ready! (^C to quit)"
-			if hasConnectedOnce {
-				msg = "Reconnected!"
-			}
-			ansi.StopSpinner(s, msg, p.cfg.Log.Out)
+			p.renderer.OnConnected()
 			hasConnectedOnce = true
 		}()
 
@@ -156,25 +155,38 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		go p.webSocketClient.Run(signalCtx)
 		nAttempts++
 
-		// Block until ctrl+c or the websocket connection is interrupted
+		// Block until ctrl+c, renderer quit, or websocket connection is interrupted
 		select {
 		case <-signalCtx.Done():
-			ansi.StopSpinner(s, "", p.cfg.Log.Out)
+			return nil
+		case <-p.renderer.Done():
+			// Renderer wants to quit (user pressed q or similar)
+			if p.webSocketClient != nil {
+				p.webSocketClient.Stop()
+			}
+			p.renderer.Cleanup()
 			return nil
 		case <-p.webSocketClient.NotifyExpired:
-			if canConnect() {
-				ansi.StopSpinner(s, "", p.cfg.Log.Out)
-				s = ansi.StartNewSpinner("Connection lost, reconnecting...", p.cfg.Log.Out)
-			} else {
-				p.cfg.Log.Fatalf("Session expired. Terminating after %d failed attempts to reauthorize", nAttempts)
+			p.renderer.OnDisconnected()
+			if !canConnect() {
+				p.renderer.Cleanup()
+				return fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection.", nAttempts)
 			}
 		}
 
-		// Determine if we should backoff the connection retries.
-		attemptsOverMax := math.Max(0, float64(nAttempts-maxConnectAttempts))
-		if canConnect() && attemptsOverMax > 0 {
-			// Determine the time to wait to reconnect, maximum of 10 second intervals
-			sleepDurationMS := int(math.Round(math.Min(100, math.Pow(attemptsOverMax, 2)) * 100))
+		// Add backoff delay between all retry attempts
+		if canConnect() {
+			var sleepDurationMS int
+
+			if nAttempts <= maxConnectAttempts {
+				// First 10 attempts: use a fixed 2 second delay
+				sleepDurationMS = 2000
+			} else {
+				// After max attempts: exponential backoff, maximum of 10 second intervals
+				attemptsOverMax := float64(nAttempts - maxConnectAttempts)
+				sleepDurationMS = int(math.Round(math.Min(100, math.Pow(attemptsOverMax, 2)) * 100))
+			}
+
 			log.WithField(
 				"prefix", "proxy.Proxy.Run",
 			).Debugf(
@@ -198,6 +210,9 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 	if p.webSocketClient != nil {
 		p.webSocketClient.Stop()
 	}
+
+	// Clean up renderer
+	p.renderer.Cleanup()
 
 	log.WithFields(log.Fields{
 		"prefix": "proxy.Proxy.Run",
@@ -251,6 +266,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	}
 
 	webhookEvent := msg.Attempt
+	eventID := webhookEvent.Body.EventID
 
 	p.cfg.Log.WithFields(log.Fields{
 		"prefix": "proxy.Proxy.processAttempt",
@@ -278,12 +294,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	// Warn when approaching connection limit
 	if activeCount > warningThreshold && !p.maxConnWarned {
 		p.maxConnWarned = true
-		color := ansi.Color(os.Stdout)
-		fmt.Printf("\n%s High connection load detected (%d active requests)\n",
-			color.Yellow("⚠ WARNING:"), activeCount)
-		fmt.Printf("  The CLI is limited to %d concurrent connections per host.\n", p.transport.MaxConnsPerHost)
-		fmt.Printf("  Consider reducing request rate or increasing connection limit.\n")
-		fmt.Printf("  Run with --max-connections=%d to increase the limit.\n\n", maxConns*2)
+		p.renderer.OnConnectionWarning(activeCount, p.transport.MaxConnsPerHost)
 	} else if activeCount < resetThreshold && p.maxConnWarned {
 		// Reset warning flag when load decreases
 		p.maxConnWarned = false
@@ -294,13 +305,13 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 
 	req, err := http.NewRequestWithContext(ctx, webhookEvent.Body.Request.Method, url, nil)
 	if err != nil {
-		fmt.Printf("Error: %s\n", err)
+		p.renderer.OnEventError(eventID, webhookEvent, err, time.Now())
 		return
 	}
 	x := make(map[string]json.RawMessage)
 	err = json.Unmarshal(webhookEvent.Body.Request.Headers, &x)
 	if err != nil {
-		fmt.Printf("Error: %s\n", err)
+		p.renderer.OnEventError(eventID, webhookEvent, err, time.Now())
 		return
 	}
 
@@ -312,65 +323,102 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
 	req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
 
-	res, err := p.httpClient.Do(req)
-	if err != nil {
-		color := ansi.Color(os.Stdout)
-		localTime := time.Now().Format(timeLayout)
+	// For interactive mode: start 100ms timer and HTTP request concurrently
+	requestStartTime := time.Now()
 
-		// Use the original error message
-		errStr := fmt.Sprintf("%s [%s] Failed to %s: %s",
-			color.Faint(localTime),
-			color.Red("ERROR"),
-			webhookEvent.Body.Request.Method,
-			err,
-		)
+	// Channel to receive HTTP response or error
+	type httpResult struct {
+		res *http.Response
+		err error
+	}
+	responseCh := make(chan httpResult, 1)
 
-		fmt.Println(errStr)
-		p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
-			ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
-				Event: "attempt_response",
-				Body: websocket.ErrorAttemptBody{
-					AttemptId: webhookEvent.Body.AttemptId,
-					Error:     true,
-				},
-			}})
-	} else {
-		// Process the response (this reads the entire body)
-		p.processEndpointResponse(webhookEvent, res)
+	// Make HTTP request in goroutine
+	go func() {
+		res, err := p.httpClient.Do(req)
+		responseCh <- httpResult{res: res, err: err}
+	}()
 
-		// Close the body - connection can be reused since body was fully read
-		res.Body.Close()
+	// For interactive mode, wait 100ms before showing pending event
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+
+	var eventShown bool
+	var result httpResult
+
+	select {
+	case result = <-responseCh:
+		// Response came back within 100ms - show final event immediately
+		timer.Stop()
+		if result.err != nil {
+			p.renderer.OnEventError(eventID, webhookEvent, result.err, requestStartTime)
+			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
+				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
+					Event: "attempt_response",
+					Body: websocket.ErrorAttemptBody{
+						AttemptId: webhookEvent.Body.AttemptId,
+						Error:     true,
+					},
+				}})
+		} else {
+			p.processEndpointResponse(eventID, webhookEvent, result.res, requestStartTime)
+			result.res.Body.Close()
+		}
+		return
+
+	case <-timer.C:
+		// 100ms passed - show pending event (interactive mode only)
+		eventShown = true
+		p.renderer.OnEventPending(eventID, webhookEvent, requestStartTime)
+
+		// Wait for HTTP response to complete
+		result = <-responseCh
+	}
+
+	// If we showed pending event, now handle the final result
+	if eventShown {
+		if result.err != nil {
+			p.renderer.OnEventError(eventID, webhookEvent, result.err, requestStartTime)
+			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
+				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
+					Event: "attempt_response",
+					Body: websocket.ErrorAttemptBody{
+						AttemptId: webhookEvent.Body.AttemptId,
+						Error:     true,
+					},
+				}})
+		} else {
+			p.processEndpointResponse(eventID, webhookEvent, result.res, requestStartTime)
+			result.res.Body.Close()
+		}
 	}
 }
 
-func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *http.Response) {
-	localTime := time.Now().Format(timeLayout)
-	color := ansi.Color(os.Stdout)
-	var url = p.cfg.DashboardBaseURL + "/cli/events/" + webhookEvent.Body.EventID
-	if p.cfg.ProjectMode == "console" {
-		url = p.cfg.ConsoleBaseURL + "/?event_id=" + webhookEvent.Body.EventID
-	}
-	outputStr := fmt.Sprintf("%s [%d] %s %s | %s",
-		color.Faint(localTime),
-		ansi.ColorizeStatus(resp.StatusCode),
-		resp.Request.Method,
-		resp.Request.URL,
-		url,
-	)
-	fmt.Println(outputStr)
-
+func (p *Proxy) processEndpointResponse(eventID string, webhookEvent *websocket.Attempt, resp *http.Response, requestStartTime time.Time) {
 	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		errStr := fmt.Sprintf("%s [%s] Failed to read response from endpoint, error = %v\n",
-			color.Faint(localTime),
-			color.Red("ERROR"),
-			err,
-		)
-		log.Errorf(errStr)
-
+		log.Errorf("Failed to read response from endpoint, error = %v\n", err)
 		return
 	}
 
+	// Calculate response duration
+	responseDuration := time.Since(requestStartTime)
+
+	// Prepare response headers
+	responseHeaders := make(map[string][]string)
+	for key, values := range resp.Header {
+		responseHeaders[key] = values
+	}
+
+	// Call renderer with response data
+	p.renderer.OnEventComplete(eventID, webhookEvent, &EventResponse{
+		StatusCode: resp.StatusCode,
+		Headers:    responseHeaders,
+		Body:       string(buf),
+		Duration:   responseDuration,
+	}, requestStartTime)
+
+	// Send response back to Hookdeck
 	if p.webSocketClient != nil {
 		p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
 			AttemptResponse: &websocket.AttemptResponse{
@@ -390,7 +438,7 @@ func (p *Proxy) processEndpointResponse(webhookEvent *websocket.Attempt, resp *h
 //
 
 // New creates a new Proxy
-func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
+func New(cfg *Config, connections []*hookdecksdk.Connection, renderer Renderer) *Proxy {
 	if cfg.Log == nil {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}
@@ -405,12 +453,12 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.Insecure},
 		// Connection pool settings - sensible defaults for typical usage
-		MaxIdleConns:        20,   // Total idle connections across all hosts
-		MaxIdleConnsPerHost: 10,   // Keep some idle connections for reuse
+		MaxIdleConns:        20,               // Total idle connections across all hosts
+		MaxIdleConnsPerHost: 10,               // Keep some idle connections for reuse
 		IdleConnTimeout:     30 * time.Second, // Clean up idle connections
 		DisableKeepAlives:   false,
 		// Limit concurrent connections to prevent resource exhaustion
-		MaxConnsPerHost:       maxConns,  // User-configurable (default: 50)
+		MaxConnsPerHost:       maxConns, // User-configurable (default: 50)
 		ResponseHeaderTimeout: 60 * time.Second,
 	}
 
@@ -423,6 +471,7 @@ func New(cfg *Config, connections []*hookdecksdk.Connection) *Proxy {
 			Transport: tr,
 			// Timeout is controlled per-request via context in processAttempt
 		},
+		renderer: renderer,
 	}
 
 	return p

@@ -20,10 +20,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
@@ -126,17 +126,14 @@ Specify a single destination to update the path. For example, pass a connection 
 	// Start proxy
 	// For non-interactive modes, print connection info before starting
 	if flags.Output == "compact" || flags.Output == "quiet" {
-		printListenMessage(config, isMultiSource)
 		fmt.Println()
 		printSourcesWithConnections(config, sources, connections, URL, guestURL)
-		fmt.Println()
-		fmt.Printf("%s\n", ansi.Faint("Events"))
 		fmt.Println()
 	}
 	// For interactive mode, connection info will be shown in TUI
 
-	// Use new TUI-based proxy
-	p := proxy.NewTUI(&proxy.Config{
+	// Create proxy config
+	proxyCfg := &proxy.Config{
 		DeviceName:       config.DeviceName,
 		Key:              config.Profile.APIKey,
 		ProjectID:        config.Profile.ProjectId,
@@ -152,11 +149,34 @@ Specify a single destination to update the path. For example, pass a connection 
 		Output:           flags.Output,
 		GuestURL:         guestURL,
 		MaxConnections:   flags.MaxConnections,
-	}, sources, connections)
+	}
+
+	// Create renderer based on output mode
+	rendererCfg := &proxy.RendererConfig{
+		DeviceName:       config.DeviceName,
+		APIKey:           config.Profile.APIKey,
+		APIBaseURL:       config.APIBaseURL,
+		DashboardBaseURL: config.DashboardBaseURL,
+		ConsoleBaseURL:   config.ConsoleBaseURL,
+		ProjectMode:      config.Profile.ProjectMode,
+		ProjectID:        config.Profile.ProjectId,
+		GuestURL:         guestURL,
+		TargetURL:        URL,
+		Output:           flags.Output,
+		Sources:          sources,
+		Connections:      connections,
+	}
+
+	renderer := proxy.NewRenderer(rendererCfg)
+
+	// Create and run proxy with renderer
+	p := proxy.New(proxyCfg, connections, renderer)
 
 	err = p.Run(context.Background())
 	if err != nil {
-		return err
+		// Renderer is already cleaned up, safe to print error
+		fmt.Fprintf(os.Stderr, "\n%s\n", err)
+		os.Exit(1)
 	}
 
 	return nil

@@ -10,15 +10,6 @@ import (
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
-func printListenMessage(config *config.Config, isMultiSource bool) {
-	if !isMultiSource {
-		return
-	}
-
-	fmt.Println()
-	fmt.Println("Listening for events on Sources that have Connections with CLI Destinations")
-}
-
 func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection, targetURL *url.URL, guestURL string) {
 	// Group connections by source ID
 	sourceConnections := make(map[string][]*hookdecksdk.Connection)

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	maxEvents  = 1000                    // Maximum events to keep in memory (all navigable)
+	maxEvents  = 1000                  // Maximum events to keep in memory (all navigable)
 	timeLayout = "2006-01-02 15:04:05" // Time format for display
 )
 
@@ -100,7 +100,9 @@ func (m Model) Init() tea.Cmd {
 
 // AddEvent adds a new event to the history
 func (m *Model) AddEvent(event EventInfo) {
-	// Check for duplicates (same ID and timestamp)
+	// Check for duplicates using Time + EventID
+	// This allows the same event to appear multiple times if retried at different times
+	// while preventing true duplicates from the same moment
 	for i := len(m.events) - 1; i >= 0; i-- {
 		if m.events[i].ID == event.ID && m.events[i].Time.Equal(event.Time) {
 			return // Duplicate, skip
@@ -147,9 +149,9 @@ func (m *Model) AddEvent(event EventInfo) {
 	}
 }
 
-// UpdateEvent updates an existing event by EventID + Time
+// UpdateEvent updates an existing event by EventID + Time, or creates a new one if not found
 func (m *Model) UpdateEvent(update UpdateEventMsg) {
-	// Find event by EventID + Time (unique identifier for retries)
+	// Find event by EventID + Time (same uniqueness criteria as AddEvent)
 	for i := range m.events {
 		if m.events[i].ID == update.EventID && m.events[i].Time.Equal(update.Time) {
 			// Update event fields
@@ -163,6 +165,23 @@ func (m *Model) UpdateEvent(update UpdateEventMsg) {
 			return
 		}
 	}
+
+	// Event not found (response came back in < 100ms, so pending event was never created)
+	// Create a new event with the complete data
+	newEvent := EventInfo{
+		ID:               update.EventID,
+		AttemptID:        update.AttemptID,
+		Status:           update.Status,
+		Success:          update.Success,
+		Time:             update.Time,
+		Data:             update.Data,
+		LogLine:          update.LogLine,
+		ResponseStatus:   update.ResponseStatus,
+		ResponseHeaders:  update.ResponseHeaders,
+		ResponseBody:     update.ResponseBody,
+		ResponseDuration: update.ResponseDuration,
+	}
+	m.AddEvent(newEvent)
 }
 
 // Navigate moves selection up or down (all events are navigable)
@@ -371,8 +390,10 @@ type NewEventMsg struct {
 
 // UpdateEventMsg is sent when an existing event gets a response
 type UpdateEventMsg struct {
-	EventID          string    // Event ID
-	Time             time.Time // Time when event was received (unique with EventID)
+	EventID          string             // Event ID from Hookdeck
+	AttemptID        string             // Attempt ID (unique per connection)
+	Time             time.Time          // Event time
+	Data             *websocket.Attempt // Full attempt data
 	Status           int
 	Success          bool
 	LogLine          string
