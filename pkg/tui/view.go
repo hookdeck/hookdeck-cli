@@ -13,9 +13,9 @@ func (m Model) View() string {
 		return ""
 	}
 
-	// If showing details, render full-screen details view
+	// If showing details, render full-screen details view with action bar
 	if m.showingDetails {
-		return m.detailsViewport.View()
+		return m.renderDetailsView()
 	}
 
 	// Build fixed header (connection info + events title + divider)
@@ -152,6 +152,33 @@ func (m Model) renderEventHistory() string {
 	}
 
 	return s.String()
+}
+
+// renderDetailsView renders the details view with action bar at bottom
+func (m Model) renderDetailsView() string {
+	// Calculate space for action bar (divider + action bar = 2 lines)
+	viewportHeight := m.height - 2
+	if viewportHeight < 1 {
+		viewportHeight = 1
+	}
+	m.detailsViewport.Height = viewportHeight
+
+	var output strings.Builder
+
+	// Viewport content (scrollable)
+	output.WriteString(m.detailsViewport.View())
+	output.WriteString("\n")
+
+	// Divider line
+	divider := strings.Repeat("─", m.width)
+	output.WriteString(dividerStyle.Render(divider))
+	output.WriteString("\n")
+
+	// Action bar - LAST line, no trailing newline
+	actionBar := "[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page"
+	output.WriteString(statusBarStyle.Render(actionBar))
+
+	return output.String()
 }
 
 // renderStatusBar renders the bottom status bar with keyboard shortcuts

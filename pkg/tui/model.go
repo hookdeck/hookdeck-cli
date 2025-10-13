@@ -271,94 +271,82 @@ func (m *Model) calculateHeaderHeight(header string) int {
 func (m *Model) buildDetailsContent(event *EventInfo) string {
 	var content strings.Builder
 
-	content.WriteString("═══════════════════════════════════════════════════════════════\n")
-	content.WriteString("  EVENT DETAILS\n")
-	content.WriteString("═══════════════════════════════════════════════════════════════\n\n")
+	content.WriteString(faintStyle.Render("[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page"))
+	content.WriteString("\n\n")
 
-	// Event metadata
-	content.WriteString(faintStyle.Render("Event ID: ") + event.ID + "\n")
-	content.WriteString(faintStyle.Render("Time: ") + event.Time.Format(timeLayout) + "\n")
+	// Event metadata - compact single line format
+	var metadataLine strings.Builder
+	metadataLine.WriteString(event.ID)
+	metadataLine.WriteString(" • ")
+	metadataLine.WriteString(event.Time.Format(timeLayout))
 	if event.ResponseDuration > 0 {
-		content.WriteString(faintStyle.Render("Duration: ") + event.ResponseDuration.String() + "\n")
+		metadataLine.WriteString(" • ")
+		metadataLine.WriteString(event.ResponseDuration.String())
 	}
+	content.WriteString(metadataLine.String())
 	content.WriteString("\n")
+	content.WriteString(faintStyle.Render(strings.Repeat("─", 63)))
+	content.WriteString("\n\n")
 
 	// Request section
 	if event.Data != nil {
-		content.WriteString("─────────────────────────────────────────────────────────────\n")
-		content.WriteString("  REQUEST\n")
-		content.WriteString("─────────────────────────────────────────────────────────────\n\n")
+		content.WriteString(boldStyle.Render("Request"))
+		content.WriteString("\n\n")
 
-		content.WriteString(faintStyle.Render("Method: ") + event.Data.Body.Request.Method + "\n")
-		content.WriteString(faintStyle.Render("Path: ") + event.Data.Body.Path + "\n\n")
+		// HTTP request line: METHOD URL
+		requestURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host + event.Data.Body.Path
+		content.WriteString(event.Data.Body.Request.Method + " " + requestURL + "\n\n")
 
 		// Request headers
-		content.WriteString("Headers:\n")
 		if len(event.Data.Body.Request.Headers) > 0 {
 			// Parse headers JSON
 			var headers map[string]string
 			if err := json.Unmarshal(event.Data.Body.Request.Headers, &headers); err == nil {
 				for key, value := range headers {
-					content.WriteString("  " + faintStyle.Render(key+":") + " " + value + "\n")
+					content.WriteString(faintStyle.Render(key+": ") + value + "\n")
 				}
 			} else {
-				content.WriteString("  " + string(event.Data.Body.Request.Headers) + "\n")
+				content.WriteString(string(event.Data.Body.Request.Headers) + "\n")
 			}
-		} else {
-			content.WriteString("  " + faintStyle.Render("(none)") + "\n")
 		}
 		content.WriteString("\n")
 
 		// Request body
-		content.WriteString("Body:\n")
 		if event.Data.Body.Request.DataString != "" {
 			// Try to pretty print JSON
 			prettyBody := m.prettyPrintJSON(event.Data.Body.Request.DataString)
 			content.WriteString(prettyBody + "\n")
-		} else {
-			content.WriteString("  " + faintStyle.Render("(empty)") + "\n")
 		}
 		content.WriteString("\n")
 	}
 
 	// Response section
-	content.WriteString("─────────────────────────────────────────────────────────────\n")
-	content.WriteString("  RESPONSE\n")
-	content.WriteString("─────────────────────────────────────────────────────────────\n\n")
+	content.WriteString(boldStyle.Render("Response"))
+	content.WriteString("\n\n")
 
 	if event.ResponseStatus > 0 {
-		content.WriteString(faintStyle.Render("Status: ") + fmt.Sprintf("%d", event.ResponseStatus) + "\n\n")
+		// HTTP status line
+		content.WriteString(fmt.Sprintf("%d", event.ResponseStatus) + "\n\n")
 
 		// Response headers
-		content.WriteString("Headers:\n")
 		if len(event.ResponseHeaders) > 0 {
 			for key, values := range event.ResponseHeaders {
 				for _, value := range values {
-					content.WriteString("  " + faintStyle.Render(key+":") + " " + value + "\n")
+					content.WriteString(faintStyle.Render(key+": ") + value + "\n")
 				}
 			}
-		} else {
-			content.WriteString("  " + faintStyle.Render("(none)") + "\n")
 		}
 		content.WriteString("\n")
 
 		// Response body
-		content.WriteString("Body:\n")
 		if event.ResponseBody != "" {
 			// Try to pretty print JSON
 			prettyBody := m.prettyPrintJSON(event.ResponseBody)
 			content.WriteString(prettyBody + "\n")
-		} else {
-			content.WriteString("  " + faintStyle.Render("(empty)") + "\n")
 		}
 	} else {
 		content.WriteString(faintStyle.Render("(No response received yet)") + "\n")
 	}
-
-	content.WriteString("\n")
-	content.WriteString("═══════════════════════════════════════════════════════════════\n")
-	content.WriteString("Press " + boldStyle.Render("[d]") + " or " + boldStyle.Render("[ESC]") + " to close • " + boldStyle.Render("[↑↓]") + " to scroll\n")
-	content.WriteString("═══════════════════════════════════════════════════════════════\n")
 
 	return content.String()
 }
