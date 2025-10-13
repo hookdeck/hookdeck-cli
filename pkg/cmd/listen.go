@@ -32,6 +32,7 @@ type listenCmd struct {
 	noWSS          bool
 	path           string
 	maxConnections int
+	output         string
 }
 
 // Map --cli-path to --path
@@ -98,6 +99,8 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
 	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
 
+	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (only fatal errors)")
+
 	// --cli-path is an alias for
 	lc.cmd.Flags().SetNormalizeFunc(normalizeCliPathFlag)
 
@@ -147,6 +150,16 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 		connectionQuery = args[2]
 	}
 
+	// Validate output flag
+	validOutputModes := map[string]bool{
+		"interactive": true,
+		"compact":     true,
+		"quiet":       true,
+	}
+	if !validOutputModes[lc.output] {
+		return errors.New("invalid --output mode. Must be: interactive, compact, or quiet")
+	}
+
 	_, err_port := strconv.ParseInt(args[0], 10, 64)
 	var url *url.URL
 	if err_port != nil {
@@ -166,6 +179,7 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
 		NoWSS:          lc.noWSS,
 		Path:           lc.path,
+		Output:         lc.output,
 		MaxConnections: lc.maxConnections,
 	}, &Config)
 }

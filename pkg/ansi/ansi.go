@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"runtime"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/tidwall/pretty"
 	"golang.org/x/term"
 )
+
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 var darkTerminalStyle = &pretty.Style{
 	Key:    [2]string{"\x1B[34m", "\x1B[0m"},
@@ -44,6 +47,11 @@ var EnvironmentOverrideColors = true
 func Bold(text string) string {
 	color := Color(os.Stdout)
 	return color.Sprintf(color.Bold(text))
+}
+
+// StripANSI removes all ANSI escape sequences from a string
+func StripANSI(text string) string {
+	return ansiRegex.ReplaceAllString(text, "")
 }
 
 // Color returns an aurora.Aurora instance with colors enabled or disabled

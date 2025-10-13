@@ -76,6 +76,11 @@ func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk
 		return connections, nil
 	}
 
+	// If a connection filter was specified and no match found, don't auto-create
+	if connectionFilterString != "" {
+		return connections, fmt.Errorf("no connection found matching filter \"%s\" for source \"%s\"", connectionFilterString, sources[0].Name)
+	}
+
 	log.Debug(fmt.Sprintf("No connection found. Creating a connection for Source \"%s\", Connection \"%s\", and path \"%s\"", sources[0].Name, connectionFilterString, path))
 
 	connectionDetails := struct {
@@ -85,18 +90,16 @@ func ensureConnections(client *hookdeckclient.Client, connections []*hookdecksdk
 	}{}
 
 	connectionDetails.DestinationName = fmt.Sprintf("%s-%s", "cli", sources[0].Name)
-
-	if len(connectionFilterString) == 0 {
-		connectionDetails.ConnectionName = fmt.Sprintf("%s_to_%s", sources[0].Name, connectionDetails.DestinationName)
-	} else {
-		connectionDetails.ConnectionName = connectionFilterString
-	}
+	connectionDetails.ConnectionName = connectionDetails.DestinationName // Use same name as destination
 
 	if len(path) == 0 {
 		connectionDetails.Path = "/"
 	} else {
 		connectionDetails.Path = path
 	}
+
+	// Print message to user about creating the connection
+	fmt.Printf("\nThere's no CLI destination connected to %s, creating one named %s\n", sources[0].Name, connectionDetails.DestinationName)
 
 	connection, err := client.Connection.Create(context.Background(), &hookdecksdk.ConnectionCreateRequest{
 		Name:     hookdecksdk.OptionalOrNull(&connectionDetails.ConnectionName),

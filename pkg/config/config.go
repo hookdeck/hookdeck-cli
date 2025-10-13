@@ -242,6 +242,8 @@ func (c *Config) constructConfig() {
 	c.Profile.ProjectId = stringCoalesce(c.Profile.ProjectId, c.viper.GetString(c.Profile.getConfigField("project_id")), c.viper.GetString("project_id"), c.viper.GetString(c.Profile.getConfigField("workspace_id")), c.viper.GetString(c.Profile.getConfigField("team_id")), c.viper.GetString("workspace_id"), "")
 
 	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
+
+	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
 }
 
 // getConfigPath returns the path for the config file.

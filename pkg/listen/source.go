@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hookdeck/hookdeck-cli/pkg/slug"
@@ -57,6 +58,23 @@ func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hook
 		}
 		if len(searchedSources) > 0 {
 			return validateSources(searchedSources)
+		}
+
+		// Source not found, ask user if they want to create it
+		fmt.Printf("\nSource \"%s\" not found.\n", sourceQuery[0])
+
+		createConfirm := false
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Do you want to create a new source named \"%s\"?", sourceQuery[0]),
+		}
+		err = survey.AskOne(prompt, &createConfirm)
+		if err != nil {
+			return []*hookdecksdk.Source{}, err
+		}
+
+		if !createConfirm {
+			// User declined to create source, exit cleanly without error message
+			os.Exit(0)
 		}
 
 		// Create source with provided name

@@ -9,6 +9,7 @@ type Profile struct {
 	APIKey      string
 	ProjectId   string
 	ProjectMode string
+	GuestURL    string // URL to create permanent account for guest users
 
 	Config *Config
 }
@@ -22,6 +23,7 @@ func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
 	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
 	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
+	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
 	return p.Config.writeConfig()
 }
 
