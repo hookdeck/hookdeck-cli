@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
@@ -36,6 +37,7 @@ type Flags struct {
 	Path           string
 	MaxConnections int
 	Output         string
+	Filters        *hookdeck.SessionFilters
 }
 
 // listenCmd represents the listen command
@@ -149,6 +151,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		Output:           flags.Output,
 		GuestURL:         guestURL,
 		MaxConnections:   flags.MaxConnections,
+		Filters:          flags.Filters,
 	}
 
 	// Create renderer based on output mode
@@ -165,6 +168,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		Output:           flags.Output,
 		Sources:          sources,
 		Connections:      connections,
+		Filters:          flags.Filters,
 	}
 
 	renderer := proxy.NewRenderer(rendererCfg)
