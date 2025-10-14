@@ -164,7 +164,7 @@ Shopify Source
 ├─ Forwards to → http://localhost:3000/webhooks/shopify/inventory (Inventory Service)
 └─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
 Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
@@ -198,7 +198,7 @@ twilio
 │  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn03
 └─ Forwards to → http://localhost:3000/webhooks/twilio (cli-twilio)
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
 Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
@@ -225,7 +225,7 @@ Shopify Source
 │  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 └─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
 Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
@@ -250,7 +250,7 @@ Shopify Source
 │  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 └─ Forwards to → http://localhost:3000/events/shopify/orders (Orders Service)
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
 Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
@@ -312,6 +312,34 @@ Connected. Waiting for events...
 
 > Note: In `quiet` mode, only fatal errors are shown (connection failures, network unreachable, timeouts). HTTP error responses (4xx, 5xx) are not displayed as they are valid HTTP responses.
 
+#### Filtering events
+
+The CLI supports filtering events using Hookdeck's filter syntax. Filters allow you to receive only events that match specific conditions, reducing noise and focusing on the events you care about during development.
+
+**Filter flags:**
+
+- `--filter-body` - Filter events by request body content (JSON)
+- `--filter-headers` - Filter events by request headers (JSON)
+- `--filter-query` - Filter events by query parameters (JSON)
+- `--filter-path` - Filter events by request path (JSON)
+
+All filter flags accept JSON using [Hookdeck's filter syntax](https://hookdeck.com/docs/filters). You can use exact matches or operators like `$exist`, `$gte`, `$lte`, `$in`, etc.
+
+**Examples:**
+
+```sh
+# Filter events by body content (only events with matching data)
+hookdeck listen 3000 github --filter-body '{"action": "opened"}'
+
+# Filter events with multiple conditions
+hookdeck listen 3000 stripe --filter-body '{"type": "charge.succeeded"}' --filter-headers '{"x-stripe-signature": {"$exist": true}}'
+
+# Filter using operators
+hookdeck listen 3000 api --filter-body '{"amount": {"$gte": 100}}'
+```
+
+When filters are active, the CLI will display a warning message indicating which filters are applied. Only events matching all specified filter conditions will be forwarded to your local server.
+
 #### Viewing and interacting with your events
 
 Event logs for your CLI can be found at [https://dashboard.hookdeck.com/cli/events](https://dashboard.hookdeck.com/cli/events?ref=github-hookdeck-cli). Events can be replayed or saved at any time.
@@ -372,7 +400,7 @@ Shopify Source
 │  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
 └─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
 
-💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
 Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 

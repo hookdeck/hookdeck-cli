@@ -12,8 +12,16 @@ type Session struct {
 	Id string
 }
 
+type SessionFilters struct {
+	Body    *json.RawMessage `json:"body,omitempty"`
+	Headers *json.RawMessage `json:"headers,omitempty"`
+	Query   *json.RawMessage `json:"query,omitempty"`
+	Path    *json.RawMessage `json:"path,omitempty"`
+}
+
 type CreateSessionInput struct {
-	ConnectionIds []string `json:"webhook_ids"`
+	ConnectionIds []string        `json:"webhook_ids"`
+	Filters       *SessionFilters `json:"filters,omitempty"`
 }
 
 func (c *Client) CreateSession(input CreateSessionInput) (Session, error) {

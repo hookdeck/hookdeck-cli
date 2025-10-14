@@ -46,6 +46,25 @@ func (r *SimpleRenderer) OnConnected() {
 		ansi.StopSpinner(r.spinner, "", log.StandardLogger().Out)
 		r.spinner = nil
 		color := ansi.Color(os.Stdout)
+
+		// Display filter warning if filters are active
+		if r.cfg.Filters != nil {
+			fmt.Printf("\n%s Filters provided, only events matching the filter will be forwarded for this session\n", color.Yellow("⏺"))
+			if r.cfg.Filters.Body != nil {
+				fmt.Printf("  • Body: %s\n", color.Faint(string(*r.cfg.Filters.Body)))
+			}
+			if r.cfg.Filters.Headers != nil {
+				fmt.Printf("  • Headers: %s\n", color.Faint(string(*r.cfg.Filters.Headers)))
+			}
+			if r.cfg.Filters.Query != nil {
+				fmt.Printf("  • Query: %s\n", color.Faint(string(*r.cfg.Filters.Query)))
+			}
+			if r.cfg.Filters.Path != nil {
+				fmt.Printf("  • Path: %s\n", color.Faint(string(*r.cfg.Filters.Path)))
+			}
+			fmt.Println()
+		}
+
 		fmt.Printf("%s\n\n", color.Faint("Connected. Waiting for events..."))
 	}
 }

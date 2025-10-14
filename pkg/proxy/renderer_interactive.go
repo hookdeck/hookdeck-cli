@@ -37,6 +37,7 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		TargetURL:        cfg.TargetURL,
 		Sources:          cfg.Sources,
 		Connections:      cfg.Connections,
+		Filters:          cfg.Filters,
 	}
 
 	model := tui.NewModel(tuiCfg)

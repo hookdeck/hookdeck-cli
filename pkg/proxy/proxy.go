@@ -54,6 +54,8 @@ type Config struct {
 	// Example: Set to 100+ when load testing with many parallel webhooks.
 	// Warning: Setting this too high may cause resource exhaustion.
 	MaxConnections int
+	// Filters for this CLI session
+	Filters *hookdeck.SessionFilters
 }
 
 // A Proxy opens a websocket connection with Hookdeck, listens for incoming
@@ -243,6 +245,7 @@ func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 	for i := 0; i <= 5; i++ {
 		session, err = client.CreateSession(hookdeck.CreateSessionInput{
 			ConnectionIds: connectionIDs,
+			Filters:       p.cfg.Filters,
 		})
 
 		if err == nil {

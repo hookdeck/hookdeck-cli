@@ -32,6 +32,9 @@ var (
 	yellowStyle = lipgloss.NewStyle().
 			Foreground(colorYellow)
 
+	cyanStyle = lipgloss.NewStyle().
+			Foreground(colorCyan)
+
 	// Brand styles
 	brandStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("4")). // Blue

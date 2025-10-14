@@ -78,6 +78,7 @@ type Config struct {
 	TargetURL        *url.URL
 	Sources          []*hookdecksdk.Source
 	Connections      []*hookdecksdk.Connection
+	Filters          interface{} // Session filters (stored as interface{} to avoid circular dependency)
 }
 
 // NewModel creates a new TUI model

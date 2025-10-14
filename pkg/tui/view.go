@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 // View renders the TUI with fixed header and scrollable event list
@@ -390,6 +391,37 @@ func (m Model) renderConnectionInfo() string {
 
 			// Add spacing between sources
 			if i < len(m.cfg.Sources)-1 {
+				s.WriteString("\n")
+			}
+		}
+	}
+
+	// Show filters if any are active
+	if m.cfg.Filters != nil {
+		// Type assert to SessionFilters and display each filter
+		if filters, ok := m.cfg.Filters.(*hookdeck.SessionFilters); ok && filters != nil {
+			s.WriteString("\n")
+			s.WriteString(yellowStyle.Render("⏺"))
+			s.WriteString(" Filters provided, only events matching the filter will be forwarded for this session\n")
+
+			if filters.Body != nil {
+				s.WriteString("  • Body: ")
+				s.WriteString(faintStyle.Render(string(*filters.Body)))
+				s.WriteString("\n")
+			}
+			if filters.Headers != nil {
+				s.WriteString("  • Headers: ")
+				s.WriteString(faintStyle.Render(string(*filters.Headers)))
+				s.WriteString("\n")
+			}
+			if filters.Query != nil {
+				s.WriteString("  • Query: ")
+				s.WriteString(faintStyle.Render(string(*filters.Query)))
+				s.WriteString("\n")
+			}
+			if filters.Path != nil {
+				s.WriteString("  • Path: ")
+				s.WriteString(faintStyle.Render(string(*filters.Path)))
 				s.WriteString("\n")
 			}
 		}
