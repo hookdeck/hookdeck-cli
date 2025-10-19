@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/tui"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 

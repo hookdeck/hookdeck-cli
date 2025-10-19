@@ -26,8 +26,8 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/proxy"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
-	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	log "github.com/sirupsen/logrus"
 )
