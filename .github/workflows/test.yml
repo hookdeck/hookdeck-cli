@@ -3,7 +3,7 @@ name: test
 on:
   workflow_run:
     workflows: ["Dependabot PR Check"]
-    types: 
+    types:
       - completed
   pull_request:
     branches:
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18.1
+          go-version-file: "go.mod"
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
@@ -77,6 +77,6 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           version: v2.10.2
-          args: release --skip=publish --snapshot -f .goreleaser/windows.yml --clean 
+          args: release --skip=publish --snapshot -f .goreleaser/windows.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
