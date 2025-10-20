@@ -177,6 +177,8 @@ func selectSources(availableSources []*hookdecksdk.Source) ([]*hookdecksdk.Sourc
 func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.Source, error) {
 	var sourceName string
 
+	fmt.Println("\033[2mA source represents where requests originate from (ie. Github, Stripe, Shopify, etc.). Each source has it's own unique URL that you can use to send requests to.\033[0m")
+
 	if name != nil {
 		sourceName = *name
 	} else {
@@ -186,7 +188,7 @@ func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.
 		var qs = []*survey.Question{
 			{
 				Name:     "label",
-				Prompt:   &survey.Input{Message: "What should be your new source label?"},
+				Prompt:   &survey.Input{Message: "What should be the name of your first source?"},
 				Validate: survey.Required,
 			},
 		}

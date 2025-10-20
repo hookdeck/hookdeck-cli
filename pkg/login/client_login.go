@@ -123,7 +123,7 @@ func GuestLogin(config *config.Config) (string, error) {
 		BaseURL: parsedBaseURL,
 	}
 
-	fmt.Println("\n🚩 Not connected with any account. Creating a guest account...")
+	fmt.Println("\n🚩 You are using the CLI for the first time without a permanent account. Creating a guest account...")
 
 	guest_user, err := client.CreateGuestUser(hookdeck.CreateGuestUserInput{
 		DeviceName: config.DeviceName,

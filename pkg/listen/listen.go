@@ -75,11 +75,8 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		// User is logged in with a guest account (has both GuestURL and APIKey)
 		guestURL = config.Profile.GuestURL
 	}
-	// If user has permanent account (APIKey but no GuestURL), guestURL remains empty
 
 	sdkClient := config.GetClient()
-
-	// Prepare data
 
 	sources, err := getSources(sdkClient, sourceAliases)
 	if err != nil {
@@ -217,7 +214,7 @@ func isPath(value string) (bool, error) {
 
 func validateData(sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection) error {
 	if len(connections) == 0 {
-		return errors.New("no connections provided")
+		return errors.New("no matching connections found")
 	}
 
 	return nil
