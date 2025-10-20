@@ -51,7 +51,9 @@ echo "Verifying authentication..."
 echo_and_run $CLI_CMD whoami
 
 echo "Testing listen command..."
-echo_and_run $CLI_CMD listen 8080 "test-$(date +%Y%m%d%H%M%S)" &
+# Use 'yes' to automatically answer confirmation prompts
+echo "Running command: yes | $CLI_CMD listen 8080 \"test-$(date +%Y%m%d%H%M%S)\""
+yes | $CLI_CMD listen 8080 "test-$(date +%Y%m%d%H%M%S)" &
 PID=$!
 
 # Wait for the listen command to initialize
