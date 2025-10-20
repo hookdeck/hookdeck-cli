@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/slug"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
+	"golang.org/x/term"
 )
 
 // There are 4 cases:
@@ -64,17 +65,34 @@ func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hook
 		fmt.Printf("\nSource \"%s\" not found.\n", sourceQuery[0])
 
 		createConfirm := false
-		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Do you want to create a new source named \"%s\"?", sourceQuery[0]),
-		}
-		err = survey.AskOne(prompt, &createConfirm)
-		if err != nil {
-			return []*hookdecksdk.Source{}, err
-		}
 
-		if !createConfirm {
-			// User declined to create source, exit cleanly without error message
-			os.Exit(0)
+		// Check if stdin is a TTY (interactive terminal)
+		// If not (e.g., in CI or piped input), auto-accept source creation
+		isInteractive := term.IsTerminal(int(os.Stdin.Fd()))
+
+		if isInteractive {
+			prompt := &survey.Confirm{
+				Message: fmt.Sprintf("Do you want to create a new source named \"%s\"?", sourceQuery[0]),
+			}
+			err = survey.AskOne(prompt, &createConfirm)
+			if err != nil {
+				// If survey fails (e.g., in background process or broken pipe), auto-accept in non-interactive scenarios
+				// Check if it's a terminal-related error
+				if err.Error() == "interrupt" {
+					// User pressed Ctrl+C, exit cleanly
+					os.Exit(0)
+				}
+				// For other errors (like broken pipe, EOF), assume non-interactive and auto-accept
+				fmt.Printf("Cannot prompt for confirmation. Automatically creating source \"%s\".\n", sourceQuery[0])
+				createConfirm = true
+			} else if !createConfirm {
+				// User declined to create source, exit cleanly without error message
+				os.Exit(0)
+			}
+		} else {
+			// Non-interactive mode: auto-accept source creation
+			fmt.Printf("Non-interactive mode detected. Automatically creating source \"%s\".\n", sourceQuery[0])
+			createConfirm = true
 		}
 
 		// Create source with provided name
