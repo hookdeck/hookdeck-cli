@@ -24,6 +24,9 @@ builds:
 archives:
   - files:
       - none*
+release:
+  prerelease: auto
+  mode: append
 changelog:
   sort: asc
   filters:
