@@ -60,7 +60,7 @@ scoop install hookdeck
 To install a beta (pre-release) version:
 
 ```sh
-scoop install hookdeck/scoop-hookdeck/hookdeck-beta
+scoop install hookdeck-beta
 ```
 
 ### Linux Or without package managers
