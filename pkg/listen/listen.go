@@ -20,12 +20,14 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/proxy"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
-	"github.com/hookdeck/hookdeck-cli/pkg/proxy"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	log "github.com/sirupsen/logrus"
 )
@@ -34,6 +36,8 @@ type Flags struct {
 	NoWSS          bool
 	Path           string
 	MaxConnections int
+	Output         string
+	Filters        *hookdeck.SessionFilters
 }
 
 // listenCmd represents the listen command
@@ -67,11 +71,12 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		if guestURL == "" {
 			return err
 		}
+	} else if config.Profile.GuestURL != "" && config.Profile.APIKey != "" {
+		// User is logged in with a guest account (has both GuestURL and APIKey)
+		guestURL = config.Profile.GuestURL
 	}
 
 	sdkClient := config.GetClient()
-
-	// Prepare data
 
 	sources, err := getSources(sdkClient, sourceAliases)
 	if err != nil {
@@ -118,16 +123,16 @@ Specify a single destination to update the path. For example, pass a connection 
 	}
 
 	// Start proxy
-	printListenMessage(config, isMultiSource)
-	fmt.Println()
-	printDashboardInformation(config, guestURL)
-	fmt.Println()
-	printSources(config, sources)
-	fmt.Println()
-	printConnections(config, connections)
-	fmt.Println()
+	// For non-interactive modes, print connection info before starting
+	if flags.Output == "compact" || flags.Output == "quiet" {
+		fmt.Println()
+		printSourcesWithConnections(config, sources, connections, URL, guestURL)
+		fmt.Println()
+	}
+	// For interactive mode, connection info will be shown in TUI
 
-	p := proxy.New(&proxy.Config{
+	// Create proxy config
+	proxyCfg := &proxy.Config{
 		DeviceName:       config.DeviceName,
 		Key:              config.Profile.APIKey,
 		ProjectID:        config.Profile.ProjectId,
@@ -140,12 +145,39 @@ Specify a single destination to update the path. For example, pass a connection 
 		URL:              URL,
 		Log:              log.StandardLogger(),
 		Insecure:         config.Insecure,
+		Output:           flags.Output,
+		GuestURL:         guestURL,
 		MaxConnections:   flags.MaxConnections,
-	}, connections)
+		Filters:          flags.Filters,
+	}
+
+	// Create renderer based on output mode
+	rendererCfg := &proxy.RendererConfig{
+		DeviceName:       config.DeviceName,
+		APIKey:           config.Profile.APIKey,
+		APIBaseURL:       config.APIBaseURL,
+		DashboardBaseURL: config.DashboardBaseURL,
+		ConsoleBaseURL:   config.ConsoleBaseURL,
+		ProjectMode:      config.Profile.ProjectMode,
+		ProjectID:        config.Profile.ProjectId,
+		GuestURL:         guestURL,
+		TargetURL:        URL,
+		Output:           flags.Output,
+		Sources:          sources,
+		Connections:      connections,
+		Filters:          flags.Filters,
+	}
+
+	renderer := proxy.NewRenderer(rendererCfg)
+
+	// Create and run proxy with renderer
+	p := proxy.New(proxyCfg, connections, renderer)
 
 	err = p.Run(context.Background())
 	if err != nil {
-		return err
+		// Renderer is already cleaned up, safe to print error
+		fmt.Fprintf(os.Stderr, "\n%s\n", err)
+		os.Exit(1)
 	}
 
 	return nil
@@ -182,7 +214,7 @@ func isPath(value string) (bool, error) {
 
 func validateData(sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection) error {
 	if len(connections) == 0 {
-		return errors.New("no connections provided")
+		return errors.New("no matching connections found")
 	}
 
 	return nil
