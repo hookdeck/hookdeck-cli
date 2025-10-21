@@ -28,12 +28,24 @@ Hookdeck CLI is distributed as an NPM package:
 npm install hookdeck-cli -g
 ```
 
+To install a beta (pre-release) version:
+
+```sh
+npm install hookdeck-cli@beta -g
+```
+
 ### macOS
 
 Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/):
 
 ```sh
 brew install hookdeck/hookdeck/hookdeck
+```
+
+To install a beta (pre-release) version:
+
+```sh
+brew install hookdeck/hookdeck/hookdeck-beta
 ```
 
 ### Windows
@@ -45,6 +57,12 @@ scoop bucket add hookdeck https://github.com/hookdeck/scoop-hookdeck-cli.git
 scoop install hookdeck
 ```
 
+To install a beta (pre-release) version:
+
+```sh
+scoop install hookdeck/scoop-hookdeck/hookdeck-beta
+```
+
 ### Linux Or without package managers
 
 To install the Hookdeck CLI on Linux without a package manager:
@@ -52,6 +70,8 @@ To install the Hookdeck CLI on Linux without a package manager:
 1. Download the latest linux tar.gz file from https://github.com/hookdeck/hookdeck-cli/releases/latest
 2. Unzip the file: tar -xvf hookdeck_X.X.X_linux_amd64.tar.gz
 3. Run the executable: ./hookdeck
+
+For beta (pre-release) versions, download the `.deb` or `.rpm` packages from the [GitHub releases page](https://github.com/hookdeck/hookdeck-cli/releases) (look for releases marked as "Pre-release").
 
 ### Docker
 
@@ -61,6 +81,14 @@ The CLI is also available as a Docker image: [`hookdeck/hookdeck-cli`](https://h
 docker run --rm -it hookdeck/hookdeck-cli version
 hookdeck version x.y.z (beta)
 ```
+
+To use a specific version (including beta releases), specify the version tag:
+
+```sh
+docker run --rm -it hookdeck/hookdeck-cli:v1.2.3-beta.1 version
+```
+
+Note: Beta releases do not update the `latest` tag. Only stable releases update `latest`.
 
 If you want to login to your Hookdeck account with the CLI and persist
 credentials, you can bind mount the `~/.config/hookdeck` directory:
