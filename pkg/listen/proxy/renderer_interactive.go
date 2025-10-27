@@ -202,9 +202,12 @@ func (r *InteractiveRenderer) OnEventError(eventID string, attempt *websocket.At
 // OnConnectionWarning is called when approaching connection limits
 func (r *InteractiveRenderer) OnConnectionWarning(activeRequests int32, maxConns int) {
 	// In interactive mode, warnings could be shown in TUI
-	// For now, just log it
-	log.WithField("prefix", "proxy.InteractiveRenderer").
-		Warnf("High connection load detected: %d active requests (limit: %d) --max-connections=%d to increase the limit", activeRequests, maxConns)
+	// Use structured logging to avoid format-string mismatches and make logs machine-readable
+	log.WithFields(log.Fields{
+		"prefix":          "proxy.InteractiveRenderer",
+		"active_requests": activeRequests,
+		"max_connections": maxConns,
+	}).Warn("High connection load detected; consider increasing --max-connections")
 }
 
 // Cleanup gracefully stops the TUI and restores terminal
