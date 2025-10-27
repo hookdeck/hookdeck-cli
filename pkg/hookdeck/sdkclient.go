@@ -9,6 +9,7 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/useragent"
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
+	hookdeckoption "github.com/hookdeck/hookdeck-go-sdk/option"
 )
 
 const apiVersion = "/2024-03-01"
@@ -43,8 +44,8 @@ func CreateSDKClient(init SDKClientInit) *hookdeckclient.Client {
 	}
 
 	return hookdeckclient.NewClient(
-		hookdeckclient.WithBaseURL(parsedBaseURL.String()),
-		hookdeckclient.WithHTTPHeader(header),
+		hookdeckoption.WithBaseURL(parsedBaseURL.String()),
+		hookdeckoption.WithHTTPHeader(header),
 	)
 }
 

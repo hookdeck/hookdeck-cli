@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hookdeck/hookdeck-cli/pkg/slug"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
+	"golang.org/x/term"
 )
 
 // There are 4 cases:
@@ -57,6 +59,40 @@ func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hook
 		}
 		if len(searchedSources) > 0 {
 			return validateSources(searchedSources)
+		}
+
+		// Source not found, ask user if they want to create it
+		fmt.Printf("\nSource \"%s\" not found.\n", sourceQuery[0])
+
+		createConfirm := false
+
+		// Check if stdin is a TTY (interactive terminal)
+		// If not (e.g., in CI or piped input), auto-accept source creation
+		isInteractive := term.IsTerminal(int(os.Stdin.Fd()))
+
+		if isInteractive {
+			prompt := &survey.Confirm{
+				Message: fmt.Sprintf("Do you want to create a new source named \"%s\"?", sourceQuery[0]),
+			}
+			err = survey.AskOne(prompt, &createConfirm)
+			if err != nil {
+				// If survey fails (e.g., in background process or broken pipe), auto-accept in non-interactive scenarios
+				// Check if it's a terminal-related error
+				if err.Error() == "interrupt" {
+					// User pressed Ctrl+C, exit cleanly
+					os.Exit(0)
+				}
+				// For other errors (like broken pipe, EOF), assume non-interactive and auto-accept
+				fmt.Printf("Cannot prompt for confirmation. Automatically creating source \"%s\".\n", sourceQuery[0])
+				createConfirm = true
+			} else if !createConfirm {
+				// User declined to create source, exit cleanly without error message
+				os.Exit(0)
+			}
+		} else {
+			// Non-interactive mode: auto-accept source creation
+			fmt.Printf("Non-interactive mode detected. Automatically creating source \"%s\".\n", sourceQuery[0])
+			createConfirm = true
 		}
 
 		// Create source with provided name
@@ -159,6 +195,8 @@ func selectSources(availableSources []*hookdecksdk.Source) ([]*hookdecksdk.Sourc
 func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.Source, error) {
 	var sourceName string
 
+	fmt.Println("\033[2mA source represents where requests originate from (ie. Github, Stripe, Shopify, etc.). Each source has it's own unique URL that you can use to send requests to.\033[0m")
+
 	if name != nil {
 		sourceName = *name
 	} else {
@@ -168,7 +206,7 @@ func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.
 		var qs = []*survey.Question{
 			{
 				Name:     "label",
-				Prompt:   &survey.Input{Message: "What should be your new source label?"},
+				Prompt:   &survey.Input{Message: "What should be the name of your first source?"},
 				Validate: survey.Required,
 			},
 		}

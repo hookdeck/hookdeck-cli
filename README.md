@@ -14,7 +14,8 @@ Hookdeck for development is completely free, and we monetize the platform with o
 
 For a complete reference, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
 
-https://github.com/user-attachments/assets/5fca7842-9c41-411c-8cd6-2f32f84fa907
+https://github.com/user-attachments/assets/7a333c5b-e4cb-45bb-8570-29fafd137bd2
+
 
 ## Installation
 
@@ -99,6 +100,7 @@ hookdeck login
 ```
 
 If you are in an environment without a browser (e.g., a TTY-only terminal), you can use the `--interactive` (or `-i`) flag to log in by pasting your API key:
+
 ```sh
 hookdeck login --interactive
 ```
@@ -110,16 +112,51 @@ hookdeck login --interactive
 Start a session to forward your events to an HTTP server.
 
 ```sh
-hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--path?]
+hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [flags]
+
+Flags:
+  --path string             Sets the path to which events are forwarded (e.g., /webhooks or /api/stripe)
+  --output string           Output mode: interactive (full UI), compact (simple logs), quiet (only fatal errors) (default "interactive")
+  --max-connections int     Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)
+  --filter-body string      Filter events by request body using Hookdeck filter syntax (JSON)
+  --filter-headers string   Filter events by request headers using Hookdeck filter syntax (JSON)
+  --filter-query string     Filter events by query parameters using Hookdeck filter syntax (JSON)
+  --filter-path string      Filter events by request path using Hookdeck filter syntax (JSON)
 ```
 
 Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
 
 Each `source` is assigned an Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
-Contrary to ngrok, **Hookdeck does not allow to append a path to your event URL**. Instead, the routing is done within Hookdeck configuration. This means you will also be prompted to specify your `destination` path, and you can have as many as you want per `source`.
-
 > The `port-or-URL` param is mandatory, events will be forwarded to http://localhost:$PORT/$DESTINATION_PATH when inputing a valid port or your provided URL.
+
+#### Interactive Mode
+
+The default interactive mode uses a full-screen TUI (Terminal User Interface) with an alternative screen buffer, meaning your terminal history is preserved when you exit. The interface includes:
+
+- **Connection Header**: Shows your sources, webhook URLs, and connection routing
+  - Auto-collapses when the first event arrives to save space
+  - Toggle with `i` to expand/collapse connection details
+- **Event List**: Scrollable history of all received events (up to 1000 events)
+  - Auto-scrolls to show latest events as they arrive
+  - Manual navigation pauses auto-scrolling
+- **Status Bar**: Shows event details and available keyboard shortcuts
+- **Event Details View**: Full request/response inspection with headers and body
+
+#### Interactive Keyboard Shortcuts
+
+While in interactive mode, you can use the following keyboard shortcuts:
+
+- `↑` / `↓` or `k` / `j` - Navigate between events (select different events)
+- `i` - Toggle connection information (expand/collapse connection details)
+- `r` - Retry the selected event
+- `o` - Open the selected event in the Hookdeck dashboard
+- `d` - Show detailed request/response information for the selected event (press `d` or `ESC` to close)
+  - When details view is open: `↑` / `↓` scroll through content, `PgUp` / `PgDown` for page navigation
+- `q` - Quit the application (terminal state is restored)
+- `Ctrl+C` - Also quits the application
+
+The selected event is indicated by a `>` character at the beginning of the line. All actions (retry, open, details) work on the currently selected event, not just the latest one. These shortcuts are displayed in the status bar at the bottom of the screen.
 
 #### Listen to all your connections for a given source
 
@@ -128,18 +165,24 @@ The second param, `source-alias` is used to select a specific source to listen o
 ```sh
 $ hookdeck listen 3000 shopify
 
-👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
+●── HOOKDECK CLI ──●
+
+Listening on 1 source • 2 connections • [i] Collapse
 
 Shopify Source
-🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+├─ Forwards to → http://localhost:3000/webhooks/shopify/inventory (Inventory Service)
+└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
 
-Connections
-Inventory Service forwarding to /webhooks/shopify/inventory
-Orders Service forwarding to /webhooks/shopify/orders
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
+Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
-⣾ Getting ready...
+2025-10-12 14:32:15 [200] POST http://localhost:3000/webhooks/shopify/orders (23ms) → https://dashboard.hookdeck.com/events/evt_...
+> 2025-10-12 14:32:18 [200] POST http://localhost:3000/webhooks/shopify/inventory (45ms) → https://dashboard.hookdeck.com/events/evt_...
 
+───────────────────────────────────────────────────────────────────────────────
+> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
 
 #### Listen to multiple sources
@@ -149,40 +192,57 @@ Orders Service forwarding to /webhooks/shopify/orders
 ```sh
 $ hookdeck listen 3000 '*'
 
-👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
+●── HOOKDECK CLI ──●
 
-Sources
-🔌 stripe URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn01
-🔌 shopify URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn02
-🔌 twilio URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn03
+Listening on 3 sources • 3 connections • [i] Collapse
 
-Connections
-stripe -> cli-stripe forwarding to /webhooks/stripe
-shopify -> cli-shopify forwarding to /webhooks/shopify
-twilio -> cli-twilio forwarding to /webhooks/twilio
+stripe
+│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn01
+└─ Forwards to → http://localhost:3000/webhooks/stripe (cli-stripe)
 
-⣾ Getting ready...
+shopify
+│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn02
+└─ Forwards to → http://localhost:3000/webhooks/shopify (cli-shopify)
 
+twilio
+│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHn03
+└─ Forwards to → http://localhost:3000/webhooks/twilio (cli-twilio)
+
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+
+Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
+
+2025-10-12 14:35:21 [200] POST http://localhost:3000/webhooks/stripe (12ms) → https://dashboard.hookdeck.com/events/evt_...
+2025-10-12 14:35:44 [200] POST http://localhost:3000/webhooks/shopify (31ms) → https://dashboard.hookdeck.com/events/evt_...
+> 2025-10-12 14:35:52 [200] POST http://localhost:3000/webhooks/twilio (18ms) → https://dashboard.hookdeck.com/events/evt_...
+
+───────────────────────────────────────────────────────────────────────────────
+> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
 
 #### Listen to a subset of connections
 
-The 3rd param, `connection-query` can be used to filter the list of connections the CLI will listen to. The connection query can either be the `connection` `alias` or the `path`
+The 3rd param, `connection-query` specifies which connection with a CLI destination to adopt for listening. By default, the first connection with a CLI destination type will be used. If a connection with the specified name doesn't exist, a new connection will be created with the passed value. The connection query is checked against the `connection` name, `alias`, and the `path` values.
 
 ```sh
 $ hookdeck listen 3000 shopify orders
 
-👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
+●── HOOKDECK CLI ──●
+
+Listening on 1 source • 1 connection • [i] Collapse
 
 Shopify Source
-🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
 
-Connections
-Orders Service forwarding to /webhooks/shopify/orders
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
+Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
-⣾ Getting ready...
+> 2025-10-12 14:38:09 [200] POST http://localhost:3000/webhooks/shopify/orders (27ms) → https://dashboard.hookdeck.com/events/evt_...
 
+───────────────────────────────────────────────────────────────────────────────
+> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
 
 #### Changing the path events are forwarded to
@@ -192,18 +252,103 @@ The `--path` flag sets the path to which events are forwarded.
 ```sh
 $ hookdeck listen 3000 shopify orders --path /events/shopify/orders
 
-👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
+●── HOOKDECK CLI ──●
+
+Listening on 1 source • 1 connection • [i] Collapse
 
 Shopify Source
-🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+└─ Forwards to → http://localhost:3000/events/shopify/orders (Orders Service)
 
-Connections
-Orders Service forwarding to /events/shopify/orders
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
+Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
-⣾ Getting ready...
+> 2025-10-12 14:40:23 [200] POST http://localhost:3000/events/shopify/orders (19ms) → https://dashboard.hookdeck.com/events/evt_...
+
+───────────────────────────────────────────────────────────────────────────────
+> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
+```
+
+#### Controlling output verbosity
+
+The `--output` flag controls how events are displayed. This is useful for reducing resource usage in high-throughput scenarios or when running in the background.
+
+**Available modes:**
+
+- `interactive` (default) - Full-screen TUI with alternative screen buffer, event history, navigation, and keyboard shortcuts. Your terminal history is preserved and restored when you exit.
+- `compact` - Simple one-line logs for all events without interactive features. Events are appended to your terminal history.
+- `quiet` - Only displays fatal connection errors (network failures, timeouts), not HTTP errors
+
+All modes display connection information at startup and a connection status message.
+
+**Examples:**
+
+```sh
+# Default - full interactive UI with keyboard shortcuts
+$ hookdeck listen 3000 shopify
+
+# Simple logging mode - prints all events as one-line logs
+$ hookdeck listen 3000 shopify --output compact
+
+# Quiet mode - only shows fatal connection errors
+$ hookdeck listen 3000 shopify --output quiet
+```
+
+**Compact mode output:**
 
 ```
+Listening on
+shopify
+└─ Forwards to → http://localhost:3000
+
+Connected. Waiting for events...
+
+2025-10-08 15:56:53 [200] POST http://localhost:3000 (45ms) → https://...
+2025-10-08 15:56:54 [422] POST http://localhost:3000 (12ms) → https://...
+```
+
+**Quiet mode output:**
+
+```
+Listening on
+shopify
+└─ Forwards to → http://localhost:3000
+
+Connected. Waiting for events...
+
+2025-10-08 15:56:53 [ERROR] Failed to POST: connection refused
+```
+
+> Note: In `quiet` mode, only fatal errors are shown (connection failures, network unreachable, timeouts). HTTP error responses (4xx, 5xx) are not displayed as they are valid HTTP responses.
+
+#### Filtering events
+
+The CLI supports filtering events using Hookdeck's filter syntax. Filters allow you to receive only events that match specific conditions, reducing noise and focusing on the events you care about during development.
+
+**Filter flags:**
+
+- `--filter-body` - Filter events by request body content (JSON)
+- `--filter-headers` - Filter events by request headers (JSON)
+- `--filter-query` - Filter events by query parameters (JSON)
+- `--filter-path` - Filter events by request path (JSON)
+
+All filter flags accept JSON using [Hookdeck's filter syntax](https://hookdeck.com/docs/filters). You can use exact matches or operators like `$exist`, `$gte`, `$lte`, `$in`, etc.
+
+**Examples:**
+
+```sh
+# Filter events by body content (only events with matching data)
+hookdeck listen 3000 github --filter-body '{"action": "opened"}'
+
+# Filter events with multiple conditions
+hookdeck listen 3000 stripe --filter-body '{"type": "charge.succeeded"}' --filter-headers '{"x-stripe-signature": {"$exist": true}}'
+
+# Filter using operators
+hookdeck listen 3000 api --filter-body '{"amount": {"$gte": 100}}'
+```
+
+When filters are active, the CLI will display a warning message indicating which filters are applied. Only events matching all specified filter conditions will be forwarded to your local server.
 
 #### Viewing and interacting with your events
 
@@ -226,6 +371,7 @@ For local development scenarios, you can instruct the `listen` command to bypass
 **This is dangerous and should only be used in trusted local development environments for destinations you control.**
 
 Example of skipping SSL validation for an HTTPS destination:
+
 ```sh
 hookdeck listen --insecure https://<your-ssl-url-or-url:port>/ <source-alias?> <connection-query?>
 ```
@@ -256,17 +402,22 @@ Done! The Hookdeck CLI is configured in project MyProject
 
 $ hookdeck listen 3000 shopify orders
 
-👉  Inspect and replay events: https://dashboard.hookdeck.com/cli/events
+●── HOOKDECK CLI ──●
+
+Listening on 1 source • 1 connection • [i] Collapse
 
 Shopify Source
-🔌 Event URL: https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
+└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
 
-Connections
-Inventory Service forwarding to /webhooks/shopify/inventory
+💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
 
+Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
 
-⣾ Getting ready...
+> 2025-10-12 14:42:55 [200] POST http://localhost:3000/webhooks/shopify/orders (34ms) → https://dashboard.hookdeck.com/events/evt_...
 
+───────────────────────────────────────────────────────────────────────────────
+> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
 
 ### Manage active project
@@ -296,38 +447,41 @@ hookdeck project use [<organization_name> [<project_name>]]
 
 **Behavior:**
 
--   **`hookdeck project use`** (no arguments):
-    An interactive prompt will guide you through selecting your organization and then the project within that organization.
-    ```sh
-    $ hookdeck project use
-    Use the arrow keys to navigate: ↓ ↑ → ←
-    ? Select Organization:
-        My Org
-      ▸ Another Org
-    ...
-    ? Select Project (Another Org):
-        Project X
-      ▸ Project Y
-    Selecting project Project Y
-    Successfully set active project to: [Another Org] Project Y
-    ```
+- **`hookdeck project use`** (no arguments):
+  An interactive prompt will guide you through selecting your organization and then the project within that organization.
 
--   **`hookdeck project use <organization_name>`** (one argument):
-    Filters projects by the specified `<organization_name>`.
-    - If multiple projects exist under that organization, you'll be prompted to choose one.
-    - If only one project exists, it will be selected automatically.
-    ```sh
-    $ hookdeck project use "My Org"
-    # (If multiple projects, prompts to select. If one, auto-selects)
-    Successfully set active project to: [My Org] Default Project
-    ```
+  ```sh
+  $ hookdeck project use
+  Use the arrow keys to navigate: ↓ ↑ → ←
+  ? Select Organization:
+      My Org
+    ▸ Another Org
+  ...
+  ? Select Project (Another Org):
+      Project X
+    ▸ Project Y
+  Selecting project Project Y
+  Successfully set active project to: [Another Org] Project Y
+  ```
 
--   **`hookdeck project use <organization_name> <project_name>`** (two arguments):
-    Directly selects the project `<project_name>` under the organization `<organization_name>`.
-    ```sh
-    $ hookdeck project use "My Corp" "API Staging"
-    Successfully set active project to: [My Corp] API Staging
-    ```
+- **`hookdeck project use <organization_name>`** (one argument):
+  Filters projects by the specified `<organization_name>`.
+
+  - If multiple projects exist under that organization, you'll be prompted to choose one.
+  - If only one project exists, it will be selected automatically.
+
+  ```sh
+  $ hookdeck project use "My Org"
+  # (If multiple projects, prompts to select. If one, auto-selects)
+  Successfully set active project to: [My Org] Default Project
+  ```
+
+- **`hookdeck project use <organization_name> <project_name>`** (two arguments):
+  Directly selects the project `<project_name>` under the organization `<organization_name>`.
+  ```sh
+  $ hookdeck project use "My Corp" "API Staging"
+  Successfully set active project to: [My Corp] API Staging
+  ```
 
 Upon successful selection, you will generally see a confirmation message like:
 `Successfully set active project to: [<organization_name>] <project_name>`
@@ -340,9 +494,9 @@ The Hookdeck CLI uses configuration files to store the your keys, project settin
 
 The CLI will look for the configuration file in the following order:
 
-  1. The `--config` flag, which allows you to specify a custom configuration file name and path per command.
-  2. The local directory `.hookdeck/config.toml`.
-  3. The default global configuration file location.
+1. The `--config` flag, which allows you to specify a custom configuration file name and path per command.
+2. The local directory `.hookdeck/config.toml`.
+3. The default global configuration file location.
 
 ### Default configuration Location
 
@@ -415,13 +569,13 @@ hookdeck listen 3030 webhooks -p prod
 
 The following flags can be used with any command:
 
-*   `--api-key`: Your API key to use for the command.
-*   `--color`: Turn on/off color output (on, off, auto).
-*   `--config`: Path to a specific configuration file.
-*   `--device-name`: A unique name for your device.
-*   `--insecure`: Allow invalid TLS certificates.
-*   `--log-level`: Set the logging level (debug, info, warn, error).
-*   `--profile` or `-p`: Use a specific configuration profile.
+- `--api-key`: Your API key to use for the command.
+- `--color`: Turn on/off color output (on, off, auto).
+- `--config`: Path to a specific configuration file.
+- `--device-name`: A unique name for your device.
+- `--insecure`: Allow invalid TLS certificates.
+- `--log-level`: Set the logging level (debug, info, warn, error).
+- `--profile` or `-p`: Use a specific configuration profile.
 
 There are also some hidden flags that are mainly used for development and debugging:
 
@@ -429,6 +583,24 @@ There are also some hidden flags that are mainly used for development and debugg
 *   `--dashboard-base`: Sets the web dashboard base URL.
 *   `--console-base`: Sets the web console base URL.
 *   `--ws-base`: Sets the Websocket base URL.
+
+## Troubleshooting
+
+### Homebrew: Binary Already Exists Error
+
+If you previously installed Hookdeck via the Homebrew formula and are upgrading to the cask version, you may see:
+
+```
+Warning: It seems there is already a Binary at '/opt/homebrew/bin/hookdeck'
+from formula hookdeck; skipping link.
+```
+
+To resolve this, uninstall the old formula version first, then install the cask:
+
+```sh
+brew uninstall hookdeck
+brew install --cask hookdeck/hookdeck/hookdeck
+```
 
 
 ## Developing

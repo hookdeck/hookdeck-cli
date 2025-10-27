@@ -255,7 +255,7 @@ func TestWriteConfig(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
-		assert.Contains(t, string(contentBytes), `project_mode = "new_team_mode"`)
+		assert.Contains(t, string(contentBytes), `project_mode = 'new_team_mode'`)
 	})
 
 	t.Run("use project", func(t *testing.T) {
@@ -272,7 +272,7 @@ func TestWriteConfig(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
-		assert.Contains(t, string(contentBytes), `project_id = "new_team_id"`)
+		assert.Contains(t, string(contentBytes), `project_id = 'new_team_id'`)
 	})
 
 	t.Run("use profile", func(t *testing.T) {
@@ -290,7 +290,7 @@ func TestWriteConfig(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
-		assert.Contains(t, string(contentBytes), `profile = "account_3"`)
+		assert.Contains(t, string(contentBytes), `profile = 'account_3'`)
 	})
 
 	t.Run("remove profile", func(t *testing.T) {

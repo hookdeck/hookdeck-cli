@@ -51,7 +51,9 @@ echo "Verifying authentication..."
 echo_and_run $CLI_CMD whoami
 
 echo "Testing listen command..."
-echo_and_run $CLI_CMD listen 8080 "test-$(date +%Y%m%d%H%M%S)" &
+# Redirect stdin from /dev/null to signal non-interactive mode
+# This will auto-create the source without prompting
+echo_and_run $CLI_CMD listen 8080 "test-$(date +%Y%m%d%H%M%S)" --output compact < /dev/null &
 PID=$!
 
 # Wait for the listen command to initialize

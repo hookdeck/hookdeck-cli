@@ -16,21 +16,29 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 type listenCmd struct {
-	cmd   *cobra.Command
-	noWSS bool
-	path  string
+	cmd            *cobra.Command
+	noWSS          bool
+	path           string
+	maxConnections int
+	output         string
+	filterBody     string
+	filterHeaders  string
+	filterQuery    string
+	filterPath     string
 }
 
 // Map --cli-path to --path
@@ -40,6 +48,54 @@ func normalizeCliPathFlag(f *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = "path"
 	}
 	return pflag.NormalizedName(name)
+}
+
+// parseFilters builds a SessionFilters object from the filter flag values
+func (lc *listenCmd) parseFilters() (*hookdeck.SessionFilters, error) {
+	var hasFilters bool
+	filters := &hookdeck.SessionFilters{}
+
+	if lc.filterBody != "" {
+		hasFilters = true
+		var rawMsg json.RawMessage
+		if err := json.Unmarshal([]byte(lc.filterBody), &rawMsg); err != nil {
+			return nil, fmt.Errorf("invalid JSON in --filter-body: %w", err)
+		}
+		filters.Body = &rawMsg
+	}
+
+	if lc.filterHeaders != "" {
+		hasFilters = true
+		var rawMsg json.RawMessage
+		if err := json.Unmarshal([]byte(lc.filterHeaders), &rawMsg); err != nil {
+			return nil, fmt.Errorf("invalid JSON in --filter-headers: %w", err)
+		}
+		filters.Headers = &rawMsg
+	}
+
+	if lc.filterQuery != "" {
+		hasFilters = true
+		var rawMsg json.RawMessage
+		if err := json.Unmarshal([]byte(lc.filterQuery), &rawMsg); err != nil {
+			return nil, fmt.Errorf("invalid JSON in --filter-query: %w", err)
+		}
+		filters.Query = &rawMsg
+	}
+
+	if lc.filterPath != "" {
+		hasFilters = true
+		var rawMsg json.RawMessage
+		if err := json.Unmarshal([]byte(lc.filterPath), &rawMsg); err != nil {
+			return nil, fmt.Errorf("invalid JSON in --filter-path: %w", err)
+		}
+		filters.Path = &rawMsg
+	}
+
+	if !hasFilters {
+		return nil, nil
+	}
+
+	return filters, nil
 }
 
 func newListenCmd() *listenCmd {
@@ -95,6 +151,14 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().MarkHidden("no-wss")
 
 	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
+	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
+
+	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (only fatal errors)")
+
+	lc.cmd.Flags().StringVar(&lc.filterBody, "filter-body", "", "Filter events by request body using Hookdeck filter syntax (JSON)")
+	lc.cmd.Flags().StringVar(&lc.filterHeaders, "filter-headers", "", "Filter events by request headers using Hookdeck filter syntax (JSON)")
+	lc.cmd.Flags().StringVar(&lc.filterQuery, "filter-query", "", "Filter events by query parameters using Hookdeck filter syntax (JSON)")
+	lc.cmd.Flags().StringVar(&lc.filterPath, "filter-path", "", "Filter events by request path using Hookdeck filter syntax (JSON)")
 
 	// --cli-path is an alias for
 	lc.cmd.Flags().SetNormalizeFunc(normalizeCliPathFlag)
@@ -114,20 +178,32 @@ Arguments:
 	`, 1)
 
 	usage += fmt.Sprintf(`
-	
+
 Examples:
 
   Forward events from a Hookdeck Source named "shopify" to a local server running on port %[1]d:
 
     hookdeck listen %[1]d shopify
-		
+
   Forward events to a local server running on "http://myapp.test":
 
     hookdeck listen %[1]d http://myapp.test
-	
+
   Forward events to the path "/webhooks" on local server running on port %[1]d:
 
     hookdeck listen %[1]d --path /webhooks
+
+  Filter events by body content (only events with matching data):
+
+    hookdeck listen %[1]d github --filter-body '{"action": "opened"}'
+
+  Filter events with multiple conditions:
+
+    hookdeck listen %[1]d stripe --filter-body '{"type": "charge.succeeded"}' --filter-headers '{"x-stripe-signature": {"$exist": true}}'
+
+  Filter using operators (see https://hookdeck.com/docs/filters for syntax):
+
+    hookdeck listen %[1]d api --filter-body '{"amount": {"$gte": 100}}'
 		`, 3000)
 
 	lc.cmd.SetUsageTemplate(usage)
@@ -143,6 +219,16 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	}
 	if len(args) > 2 {
 		connectionQuery = args[2]
+	}
+
+	// Validate output flag
+	validOutputModes := map[string]bool{
+		"interactive": true,
+		"compact":     true,
+		"quiet":       true,
+	}
+	if !validOutputModes[lc.output] {
+		return errors.New("invalid --output mode. Must be: interactive, compact, or quiet")
 	}
 
 	_, err_port := strconv.ParseInt(args[0], 10, 64)
@@ -161,8 +247,17 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 		url.Scheme = "http"
 	}
 
+	// Parse and validate filters
+	filters, err := lc.parseFilters()
+	if err != nil {
+		return err
+	}
+
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
-		NoWSS: lc.noWSS,
-		Path:  lc.path,
+		NoWSS:          lc.noWSS,
+		Path:           lc.path,
+		Output:         lc.output,
+		MaxConnections: lc.maxConnections,
+		Filters:        filters,
 	}, &Config)
 }
