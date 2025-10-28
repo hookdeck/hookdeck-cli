@@ -107,58 +107,63 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 		return fmt.Errorf("failed to list connections: %w", err)
 	}
 
-	if len(response.Models) == 0 {
-		fmt.Println("No connections found.")
-		return nil
-	}
-
 	if cc.output == "json" {
+		if len(response.Models) == 0 {
+			// Print an empty JSON array
+			fmt.Println("[]")
+			return nil
+		}
 		jsonBytes, err := json.MarshalIndent(response.Models, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal connections to json: %w", err)
 		}
 		fmt.Println(string(jsonBytes))
-	} else {
-		color := ansi.Color(os.Stdout)
+		return nil
+	}
 
-		// Display connections
-		fmt.Printf("\nFound %d connection(s):\n\n", len(response.Models))
-		for _, conn := range response.Models {
-			connectionName := "unnamed"
-			if conn.Name != nil {
-				connectionName = *conn.Name
-			}
+	if len(response.Models) == 0 {
+		fmt.Println("No connections found.")
+		return nil
+	}
 
-			sourceName := "unknown"
-			sourceID := "unknown"
-			if conn.Source != nil {
-				sourceName = conn.Source.Name
-				sourceID = conn.Source.ID
-			}
+	color := ansi.Color(os.Stdout)
 
-			destinationName := "unknown"
-			destinationID := "unknown"
-			if conn.Destination != nil {
-				destinationName = conn.Destination.Name
-				destinationID = conn.Destination.ID
-			}
-
-			// Show connection name in color
-			fmt.Printf("%s\n", color.Green(connectionName))
-			fmt.Printf("  ID: %s\n", conn.ID)
-			fmt.Printf("  Source: %s (%s)\n", sourceName, sourceID)
-			fmt.Printf("  Destination: %s (%s)\n", destinationName, destinationID)
-
-			if conn.DisabledAt != nil {
-				fmt.Printf("  Status: %s\n", color.Red("disabled"))
-			} else if conn.PausedAt != nil {
-				fmt.Printf("  Status: %s\n", color.Yellow("paused"))
-			} else {
-				fmt.Printf("  Status: %s\n", color.Green("active"))
-			}
-
-			fmt.Println()
+	fmt.Printf("\nFound %d connection(s):\n\n", len(response.Models))
+	for _, conn := range response.Models {
+		connectionName := "unnamed"
+		if conn.Name != nil {
+			connectionName = *conn.Name
 		}
+
+		sourceName := "unknown"
+		sourceID := "unknown"
+		if conn.Source != nil {
+			sourceName = conn.Source.Name
+			sourceID = conn.Source.ID
+		}
+
+		destinationName := "unknown"
+		destinationID := "unknown"
+		if conn.Destination != nil {
+			destinationName = conn.Destination.Name
+			destinationID = conn.Destination.ID
+		}
+
+		// Show connection name in color
+		fmt.Printf("%s\n", color.Green(connectionName))
+		fmt.Printf("  ID: %s\n", conn.ID)
+		fmt.Printf("  Source: %s (%s)\n", sourceName, sourceID)
+		fmt.Printf("  Destination: %s (%s)\n", destinationName, destinationID)
+
+		if conn.DisabledAt != nil {
+			fmt.Printf("  Status: %s\n", color.Red("disabled"))
+		} else if conn.PausedAt != nil {
+			fmt.Printf("  Status: %s\n", color.Yellow("paused"))
+		} else {
+			fmt.Printf("  Status: %s\n", color.Green("active"))
+		}
+
+		fmt.Println()
 	}
 
 	return nil

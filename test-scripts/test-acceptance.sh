@@ -15,7 +15,7 @@
 #   - It seems that the CI mode is restricted to a single org and project
 #     Therefore, switching between projects or orgs is not tested
 
-set -ex
+set -e
 
 # Load environment variables from .env file if it exists
 if [ -f "test-scripts/.env" ]; then
@@ -30,35 +30,29 @@ if [ -z "$HOOKDECK_CLI_TESTING_API_KEY" ]; then
   exit 1
 fi
 
-# Add a function to echo commands before executing them
-echo_and_run() {
-    echo "Running command: $@"
-    "$@"
-}
-
 echo "Building CLI..."
-echo_and_run go build .
+go build .
 
 echo "Authenticating with API key..."
 # Define CLI command variable (can be overridden from outside)
 CLI_CMD=${CLI_CMD:-"./hookdeck-cli"}
 
 echo "Checking CLI version..."
-echo_and_run $CLI_CMD version
+$CLI_CMD version
 
 echo "Displaying CLI help..."
-echo_and_run $CLI_CMD help
+$CLI_CMD help
 
 # Use the variable instead of hardcoded path
 $CLI_CMD ci --api-key $HOOKDECK_CLI_TESTING_API_KEY
 
 echo "Verifying authentication..."
-echo_and_run $CLI_CMD whoami
+$CLI_CMD whoami
 
 echo "Testing listen command..."
 # Redirect stdin from /dev/null to signal non-interactive mode
 # This will auto-create the source without prompting
-echo_and_run $CLI_CMD listen 8080 "test-$(date +%Y%m%d%H%M%S)" --output compact < /dev/null &
+$CLI_CMD listen 8080 "test-$(date +%Y%m%d%H%M%S)" --output compact < /dev/null &
 PID=$!
 
 # Wait for the listen command to initialize
@@ -79,7 +73,7 @@ echo "Testing connection commands..."
 
 # Test connection list
 echo "Listing connections..."
-echo_and_run $CLI_CMD connection list
+$CLI_CMD connection list
 
 # Test connection create with various inline source authentications
 # We will store the names of the created connections to delete them later
@@ -88,10 +82,11 @@ declare -a CREATED_CONNECTION_IDS
 create_and_track_connection() {
     local conn_name=$1
     shift
+    # Extract source name and type from the arguments for verification
+    local source_name=$(echo "$@" | grep -o -E -- '--source-name [^ ]+' | cut -d' ' -f2)
+    local source_type=$(echo "$@" | grep -o -E -- '--source-type [^ ]+' | cut -d' ' -f2)
+
     echo "Creating connection '$conn_name'..."
-    # Add --output json and parse the ID from the output using jq
-    # The actual command output is captured, while echo_and_run still prints the command
-    echo "Running command: $CLI_CMD connection create --name \"$conn_name\" --output json $@"
     output=$($CLI_CMD connection create --name "$conn_name" --output json "$@")
     conn_id=$(echo "$output" | jq -r '.id')
 
@@ -101,8 +96,28 @@ create_and_track_connection() {
         exit 1
     fi
 
-    CREATED_CONNECTION_IDS+=("$conn_id")
     echo "Successfully created connection with ID: $conn_id"
+    
+    echo "Verifying created connection..."
+    get_output=$($CLI_CMD connection get "$conn_id" --output json)
+    get_source_name=$(echo "$get_output" | jq -r '.source.name')
+    get_source_type=$(echo "$get_output" | jq -r '.source.type')
+
+    if [ "$get_source_name" != "$source_name" ]; then
+        echo "Error: Source name mismatch for connection $conn_id."
+        echo "Expected: $source_name, Got: $get_source_name"
+        exit 1
+    fi
+
+    # The API might return a different casing for the type, so we compare case-insensitively
+    if [ "$(echo "$get_source_type" | tr '[:upper:]' '[:lower:]')" != "$(echo "$source_type" | tr '[:upper:]' '[:lower:]')" ]; then
+        echo "Error: Source type mismatch for connection $conn_id."
+        echo "Expected: $source_type, Got: $get_source_type"
+        exit 1
+    fi
+
+    echo "Verification successful."
+    CREATED_CONNECTION_IDS+=("$conn_id")
     echo "---"
 }
 
@@ -130,7 +145,7 @@ create_and_track_connection "$CONN_NAME_STRIPE" \
 CONN_NAME_APIKEY="test-conn-apikey-$(date +%Y%m%d%H%M%S)"
 create_and_track_connection "$CONN_NAME_APIKEY" \
   --source-name "test-src-apikey-$(date +%Y%m%d%H%M%S)" \
-  --source-type "GENERIC" \
+  --source-type "HTTP" \
   --source-api-key "test-api-key-123" \
   --destination-name "test-dst-cli-apikey-$(date +%Y%m%d%H%M%S)" \
   --destination-type "CLI" \
@@ -160,7 +175,30 @@ create_and_track_connection "$CONN_NAME_HMAC" \
 
 echo "All connection creation tests passed."
 
-# --- Test Case 6: Connection Update ---
+# --- Test Case 6: HTTP Destination with Bearer Token ---
+CONN_NAME_HTTP_BEARER="test-conn-http-bearer-$(date +%Y%m%d%H%M%S)"
+create_and_track_connection "$CONN_NAME_HTTP_BEARER" \
+  --source-name "test-src-http-bearer-$(date +%Y%m%d%H%M%S)" \
+  --source-type "WEBHOOK" \
+  --destination-name "test-dst-http-bearer-$(date +%Y%m%d%H%M%S)" \
+  --destination-type "HTTP" \
+  --destination-url "https://api.hookdeck.com/dev/null" \
+  --destination-auth-method "bearer" \
+  --destination-bearer-token "test-bearer-token"
+
+# --- Test Case 7: HTTP Destination with Basic Auth ---
+CONN_NAME_HTTP_BASIC="test-conn-http-basic-$(date +%Y%m%d%H%M%S)"
+create_and_track_connection "$CONN_NAME_HTTP_BASIC" \
+  --source-name "test-src-http-basic-$(date +%Y%m%d%H%M%S)" \
+  --source-type "WEBHOOK" \
+  --destination-name "test-dst-http-basic-$(date +%Y%m%d%H%M%S)" \
+  --destination-type "HTTP" \
+  --destination-url "https://api.hookdeck.com/dev/null" \
+  --destination-auth-method "basic" \
+  --destination-basic-auth-user "testuser" \
+  --destination-basic-auth-pass "testpass"
+
+# --- Test Case 8: Connection Update ---
 echo "Testing connection update..."
 CONN_NAME_UPDATE="test-conn-update-$(date +%Y%m%d%H%M%S)"
 create_and_track_connection "$CONN_NAME_UPDATE" \
@@ -178,10 +216,9 @@ NEW_NAME="updated-conn-name-$(date +%Y%m%d%H%M%S)"
 NEW_DESC="This is an updated description."
 
 echo "Updating connection ID: $UPDATE_CONN_ID"
-echo_and_run $CLI_CMD connection update "$UPDATE_CONN_ID" --name "$NEW_NAME" --description "$NEW_DESC"
+$CLI_CMD connection update "$UPDATE_CONN_ID" --name "$NEW_NAME" --description "$NEW_DESC"
 
 echo "Verifying update..."
-echo "Running command: $CLI_CMD connection get \"$UPDATE_CONN_ID\" --output json"
 updated_conn_json=$($CLI_CMD connection get "$UPDATE_CONN_ID" --output json)
 updated_name=$(echo "$updated_conn_json" | jq -r '.name')
 updated_desc=$(echo "$updated_conn_json" | jq -r '.description')
@@ -205,7 +242,7 @@ echo "Cleaning up created connections..."
 for conn_id in "${CREATED_CONNECTION_IDS[@]}"; do
     echo "Deleting connection ID: $conn_id"
     # Use --force to bypass interactive prompt in CI
-    echo_and_run $CLI_CMD connection delete "$conn_id" --force
+    $CLI_CMD connection delete "$conn_id" --force
 done
 
 echo "Cleanup complete."

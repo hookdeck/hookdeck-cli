@@ -23,7 +23,7 @@ type Source struct {
 // SourceCreateInput represents input for creating a source inline
 type SourceCreateInput struct {
 	Name        string                 `json:"name"`
-	Type        string                 `json:"type,omitempty"`
+	Type        string                 `json:"type"`
 	Description *string                `json:"description,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
@@ -32,6 +32,7 @@ type SourceCreateInput struct {
 type SourceCreateRequest struct {
 	Name        string                 `json:"name"`
 	Description *string                `json:"description,omitempty"`
+	Type        string                 `json:"type,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 

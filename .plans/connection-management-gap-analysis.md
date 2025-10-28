@@ -151,10 +151,10 @@ if sourceType == "STRIPE" && webhookSecret == "" {
 **Current Implementation:**
 - ✅ CLI destination creation with `cli_path`
 - ✅ MOCK_API destination creation
-- ❌ **HTTP destinations explicitly not implemented** (see line 193 in connection_create.go)
-- ❌ **No authentication configuration for any destination type**
+- ✅ **HTTP destinations with URL and authentication**
+- ✅ **Authentication configuration for HTTP destinations**
 - ❌ **No rate limiting configuration**
-- ❌ **No `config` parameter support**
+- ✅ **`config` parameter support for authentication**
 
 **Missing Flags:**
 ```bash
@@ -386,31 +386,24 @@ hookdeck connection update <id> --rules <rules-json>
 |-----------------|-------------|---------|--------------| | Basic CRUD | ✅ 100% | - | 100% |
 | Lifecycle Mgmt | ✅ 100% | - | 100% |
 | Source Auth | ✅ 100% | None | 100% |
-| Destination Auth | ❌ 0% | All types | 0% |
-| HTTP Destinations | ❌ 0% | Complete | 0% |
+| Destination Auth | ✅ 100% | None | 100% |
+| HTTP Destinations | ✅ 100% | None | 100% |
 | Rule Configuration | ❌ 0% | All 5 types | 0% |
 | Advanced Updates | ⚠️ 20% | 80% | 20% |
 | Bulk Operations | ❌ 0% | All | 0% |
 | Count Command | ❌ 0% | Complete | 0% |
-| **Overall** | **~75%** | **~25%** | **75%** |
+| **Overall** | **~90%** | **~10%** | **90%** |
 
 ## Priority Roadmap for Completion
 
-### Priority 1: HTTP Destinations with Authentication (Week 1)
-**Rationale:** HTTP is the most common destination type and completely blocked.
+### Priority 1: HTTP Destinations with Authentication (Completed)
+**Status:** ✅ **Completed**
 
 **Implementation:**
-1. Add `--destination-url` flag support
-2. Implement basic authentication types:
-   - Bearer token
-   - Basic auth
-   - API key
-3. Add destination config to API client
-4. Update validation logic
-
-**Files to Modify:**
-- [`pkg/cmd/connection_create.go`](../pkg/cmd/connection_create.go:181-201)
-- [`pkg/hookdeck/destinations.go`](../pkg/hookdeck/destinations.go)
+- Added flags for destination URL and all authentication methods.
+- Implemented a `buildDestinationConfig` function to construct the API payload.
+- Removed the blocker for HTTP destinations in the `connection create` command.
+- Added acceptance tests to validate the new functionality.
 
 ### Priority 2: Source Authentication (Completed)
 **Status:** ✅ **Completed**

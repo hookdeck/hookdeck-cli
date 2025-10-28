@@ -24,7 +24,7 @@ type Destination struct {
 // DestinationCreateInput represents input for creating a destination inline
 type DestinationCreateInput struct {
 	Name        string                 `json:"name"`
-	Type        string                 `json:"type,omitempty"`
+	Type        string                 `json:"type"`
 	Description *string                `json:"description,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
