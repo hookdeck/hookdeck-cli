@@ -279,28 +279,44 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 		return fmt.Errorf("failed to create connection: %w", err)
 	}
 
+	// Verify the created connection by fetching it again
+	if cc.output != "json" {
+		fmt.Println("Verifying created connection...")
+	}
+	verifiedConnection, err := client.GetConnection(context.Background(), connection.ID)
+	if err != nil {
+		return fmt.Errorf("failed to verify connection: %w", err)
+	}
+
+	// Quick integrity check
+	if verifiedConnection.Source != nil && cc.sourceType != "" && strings.ToUpper(cc.sourceType) != verifiedConnection.Source.Type {
+		return fmt.Errorf("Source type mismatch for connection %s.\nExpected: %s, Got: %s",
+			verifiedConnection.ID, strings.ToUpper(cc.sourceType), verifiedConnection.Source.Type)
+	}
+
 	// Display results
 	if cc.output == "json" {
-		jsonBytes, err := json.MarshalIndent(connection, "", "  ")
+		jsonBytes, err := json.MarshalIndent(verifiedConnection, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal connection to json: %w", err)
 		}
 		fmt.Println(string(jsonBytes))
 	} else {
-		fmt.Printf("\n✓ Connection created successfully\n\n")
-		if connection.Name != nil {
-			fmt.Printf("Connection:  %s (%s)\n", *connection.Name, connection.ID)
+		fmt.Printf("Successfully created connection with ID: %s\n", verifiedConnection.ID)
+
+		if verifiedConnection.Name != nil {
+			fmt.Printf("Connection:  %s (%s)\n", *verifiedConnection.Name, verifiedConnection.ID)
 		} else {
 			fmt.Printf("Connection:  (unnamed)\n")
 		}
 
-		if connection.Source != nil {
-			fmt.Printf("Source:      %s (%s)\n", connection.Source.Name, connection.Source.ID)
-			fmt.Printf("Source URL:  %s\n", connection.Source.URL)
+		if verifiedConnection.Source != nil {
+			fmt.Printf("Source:      %s (%s)\n", verifiedConnection.Source.Name, verifiedConnection.Source.ID)
+			fmt.Printf("Source URL:  %s\n", verifiedConnection.Source.URL)
 		}
 
-		if connection.Destination != nil {
-			fmt.Printf("Destination: %s (%s)\n", connection.Destination.Name, connection.Destination.ID)
+		if verifiedConnection.Destination != nil {
+			fmt.Printf("Destination: %s (%s)\n", verifiedConnection.Destination.Name, verifiedConnection.Destination.ID)
 		}
 	}
 

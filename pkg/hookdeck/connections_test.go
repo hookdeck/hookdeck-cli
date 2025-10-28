@@ -120,8 +120,8 @@ func TestListConnections(t *testing.T) {
 				if r.Method != http.MethodGet {
 					t.Errorf("expected GET request, got %s", r.Method)
 				}
-				if r.URL.Path != "/2024-03-01/connections" {
-					t.Errorf("expected path /2024-03-01/connections, got %s", r.URL.Path)
+				if r.URL.Path != "/2025-07-01/connections" {
+					t.Errorf("expected path /2025-07-01/connections, got %s", r.URL.Path)
 				}
 
 				// Verify query parameters
@@ -214,7 +214,7 @@ func TestGetConnection(t *testing.T) {
 				if r.Method != http.MethodGet {
 					t.Errorf("expected GET request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -334,8 +334,8 @@ func TestCreateConnection(t *testing.T) {
 				if r.Method != http.MethodPost {
 					t.Errorf("expected POST request, got %s", r.Method)
 				}
-				if r.URL.Path != "/2024-03-01/connections" {
-					t.Errorf("expected path /2024-03-01/connections, got %s", r.URL.Path)
+				if r.URL.Path != "/2025-07-01/connections" {
+					t.Errorf("expected path /2025-07-01/connections, got %s", r.URL.Path)
 				}
 
 				// Verify request body
@@ -441,7 +441,7 @@ func TestUpdateConnection(t *testing.T) {
 				if r.Method != http.MethodPut {
 					t.Errorf("expected PUT request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -511,7 +511,7 @@ func TestDeleteConnection(t *testing.T) {
 				if r.Method != http.MethodDelete {
 					t.Errorf("expected DELETE request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -584,7 +584,7 @@ func TestEnableConnection(t *testing.T) {
 				if r.Method != http.MethodPut {
 					t.Errorf("expected PUT request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID + "/enable"
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID + "/enable"
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -663,7 +663,7 @@ func TestDisableConnection(t *testing.T) {
 				if r.Method != http.MethodPut {
 					t.Errorf("expected PUT request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID + "/disable"
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID + "/disable"
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -742,7 +742,7 @@ func TestPauseConnection(t *testing.T) {
 				if r.Method != http.MethodPut {
 					t.Errorf("expected PUT request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID + "/pause"
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID + "/pause"
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -821,7 +821,7 @@ func TestUnpauseConnection(t *testing.T) {
 				if r.Method != http.MethodPut {
 					t.Errorf("expected PUT request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID + "/unpause"
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID + "/unpause"
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -899,7 +899,7 @@ func TestArchiveConnection(t *testing.T) {
 				if r.Method != http.MethodPut {
 					t.Errorf("expected PUT request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID + "/archive"
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID + "/archive"
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -977,7 +977,7 @@ func TestUnarchiveConnection(t *testing.T) {
 				if r.Method != http.MethodPut {
 					t.Errorf("expected PUT request, got %s", r.Method)
 				}
-				expectedPath := "/2024-03-01/connections/" + tt.connectionID + "/unarchive"
+				expectedPath := "/2025-07-01/connections/" + tt.connectionID + "/unarchive"
 				if r.URL.Path != expectedPath {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
@@ -1063,8 +1063,8 @@ func TestCountConnections(t *testing.T) {
 				if r.Method != http.MethodGet {
 					t.Errorf("expected GET request, got %s", r.Method)
 				}
-				if r.URL.Path != "/2024-03-01/connections/count" {
-					t.Errorf("expected path /2024-03-01/connections/count, got %s", r.URL.Path)
+				if r.URL.Path != "/2025-07-01/connections/count" {
+					t.Errorf("expected path /2025-07-01/connections/count, got %s", r.URL.Path)
 				}
 
 				w.WriteHeader(tt.mockStatusCode)

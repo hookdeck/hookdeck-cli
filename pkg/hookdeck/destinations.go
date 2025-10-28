@@ -1,9 +1,6 @@
 package hookdeck
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -14,11 +11,34 @@ type Destination struct {
 	Description *string                `json:"description"`
 	URL         *string                `json:"url"`
 	Type        string                 `json:"type"`
-	CliPath     *string                `json:"cli_path"`
 	Config      map[string]interface{} `json:"config"`
 	DisabledAt  *time.Time             `json:"disabled_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
 	CreatedAt   time.Time              `json:"created_at"`
+}
+
+// GetCLIPath returns the CLI path from config for CLI-type destinations
+// For CLI destinations, the path is stored in config.path according to the OpenAPI spec
+func (d *Destination) GetCLIPath() *string {
+	if d.Type != "CLI" || d.Config == nil {
+		return nil
+	}
+
+	if path, ok := d.Config["path"].(string); ok {
+		return &path
+	}
+
+	return nil
+}
+
+// SetCLIPath sets the CLI path in config for CLI-type destinations
+func (d *Destination) SetCLIPath(path string) {
+	if d.Type == "CLI" {
+		if d.Config == nil {
+			d.Config = make(map[string]interface{})
+		}
+		d.Config["path"] = path
+	}
 }
 
 // DestinationCreateInput represents input for creating a destination inline
@@ -34,27 +54,5 @@ type DestinationCreateRequest struct {
 	Name        string                 `json:"name"`
 	Description *string                `json:"description,omitempty"`
 	URL         *string                `json:"url,omitempty"`
-	CliPath     *string                `json:"cli_path,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
-}
-
-// CreateDestination creates a new destination
-func (c *Client) CreateDestination(ctx context.Context, req *DestinationCreateRequest) (*Destination, error) {
-	data, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal destination request: %w", err)
-	}
-
-	resp, err := c.Post(ctx, "/2024-03-01/destinations", data, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var destination Destination
-	_, err = postprocessJsonResponse(resp, &destination)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination response: %w", err)
-	}
-
-	return &destination, nil
 }
