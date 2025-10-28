@@ -11,6 +11,49 @@ import (
 	"time"
 )
 
+// Source represents a Hookdeck source
+type Source struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description *string                `json:"description"`
+	URL         string                 `json:"url"`
+	Type        string                 `json:"type"`
+	Config      map[string]interface{} `json:"config"`
+	DisabledAt  *time.Time             `json:"disabled_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+	CreatedAt   time.Time              `json:"created_at"`
+}
+
+// SourceCreateInput represents input for creating a source inline
+type SourceCreateInput struct {
+	Name        string                 `json:"name"`
+	Type        string                 `json:"type"`
+	Description *string                `json:"description,omitempty"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+}
+
+// Destination represents a Hookdeck destination
+type Destination struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description *string                `json:"description"`
+	URL         *string                `json:"url"`
+	Type        string                 `json:"type"`
+	CliPath     *string                `json:"cli_path"`
+	Config      map[string]interface{} `json:"config"`
+	DisabledAt  *time.Time             `json:"disabled_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+	CreatedAt   time.Time              `json:"created_at"`
+}
+
+// DestinationCreateInput represents input for creating a destination inline
+type DestinationCreateInput struct {
+	Name        string                 `json:"name"`
+	Type        string                 `json:"type"`
+	Description *string                `json:"description,omitempty"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+}
+
 // Connection represents a Hookdeck connection
 type Connection struct {
 	ID          string       `json:"id"`
@@ -74,7 +117,7 @@ func (c *Client) ListConnections(ctx context.Context, params map[string]string) 
 		queryParams.Add(k, v)
 	}
 
-	resp, err := c.Get(ctx, "/2025-07-01/connections", queryParams.Encode(), nil)
+	resp, err := c.Get(ctx, "/2024-03-01/connections", queryParams.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +133,7 @@ func (c *Client) ListConnections(ctx context.Context, params map[string]string) 
 
 // GetConnection retrieves a single connection by ID
 func (c *Client) GetConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Get(ctx, fmt.Sprintf("/2025-07-01/connections/%s", id), "", nil)
+	resp, err := c.Get(ctx, fmt.Sprintf("/2024-03-01/connections/%s", id), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +154,7 @@ func (c *Client) CreateConnection(ctx context.Context, req *ConnectionCreateRequ
 		return nil, fmt.Errorf("failed to marshal connection request: %w", err)
 	}
 
-	resp, err := c.Post(ctx, "/2025-07-01/connections", data, nil)
+	resp, err := c.Post(ctx, "/2024-03-01/connections", data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +175,7 @@ func (c *Client) UpdateConnection(ctx context.Context, id string, req *Connectio
 		return nil, fmt.Errorf("failed to marshal connection update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s", id), data, nil)
+	resp, err := c.Put(ctx, fmt.Sprintf("/2024-03-01/connections/%s", id), data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +191,7 @@ func (c *Client) UpdateConnection(ctx context.Context, id string, req *Connectio
 
 // DeleteConnection deletes a connection
 func (c *Client) DeleteConnection(ctx context.Context, id string) error {
-	url := fmt.Sprintf("/2025-07-01/connections/%s", id)
+	url := fmt.Sprintf("/2024-03-01/connections/%s", id)
 	req, err := c.newRequest(ctx, "DELETE", url, nil)
 	if err != nil {
 		return err
@@ -165,7 +208,7 @@ func (c *Client) DeleteConnection(ctx context.Context, id string) error {
 
 // EnableConnection enables a connection
 func (c *Client) EnableConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/enable", id), []byte("{}"), nil)
+	resp, err := c.Put(ctx, fmt.Sprintf("/2024-03-01/connections/%s/enable", id), []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +224,7 @@ func (c *Client) EnableConnection(ctx context.Context, id string) (*Connection, 
 
 // DisableConnection disables a connection
 func (c *Client) DisableConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/disable", id), []byte("{}"), nil)
+	resp, err := c.Put(ctx, fmt.Sprintf("/2024-03-01/connections/%s/disable", id), []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +240,7 @@ func (c *Client) DisableConnection(ctx context.Context, id string) (*Connection,
 
 // PauseConnection pauses a connection
 func (c *Client) PauseConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/pause", id), []byte("{}"), nil)
+	resp, err := c.Put(ctx, fmt.Sprintf("/2024-03-01/connections/%s/pause", id), []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +256,7 @@ func (c *Client) PauseConnection(ctx context.Context, id string) (*Connection, e
 
 // UnpauseConnection unpauses a connection
 func (c *Client) UnpauseConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/unpause", id), []byte("{}"), nil)
+	resp, err := c.Put(ctx, fmt.Sprintf("/2024-03-01/connections/%s/unpause", id), []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +272,7 @@ func (c *Client) UnpauseConnection(ctx context.Context, id string) (*Connection,
 
 // ArchiveConnection archives a connection
 func (c *Client) ArchiveConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/archive", id), []byte("{}"), nil)
+	resp, err := c.Put(ctx, fmt.Sprintf("/2024-03-01/connections/%s/archive", id), []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +288,7 @@ func (c *Client) ArchiveConnection(ctx context.Context, id string) (*Connection,
 
 // UnarchiveConnection unarchives a connection
 func (c *Client) UnarchiveConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/unarchive", id), []byte("{}"), nil)
+	resp, err := c.Put(ctx, fmt.Sprintf("/2024-03-01/connections/%s/unarchive", id), []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +309,7 @@ func (c *Client) CountConnections(ctx context.Context, params map[string]string)
 		queryParams.Add(k, v)
 	}
 
-	resp, err := c.Get(ctx, "/2025-07-01/connections/count", queryParams.Encode(), nil)
+	resp, err := c.Get(ctx, "/2024-03-01/connections/count", queryParams.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
