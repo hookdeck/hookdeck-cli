@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "ID of the connection"
+    },
+    "name": {
+      "type": "string",
+      "nullable": true,
+      "description": "Unique name of the connection for this source"
+    },
+    "full_name": {
+      "type": "string",
+      "nullable": true,
+      "description": "Full name of the connection concatenated from source, connection and desitnation name"
+    },
+    "description": {
+      "type": "string",
+      "nullable": true,
+      "description": "Description of the connection"
+    },
+    "team_id": {
+      "type": "string",
+      "description": "ID of the project"
+    },
+    "destination": {
+      "$ref": "#/components/schemas/Destination"
+    },
+    "source": {
+      "$ref": "#/components/schemas/Source"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/components/schemas/Rule"
+      },
+      "nullable": true,
+      "description": "Array of rules configured on the connection"
+    },
+    "disabled_at": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "Date the connection was disabled"
+    },
+    "paused_at": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "Date the connection was paused"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date the connection was last updated"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date the connection was created"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "full_name",
+    "description",
+    "team_id",
+    "destination",
+    "source",
+    "rules",
+    "disabled_at",
+    "paused_at",
+    "updated_at",
+    "created_at"
+  ],
+  "additionalProperties": false
+}

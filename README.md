@@ -420,6 +420,27 @@ Events • [↑↓] Navigate ─────────────────
 > ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
 
+### Manage connections
+
+Create and manage webhook connections between sources and destinations. See the [Manage connections](#manage-connections-1) section for detailed examples.
+
+```sh
+hookdeck connection [command]
+
+# Available commands
+hookdeck connection list      # List all connections
+hookdeck connection get       # Get connection details
+hookdeck connection create    # Create a new connection
+hookdeck connection update    # Update a connection
+hookdeck connection delete    # Delete a connection
+hookdeck connection enable    # Enable a connection
+hookdeck connection disable   # Disable a connection
+hookdeck connection pause     # Pause a connection
+hookdeck connection unpause   # Unpause a connection
+hookdeck connection archive   # Archive a connection
+hookdeck connection unarchive # Unarchive a connection
+```
+
 ### Manage active project
 
 If you are a part of multiple projects, you can switch between them using our project management commands.
@@ -485,6 +506,104 @@ hookdeck project use [<organization_name> [<project_name>]]
 
 Upon successful selection, you will generally see a confirmation message like:
 `Successfully set active project to: [<organization_name>] <project_name>`
+
+### Manage connections
+
+Connections link sources to destinations in Hookdeck. You can create and manage connections using the CLI.
+
+#### List connections
+
+List all connections in your project:
+
+```sh
+# List all connections
+$ hookdeck connection list
+
+# Filter connections
+$ hookdeck connection list --name "my-connection"
+$ hookdeck connection list --source-id src_123abc
+$ hookdeck connection list --destination-id dst_456def
+$ hookdeck connection list --disabled
+$ hookdeck connection list --paused
+```
+
+#### Create a connection
+
+Create a new connection between a source and destination. You can reference existing resources or create them inline:
+
+```sh
+# Create connection with existing source and destination
+$ hookdeck connection create \
+  --name "my-connection" \
+  --source-id src_123abc \
+  --destination-id dst_456def
+
+# Create connection with inline source and destination
+$ hookdeck connection create \
+  --name "stripe-to-local" \
+  --source-type STRIPE \
+  --source-name "stripe-webhooks" \
+  --destination-type CLI \
+  --destination-name "local-dev"
+```
+
+#### Get connection details
+
+View detailed information about a specific connection:
+
+```sh
+$ hookdeck connection get conn_123abc
+```
+
+#### Update a connection
+
+Update connection properties:
+
+```sh
+# Update connection name
+$ hookdeck connection update conn_123abc --name "new-name"
+
+# Update description
+$ hookdeck connection update conn_123abc --description "New description"
+```
+
+#### Connection lifecycle management
+
+Enable, disable, pause, or archive connections:
+
+```sh
+# Disable a connection (stops event delivery)
+$ hookdeck connection disable conn_123abc
+
+# Enable a disabled connection
+$ hookdeck connection enable conn_123abc
+
+# Pause a connection temporarily
+$ hookdeck connection pause conn_123abc
+
+# Resume a paused connection
+$ hookdeck connection unpause conn_123abc
+
+# Archive a connection
+$ hookdeck connection archive conn_123abc
+
+# Restore an archived connection
+$ hookdeck connection unarchive conn_123abc
+```
+
+#### Delete a connection
+
+Delete a connection permanently:
+
+```sh
+# Delete with confirmation prompt
+$ hookdeck connection delete conn_123abc
+
+# Delete without confirmation
+$ hookdeck connection delete conn_123abc --force
+```
+
+For more details on connection management, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
 
 ## Configuration files
 

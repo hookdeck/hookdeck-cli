@@ -887,7 +887,7 @@ hookdeck destination unarchive <destination-id>
 --paused                # Include paused connections (boolean flag)
 --limit integer         # Limit number of results (default varies)
 
-# Connection count command parameters
+# Connection count command parameters (🚧 Planned - not yet implemented)
 --name string            # Filter by name pattern
 --disabled              # Include disabled connections (boolean flag)
 --paused                # Include paused connections (boolean flag)
@@ -895,51 +895,30 @@ hookdeck destination unarchive <destination-id>
 # Connection get command parameters
 <connection-id>         # Required positional argument for connection ID
 
-# Connection create command parameters
+# Connection create command parameters (✅ Implemented)
 --name string           # Required: Connection name
 --description string    # Optional: Connection description
 
-# Option 1: Using existing resources
---source string         # Source ID or name (existing resource)
---destination string    # Destination ID or name (existing resource)
+# Option 1: Using existing resources (✅ Implemented)
+--source string         # Source ID (existing resource)
+--destination string    # Destination ID (existing resource)
 
-# Option 2: Creating inline source (uses prefixed flags to avoid collision)
---source-type string           # Source type (STRIPE, GITHUB, etc.)
+# Option 2: Creating inline source (✅ Implemented - basic support)
+--source-type string           # Source type (WEBHOOK, STRIPE, GITHUB, SHOPIFY, HTTP, CLI, etc.)
 --source-name string           # Source name for inline creation
 --source-description string    # Source description for inline creation
-# Plus source type-specific auth parameters with 'source-' prefix:
---webhook-secret string        # For webhook_secret_key source types
---api-key string              # For api_key source types (conflicts resolved by context)
---public-key string           # For public_key source types
---username string             # For basic_auth source types
---password string             # For basic_auth source types
---token string                # For token source types
-# Complex auth parameters for specific source types:
---environment string          # EBAY only
---dev-id string              # EBAY only
---client-id string           # EBAY only (may conflict with destination OAuth2)
---client-secret string       # EBAY only (may conflict with destination OAuth2)
---verification-token string  # EBAY only
---app-key string             # TIKTOK_SHOP only
+# Note: Source authentication parameters not yet implemented in CLI
+# Will be added in future releases for webhook signature verification
 
-# Option 3: Creating inline destination (uses prefixed flags to avoid collision)
+# Option 3: Creating inline destination (✅ Implemented - basic support)
 --destination-type string         # Destination type (HTTP, CLI, MOCK_API)
 --destination-name string         # Destination name for inline creation
 --destination-description string  # Destination description for inline creation
 --destination-url string          # URL for HTTP destinations
-# Plus destination auth parameters with 'destination-' prefix:
---destination-auth-type string    # Auth type (BEARER_TOKEN, BASIC_AUTH, etc.)
---destination-auth-token string   # Bearer token
---destination-auth-username string # Basic auth username
---destination-auth-password string # Basic auth password
---destination-auth-key string     # API key
---destination-auth-header string  # API key header name
---destination-auth-server string  # OAuth2 token server
---destination-client-id string    # OAuth2 client ID (avoids collision with source EBAY)
---destination-client-secret string # OAuth2 client secret (avoids collision with source EBAY)
---destination-headers string      # Custom headers
+# Note: Destination authentication parameters not yet implemented in CLI
+# Will be added in future releases
 
-# Advanced connection configuration
+# Advanced connection configuration (🚧 Planned - not yet implemented)
 --transformation string    # Transformation ID or name
 --retry-strategy string    # Retry strategy (exponential, linear, etc.)
 --retry-count integer      # Maximum retry attempts
@@ -948,23 +927,16 @@ hookdeck destination unarchive <destination-id>
 --filter-headers string   # Header filters (key=pattern,key2=pattern2)
 --filter-body string      # Body filters (comma-separated patterns)
 
-# Connection update command parameters
+# Connection update command parameters (✅ Implemented)
 <connection-id>         # Required positional argument for connection ID
 --name string           # Update connection name
 --description string    # Update connection description
---source string         # Update source reference
---destination string    # Update destination reference
---transformation string # Update transformation reference
-
-# Connection upsert command parameters (create or update by name)
---name string           # Required: Connection name (used for matching existing)
-# Plus any create parameters listed above
 
 # Connection delete command parameters
 <connection-id>         # Required positional argument for connection ID
 --force                # Force delete without confirmation (boolean flag)
 
-# Connection lifecycle management command parameters
+# Connection lifecycle management command parameters (✅ Implemented)
 <connection-id>         # Required positional argument for connection ID
 # Commands: enable, disable, archive, unarchive, pause, unpause
 ```
@@ -972,21 +944,21 @@ hookdeck destination unarchive <destination-id>
 **Parameter Collision Resolution:**
 When creating connections with inline resources, prefixed flags prevent ambiguity:
 
-- **Source inline creation**: Uses `--source-type`, source-specific auth params (no prefix needed for most)
-- **Destination inline creation**: Uses `--destination-type`, `--destination-auth-*` prefixed auth params
-- **OAuth2 collision resolution**: 
-  - Source EBAY: `--client-id`, `--client-secret`
-  - Destination OAuth2: `--destination-client-id`, `--destination-client-secret`
+- **Source inline creation**: Uses `--source-type`, `--source-name`, `--source-description`
+- **Destination inline creation**: Uses `--destination-type`, `--destination-name`, `--destination-description`, `--destination-url` (for HTTP destinations)
 
-**Validation Rules:**
+**Validation Rules (✅ Implemented):**
 - Must specify either `--source` (existing) OR `--source-type` + `--source-name` (inline)
 - Must specify either `--destination` (existing) OR `--destination-type` + `--destination-name` (inline)
 - Cannot mix inline and existing for same resource type
-- Type-specific parameters validated based on `--source-type` and `--destination-type` values
+- `--destination-url` is required when `--destination-type` is HTTP
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+**Note:** Authentication parameters for sources and destinations are not yet implemented in the CLI but will be added in future releases.
 
 Connections link sources to destinations and define processing rules. The connection create command handles flag collision resolution using prefixed flags when creating inline resources.
+
+✅ **Currently Implemented:** `list`, `get`, `create`, `update`, `delete`, `enable`, `disable`, `pause`, `unpause`, `archive`, `unarchive`
+🚧 **Planned:** `count`, advanced rules (retry, filter, transformation, delay)
 
 ### List connections
 ```bash
@@ -1012,7 +984,7 @@ hookdeck connection list --paused
 hookdeck connection list --limit 50
 ```
 
-### Count connections
+### Count connections (🚧 Planned - not yet implemented)
 ```bash
 # Count all connections
 hookdeck connection count
@@ -1034,20 +1006,28 @@ hookdeck connection get <connection-id>
 # Simple connection with existing resources
 hookdeck connection create --name "stripe-to-api" --source <source-id> --destination <destination-id>
 
-# With transformation
+# With description
 hookdeck connection create --name "stripe-to-api" \
+  --description "Production Stripe webhooks to API" \
   --source <source-id> \
-  --destination <destination-id> \
-  --transformation <transformation-id>
+  --destination <destination-id>
 ```
 
 #### Creating resources inline (using prefixed flags to avoid collision)
 ```bash
-# Create connection with inline source and destination
+# Create connection with inline source and destination (localhost quickstart example)
+hookdeck connection create \
+  --name "test-webhooks-to-local" \
+  --source-type WEBHOOK \
+  --source-name "test-webhooks" \
+  --source-description "Local testing source" \
+  --destination-type CLI \
+  --destination-name "local-dev"
+
+# Create connection with HTTP destination
 hookdeck connection create --name "stripe-to-api" \
   --source-type STRIPE \
   --source-name "stripe-prod" \
-  --webhook-secret "whsec_abc123" \
   --destination-type HTTP \
   --destination-name "my-api" \
   --destination-url "https://api.example.com/webhooks"
@@ -1063,13 +1043,12 @@ hookdeck connection create --name "stripe-to-new-api" \
 hookdeck connection create --name "github-to-existing" \
   --source-type GITHUB \
   --source-name "github-repo" \
-  --webhook-secret "github_secret_123" \
   --destination <destination-id>
 ```
 
-#### Advanced connection configurations
+#### Advanced connection configurations (🚧 Planned)
 ```bash
-# Connection with retry rules
+# Connection with retry rules (not yet implemented)
 hookdeck connection create --name "reliable-connection" \
   --source <source-id> \
   --destination <destination-id> \
@@ -1077,13 +1056,13 @@ hookdeck connection create --name "reliable-connection" \
   --retry-count 5 \
   --retry-interval 1000
 
-# Connection with delay rule
+# Connection with delay rule (not yet implemented)
 hookdeck connection create --name "delayed-processing" \
   --source <source-id> \
   --destination <destination-id> \
   --delay 30000
 
-# Connection with filtering
+# Connection with filtering (not yet implemented)
 hookdeck connection create --name "filtered-webhooks" \
   --source <source-id> \
   --destination <destination-id> \
@@ -1093,20 +1072,14 @@ hookdeck connection create --name "filtered-webhooks" \
 
 ### Update a connection
 ```bash
-# Update connection properties
+# Update connection name
+hookdeck connection update <connection-id> --name "new-name"
+
+# Update description
+hookdeck connection update <connection-id> --description "Updated description"
+
+# Update both
 hookdeck connection update <connection-id> --name "new-name" --description "Updated description"
-
-# Update source or destination
-hookdeck connection update <connection-id> --source <new-source-id> --destination <new-destination-id>
-
-# Update transformation
-hookdeck connection update <connection-id> --transformation <transformation-id>
-```
-
-### Upsert a connection (create or update by name)
-```bash
-# Create or update connection by name
-hookdeck connection upsert --name "stripe-to-api" --source <source-id> --destination <destination-id>
 ```
 
 ### Delete a connection
@@ -1126,17 +1099,17 @@ hookdeck connection enable <connection-id>
 # Disable connection
 hookdeck connection disable <connection-id>
 
-# Archive connection
-hookdeck connection archive <connection-id>
-
-# Unarchive connection
-hookdeck connection unarchive <connection-id>
-
 # Pause connection (temporary)
 hookdeck connection pause <connection-id>
 
-# Unpause connection
+# Resume paused connection
 hookdeck connection unpause <connection-id>
+
+# Archive connection
+hookdeck connection archive <connection-id>
+
+# Restore archived connection
+hookdeck connection unarchive <connection-id>
 ```
 
 ## Transformations

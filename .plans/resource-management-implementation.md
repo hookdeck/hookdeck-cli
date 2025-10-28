@@ -1,5 +1,40 @@
 # Hookdeck CLI Resource Management Implementation Plan
 
+## Implementation Status
+
+### ✅ Completed (October 2025)
+- **Connection Management** - Full CRUD + state management (enable/disable/pause/unpause/archive)
+  - [x] `connection create` - With inline source/destination creation
+  - [x] `connection list` - With filtering options
+  - [x] `connection get` - Detailed view
+  - [x] `connection update` - Name and description
+  - [x] `connection delete` - With confirmation
+  - [x] `connection enable/disable` - State management
+  - [x] `connection pause/unpause` - Temporary suspension
+  - [x] `connection archive/unarchive` - Long-term storage
+  
+### 🚧 In Progress / Next Priority
+- **Source Management** (Priority 1 - Week 1)
+  - [ ] `source list` - Essential for discovery
+  - [ ] `source get` - View details and webhook URL
+  - [ ] `source update` - Update authentication
+  - [ ] `source delete` - Clean up unused
+  
+- **Destination Management** (Priority 1 - Week 1)
+  - [ ] `destination list` - Essential for discovery
+  - [ ] `destination get` - View configuration
+  - [ ] `destination update` - Critical for URL changes
+  - [ ] `destination delete` - Clean up unused
+
+### 📋 Planned
+- **Transformation Management** (Priority 2 - Week 2)
+- **Project Management Extensions** (Priority 3 - Week 3)
+- **Advanced Features** (Future)
+
+See [Resource Management Status Analysis](.plans/resource-management-status-analysis.md) for detailed analysis and recommendations.
+
+---
+
 ## Background
 
 The Hookdeck CLI currently supports limited commands in `@pkg/cmd` with basic project management. This plan outlines implementing comprehensive resource management for projects, connections, sources, destinations, and transformations using the Hookdeck API (https://api.hookdeck.com/2025-07-01/openapi).

@@ -1,0 +1,19 @@
+{
+  "anyOf": [
+    {
+      "$ref": "#/components/schemas/RetryRule"
+    },
+    {
+      "$ref": "#/components/schemas/FilterRule"
+    },
+    {
+      "$ref": "#/components/schemas/TransformRule"
+    },
+    {
+      "$ref": "#/components/schemas/DelayRule"
+    },
+    {
+      "$ref": "#/components/schemas/DeduplicateRule"
+    }
+  ]
+}
