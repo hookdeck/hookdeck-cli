@@ -204,7 +204,7 @@ func (r *InteractiveRenderer) OnConnectionWarning(activeRequests int32, maxConns
 	// In interactive mode, warnings could be shown in TUI
 	// For now, just log it
 	log.WithField("prefix", "proxy.InteractiveRenderer").
-		Warnf("High connection load detected: %d active requests (limit: %d) --max-connections=%d to increase the limit", activeRequests, maxConns, maxConns)
+		Warnf("High connection load detected: %d active requests (limit: %d) --max-connections=%d to increase the limit", activeRequests, maxConns)
 }
 
 // Cleanup gracefully stops the TUI and restores terminal
