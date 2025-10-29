@@ -992,6 +992,18 @@ hookdeck connection create \
   --destination-type HTTP \
   --destination-url "https://ci.example.com/webhook" \
   --destination-bearer-token "bearer_token_xyz"
+
+**5. Source with Custom Response and Allowed HTTP Methods**
+```bash
+hookdeck connection create \
+  --source-name "api-webhooks" \
+  --source-type WEBHOOK \
+  --source-allowed-http-methods "POST,PUT,PATCH" \
+  --source-custom-response-content-type "json" \
+  --source-custom-response-body '{"status":"received","timestamp":"2024-01-01T00:00:00Z"}' \
+  --destination-name "webhook-handler" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhooks"
 ```
 
 #### Rule Configuration Examples
@@ -1064,6 +1076,9 @@ hookdeck connection create \
 - `--source-basic-auth-pass <pass>` - Basic auth password
 - `--source-hmac-secret <secret>` - HMAC secret
 - `--source-hmac-algo <algo>` - HMAC algorithm
+- `--source-allowed-http-methods <methods>` - Comma-separated list of allowed HTTP methods: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`
+- `--source-custom-response-content-type <type>` - Custom response content type: `json`, `text`, `xml`
+- `--source-custom-response-body <body>` - Custom response body (max 1000 chars)
 - `--source-config <json>` - JSON authentication config
 - `--source-config-file <path>` - Path to JSON config file
 

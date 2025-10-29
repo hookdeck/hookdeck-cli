@@ -2296,4 +2296,280 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 
 		t.Logf("Successfully tested upsert http_method change: %s", connID)
 	})
+
+	t.Run("Create_Source_AllowedHTTPMethods", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-allowed-methods-" + timestamp
+		sourceName := "test-src-allowed-methods-" + timestamp
+		destName := "test-dst-allowed-methods-" + timestamp
+
+		// Create connection with allowed HTTP methods
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--source-allowed-http-methods", "POST,PUT,DELETE",
+			"--destination-type", "CLI",
+			"--destination-name", destName,
+			"--destination-cli-path", "/webhooks")
+		require.NoError(t, err, "Failed to create connection with allowed HTTP methods")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Verify source config contains allowed_http_methods
+		source, ok := createResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source object")
+		sourceConfig, ok := source["config"].(map[string]interface{})
+		require.True(t, ok, "Expected source config")
+
+		allowedMethods, ok := sourceConfig["allowed_http_methods"].([]interface{})
+		require.True(t, ok, "Expected allowed_http_methods in source config")
+		require.Len(t, allowedMethods, 3, "Expected 3 allowed HTTP methods")
+
+		// Verify methods are correct
+		methodsMap := make(map[string]bool)
+		for _, m := range allowedMethods {
+			method, ok := m.(string)
+			require.True(t, ok, "Expected string method")
+			methodsMap[strings.ToUpper(method)] = true
+		}
+		assert.True(t, methodsMap["POST"], "Should contain POST")
+		assert.True(t, methodsMap["PUT"], "Should contain PUT")
+		assert.True(t, methodsMap["DELETE"], "Should contain DELETE")
+
+		t.Logf("Successfully tested source allowed HTTP methods: %s", connID)
+	})
+
+	t.Run("Create_Source_CustomResponse", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-custom-response-" + timestamp
+		sourceName := "test-src-custom-response-" + timestamp
+		destName := "test-dst-custom-response-" + timestamp
+		customBody := `{"status":"received","timestamp":"2024-01-01T00:00:00Z"}`
+
+		// Create connection with custom response
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--source-custom-response-content-type", "json",
+			"--source-custom-response-body", customBody,
+			"--destination-type", "CLI",
+			"--destination-name", destName,
+			"--destination-cli-path", "/webhooks")
+		require.NoError(t, err, "Failed to create connection with custom response")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Verify source config contains custom_response
+		source, ok := createResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source object")
+		sourceConfig, ok := source["config"].(map[string]interface{})
+		require.True(t, ok, "Expected source config")
+
+		customResponse, ok := sourceConfig["custom_response"].(map[string]interface{})
+		require.True(t, ok, "Expected custom_response in source config")
+
+		contentType, ok := customResponse["content_type"].(string)
+		require.True(t, ok, "Expected content_type in custom_response")
+		assert.Equal(t, "json", strings.ToLower(contentType), "Content type should be json")
+
+		body, ok := customResponse["body"].(string)
+		require.True(t, ok, "Expected body in custom_response")
+		assert.Equal(t, customBody, body, "Body should match")
+
+		t.Logf("Successfully tested source custom response: %s", connID)
+	})
+
+	t.Run("Create_Source_AllConfigOptions", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-all-config-" + timestamp
+		sourceName := "test-src-all-config-" + timestamp
+		destName := "test-dst-all-config-" + timestamp
+		customBody := `{"ok":true}`
+
+		// Create connection with all source config options
+		// Note: allowed_http_methods and custom_response are only supported for WEBHOOK source types
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--source-allowed-http-methods", "POST,PUT,PATCH",
+			"--source-custom-response-content-type", "json",
+			"--source-custom-response-body", customBody,
+			"--destination-type", "CLI",
+			"--destination-name", destName,
+			"--destination-cli-path", "/webhooks")
+		require.NoError(t, err, "Failed to create connection with all source config options")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Verify source config contains all options
+		source, ok := createResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source object")
+		sourceConfig, ok := source["config"].(map[string]interface{})
+		require.True(t, ok, "Expected source config")
+
+		// Verify allowed_http_methods
+		allowedMethods, ok := sourceConfig["allowed_http_methods"].([]interface{})
+		require.True(t, ok, "Expected allowed_http_methods in source config")
+		assert.Len(t, allowedMethods, 3, "Expected 3 allowed HTTP methods")
+
+		// Verify custom_response
+		customResponse, ok := sourceConfig["custom_response"].(map[string]interface{})
+		require.True(t, ok, "Expected custom_response in source config")
+		assert.Equal(t, "json", strings.ToLower(customResponse["content_type"].(string)), "Content type should be json")
+		assert.Equal(t, customBody, customResponse["body"].(string), "Body should match")
+
+		t.Logf("Successfully tested all source config options: %s", connID)
+	})
+
+	t.Run("Upsert_Source_AllowedHTTPMethods", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-upsert-allowed-methods-" + timestamp
+		sourceName := "test-src-upsert-methods-" + timestamp
+		destName := "test-dst-upsert-methods-" + timestamp
+
+		// Create connection without allowed methods
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "CLI",
+			"--destination-name", destName,
+			"--destination-cli-path", "/webhooks")
+		require.NoError(t, err, "Failed to create connection")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Upsert to add allowed HTTP methods
+		var upsertResp map[string]interface{}
+		err = cli.RunJSON(&upsertResp,
+			"connection", "upsert", connName,
+			"--source-allowed-http-methods", "POST,GET")
+		require.NoError(t, err, "Failed to upsert connection with allowed methods")
+
+		// Verify allowed_http_methods are set
+		source, ok := upsertResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source object in upsert response")
+		sourceConfig, ok := source["config"].(map[string]interface{})
+		require.True(t, ok, "Expected source config in upsert response")
+
+		allowedMethods, ok := sourceConfig["allowed_http_methods"].([]interface{})
+		require.True(t, ok, "Expected allowed_http_methods in upsert response")
+		assert.Len(t, allowedMethods, 2, "Expected 2 allowed HTTP methods")
+
+		t.Logf("Successfully tested upsert source allowed HTTP methods: %s", connID)
+	})
+
+	t.Run("Upsert_Source_CustomResponse", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-upsert-custom-resp-" + timestamp
+		sourceName := "test-src-upsert-resp-" + timestamp
+		destName := "test-dst-upsert-resp-" + timestamp
+
+		// Create connection without custom response
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "CLI",
+			"--destination-name", destName,
+			"--destination-cli-path", "/webhooks")
+		require.NoError(t, err, "Failed to create connection")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Upsert to add custom response
+		customBody := `{"message":"accepted"}`
+		var upsertResp map[string]interface{}
+		err = cli.RunJSON(&upsertResp,
+			"connection", "upsert", connName,
+			"--source-custom-response-content-type", "json",
+			"--source-custom-response-body", customBody)
+		require.NoError(t, err, "Failed to upsert connection with custom response")
+
+		// Verify custom_response is set
+		source, ok := upsertResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source object in upsert response")
+		sourceConfig, ok := source["config"].(map[string]interface{})
+		require.True(t, ok, "Expected source config in upsert response")
+
+		customResponse, ok := sourceConfig["custom_response"].(map[string]interface{})
+		require.True(t, ok, "Expected custom_response in upsert response")
+		assert.Equal(t, "json", strings.ToLower(customResponse["content_type"].(string)), "Content type should be json")
+		assert.Equal(t, customBody, customResponse["body"].(string), "Body should match")
+
+		t.Logf("Successfully tested upsert source custom response: %s", connID)
+	})
 }

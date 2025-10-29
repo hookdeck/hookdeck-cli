@@ -37,6 +37,11 @@ type connectionCreateCmd struct {
 	SourceHMACSecret    string
 	SourceHMACAlgo      string
 
+	// Source configuration flags
+	SourceAllowedHTTPMethods string
+	SourceCustomResponseType string
+	SourceCustomResponseBody string
+
 	// JSON config fallback
 	SourceConfig     string
 	SourceConfigFile string
@@ -125,21 +130,30 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 		Args:  validators.NoArgs,
 		Short: "Create a new connection",
 		Long: `Create a connection between a source and destination.
-
-You can either reference existing resources by ID or create them inline.
-
-Examples:
-  # Create with inline source and destination
-  hookdeck connection create \
-    --name "test-webhooks-to-local" \
-    --source-type WEBHOOK --source-name "test-webhooks" \
-    --destination-type CLI --destination-name "local-dev"
-
-  # Create with existing resources
-  hookdeck connection create \
-    --name "github-to-api" \
-    --source-id src_abc123 \
-    --destination-id dst_def456`,
+	
+	You can either reference existing resources by ID or create them inline.
+	
+	Examples:
+		 # Create with inline source and destination
+		 hookdeck connection create \
+		   --name "test-webhooks-to-local" \
+		   --source-type WEBHOOK --source-name "test-webhooks" \
+		   --destination-type CLI --destination-name "local-dev"
+	
+		 # Create with existing resources
+		 hookdeck connection create \
+		   --name "github-to-api" \
+		   --source-id src_abc123 \
+		   --destination-id dst_def456
+	
+		 # Create with source configuration options
+		 hookdeck connection create \
+		   --name "api-webhooks" \
+		   --source-type WEBHOOK --source-name "api-source" \
+		   --source-allowed-http-methods "POST,PUT,PATCH" \
+		   --source-custom-response-content-type "json" \
+		   --source-custom-response-body '{"status":"received"}' \
+		   --destination-type CLI --destination-name "local-dev"`,
 		PreRunE: cc.validateFlags,
 		RunE:    cc.runConnectionCreateCmd,
 	}
@@ -160,6 +174,11 @@ Examples:
 	cc.cmd.Flags().StringVar(&cc.SourceBasicAuthPass, "source-basic-auth-pass", "", "Password for Basic authentication")
 	cc.cmd.Flags().StringVar(&cc.SourceHMACSecret, "source-hmac-secret", "", "HMAC secret for signature verification")
 	cc.cmd.Flags().StringVar(&cc.SourceHMACAlgo, "source-hmac-algo", "", "HMAC algorithm (SHA256, etc.)")
+
+	// Source configuration flags
+	cc.cmd.Flags().StringVar(&cc.SourceAllowedHTTPMethods, "source-allowed-http-methods", "", "Comma-separated list of allowed HTTP methods (GET, POST, PUT, PATCH, DELETE)")
+	cc.cmd.Flags().StringVar(&cc.SourceCustomResponseType, "source-custom-response-content-type", "", "Custom response content type (json, text, xml)")
+	cc.cmd.Flags().StringVar(&cc.SourceCustomResponseBody, "source-custom-response-body", "", "Custom response body (max 1000 chars)")
 
 	// JSON config fallback
 	cc.cmd.Flags().StringVar(&cc.SourceConfig, "source-config", "", "JSON string for source authentication config")
@@ -826,6 +845,49 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 			hmacConfig["algorithm"] = cc.SourceHMACAlgo
 		}
 		config["hmac"] = hmacConfig
+	}
+
+	// Add allowed HTTP methods
+	if cc.SourceAllowedHTTPMethods != "" {
+		methods := strings.Split(cc.SourceAllowedHTTPMethods, ",")
+		// Trim whitespace and validate
+		validMethods := []string{}
+		allowedMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true}
+		for _, method := range methods {
+			method = strings.TrimSpace(strings.ToUpper(method))
+			if !allowedMethods[method] {
+				return nil, fmt.Errorf("invalid HTTP method '%s' in --source-allowed-http-methods (allowed: GET, POST, PUT, PATCH, DELETE)", method)
+			}
+			validMethods = append(validMethods, method)
+		}
+		config["allowed_http_methods"] = validMethods
+	}
+
+	// Add custom response configuration
+	if cc.SourceCustomResponseType != "" || cc.SourceCustomResponseBody != "" {
+		if cc.SourceCustomResponseType == "" {
+			return nil, fmt.Errorf("--source-custom-response-content-type is required when using --source-custom-response-body")
+		}
+		if cc.SourceCustomResponseBody == "" {
+			return nil, fmt.Errorf("--source-custom-response-body is required when using --source-custom-response-content-type")
+		}
+
+		// Validate content type
+		validContentTypes := map[string]bool{"json": true, "text": true, "xml": true}
+		contentType := strings.ToLower(cc.SourceCustomResponseType)
+		if !validContentTypes[contentType] {
+			return nil, fmt.Errorf("invalid content type '%s' in --source-custom-response-content-type (allowed: json, text, xml)", cc.SourceCustomResponseType)
+		}
+
+		// Validate body length (max 1000 chars per API spec)
+		if len(cc.SourceCustomResponseBody) > 1000 {
+			return nil, fmt.Errorf("--source-custom-response-body exceeds maximum length of 1000 characters (got %d)", len(cc.SourceCustomResponseBody))
+		}
+
+		config["custom_response"] = map[string]interface{}{
+			"content_type": contentType,
+			"body":         cc.SourceCustomResponseBody,
+		}
 	}
 
 	if len(config) == 0 {

@@ -26,34 +26,40 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 		Args:  cobra.ExactArgs(1),
 		Short: "Create or update a connection by name",
 		Long: `Create a new connection or update an existing one using name as the unique identifier.
-
-This command is idempotent - it can be safely run multiple times with the same arguments.
-
-When the connection doesn't exist:
-  - Creates a new connection with the provided properties
-  - Requires source and destination to be specified
-
-When the connection exists:
-  - Updates the connection with the provided properties
-  - Only updates properties that are explicitly provided
-  - Preserves existing properties that aren't specified
-
-Use --dry-run to preview changes without applying them.
-
-Examples:
-  # Create or update a connection with inline source and destination
-  hookdeck connection upsert "my-connection" \
-    --source-name "stripe-prod" --source-type STRIPE \
-    --destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
-
-  # Update just the rate limit on an existing connection
-  hookdeck connection upsert my-connection \
-    --destination-rate-limit 100 --destination-rate-limit-period minute
-
-  # Preview changes without applying them
-  hookdeck connection upsert my-connection \
-    --destination-rate-limit 200 --destination-rate-limit-period hour \
-    --dry-run`,
+	
+	This command is idempotent - it can be safely run multiple times with the same arguments.
+	
+	When the connection doesn't exist:
+		 - Creates a new connection with the provided properties
+		 - Requires source and destination to be specified
+	
+	When the connection exists:
+		 - Updates the connection with the provided properties
+		 - Only updates properties that are explicitly provided
+		 - Preserves existing properties that aren't specified
+	
+	Use --dry-run to preview changes without applying them.
+	
+	Examples:
+		 # Create or update a connection with inline source and destination
+		 hookdeck connection upsert "my-connection" \
+		   --source-name "stripe-prod" --source-type STRIPE \
+		   --destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
+	
+		 # Update just the rate limit on an existing connection
+		 hookdeck connection upsert my-connection \
+		   --destination-rate-limit 100 --destination-rate-limit-period minute
+	
+		 # Update source configuration options
+		 hookdeck connection upsert my-connection \
+		   --source-allowed-http-methods "POST,PUT,DELETE" \
+		   --source-custom-response-content-type "json" \
+		   --source-custom-response-body '{"status":"received"}'
+	
+		 # Preview changes without applying them
+		 hookdeck connection upsert my-connection \
+		   --destination-rate-limit 200 --destination-rate-limit-period hour \
+		   --dry-run`,
 		PreRunE: cu.validateUpsertFlags,
 		RunE:    cu.runConnectionUpsertCmd,
 	}
@@ -73,6 +79,11 @@ Examples:
 	cu.cmd.Flags().StringVar(&cu.SourceBasicAuthPass, "source-basic-auth-pass", "", "Password for Basic authentication")
 	cu.cmd.Flags().StringVar(&cu.SourceHMACSecret, "source-hmac-secret", "", "HMAC secret for signature verification")
 	cu.cmd.Flags().StringVar(&cu.SourceHMACAlgo, "source-hmac-algo", "", "HMAC algorithm (SHA256, etc.)")
+
+	// Source configuration flags
+	cu.cmd.Flags().StringVar(&cu.SourceAllowedHTTPMethods, "source-allowed-http-methods", "", "Comma-separated list of allowed HTTP methods (GET, POST, PUT, PATCH, DELETE)")
+	cu.cmd.Flags().StringVar(&cu.SourceCustomResponseType, "source-custom-response-content-type", "", "Custom response content type (json, text, xml)")
+	cu.cmd.Flags().StringVar(&cu.SourceCustomResponseBody, "source-custom-response-body", "", "Custom response body (max 1000 chars)")
 
 	// JSON config fallback
 	cu.cmd.Flags().StringVar(&cu.SourceConfig, "source-config", "", "JSON string for source authentication config")
@@ -234,7 +245,12 @@ func (cu *connectionUpsertCmd) validateUpsertFlags(cmd *cobra.Command, args []st
 
 // Helper to check if any source flags are set
 func (cu *connectionUpsertCmd) hasAnySourceFlag() bool {
-	return cu.sourceName != "" || cu.sourceType != "" || cu.sourceID != ""
+	return cu.sourceName != "" || cu.sourceType != "" || cu.sourceID != "" ||
+		cu.SourceWebhookSecret != "" || cu.SourceAPIKey != "" ||
+		cu.SourceBasicAuthUser != "" || cu.SourceBasicAuthPass != "" ||
+		cu.SourceHMACSecret != "" || cu.SourceHMACAlgo != "" ||
+		cu.SourceAllowedHTTPMethods != "" || cu.SourceCustomResponseType != "" ||
+		cu.SourceCustomResponseBody != "" || cu.SourceConfig != "" || cu.SourceConfigFile != ""
 }
 
 // Helper to check if any destination flags are set
@@ -298,11 +314,18 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	// 1. Dry-run mode (to show preview)
 	// 2. Partial update (source/destination config fields without name/type)
 	// 3. Updating config fields without recreating the resource
+	hasSourceConfigOnly := (cu.SourceWebhookSecret != "" || cu.SourceAPIKey != "" ||
+		cu.SourceBasicAuthUser != "" || cu.SourceBasicAuthPass != "" ||
+		cu.SourceHMACSecret != "" || cu.SourceHMACAlgo != "" ||
+		cu.SourceAllowedHTTPMethods != "" || cu.SourceCustomResponseType != "" ||
+		cu.SourceCustomResponseBody != "" || cu.SourceConfig != "" || cu.SourceConfigFile != "") &&
+		cu.sourceName == "" && cu.sourceType == "" && cu.sourceID == ""
+
 	hasDestinationConfigOnly := (cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
 		cu.DestinationRateLimit != 0 || cu.DestinationAuthMethod != "") &&
 		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
 
-	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasDestinationConfigOnly
+	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasSourceConfigOnly || hasDestinationConfigOnly
 
 	var existing *hookdeck.Connection
 	var isUpdate bool
@@ -395,8 +418,25 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		}
 		req.Source = sourceInput
 	} else if isUpdate && existing != nil && existing.Source != nil {
-		// Preserve existing source when updating and no source flags provided
-		req.SourceID = &existing.Source.ID
+		// Check if any source config fields are being updated
+		hasSourceConfigUpdate := cu.SourceWebhookSecret != "" || cu.SourceAPIKey != "" ||
+			cu.SourceBasicAuthUser != "" || cu.SourceBasicAuthPass != "" ||
+			cu.SourceHMACSecret != "" || cu.SourceHMACAlgo != "" ||
+			cu.SourceAllowedHTTPMethods != "" || cu.SourceCustomResponseType != "" ||
+			cu.SourceCustomResponseBody != "" || cu.SourceConfig != "" || cu.SourceConfigFile != ""
+
+		if hasSourceConfigUpdate {
+			// For partial config updates, we need to send the full source object
+			// with the updated config merged in
+			sourceInput, err := cu.buildSourceInputForUpdate(existing.Source)
+			if err != nil {
+				return nil, err
+			}
+			req.Source = sourceInput
+		} else {
+			// Preserve existing source when updating and no source flags provided
+			req.SourceID = &existing.Source.ID
+		}
 	}
 
 	// Handle Destination
@@ -444,6 +484,40 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	}
 
 	return req, nil
+}
+
+// buildSourceInputForUpdate builds a source input for partial config updates
+// It merges the existing source config with any new flags provided
+func (cu *connectionUpsertCmd) buildSourceInputForUpdate(existingSource *hookdeck.Source) (*hookdeck.SourceCreateInput, error) {
+	// Start with the existing source
+	input := &hookdeck.SourceCreateInput{
+		Name:        existingSource.Name,
+		Type:        existingSource.Type,
+		Description: existingSource.Description,
+	}
+
+	// Get existing config or create new one
+	sourceConfig := make(map[string]interface{})
+	if existingSource.Config != nil {
+		// Copy existing config
+		for k, v := range existingSource.Config {
+			sourceConfig[k] = v
+		}
+	}
+
+	// Build new config from flags (this will override existing values)
+	newConfig, err := cu.buildSourceConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge new config into existing config
+	for k, v := range newConfig {
+		sourceConfig[k] = v
+	}
+
+	input.Config = sourceConfig
+	return input, nil
 }
 
 // buildDestinationInputForUpdate builds a destination input for partial config updates
