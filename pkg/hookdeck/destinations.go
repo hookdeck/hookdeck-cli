@@ -7,9 +7,9 @@ import (
 // Destination represents a Hookdeck destination
 type Destination struct {
 	ID          string                 `json:"id"`
+	TeamID      string                 `json:"team_id"`
 	Name        string                 `json:"name"`
 	Description *string                `json:"description"`
-	URL         *string                `json:"url"`
 	Type        string                 `json:"type"`
 	Config      map[string]interface{} `json:"config"`
 	DisabledAt  *time.Time             `json:"disabled_at"`
@@ -26,6 +26,20 @@ func (d *Destination) GetCLIPath() *string {
 
 	if path, ok := d.Config["path"].(string); ok {
 		return &path
+	}
+
+	return nil
+}
+
+// GetHTTPURL returns the HTTP URL from config for HTTP-type destinations
+// For HTTP destinations, the URL is stored in config.url according to the OpenAPI spec
+func (d *Destination) GetHTTPURL() *string {
+	if d.Type != "HTTP" || d.Config == nil {
+		return nil
+	}
+
+	if url, ok := d.Config["url"].(string); ok {
+		return &url
 	}
 
 	return nil

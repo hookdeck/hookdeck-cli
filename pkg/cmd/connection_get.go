@@ -102,8 +102,8 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 				fmt.Printf("  CLI Path: %s\n", *cliPath)
 			}
 
-			if conn.Destination.URL != nil {
-				fmt.Printf("  URL: %s\n", *conn.Destination.URL)
+			if httpURL := conn.Destination.GetHTTPURL(); httpURL != nil {
+				fmt.Printf("  URL: %s\n", *httpURL)
 			}
 			fmt.Printf("\n")
 		}
