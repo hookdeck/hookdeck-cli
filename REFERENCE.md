@@ -1073,6 +1073,8 @@ hookdeck connection create \
 - `--destination-description <string>` - Destination description
 - `--destination-url <url>` - Destination URL (required for HTTP)
 - `--destination-cli-path <path>` - CLI path (default: `/`)
+- `--destination-path-forwarding-disabled <true|false>` - Disable path forwarding for HTTP destinations (default: false)
+- `--destination-http-method <method>` - HTTP method for HTTP destinations: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`
 - `--destination-auth-method <method>` - Authentication method: `hookdeck`, `bearer`, `basic`, `api_key`, `custom_signature`, `oauth2_client_credentials`, `oauth2_authorization_code`, `aws`
 - `--destination-rate-limit <number>` - Rate limit (requests per period)
 - `--destination-rate-limit-period <period>` - Period: `second`, `minute`, `hour`, `day`, `month`, `year`

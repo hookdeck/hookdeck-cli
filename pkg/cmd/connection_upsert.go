@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -84,6 +85,25 @@ Examples:
 	cu.cmd.Flags().StringVar(&cu.destinationURL, "destination-url", "", "URL for HTTP destinations")
 	cu.cmd.Flags().StringVar(&cu.destinationCliPath, "destination-cli-path", "/", "CLI path for CLI destinations (default: /)")
 
+	// Use a string flag to allow explicit true/false values
+	var pathForwardingDisabledStr string
+	cu.cmd.Flags().StringVar(&pathForwardingDisabledStr, "destination-path-forwarding-disabled", "", "Disable path forwarding for HTTP destinations (true/false)")
+
+	// Parse the string value in PreRunE (will be handled by the existing PreRunE chain)
+	originalPreRunE := cu.cmd.PreRunE
+	cu.cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		if pathForwardingDisabledStr != "" {
+			val := pathForwardingDisabledStr == "true"
+			cu.destinationPathForwardingDisabled = &val
+		}
+		if originalPreRunE != nil {
+			return originalPreRunE(cmd, args)
+		}
+		return nil
+	}
+
+	cu.cmd.Flags().StringVar(&cu.destinationHTTPMethod, "destination-http-method", "", "HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE)")
+
 	// Destination authentication flags
 	cu.cmd.Flags().StringVar(&cu.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)")
 
@@ -121,7 +141,7 @@ Examples:
 
 	// Destination rate limiting flags
 	cu.cmd.Flags().IntVar(&cu.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
-	cu.cmd.Flags().StringVar(&cu.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour)")
+	cu.cmd.Flags().StringVar(&cu.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
 
 	// Rule flags - Retry
 	cu.cmd.Flags().StringVar(&cu.RuleRetryStrategy, "rule-retry-strategy", "", "Retry strategy (linear, exponential)")
@@ -219,7 +239,10 @@ func (cu *connectionUpsertCmd) hasAnySourceFlag() bool {
 
 // Helper to check if any destination flags are set
 func (cu *connectionUpsertCmd) hasAnyDestinationFlag() bool {
-	return cu.destinationName != "" || cu.destinationType != "" || cu.destinationID != "" || cu.destinationURL != ""
+	return cu.destinationName != "" || cu.destinationType != "" || cu.destinationID != "" || cu.destinationURL != "" ||
+		cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
+		cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" ||
+		cu.DestinationAuthMethod != ""
 }
 
 // Helper to check if any rule flags are set
@@ -273,8 +296,13 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	// Determine if we need to fetch existing connection
 	// Only needed when:
 	// 1. Dry-run mode (to show preview)
-	// 2. Partial update (source/destination not provided in flags)
-	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag())
+	// 2. Partial update (source/destination config fields without name/type)
+	// 3. Updating config fields without recreating the resource
+	hasDestinationConfigOnly := (cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
+		cu.DestinationRateLimit != 0 || cu.DestinationAuthMethod != "") &&
+		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
+
+	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasDestinationConfigOnly
 
 	var existing *hookdeck.Connection
 	var isUpdate bool
@@ -381,8 +409,29 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		}
 		req.Destination = destinationInput
 	} else if isUpdate && existing != nil && existing.Destination != nil {
-		// Preserve existing destination when updating and no destination flags provided
-		req.DestinationID = &existing.Destination.ID
+		// Check if any destination config fields are being updated
+		hasDestinationConfigUpdate := cu.destinationPathForwardingDisabled != nil ||
+			cu.destinationHTTPMethod != "" ||
+			cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" ||
+			cu.DestinationAuthMethod != ""
+
+		if hasDestinationConfigUpdate {
+			// For partial config updates, we need to send the full destination object
+			// with the updated config merged in
+			destinationInput, err := cu.buildDestinationInputForUpdate(existing.Destination)
+			if err != nil {
+				return nil, err
+			}
+			req.Destination = destinationInput
+		} else {
+			// Preserve existing destination when updating and no destination flags provided
+			req.DestinationID = &existing.Destination.ID
+		}
+	}
+
+	// Also preserve source if not specified
+	if req.SourceID == nil && req.Source == nil && isUpdate && existing != nil && existing.Source != nil {
+		req.SourceID = &existing.Source.ID
 	}
 
 	// Handle Rules
@@ -395,6 +444,67 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	}
 
 	return req, nil
+}
+
+// buildDestinationInputForUpdate builds a destination input for partial config updates
+// It merges the existing destination config with any new flags provided
+func (cu *connectionUpsertCmd) buildDestinationInputForUpdate(existingDest *hookdeck.Destination) (*hookdeck.DestinationCreateInput, error) {
+	// Start with the existing destination
+	input := &hookdeck.DestinationCreateInput{
+		Name:        existingDest.Name,
+		Type:        existingDest.Type,
+		Description: existingDest.Description,
+	}
+
+	// Get existing config or create new one
+	destConfig := make(map[string]interface{})
+	if existingDest.Config != nil {
+		// Copy existing config
+		for k, v := range existingDest.Config {
+			destConfig[k] = v
+		}
+	}
+
+	// Apply any new config values from flags
+	if cu.destinationURL != "" {
+		destConfig["url"] = cu.destinationURL
+	}
+
+	if cu.destinationPathForwardingDisabled != nil {
+		destConfig["path_forwarding_disabled"] = *cu.destinationPathForwardingDisabled
+	}
+
+	if cu.destinationHTTPMethod != "" {
+		// Validate HTTP method
+		validMethods := map[string]bool{
+			"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true,
+		}
+		method := strings.ToUpper(cu.destinationHTTPMethod)
+		if !validMethods[method] {
+			return nil, fmt.Errorf("--destination-http-method must be one of: GET, POST, PUT, PATCH, DELETE")
+		}
+		destConfig["http_method"] = method
+	}
+
+	// Apply rate limiting if provided
+	if cu.DestinationRateLimit > 0 {
+		destConfig["rate_limit"] = cu.DestinationRateLimit
+		destConfig["rate_limit_period"] = cu.DestinationRateLimitPeriod
+	}
+
+	// Apply authentication config if provided
+	if cu.DestinationAuthMethod != "" {
+		authConfig, err := cu.buildAuthConfig()
+		if err != nil {
+			return nil, err
+		}
+		if len(authConfig) > 0 {
+			destConfig["auth_method"] = authConfig
+		}
+	}
+
+	input.Config = destConfig
+	return input, nil
 }
 
 func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connection, req *hookdeck.ConnectionCreateRequest, isUpdate bool) error {

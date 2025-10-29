@@ -1438,6 +1438,52 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		t.Logf("Successfully created and verified connection with rate limiting (per minute): %s", conn.ID)
 	})
+	t.Run("RateLimit_Concurrent", func(t *testing.T) {
+		connName := "test-ratelimit-concurrent-" + timestamp
+		sourceName := "test-src-rl-concurrent-" + timestamp
+		destName := "test-dst-rl-concurrent-" + timestamp
+
+		var conn Connection
+		err := cli.RunJSON(&conn,
+			"connection", "create",
+			"--name", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://api.example.com/webhooks",
+			"--destination-rate-limit", "10",
+			"--destination-rate-limit-period", "concurrent",
+		)
+		require.NoError(t, err, "Should create connection with concurrent rate limiting")
+		require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, conn.ID)
+		})
+
+		// Verify rate limiting configuration by getting the connection
+		var getConn Connection
+		err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+		require.NoError(t, err, "Should be able to get the created connection")
+
+		require.NotNil(t, getConn.Destination, "Connection should have a destination")
+		if config, ok := getConn.Destination.Config.(map[string]interface{}); ok {
+			rateLimit, hasRateLimit := config["rate_limit"].(float64)
+			require.True(t, hasRateLimit, "Rate limit should be present in destination config")
+			assert.Equal(t, float64(10), rateLimit, "Rate limit should be 10")
+
+			period, hasPeriod := config["rate_limit_period"].(string)
+			require.True(t, hasPeriod, "Rate limit period should be present in destination config")
+			assert.Equal(t, "concurrent", period, "Rate limit period should be concurrent")
+		} else {
+			t.Fatal("Destination config should be present")
+		}
+
+		t.Logf("Successfully created and verified connection with concurrent rate limiting: %s", conn.ID)
+	})
+
 }
 
 // TestConnectionUpsertCreate tests creating a new connection via upsert
@@ -1959,4 +2005,295 @@ func TestConnectionCreateOutputStructure(t *testing.T) {
 	assert.Contains(t, stdout, destName, "Should include destination name")
 
 	t.Logf("Successfully verified connection create output structure")
+}
+
+// TestConnectionWithDestinationPathForwarding tests path_forwarding_disabled and http_method fields
+func TestConnectionWithDestinationPathForwarding(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	t.Run("HTTP_Destination_PathForwardingDisabled_And_HTTPMethod", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-path-forward-conn-" + timestamp
+		sourceName := "test-path-forward-source-" + timestamp
+		destName := "test-path-forward-dest-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+
+		// Create connection with path forwarding disabled and custom HTTP method
+		stdout, stderr, err := cli.Run("connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-path-forwarding-disabled", "true",
+			"--destination-http-method", "PUT",
+			"--output", "json")
+		require.NoError(t, err, "Failed to create connection: stderr=%s", stderr)
+
+		// Parse creation response
+		var createResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &createResp)
+		require.NoError(t, err, "Failed to parse creation response: %s", stdout)
+
+		// Verify creation response fields
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in creation response")
+
+		assert.Equal(t, connName, createResp["name"], "Connection name should match")
+
+		// Verify destination details
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in creation response")
+		assert.Equal(t, destName, dest["name"], "Destination name should match")
+		destType, _ := dest["type"].(string)
+		assert.Equal(t, "HTTP", strings.ToUpper(destType), "Destination type should be HTTP")
+
+		// Verify path_forwarding_disabled and http_method in destination config
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object")
+
+		// Check path_forwarding_disabled is set to true
+		pathForwardingDisabled, ok := destConfig["path_forwarding_disabled"].(bool)
+		require.True(t, ok, "Expected path_forwarding_disabled in config")
+		assert.True(t, pathForwardingDisabled, "path_forwarding_disabled should be true")
+
+		// Check http_method is set to PUT
+		httpMethod, ok := destConfig["http_method"].(string)
+		require.True(t, ok, "Expected http_method in config")
+		assert.Equal(t, "PUT", strings.ToUpper(httpMethod), "HTTP method should be PUT")
+
+		// Verify using connection get
+		var getResp map[string]interface{}
+		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		require.NoError(t, err, "Should be able to get the created connection")
+
+		// Verify destination config in get response
+		getDest, ok := getResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in get response")
+		getDestConfig, ok := getDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config in get response")
+
+		getPathForwardingDisabled, ok := getDestConfig["path_forwarding_disabled"].(bool)
+		require.True(t, ok, "Expected path_forwarding_disabled in get response config")
+		assert.True(t, getPathForwardingDisabled, "path_forwarding_disabled should be true in get response")
+
+		getHTTPMethod, ok := getDestConfig["http_method"].(string)
+		require.True(t, ok, "Expected http_method in get response config")
+		assert.Equal(t, "PUT", strings.ToUpper(getHTTPMethod), "HTTP method should be PUT in get response")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		t.Logf("Successfully tested HTTP destination with path_forwarding_disabled and http_method: %s", connID)
+	})
+
+	t.Run("HTTP_Destination_AllHTTPMethods", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		methods := []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
+
+		for _, method := range methods {
+			connName := "test-http-method-" + strings.ToLower(method) + "-" + timestamp
+			sourceName := "test-src-" + strings.ToLower(method) + "-" + timestamp
+			destName := "test-dst-" + strings.ToLower(method) + "-" + timestamp
+			destURL := "https://api.hookdeck.com/dev/null"
+
+			var createResp map[string]interface{}
+			err := cli.RunJSON(&createResp,
+				"connection", "create",
+				"--name", connName,
+				"--source-type", "WEBHOOK",
+				"--source-name", sourceName,
+				"--destination-type", "HTTP",
+				"--destination-name", destName,
+				"--destination-url", destURL,
+				"--destination-http-method", method)
+			require.NoError(t, err, "Failed to create connection with HTTP method %s", method)
+
+			connID, ok := createResp["id"].(string)
+			require.True(t, ok && connID != "", "Expected connection ID")
+
+			// Verify http_method
+			dest, ok := createResp["destination"].(map[string]interface{})
+			require.True(t, ok, "Expected destination object")
+			destConfig, ok := dest["config"].(map[string]interface{})
+			require.True(t, ok, "Expected destination config")
+			httpMethod, ok := destConfig["http_method"].(string)
+			require.True(t, ok, "Expected http_method in config")
+			assert.Equal(t, method, strings.ToUpper(httpMethod), "HTTP method should be %s", method)
+
+			// Cleanup
+			t.Cleanup(func() {
+				deleteConnection(t, cli, connID)
+			})
+
+			t.Logf("Successfully tested HTTP method %s: %s", method, connID)
+		}
+	})
+}
+
+// TestConnectionUpsertDestinationFields tests upserting path_forwarding_disabled and http_method
+func TestConnectionUpsertDestinationFields(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	t.Run("Upsert_PathForwardingDisabled", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-upsert-path-" + timestamp
+		sourceName := "test-src-upsert-path-" + timestamp
+		destName := "test-dst-upsert-path-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+
+		// Create connection with path forwarding enabled (default)
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL)
+		require.NoError(t, err, "Failed to create connection")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Verify path_forwarding_disabled is not set (or false)
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object")
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config")
+
+		// It may not be present or may be false
+		if pathForwardingDisabled, ok := destConfig["path_forwarding_disabled"].(bool); ok {
+			assert.False(t, pathForwardingDisabled, "path_forwarding_disabled should be false by default")
+		}
+
+		// Upsert to disable path forwarding
+		var upsertResp map[string]interface{}
+		err = cli.RunJSON(&upsertResp,
+			"connection", "upsert", connName,
+			"--destination-path-forwarding-disabled", "true")
+		require.NoError(t, err, "Failed to upsert connection")
+
+		// Verify path_forwarding_disabled is now true
+		upsertDest, ok := upsertResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in upsert response")
+		upsertDestConfig, ok := upsertDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config in upsert response")
+
+		pathForwardingDisabled, ok := upsertDestConfig["path_forwarding_disabled"].(bool)
+		require.True(t, ok, "Expected path_forwarding_disabled in upsert response config")
+		assert.True(t, pathForwardingDisabled, "path_forwarding_disabled should be true after upsert")
+
+		// Upsert again to re-enable path forwarding
+		var upsertResp2 map[string]interface{}
+		err = cli.RunJSON(&upsertResp2,
+			"connection", "upsert", connName,
+			"--destination-path-forwarding-disabled", "false")
+		require.NoError(t, err, "Failed to upsert connection second time")
+
+		// Verify path_forwarding_disabled is now false
+		upsertDest2, ok := upsertResp2["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in second upsert response")
+		upsertDestConfig2, ok := upsertDest2["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config in second upsert response")
+
+		pathForwardingDisabled2, ok := upsertDestConfig2["path_forwarding_disabled"].(bool)
+		require.True(t, ok, "Expected path_forwarding_disabled in second upsert response config")
+		assert.False(t, pathForwardingDisabled2, "path_forwarding_disabled should be false after second upsert")
+
+		t.Logf("Successfully tested upsert path_forwarding_disabled toggle: %s", connID)
+	})
+
+	t.Run("Upsert_HTTPMethod", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-upsert-method-" + timestamp
+		sourceName := "test-src-upsert-method-" + timestamp
+		destName := "test-dst-upsert-method-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+
+		// Create connection with POST method
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-http-method", "POST")
+		require.NoError(t, err, "Failed to create connection")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Verify initial method is POST
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object")
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config")
+		httpMethod, ok := destConfig["http_method"].(string)
+		require.True(t, ok, "Expected http_method in config")
+		assert.Equal(t, "POST", strings.ToUpper(httpMethod), "HTTP method should be POST")
+
+		// Upsert to change method to PUT
+		var upsertResp map[string]interface{}
+		err = cli.RunJSON(&upsertResp,
+			"connection", "upsert", connName,
+			"--destination-http-method", "PUT")
+		require.NoError(t, err, "Failed to upsert connection")
+
+		// Verify method is now PUT
+		upsertDest, ok := upsertResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in upsert response")
+		upsertDestConfig, ok := upsertDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config in upsert response")
+		upsertHTTPMethod, ok := upsertDestConfig["http_method"].(string)
+		require.True(t, ok, "Expected http_method in upsert response config")
+		assert.Equal(t, "PUT", strings.ToUpper(upsertHTTPMethod), "HTTP method should be PUT after upsert")
+
+		t.Logf("Successfully tested upsert http_method change: %s", connID)
+	})
 }

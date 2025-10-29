@@ -42,11 +42,13 @@ type connectionCreateCmd struct {
 	SourceConfigFile string
 
 	// Destination flags (inline creation)
-	destinationName        string
-	destinationType        string
-	destinationDescription string
-	destinationURL         string
-	destinationCliPath     string
+	destinationName                   string
+	destinationType                   string
+	destinationDescription            string
+	destinationURL                    string
+	destinationCliPath                string
+	destinationPathForwardingDisabled *bool
+	destinationHTTPMethod             string
 
 	// Destination authentication flags
 	DestinationAuthMethod    string
@@ -170,6 +172,21 @@ Examples:
 	cc.cmd.Flags().StringVar(&cc.destinationURL, "destination-url", "", "URL for HTTP destinations")
 	cc.cmd.Flags().StringVar(&cc.destinationCliPath, "destination-cli-path", "/", "CLI path for CLI destinations (default: /)")
 
+	// Use a string flag to allow explicit true/false values
+	var pathForwardingDisabledStr string
+	cc.cmd.Flags().StringVar(&pathForwardingDisabledStr, "destination-path-forwarding-disabled", "", "Disable path forwarding for HTTP destinations (true/false)")
+
+	// Parse the string value in PreRunE
+	cc.cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		if pathForwardingDisabledStr != "" {
+			val := pathForwardingDisabledStr == "true"
+			cc.destinationPathForwardingDisabled = &val
+		}
+		return cc.validateFlags(cmd, args)
+	}
+
+	cc.cmd.Flags().StringVar(&cc.destinationHTTPMethod, "destination-http-method", "", "HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE)")
+
 	// Destination authentication flags
 	cc.cmd.Flags().StringVar(&cc.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)")
 
@@ -207,7 +224,7 @@ Examples:
 
 	// Destination rate limiting flags
 	cc.cmd.Flags().IntVar(&cc.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
-	cc.cmd.Flags().StringVar(&cc.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour)")
+	cc.cmd.Flags().StringVar(&cc.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
 
 	// Rule flags - Retry
 	cc.cmd.Flags().StringVar(&cc.RuleRetryStrategy, "rule-retry-strategy", "", "Retry strategy (linear, exponential)")
@@ -428,17 +445,7 @@ func (cc *connectionCreateCmd) validateRateLimiting() error {
 		if cc.DestinationRateLimitPeriod == "" {
 			return fmt.Errorf("--destination-rate-limit-period is required when --destination-rate-limit is set")
 		}
-		validPeriods := []string{"second", "minute", "hour"}
-		isValid := false
-		for _, p := range validPeriods {
-			if cc.DestinationRateLimitPeriod == p {
-				isValid = true
-				break
-			}
-		}
-		if !isValid {
-			return fmt.Errorf("--destination-rate-limit-period must be 'second', 'minute', or 'hour', got: %s", cc.DestinationRateLimitPeriod)
-		}
+		// Let API validate the period value (supports: second, minute, hour, concurrent)
 	}
 
 	return nil
@@ -589,6 +596,22 @@ func (cc *connectionCreateCmd) buildDestinationInput() (*hookdeck.DestinationCre
 			return nil, fmt.Errorf("--destination-url is required for HTTP destinations")
 		}
 		destinationConfig["url"] = cc.destinationURL
+
+		// Add HTTP-specific optional fields
+		if cc.destinationPathForwardingDisabled != nil {
+			destinationConfig["path_forwarding_disabled"] = *cc.destinationPathForwardingDisabled
+		}
+		if cc.destinationHTTPMethod != "" {
+			// Validate HTTP method
+			validMethods := map[string]bool{
+				"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true,
+			}
+			method := strings.ToUpper(cc.destinationHTTPMethod)
+			if !validMethods[method] {
+				return nil, fmt.Errorf("--destination-http-method must be one of: GET, POST, PUT, PATCH, DELETE")
+			}
+			destinationConfig["http_method"] = method
+		}
 	case "CLI":
 		destinationConfig["path"] = cc.destinationCliPath
 	case "MOCK_API":
