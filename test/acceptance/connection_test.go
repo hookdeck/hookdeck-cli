@@ -618,6 +618,316 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		t.Logf("Successfully tested HTTP destination with basic auth: %s", connID)
 	})
+	t.Run("HTTP_Destination_APIKey_Header", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-apikey-header-conn-" + timestamp
+		sourceName := "test-apikey-header-source-" + timestamp
+		destName := "test-apikey-header-dest-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+		apiKey := "sk_test_123"
+
+		// Create connection with HTTP destination (API key in header)
+		stdout, stderr, err := cli.Run("connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-auth-method", "api_key",
+			"--destination-api-key", apiKey,
+			"--destination-api-key-header", "X-API-Key",
+			"--destination-api-key-to", "header",
+			"--output", "json")
+		require.NoError(t, err, "Failed to create connection: stderr=%s", stderr)
+
+		var createResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &createResp)
+		require.NoError(t, err, "Failed to parse creation response: %s", stdout)
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in creation response")
+
+		// Verify destination auth configuration
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in creation response")
+
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object")
+
+		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
+			assert.Equal(t, "API_KEY", authMethod["type"], "Auth type should be API_KEY")
+			assert.Equal(t, "X-API-Key", authMethod["key"], "Auth key should be X-API-Key")
+			assert.Equal(t, "header", authMethod["to"], "Auth location should be header")
+			// API key itself should not be returned for security
+		}
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		t.Logf("Successfully tested HTTP destination with API key (header): %s", connID)
+	})
+
+	t.Run("HTTP_Destination_APIKey_Query", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-apikey-query-conn-" + timestamp
+		sourceName := "test-apikey-query-source-" + timestamp
+		destName := "test-apikey-query-dest-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+		apiKey := "sk_test_456"
+
+		// Create connection with HTTP destination (API key in query)
+		stdout, stderr, err := cli.Run("connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-auth-method", "api_key",
+			"--destination-api-key", apiKey,
+			"--destination-api-key-header", "api_key",
+			"--destination-api-key-to", "query",
+			"--output", "json")
+		require.NoError(t, err, "Failed to create connection: stderr=%s", stderr)
+
+		var createResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &createResp)
+		require.NoError(t, err, "Failed to parse creation response: %s", stdout)
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in creation response")
+
+		// Verify destination auth configuration
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in creation response")
+
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object")
+
+		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
+			assert.Equal(t, "API_KEY", authMethod["type"], "Auth type should be API_KEY")
+			assert.Equal(t, "api_key", authMethod["key"], "Auth key should be api_key")
+			assert.Equal(t, "query", authMethod["to"], "Auth location should be query")
+		}
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		t.Logf("Successfully tested HTTP destination with API key (query): %s", connID)
+	})
+
+	t.Run("HTTP_Destination_CustomSignature", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-custom-sig-conn-" + timestamp
+		sourceName := "test-custom-sig-source-" + timestamp
+		destName := "test-custom-sig-dest-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+
+		// Create connection with HTTP destination (custom signature)
+		stdout, stderr, err := cli.Run("connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-auth-method", "custom_signature",
+			"--destination-custom-signature-key", "X-Signature",
+			"--destination-custom-signature-secret", "secret123",
+			"--output", "json")
+		require.NoError(t, err, "Failed to create connection: stderr=%s", stderr)
+
+		var createResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &createResp)
+		require.NoError(t, err, "Failed to parse creation response: %s", stdout)
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in creation response")
+
+		// Verify destination auth configuration
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in creation response")
+
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object")
+
+		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
+			assert.Equal(t, "CUSTOM_SIGNATURE", authMethod["type"], "Auth type should be CUSTOM_SIGNATURE")
+			assert.Equal(t, "X-Signature", authMethod["key"], "Auth key should be X-Signature")
+			// Signing secret should not be returned for security
+		}
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		t.Logf("Successfully tested HTTP destination with custom signature: %s", connID)
+	})
+
+	t.Run("HTTP_Destination_HookdeckSignature", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-hookdeck-sig-conn-" + timestamp
+		sourceName := "test-hookdeck-sig-source-" + timestamp
+		destName := "test-hookdeck-sig-dest-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+
+		// Create connection with HTTP destination (Hookdeck signature - explicit)
+		stdout, stderr, err := cli.Run("connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-auth-method", "hookdeck",
+			"--output", "json")
+		require.NoError(t, err, "Failed to create connection: stderr=%s", stderr)
+
+		var createResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &createResp)
+		require.NoError(t, err, "Failed to parse creation response: %s", stdout)
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in creation response")
+
+		// Verify destination auth configuration
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in creation response")
+
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object")
+
+		// Hookdeck signature should be set as the auth type
+		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
+			assert.Equal(t, "HOOKDECK_SIGNATURE", authMethod["type"], "Auth type should be HOOKDECK_SIGNATURE")
+		}
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		t.Logf("Successfully tested HTTP destination with Hookdeck signature: %s", connID)
+	})
+
+	t.Run("ConnectionUpsert_ChangeAuthMethod", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-upsert-auth-" + timestamp
+		sourceName := "test-upsert-auth-source-" + timestamp
+		destName := "test-upsert-auth-dest-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+
+		// Create connection with bearer token auth
+		stdout, stderr, err := cli.Run("connection", "upsert", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-auth-method", "bearer",
+			"--destination-bearer-token", "initial_token",
+			"--output", "json")
+		require.NoError(t, err, "Failed to create connection: stderr=%s", stderr)
+
+		var createResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &createResp)
+		require.NoError(t, err, "Failed to parse creation response: %s", stdout)
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in creation response")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Update to API key auth
+		stdout, stderr, err = cli.Run("connection", "upsert", connName,
+			"--destination-auth-method", "api_key",
+			"--destination-api-key", "new_api_key",
+			"--destination-api-key-header", "X-API-Key",
+			"--output", "json")
+		require.NoError(t, err, "Failed to update connection auth: stderr=%s", stderr)
+
+		var updateResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &updateResp)
+		require.NoError(t, err, "Failed to parse update response: %s", stdout)
+
+		assert.Equal(t, connID, updateResp["id"], "Connection ID should remain the same")
+
+		// Verify auth was updated to API key
+		updateDest, ok := updateResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in update response")
+
+		updateDestConfig, ok := updateDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object in update response")
+
+		if authMethod, ok := updateDestConfig["auth_method"].(map[string]interface{}); ok {
+			assert.Equal(t, "API_KEY", authMethod["type"], "Auth type should be updated to API_KEY")
+			assert.Equal(t, "X-API-Key", authMethod["key"], "Auth key should be X-API-Key")
+		}
+
+		// Update to Hookdeck signature (reset to default)
+		stdout, stderr, err = cli.Run("connection", "upsert", connName,
+			"--destination-auth-method", "hookdeck",
+			"--output", "json")
+		require.NoError(t, err, "Failed to reset to Hookdeck signature: stderr=%s", stderr)
+
+		var resetResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &resetResp)
+		require.NoError(t, err, "Failed to parse reset response: %s", stdout)
+
+		assert.Equal(t, connID, resetResp["id"], "Connection ID should remain the same")
+
+		// Verify auth was reset to Hookdeck signature
+		resetDest, ok := resetResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in reset response")
+
+		resetDestConfig, ok := resetDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object in reset response")
+
+		if authMethod, ok := resetDestConfig["auth_method"].(map[string]interface{}); ok {
+			assert.Equal(t, "HOOKDECK_SIGNATURE", authMethod["type"], "Auth type should be reset to HOOKDECK_SIGNATURE")
+		}
+
+		t.Logf("Successfully tested changing authentication methods via upsert: %s", connID)
+	})
 }
 
 // TestConnectionDelete tests deleting a connection and verifying it's removed

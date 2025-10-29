@@ -49,18 +49,33 @@ type connectionCreateCmd struct {
 	destinationCliPath     string
 
 	// Destination authentication flags
-	DestinationAuthMethod        string
-	DestinationBearerToken       string
-	DestinationBasicAuthUser     string
-	DestinationBasicAuthPass     string
-	DestinationAPIKey            string
-	DestinationAPIKeyHeader      string
-	DestinationHMACSecret        string
-	DestinationHMACAlgo          string
-	DestinationHMACHeader        string
-	DestinationOauthClientID     string
-	DestinationOauthClientSecret string
-	DestinationOauthTokenURL     string
+	DestinationAuthMethod    string
+	DestinationBearerToken   string
+	DestinationBasicAuthUser string
+	DestinationBasicAuthPass string
+	DestinationAPIKey        string
+	DestinationAPIKeyHeader  string
+	DestinationAPIKeyTo      string // "header" or "query"
+
+	// Custom Signature (HMAC) flags
+	DestinationCustomSignatureKey    string
+	DestinationCustomSignatureSecret string
+
+	// OAuth2 flags (shared between Client Credentials and Authorization Code)
+	DestinationOAuth2AuthServer   string
+	DestinationOAuth2ClientID     string
+	DestinationOAuth2ClientSecret string
+	DestinationOAuth2Scopes       string
+	DestinationOAuth2AuthType     string // "basic", "bearer", or "x-www-form-urlencoded" (Client Credentials only)
+
+	// OAuth2 Authorization Code specific flags
+	DestinationOAuth2RefreshToken string
+
+	// AWS Signature flags
+	DestinationAWSAccessKeyID     string
+	DestinationAWSSecretAccessKey string
+	DestinationAWSRegion          string
+	DestinationAWSService         string
 
 	// Destination rate limiting flags
 	DestinationRateLimit       int
@@ -156,18 +171,39 @@ Examples:
 	cc.cmd.Flags().StringVar(&cc.destinationCliPath, "destination-cli-path", "/", "CLI path for CLI destinations (default: /)")
 
 	// Destination authentication flags
-	cc.cmd.Flags().StringVar(&cc.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (e.g., bearer, basic, api_key, hmac, oauth2)")
+	cc.cmd.Flags().StringVar(&cc.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)")
+
+	// Bearer Token
 	cc.cmd.Flags().StringVar(&cc.DestinationBearerToken, "destination-bearer-token", "", "Bearer token for destination authentication")
+
+	// Basic Auth
 	cc.cmd.Flags().StringVar(&cc.DestinationBasicAuthUser, "destination-basic-auth-user", "", "Username for destination Basic authentication")
 	cc.cmd.Flags().StringVar(&cc.DestinationBasicAuthPass, "destination-basic-auth-pass", "", "Password for destination Basic authentication")
+
+	// API Key
 	cc.cmd.Flags().StringVar(&cc.DestinationAPIKey, "destination-api-key", "", "API key for destination authentication")
-	cc.cmd.Flags().StringVar(&cc.DestinationAPIKeyHeader, "destination-api-key-header", "Authorization", "Header to use for API key authentication")
-	cc.cmd.Flags().StringVar(&cc.DestinationHMACSecret, "destination-hmac-secret", "", "HMAC secret for destination signature verification")
-	cc.cmd.Flags().StringVar(&cc.DestinationHMACAlgo, "destination-hmac-algo", "sha256", "HMAC algorithm for destination signature")
-	cc.cmd.Flags().StringVar(&cc.DestinationHMACHeader, "destination-hmac-header", "X-Signature-256", "Header to use for HMAC signature")
-	cc.cmd.Flags().StringVar(&cc.DestinationOauthClientID, "destination-oauth-client-id", "", "OAuth2 client ID for destination authentication")
-	cc.cmd.Flags().StringVar(&cc.DestinationOauthClientSecret, "destination-oauth-client-secret", "", "OAuth2 client secret for destination authentication")
-	cc.cmd.Flags().StringVar(&cc.DestinationOauthTokenURL, "destination-oauth-token-url", "", "OAuth2 token URL for destination authentication")
+	cc.cmd.Flags().StringVar(&cc.DestinationAPIKeyHeader, "destination-api-key-header", "", "Key/header name for API key authentication")
+	cc.cmd.Flags().StringVar(&cc.DestinationAPIKeyTo, "destination-api-key-to", "header", "Where to send API key: 'header' or 'query'")
+
+	// Custom Signature (HMAC)
+	cc.cmd.Flags().StringVar(&cc.DestinationCustomSignatureKey, "destination-custom-signature-key", "", "Key/header name for custom signature")
+	cc.cmd.Flags().StringVar(&cc.DestinationCustomSignatureSecret, "destination-custom-signature-secret", "", "Signing secret for custom signature")
+
+	// OAuth2 (shared flags for both Client Credentials and Authorization Code)
+	cc.cmd.Flags().StringVar(&cc.DestinationOAuth2AuthServer, "destination-oauth2-auth-server", "", "OAuth2 authorization server URL")
+	cc.cmd.Flags().StringVar(&cc.DestinationOAuth2ClientID, "destination-oauth2-client-id", "", "OAuth2 client ID")
+	cc.cmd.Flags().StringVar(&cc.DestinationOAuth2ClientSecret, "destination-oauth2-client-secret", "", "OAuth2 client secret")
+	cc.cmd.Flags().StringVar(&cc.DestinationOAuth2Scopes, "destination-oauth2-scopes", "", "OAuth2 scopes (comma-separated)")
+	cc.cmd.Flags().StringVar(&cc.DestinationOAuth2AuthType, "destination-oauth2-auth-type", "basic", "OAuth2 Client Credentials authentication type: 'basic', 'bearer', or 'x-www-form-urlencoded'")
+
+	// OAuth2 Authorization Code specific
+	cc.cmd.Flags().StringVar(&cc.DestinationOAuth2RefreshToken, "destination-oauth2-refresh-token", "", "OAuth2 refresh token (required for Authorization Code flow)")
+
+	// AWS Signature
+	cc.cmd.Flags().StringVar(&cc.DestinationAWSAccessKeyID, "destination-aws-access-key-id", "", "AWS access key ID")
+	cc.cmd.Flags().StringVar(&cc.DestinationAWSSecretAccessKey, "destination-aws-secret-access-key", "", "AWS secret access key")
+	cc.cmd.Flags().StringVar(&cc.DestinationAWSRegion, "destination-aws-region", "", "AWS region")
+	cc.cmd.Flags().StringVar(&cc.DestinationAWSService, "destination-aws-service", "", "AWS service name")
 
 	// Destination rate limiting flags
 	cc.cmd.Flags().IntVar(&cc.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
@@ -568,57 +604,10 @@ func (cc *connectionCreateCmd) buildDestinationInput() (*hookdeck.DestinationCre
 func (cc *connectionCreateCmd) buildDestinationConfig() (map[string]interface{}, error) {
 	config := make(map[string]interface{})
 
-	authConfig := make(map[string]interface{})
-
-	switch cc.DestinationAuthMethod {
-	case "bearer":
-		if cc.DestinationBearerToken == "" {
-			return nil, fmt.Errorf("--destination-bearer-token is required for bearer auth method")
-		}
-		authConfig["type"] = "bearer"
-		authConfig["config"] = map[string]string{"token": cc.DestinationBearerToken}
-	case "basic":
-		if cc.DestinationBasicAuthUser == "" || cc.DestinationBasicAuthPass == "" {
-			return nil, fmt.Errorf("--destination-basic-auth-user and --destination-basic-auth-pass are required for basic auth method")
-		}
-		authConfig["type"] = "basic_auth"
-		authConfig["config"] = map[string]string{
-			"username": cc.DestinationBasicAuthUser,
-			"password": cc.DestinationBasicAuthPass,
-		}
-	case "api_key":
-		if cc.DestinationAPIKey == "" {
-			return nil, fmt.Errorf("--destination-api-key is required for api_key auth method")
-		}
-		authConfig["type"] = "api_key"
-		authConfig["config"] = map[string]string{
-			"key":    cc.DestinationAPIKey,
-			"header": cc.DestinationAPIKeyHeader,
-		}
-	case "hmac":
-		if cc.DestinationHMACSecret == "" {
-			return nil, fmt.Errorf("--destination-hmac-secret is required for hmac auth method")
-		}
-		authConfig["type"] = "hmac"
-		authConfig["config"] = map[string]string{
-			"secret":    cc.DestinationHMACSecret,
-			"algorithm": cc.DestinationHMACAlgo,
-			"header":    cc.DestinationHMACHeader,
-		}
-	case "oauth2":
-		if cc.DestinationOauthClientID == "" || cc.DestinationOauthClientSecret == "" || cc.DestinationOauthTokenURL == "" {
-			return nil, fmt.Errorf("--destination-oauth-client-id, --destination-oauth-client-secret, and --destination-oauth-token-url are required for oauth2 auth method")
-		}
-		authConfig["type"] = "oauth2"
-		authConfig["config"] = map[string]string{
-			"client_id":     cc.DestinationOauthClientID,
-			"client_secret": cc.DestinationOauthClientSecret,
-			"token_url":     cc.DestinationOauthTokenURL,
-		}
-	case "":
-		// No auth method specified
-	default:
-		return nil, fmt.Errorf("unsupported destination authentication method: %s", cc.DestinationAuthMethod)
+	// Build authentication configuration
+	authConfig, err := cc.buildAuthConfig()
+	if err != nil {
+		return nil, err
 	}
 
 	if len(authConfig) > 0 {
@@ -636,6 +625,141 @@ func (cc *connectionCreateCmd) buildDestinationConfig() (map[string]interface{},
 	}
 
 	return config, nil
+}
+
+func (cc *connectionCreateCmd) buildAuthConfig() (map[string]interface{}, error) {
+	authConfig := make(map[string]interface{})
+
+	switch cc.DestinationAuthMethod {
+	case "hookdeck", "":
+		// HOOKDECK_SIGNATURE - default, no config needed
+		// Empty string means default to Hookdeck signature
+		if cc.DestinationAuthMethod == "hookdeck" {
+			authConfig["type"] = "HOOKDECK_SIGNATURE"
+		}
+		// If empty, don't set auth at all (API will default to Hookdeck signature)
+
+	case "bearer":
+		// BEARER_TOKEN
+		if cc.DestinationBearerToken == "" {
+			return nil, fmt.Errorf("--destination-bearer-token is required for bearer auth method")
+		}
+		authConfig["type"] = "BEARER_TOKEN"
+		authConfig["token"] = cc.DestinationBearerToken
+
+	case "basic":
+		// BASIC_AUTH
+		if cc.DestinationBasicAuthUser == "" || cc.DestinationBasicAuthPass == "" {
+			return nil, fmt.Errorf("--destination-basic-auth-user and --destination-basic-auth-pass are required for basic auth method")
+		}
+		authConfig["type"] = "BASIC_AUTH"
+		authConfig["username"] = cc.DestinationBasicAuthUser
+		authConfig["password"] = cc.DestinationBasicAuthPass
+
+	case "api_key":
+		// API_KEY
+		if cc.DestinationAPIKey == "" {
+			return nil, fmt.Errorf("--destination-api-key is required for api_key auth method")
+		}
+		authConfig["type"] = "API_KEY"
+		authConfig["api_key"] = cc.DestinationAPIKey
+
+		// Key/header name is required
+		if cc.DestinationAPIKeyHeader == "" {
+			return nil, fmt.Errorf("--destination-api-key-header is required for api_key auth method")
+		}
+		authConfig["key"] = cc.DestinationAPIKeyHeader
+
+		// Where to send the key (header or query)
+		authConfig["to"] = cc.DestinationAPIKeyTo
+
+	case "custom_signature":
+		// CUSTOM_SIGNATURE (SHA256 HMAC)
+		if cc.DestinationCustomSignatureSecret == "" {
+			return nil, fmt.Errorf("--destination-custom-signature-secret is required for custom_signature auth method")
+		}
+		if cc.DestinationCustomSignatureKey == "" {
+			return nil, fmt.Errorf("--destination-custom-signature-key is required for custom_signature auth method")
+		}
+		authConfig["type"] = "CUSTOM_SIGNATURE"
+		authConfig["signing_secret"] = cc.DestinationCustomSignatureSecret
+		authConfig["key"] = cc.DestinationCustomSignatureKey
+
+	case "oauth2_client_credentials":
+		// OAUTH2_CLIENT_CREDENTIALS
+		if cc.DestinationOAuth2AuthServer == "" {
+			return nil, fmt.Errorf("--destination-oauth2-auth-server is required for oauth2_client_credentials auth method")
+		}
+		if cc.DestinationOAuth2ClientID == "" {
+			return nil, fmt.Errorf("--destination-oauth2-client-id is required for oauth2_client_credentials auth method")
+		}
+		if cc.DestinationOAuth2ClientSecret == "" {
+			return nil, fmt.Errorf("--destination-oauth2-client-secret is required for oauth2_client_credentials auth method")
+		}
+
+		authConfig["type"] = "OAUTH2_CLIENT_CREDENTIALS"
+		authConfig["auth_server"] = cc.DestinationOAuth2AuthServer
+		authConfig["client_id"] = cc.DestinationOAuth2ClientID
+		authConfig["client_secret"] = cc.DestinationOAuth2ClientSecret
+
+		if cc.DestinationOAuth2Scopes != "" {
+			authConfig["scope"] = cc.DestinationOAuth2Scopes
+		}
+		if cc.DestinationOAuth2AuthType != "" {
+			authConfig["authentication_type"] = cc.DestinationOAuth2AuthType
+		}
+
+	case "oauth2_authorization_code":
+		// OAUTH2_AUTHORIZATION_CODE
+		if cc.DestinationOAuth2AuthServer == "" {
+			return nil, fmt.Errorf("--destination-oauth2-auth-server is required for oauth2_authorization_code auth method")
+		}
+		if cc.DestinationOAuth2ClientID == "" {
+			return nil, fmt.Errorf("--destination-oauth2-client-id is required for oauth2_authorization_code auth method")
+		}
+		if cc.DestinationOAuth2ClientSecret == "" {
+			return nil, fmt.Errorf("--destination-oauth2-client-secret is required for oauth2_authorization_code auth method")
+		}
+		if cc.DestinationOAuth2RefreshToken == "" {
+			return nil, fmt.Errorf("--destination-oauth2-refresh-token is required for oauth2_authorization_code auth method")
+		}
+
+		authConfig["type"] = "OAUTH2_AUTHORIZATION_CODE"
+		authConfig["auth_server"] = cc.DestinationOAuth2AuthServer
+		authConfig["client_id"] = cc.DestinationOAuth2ClientID
+		authConfig["client_secret"] = cc.DestinationOAuth2ClientSecret
+		authConfig["refresh_token"] = cc.DestinationOAuth2RefreshToken
+
+		if cc.DestinationOAuth2Scopes != "" {
+			authConfig["scope"] = cc.DestinationOAuth2Scopes
+		}
+
+	case "aws":
+		// AWS_SIGNATURE
+		if cc.DestinationAWSAccessKeyID == "" {
+			return nil, fmt.Errorf("--destination-aws-access-key-id is required for aws auth method")
+		}
+		if cc.DestinationAWSSecretAccessKey == "" {
+			return nil, fmt.Errorf("--destination-aws-secret-access-key is required for aws auth method")
+		}
+		if cc.DestinationAWSRegion == "" {
+			return nil, fmt.Errorf("--destination-aws-region is required for aws auth method")
+		}
+		if cc.DestinationAWSService == "" {
+			return nil, fmt.Errorf("--destination-aws-service is required for aws auth method")
+		}
+
+		authConfig["type"] = "AWS_SIGNATURE"
+		authConfig["access_key_id"] = cc.DestinationAWSAccessKeyID
+		authConfig["secret_access_key"] = cc.DestinationAWSSecretAccessKey
+		authConfig["region"] = cc.DestinationAWSRegion
+		authConfig["service"] = cc.DestinationAWSService
+
+	default:
+		return nil, fmt.Errorf("unsupported destination authentication method: %s (supported: hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)", cc.DestinationAuthMethod)
+	}
+
+	return authConfig, nil
 }
 
 func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, error) {

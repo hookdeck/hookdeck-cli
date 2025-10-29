@@ -85,18 +85,39 @@ Examples:
 	cu.cmd.Flags().StringVar(&cu.destinationCliPath, "destination-cli-path", "/", "CLI path for CLI destinations (default: /)")
 
 	// Destination authentication flags
-	cu.cmd.Flags().StringVar(&cu.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (e.g., bearer, basic, api_key, hmac, oauth2)")
+	cu.cmd.Flags().StringVar(&cu.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)")
+
+	// Bearer Token
 	cu.cmd.Flags().StringVar(&cu.DestinationBearerToken, "destination-bearer-token", "", "Bearer token for destination authentication")
+
+	// Basic Auth
 	cu.cmd.Flags().StringVar(&cu.DestinationBasicAuthUser, "destination-basic-auth-user", "", "Username for destination Basic authentication")
 	cu.cmd.Flags().StringVar(&cu.DestinationBasicAuthPass, "destination-basic-auth-pass", "", "Password for destination Basic authentication")
+
+	// API Key
 	cu.cmd.Flags().StringVar(&cu.DestinationAPIKey, "destination-api-key", "", "API key for destination authentication")
-	cu.cmd.Flags().StringVar(&cu.DestinationAPIKeyHeader, "destination-api-key-header", "Authorization", "Header to use for API key authentication")
-	cu.cmd.Flags().StringVar(&cu.DestinationHMACSecret, "destination-hmac-secret", "", "HMAC secret for destination signature verification")
-	cu.cmd.Flags().StringVar(&cu.DestinationHMACAlgo, "destination-hmac-algo", "sha256", "HMAC algorithm for destination signature")
-	cu.cmd.Flags().StringVar(&cu.DestinationHMACHeader, "destination-hmac-header", "X-Signature-256", "Header to use for HMAC signature")
-	cu.cmd.Flags().StringVar(&cu.DestinationOauthClientID, "destination-oauth-client-id", "", "OAuth2 client ID for destination authentication")
-	cu.cmd.Flags().StringVar(&cu.DestinationOauthClientSecret, "destination-oauth-client-secret", "", "OAuth2 client secret for destination authentication")
-	cu.cmd.Flags().StringVar(&cu.DestinationOauthTokenURL, "destination-oauth-token-url", "", "OAuth2 token URL for destination authentication")
+	cu.cmd.Flags().StringVar(&cu.DestinationAPIKeyHeader, "destination-api-key-header", "", "Key/header name for API key authentication")
+	cu.cmd.Flags().StringVar(&cu.DestinationAPIKeyTo, "destination-api-key-to", "header", "Where to send API key: 'header' or 'query'")
+
+	// Custom Signature (HMAC)
+	cu.cmd.Flags().StringVar(&cu.DestinationCustomSignatureKey, "destination-custom-signature-key", "", "Key/header name for custom signature")
+	cu.cmd.Flags().StringVar(&cu.DestinationCustomSignatureSecret, "destination-custom-signature-secret", "", "Signing secret for custom signature")
+
+	// OAuth2 (shared flags for both Client Credentials and Authorization Code)
+	cu.cmd.Flags().StringVar(&cu.DestinationOAuth2AuthServer, "destination-oauth2-auth-server", "", "OAuth2 authorization server URL")
+	cu.cmd.Flags().StringVar(&cu.DestinationOAuth2ClientID, "destination-oauth2-client-id", "", "OAuth2 client ID")
+	cu.cmd.Flags().StringVar(&cu.DestinationOAuth2ClientSecret, "destination-oauth2-client-secret", "", "OAuth2 client secret")
+	cu.cmd.Flags().StringVar(&cu.DestinationOAuth2Scopes, "destination-oauth2-scopes", "", "OAuth2 scopes (comma-separated)")
+	cu.cmd.Flags().StringVar(&cu.DestinationOAuth2AuthType, "destination-oauth2-auth-type", "basic", "OAuth2 Client Credentials authentication type: 'basic', 'bearer', or 'x-www-form-urlencoded'")
+
+	// OAuth2 Authorization Code specific
+	cu.cmd.Flags().StringVar(&cu.DestinationOAuth2RefreshToken, "destination-oauth2-refresh-token", "", "OAuth2 refresh token (required for Authorization Code flow)")
+
+	// AWS Signature
+	cu.cmd.Flags().StringVar(&cu.DestinationAWSAccessKeyID, "destination-aws-access-key-id", "", "AWS access key ID")
+	cu.cmd.Flags().StringVar(&cu.DestinationAWSSecretAccessKey, "destination-aws-secret-access-key", "", "AWS secret access key")
+	cu.cmd.Flags().StringVar(&cu.DestinationAWSRegion, "destination-aws-region", "", "AWS region")
+	cu.cmd.Flags().StringVar(&cu.DestinationAWSService, "destination-aws-service", "", "AWS service name")
 
 	// Destination rate limiting flags
 	cu.cmd.Flags().IntVar(&cu.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")

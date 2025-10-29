@@ -1073,16 +1073,57 @@ hookdeck connection create \
 - `--destination-description <string>` - Destination description
 - `--destination-url <url>` - Destination URL (required for HTTP)
 - `--destination-cli-path <path>` - CLI path (default: `/`)
-- `--destination-bearer-token <token>` - Bearer token
-- `--destination-api-key <key>` - API key
-- `--destination-basic-auth-user <user>` - Basic auth username
-- `--destination-basic-auth-pass <pass>` - Basic auth password
-- `--destination-oauth-client-id <id>` - OAuth2 client ID
-- `--destination-oauth-client-secret <secret>` - OAuth2 client secret
-- `--destination-oauth-token-url <url>` - OAuth2 token URL
-- `--destination-auth-method <method>` - Auth method
+- `--destination-auth-method <method>` - Authentication method: `hookdeck`, `bearer`, `basic`, `api_key`, `custom_signature`, `oauth2_client_credentials`, `oauth2_authorization_code`, `aws`
 - `--destination-rate-limit <number>` - Rate limit (requests per period)
 - `--destination-rate-limit-period <period>` - Period: `second`, `minute`, `hour`, `day`, `month`, `year`
+
+**Destination Authentication Options:**
+
+*Hookdeck Signature (default):*
+- `--destination-auth-method hookdeck` - Use Hookdeck signature authentication
+
+*Bearer Token:*
+- `--destination-auth-method bearer`
+- `--destination-bearer-token <token>` - Bearer token
+
+*Basic Authentication:*
+- `--destination-auth-method basic`
+- `--destination-basic-auth-user <user>` - Username
+- `--destination-basic-auth-pass <pass>` - Password
+
+*API Key:*
+- `--destination-auth-method api_key`
+- `--destination-api-key <key>` - API key
+- `--destination-api-key-header <name>` - Key/header name
+- `--destination-api-key-to <location>` - Location: `header` or `query` (default: `header`)
+
+*Custom Signature (HMAC):*
+- `--destination-auth-method custom_signature`
+- `--destination-custom-signature-key <name>` - Key/header name
+- `--destination-custom-signature-secret <secret>` - Signing secret
+
+*OAuth2 Client Credentials:*
+- `--destination-auth-method oauth2_client_credentials`
+- `--destination-oauth2-auth-server <url>` - Authorization server URL
+- `--destination-oauth2-client-id <id>` - Client ID
+- `--destination-oauth2-client-secret <secret>` - Client secret
+- `--destination-oauth2-scopes <scopes>` - Scopes (comma-separated, optional)
+- `--destination-oauth2-auth-type <type>` - Auth type: `basic`, `bearer`, or `x-www-form-urlencoded` (default: `basic`)
+
+*OAuth2 Authorization Code:*
+- `--destination-auth-method oauth2_authorization_code`
+- `--destination-oauth2-auth-server <url>` - Authorization server URL
+- `--destination-oauth2-client-id <id>` - Client ID
+- `--destination-oauth2-client-secret <secret>` - Client secret
+- `--destination-oauth2-refresh-token <token>` - Refresh token
+- `--destination-oauth2-scopes <scopes>` - Scopes (comma-separated, optional)
+
+*AWS Signature:*
+- `--destination-auth-method aws`
+- `--destination-aws-access-key-id <id>` - AWS access key ID
+- `--destination-aws-secret-access-key <key>` - AWS secret access key
+- `--destination-aws-region <region>` - AWS region
+- `--destination-aws-service <service>` - AWS service name
 
 **Rules - Retry:**
 - `--rule-retry-strategy <strategy>` - Strategy: `linear`, `exponential`
