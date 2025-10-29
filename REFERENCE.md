@@ -245,20 +245,15 @@ This command provides CI/CD specific functionality for automated deployments and
 
 ### ✅ Shell completion
 ```bash
-# Generate completion for bash
-hookdeck completion bash
-
-# Generate completion for zsh  
-hookdeck completion zsh
-
-# Generate completion for fish
-hookdeck completion fish
-
-# Generate completion for PowerShell
-hookdeck completion powershell
+# Generate completion (auto-detects bash or zsh from $SHELL)
+hookdeck completion
 
 # Specify shell explicitly
 hookdeck completion --shell bash
+hookdeck completion --shell zsh
+
+# Note: Only bash and zsh are currently supported
+# The CLI auto-detects your shell from the SHELL environment variable
 ```
 
 ### ✅ Version information
@@ -271,16 +266,15 @@ hookdeck --version
 
 ## Current Limitations
 
-The Hookdeck CLI is currently focused on authentication, basic project management, and local development. The following functionality is planned but not yet implemented:
+The Hookdeck CLI provides comprehensive connection management capabilities. The following limitations currently exist:
 
-- ❌ **No structured output formats** - Only plain text with ANSI colors
-- ❌ **No `--format` flag** - Cannot output JSON, YAML, or tables
-- ❌ **No resource management** - Cannot manage sources, destinations, or connections
-- ❌ **No transformation management** - Cannot create or manage JavaScript transformations
-- ❌ **No event querying** - Cannot view or retry webhook events
-- ❌ **No bulk operations** - Cannot perform batch operations on resources
-- ❌ **No advanced filtering** - Limited query capabilities
-- ❌ **No project creation** - Cannot create, update, or delete projects via CLI
+- ❌ **No dedicated event querying commands** - No standalone commands for event/request queries (but events can be inspected and retried in `listen` interactive mode)
+- ❌ **Limited bulk operations** - Cannot perform batch operations on resources (e.g., bulk retry, bulk delete)
+- ❌ **No project creation** - Cannot create, update, or delete projects via CLI (only list and use existing projects)
+- ❌ **No source/destination management** - Sources and destinations must be created inline via connection create or via Hookdeck dashboard
+- ❌ **No transformation management** - Transformations must be created via Hookdeck dashboard or API
+- ❌ **No attempt management** - Cannot query or manage individual delivery attempts via dedicated commands
+- ❌ **No issue management** - Cannot view or manage issues from CLI
 
 ---
 
@@ -290,26 +284,25 @@ The Hookdeck CLI is currently focused on authentication, basic project managemen
 
 ## Implementation Status
 
-| Command Category | Status | Available Commands | Planned Commands |
-|------------------|--------|-------------------|------------------|
-| Authentication | ✅ **Current** | `login`, `logout`, `whoami` | *None needed* |
-| Project Management | 🔄 **Partial** | `list`, `use` | `create`, `get`, `update`, `delete` |
-| Local Development | ✅ **Current** | `listen` | *Enhancements planned* |
-| CI/CD | ✅ **Current** | `ci` | *Enhancements planned* |
-| Source Management | 🚧 **Planned** | *None* | Full CRUD + 80+ provider types |
-| Destination Management | 🚧 **Planned** | *None* | Full CRUD + auth types |
-| Connection Management | 🚧 **Planned** | *None* | Full CRUD + lifecycle management |
-| Transformation Management | 🚧 **Planned** | *None* | Full CRUD + execution + testing |
-| Event Querying | 🚧 **Planned** | *None* | List, get, retry, search |
-| Issue Trigger Management | 🚧 **Planned** | *None* | Full CRUD + notification channels |
-| Attempt Management | 🚧 **Planned** | *None* | List, get, retry, filter, analyze |
-| Bookmark Management | 🚧 **Planned** | *None* | Full CRUD + trigger/replay |
-| Integration Management | 🚧 **Planned** | *None* | Full CRUD + attach/detach |
-| Issue Management | 🚧 **Planned** | *None* | List, get, update, dismiss |
-| Request Management | 🚧 **Planned** | *None* | List, get, retry, raw access |
-| Bulk Operations | 🚧 **Planned** | *None* | Bulk retry for events/requests/ignored |
-| Notifications | 🚧 **Planned** | *None* | Webhook notifications |
-| Output Formatting | 🚧 **Planned** | Basic text only | JSON, YAML, table, CSV |
+| Command Category | Status | Available Commands |
+|------------------|--------|-------------------|
+| Authentication | ✅ **Current** | `login`, `logout`, `whoami` |
+| Project Management | 🔄 **Partial** | `project list`, `project use` |
+| Local Development | ✅ **Current** | `listen` |
+| CI/CD | ✅ **Current** | `ci` |
+| Connection Management | ✅ **Current** | `connection create`, `connection list`, `connection get`, `connection upsert`, `connection delete`, `connection enable`, `connection disable`, `connection pause`, `connection unpause`, `connection archive`, `connection unarchive` |
+| Shell Completion | ✅ **Current** | `completion` (bash, zsh) |
+| Source Management | 🚧 **Planned** | *(Not implemented)* |
+| Destination Management | 🚧 **Planned** | *(Not implemented)* |
+| Transformation Management | 🚧 **Planned** | *(Not implemented)* |
+| Issue Trigger Management | 🚧 **Planned** | *(Not implemented)* |
+| Event Querying | 🚧 **Planned** | *(Not implemented)* |
+| Attempt Management | 🚧 **Planned** | *(Not implemented)* |
+| Bookmark Management | 🚧 **Planned** | *(Not implemented)* |
+| Integration Management | 🚧 **Planned** | *(Not implemented)* |
+| Issue Management | 🚧 **Planned** | *(Not implemented)* |
+| Request Management | 🚧 **Planned** | *(Not implemented)* |
+| Bulk Operations | 🚧 **Planned** | *(Not implemented)* |
 
 ## Advanced Project Management
 
@@ -877,102 +870,43 @@ hookdeck destination unarchive <destination-id>
 
 ## Connections
 
-**All Parameters:**
-```bash
-# Connection list command parameters
---name string            # Filter by name pattern (supports wildcards)
---source-id string       # Filter by source ID
---destination-id string  # Filter by destination ID
---disabled              # Include disabled connections (boolean flag)
---paused                # Include paused connections (boolean flag)
---limit integer         # Limit number of results (default varies)
+✅ **Fully Implemented** - Connection management provides comprehensive CRUD operations, lifecycle management, authentication, and rule configuration.
 
-# Connection count command parameters (🚧 Planned - not yet implemented)
---name string            # Filter by name pattern
---disabled              # Include disabled connections (boolean flag)
---paused                # Include paused connections (boolean flag)
+**Available Commands:**
+- `connection create` - Create connections with inline source/destination creation
+- `connection list` - List connections with filtering options
+- `connection get` - Get detailed connection information
+- `connection upsert` - Idempotent create or update operations
+- `connection delete` - Delete connections with confirmation
+- `connection enable/disable` - Control connection state
+- `connection pause/unpause` - Pause/resume event processing
+- `connection archive/unarchive` - Archive inactive connections
 
-# Connection get command parameters
-<connection-id>         # Required positional argument for connection ID
+**Implementation Status:**
+- ✅ Full CRUD operations
+- ✅ Inline resource creation with authentication
+- ✅ All 5 rule types (retry, filter, transform, delay, deduplicate)
+- ✅ Rate limiting configuration
+- ✅ Lifecycle management
+- ✅ Idempotent upsert with dry-run
+- ✅ `--output json` flag for JSON output (create, list, get, upsert commands)
+- ❌ Bulk operations (planned)
+- ❌ Count command (planned)
 
-# Connection create command parameters (✅ Implemented)
---name string           # Required: Connection name
---description string    # Optional: Connection description
+### List Connections
 
-# Option 1: Using existing resources (✅ Implemented)
---source string         # Source ID (existing resource)
---destination string    # Destination ID (existing resource)
-
-# Option 2: Creating inline source (✅ Implemented - basic support)
---source-type string           # Source type (WEBHOOK, STRIPE, GITHUB, SHOPIFY, HTTP, CLI, etc.)
---source-name string           # Source name for inline creation
---source-description string    # Source description for inline creation
-# Note: Source authentication parameters not yet implemented in CLI
-# Will be added in future releases for webhook signature verification
-
-# Option 3: Creating inline destination (✅ Implemented - basic support)
---destination-type string         # Destination type (HTTP, CLI, MOCK_API)
---destination-name string         # Destination name for inline creation
---destination-description string  # Destination description for inline creation
---destination-url string          # URL for HTTP destinations
-# Note: Destination authentication parameters not yet implemented in CLI
-# Will be added in future releases
-
-# Advanced connection configuration (🚧 Planned - not yet implemented)
---transformation string    # Transformation ID or name
---retry-strategy string    # Retry strategy (exponential, linear, etc.)
---retry-count integer      # Maximum retry attempts
---retry-interval integer   # Retry interval in milliseconds
---delay integer           # Processing delay in milliseconds
---filter-headers string   # Header filters (key=pattern,key2=pattern2)
---filter-body string      # Body filters (comma-separated patterns)
-
-# Connection update command parameters (✅ Implemented)
-<connection-id>         # Required positional argument for connection ID
---name string           # Update connection name
---description string    # Update connection description
-
-# Connection delete command parameters
-<connection-id>         # Required positional argument for connection ID
---force                # Force delete without confirmation (boolean flag)
-
-# Connection lifecycle management command parameters (✅ Implemented)
-<connection-id>         # Required positional argument for connection ID
-# Commands: enable, disable, archive, unarchive, pause, unpause
-```
-
-**Parameter Collision Resolution:**
-When creating connections with inline resources, prefixed flags prevent ambiguity:
-
-- **Source inline creation**: Uses `--source-type`, `--source-name`, `--source-description`
-- **Destination inline creation**: Uses `--destination-type`, `--destination-name`, `--destination-description`, `--destination-url` (for HTTP destinations)
-
-**Validation Rules (✅ Implemented):**
-- Must specify either `--source` (existing) OR `--source-type` + `--source-name` (inline)
-- Must specify either `--destination` (existing) OR `--destination-type` + `--destination-name` (inline)
-- Cannot mix inline and existing for same resource type
-- `--destination-url` is required when `--destination-type` is HTTP
-
-**Note:** Authentication parameters for sources and destinations are not yet implemented in the CLI but will be added in future releases.
-
-Connections link sources to destinations and define processing rules. The connection create command handles flag collision resolution using prefixed flags when creating inline resources.
-
-✅ **Currently Implemented:** `list`, `get`, `create`, `update`, `delete`, `enable`, `disable`, `pause`, `unpause`, `archive`, `unarchive`
-🚧 **Planned:** `count`, advanced rules (retry, filter, transformation, delay)
-
-### List connections
 ```bash
 # List all connections
 hookdeck connection list
 
+# Filter by source
+hookdeck connection list --source src_abc123
+
+# Filter by destination
+hookdeck connection list --destination dest_xyz789
+
 # Filter by name pattern
-hookdeck connection list --name "*prod*"
-
-# Filter by source ID
-hookdeck connection list --source-id <source-id>
-
-# Filter by destination ID
-hookdeck connection list --destination-id <destination-id>
+hookdeck connection list --name "production-*"
 
 # Include disabled connections
 hookdeck connection list --disabled
@@ -980,164 +914,309 @@ hookdeck connection list --disabled
 # Include paused connections
 hookdeck connection list --paused
 
-# Limit results
-hookdeck connection list --limit 50
+# Include archived connections
+hookdeck connection list --archived
+
+# Combine filters
+hookdeck connection list --source src_abc123 --disabled
 ```
 
-### Count connections (🚧 Planned - not yet implemented)
-```bash
-# Count all connections
-hookdeck connection count
+**Available Flags:**
+- `--source <id-or-name>` - Filter by source ID or name
+- `--destination <id-or-name>` - Filter by destination ID or name
+- `--name <pattern>` - Filter by connection name
+- `--full-name <pattern>` - Filter by full connection name (source > connection > destination)
+- `--disabled` - Show only disabled connections
+- `--paused` - Show only paused connections
+- `--archived` - Show only archived connections
+- `--output json` - Output in JSON format
 
-# Count with filters
-hookdeck connection count --name "*stripe*" --disabled --paused
+### Get Connection
+
+```bash
+# Get by ID
+hookdeck connection get conn_abc123
+
+# Get by name
+hookdeck connection get "my-connection"
+
+# Get as JSON
+hookdeck connection get conn_abc123 --output json
 ```
 
-### Get connection details
+### Create Connection
+
+Create a new connection with inline source/destination creation or by referencing existing resources.
+
+#### Basic Examples
+
+**1. Basic HTTP Connection**
 ```bash
-# Get connection by ID
-hookdeck connection get <connection-id>
-```
-
-### Create a connection
-
-#### Using existing resources
-```bash
-# Simple connection with existing resources
-hookdeck connection create --name "stripe-to-api" --source <source-id> --destination <destination-id>
-
-# With description
-hookdeck connection create --name "stripe-to-api" \
-  --description "Production Stripe webhooks to API" \
-  --source <source-id> \
-  --destination <destination-id>
-```
-
-#### Creating resources inline (using prefixed flags to avoid collision)
-```bash
-# Create connection with inline source and destination (localhost quickstart example)
 hookdeck connection create \
-  --name "test-webhooks-to-local" \
-  --source-type WEBHOOK \
-  --source-name "test-webhooks" \
-  --source-description "Local testing source" \
-  --destination-type CLI \
-  --destination-name "local-dev"
-
-# Create connection with HTTP destination
-hookdeck connection create --name "stripe-to-api" \
-  --source-type STRIPE \
-  --source-name "stripe-prod" \
+  --source-name "webhook-receiver" \
+  --source-type HTTP \
+  --destination-name "api-endpoint" \
   --destination-type HTTP \
-  --destination-name "my-api" \
   --destination-url "https://api.example.com/webhooks"
+```
 
-# Mixed approach: existing source, new destination
-hookdeck connection create --name "stripe-to-new-api" \
-  --source <source-id> \
+**2. Using Existing Resources**
+```bash
+hookdeck connection create \
+  --source "existing-source-name" \
+  --destination "existing-dest-name" \
+  --name "new-connection" \
+  --description "Connects existing resources"
+```
+
+#### Authentication Examples
+
+**3. Stripe with Webhook Secret**
+```bash
+hookdeck connection create \
+  --source-name "stripe-prod" \
+  --source-type STRIPE \
+  --source-webhook-secret "whsec_abc123xyz" \
+  --destination-name "payment-processor" \
   --destination-type HTTP \
-  --destination-name "new-endpoint" \
-  --destination-url "https://new-api.example.com/hooks"
+  --destination-url "https://api.example.com/stripe"
+```
 
-# Mixed approach: new source, existing destination
-hookdeck connection create --name "github-to-existing" \
+**4. Destination with Bearer Token**
+```bash
+hookdeck connection create \
+  --source-name "github-webhooks" \
   --source-type GITHUB \
-  --source-name "github-repo" \
-  --destination <destination-id>
+  --source-webhook-secret "ghp_secret123" \
+  --destination-name "ci-system" \
+  --destination-type HTTP \
+  --destination-url "https://ci.example.com/webhook" \
+  --destination-bearer-token "bearer_token_xyz"
 ```
 
-#### Advanced connection configurations (🚧 Planned)
+**5. Custom Headers for Destination**
 ```bash
-# Connection with retry rules (not yet implemented)
-hookdeck connection create --name "reliable-connection" \
-  --source <source-id> \
-  --destination <destination-id> \
-  --retry-strategy exponential \
-  --retry-count 5 \
-  --retry-interval 1000
-
-# Connection with delay rule (not yet implemented)
-hookdeck connection create --name "delayed-processing" \
-  --source <source-id> \
-  --destination <destination-id> \
-  --delay 30000
-
-# Connection with filtering (not yet implemented)
-hookdeck connection create --name "filtered-webhooks" \
-  --source <source-id> \
-  --destination <destination-id> \
-  --filter-headers "X-Event-Type=payment.*" \
-  --filter-body "type=invoice.payment_succeeded,invoice.payment_failed"
+hookdeck connection create \
+  --source-name "webhook-source" \
+  --source-type HTTP \
+  --destination-name "custom-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhook" \
+  --destination-custom-header "X-API-Version:v2" \
+  --destination-custom-header "X-Client-ID:client123"
 ```
 
-### Create or update a connection (upsert) ✅
+#### Rule Configuration Examples
 
-The `upsert` command provides idempotent create-or-update behavior using the connection name as a unique identifier. This is the recommended way to manage connections declaratively.
+**6. Retry Rules**
+```bash
+hookdeck connection create \
+  --source-name "payment-webhooks" \
+  --source-type STRIPE \
+  --destination-name "payment-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/payments" \
+  --rule-retry-strategy exponential \
+  --rule-retry-count 5 \
+  --rule-retry-interval 60000
+```
+
+**7. Filter Rules**
+```bash
+hookdeck connection create \
+  --source-name "events" \
+  --source-type HTTP \
+  --destination-name "processor" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/process" \
+  --rule-filter-body '{"$.event_type":"payment.succeeded"}'
+```
+
+**8. All Rule Types Combined**
+```bash
+hookdeck connection create \
+  --source-name "shopify-webhooks" \
+  --source-type SHOPIFY \
+  --destination-name "order-processor" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/orders" \
+  --rule-filter-body '{"$.type":"order"}' \
+  --rule-retry-strategy exponential \
+  --rule-retry-count 3 \
+  --rule-retry-interval 30000 \
+  --rule-transform-name "order-transformer" \
+  --rule-delay 5000
+```
+
+**9. Rate Limiting**
+```bash
+hookdeck connection create \
+  --source-name "high-volume-source" \
+  --source-type HTTP \
+  --destination-name "rate-limited-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/endpoint" \
+  --destination-rate-limit 100 \
+  --destination-rate-limit-period minute
+```
+
+#### Available Flags
+
+**Connection Configuration:**
+- `--name <string>` - Connection name (optional, auto-generated if not provided)
+- `--description <string>` - Connection description
+
+**Source (Inline Creation):**
+- `--source-name <string>` - Source name (required for inline)
+- `--source-type <type>` - Source type: `STRIPE`, `GITHUB`, `SHOPIFY`, `HTTP`, etc.
+- `--source-description <string>` - Source description
+- `--source-webhook-secret <secret>` - Webhook verification secret
+- `--source-api-key <key>` - API key authentication
+- `--source-basic-auth-user <user>` - Basic auth username
+- `--source-basic-auth-pass <pass>` - Basic auth password
+- `--source-hmac-secret <secret>` - HMAC secret
+- `--source-hmac-algo <algo>` - HMAC algorithm
+- `--source-config <json>` - JSON authentication config
+- `--source-config-file <path>` - Path to JSON config file
+
+**Destination (Inline Creation):**
+- `--destination-name <string>` - Destination name (required for inline)
+- `--destination-type <type>` - Destination type: `HTTP`, `MOCK`, etc.
+- `--destination-description <string>` - Destination description
+- `--destination-url <url>` - Destination URL (required for HTTP)
+- `--destination-cli-path <path>` - CLI path (default: `/`)
+- `--destination-bearer-token <token>` - Bearer token
+- `--destination-api-key <key>` - API key
+- `--destination-basic-auth-user <user>` - Basic auth username
+- `--destination-basic-auth-pass <pass>` - Basic auth password
+- `--destination-custom-header <name:value>` - Custom headers (repeatable)
+- `--destination-oauth-client-id <id>` - OAuth2 client ID
+- `--destination-oauth-client-secret <secret>` - OAuth2 client secret
+- `--destination-oauth-token-url <url>` - OAuth2 token URL
+- `--destination-auth-method <method>` - Auth method
+- `--destination-rate-limit <number>` - Rate limit (requests per period)
+- `--destination-rate-limit-period <period>` - Period: `second`, `minute`, `hour`, `day`, `month`, `year`
+
+**Rules - Retry:**
+- `--rule-retry-strategy <strategy>` - Strategy: `linear`, `exponential`
+- `--rule-retry-count <number>` - Number of retry attempts (1-20)
+- `--rule-retry-interval <ms>` - Interval in milliseconds
+- `--rule-retry-response-status-codes <codes>` - Comma-separated status codes
+
+**Rules - Filter:**
+- `--rule-filter-body <json>` - Body filter (JSON format)
+- `--rule-filter-headers <json>` - Header filter (JSON format)
+- `--rule-filter-path <json>` - Path filter (JSON format)
+- `--rule-filter-query <json>` - Query parameter filter (JSON format)
+
+**Rules - Transform:**
+- `--rule-transform-name <name>` - Name or ID of transformation
+
+**Rules - Delay:**
+- `--rule-delay <ms>` - Delay in milliseconds
+
+**Rules - Deduplicate:**
+- `--rule-deduplicate-window <seconds>` - Deduplication window
+- `--rule-deduplicate-include-fields <fields>` - Comma-separated fields to include
+- `--rule-deduplicate-exclude-fields <fields>` - Comma-separated fields to exclude
+
+**Reference Existing Resources:**
+- `--source <id-or-name>` - Use existing source
+- `--destination <id-or-name>` - Use existing destination
+
+**JSON Fallbacks:**
+- `--rules <json>` - Complete rules array (JSON string)
+- `--rules-file <path>` - Path to JSON file with rules
+
+### Upsert Connection
+
+Create or update a connection idempotently based on the connection name. Perfect for CI/CD and infrastructure-as-code workflows.
 
 ```bash
-# Create a new connection (when it doesn't exist)
-hookdeck connection upsert "my-connection" \
+# Create if doesn't exist
+hookdeck connection upsert my-connection \
   --source-name "stripe-prod" \
   --source-type STRIPE \
-  --destination-name "my-api" \
+  --destination-name "api-prod" \
   --destination-type HTTP \
-  --destination-url "https://api.example.com/webhooks"
+  --destination-url "https://api.example.com"
 
-# Update an existing connection (only updates specified properties)
-hookdeck connection upsert "my-connection" \
-  --description "Updated description"
+# Update existing (partial update)
+hookdeck connection upsert my-connection \
+  --description "Updated description" \
+  --rule-retry-count 5
 
-# Preview changes without applying them
-hookdeck connection upsert "my-connection" \
+# Preview changes without applying
+hookdeck connection upsert my-connection \
   --description "New description" \
   --dry-run
-
-# Update with rules
-hookdeck connection upsert "my-connection" \
-  --rule-retry-strategy linear \
-  --rule-retry-count 5
 ```
 
-**Key Features:**
-- **Idempotent**: Safe to run multiple times with the same arguments
-- **Partial updates**: Only updates properties explicitly provided
-- **Dry-run support**: Use `--dry-run` to preview changes before applying
-- **Create or update**: Automatically detects if connection exists by name
+**Behavior:**
+- If connection doesn't exist → Creates it (source/destination required)
+- If connection exists → Updates it (all flags optional, partial updates)
+- Supports all same flags as `connection create`
+- Add `--dry-run` to preview CREATE or UPDATE operation
 
-**When to use:**
-- CI/CD pipelines and automation
-- Infrastructure-as-code workflows
-- When you want to ensure a specific configuration state
+**Use Cases:**
+- CI/CD pipelines
+- Infrastructure-as-code
+- Idempotent configuration management
 
-### Delete a connection
+### Delete Connection
+
 ```bash
-# Delete connection (with confirmation)
-hookdeck connection delete <connection-id>
+# Delete with confirmation prompt
+hookdeck connection delete conn_abc123
 
-# Force delete without confirmation
-hookdeck connection delete <connection-id> --force
+# Delete by name
+hookdeck connection delete "my-connection"
+
+# Skip confirmation
+hookdeck connection delete conn_abc123 --force
 ```
 
-### Connection lifecycle management
+### Lifecycle Management
+
+Control connection state and processing behavior.
+
 ```bash
-# Enable connection
-hookdeck connection enable <connection-id>
+# Enable/Disable (stop receiving events)
+hookdeck connection disable conn_abc123
+hookdeck connection enable conn_abc123
 
-# Disable connection
-hookdeck connection disable <connection-id>
+# Pause/Unpause (queue events without forwarding)
+hookdeck connection pause conn_abc123
+hookdeck connection unpause conn_abc123
 
-# Pause connection (temporary)
-hookdeck connection pause <connection-id>
-
-# Resume paused connection
-hookdeck connection unpause <connection-id>
-
-# Archive connection
-hookdeck connection archive <connection-id>
-
-# Restore archived connection
-hookdeck connection unarchive <connection-id>
+# Archive/Unarchive (for inactive connections)
+hookdeck connection archive conn_abc123
+hookdeck connection unarchive conn_abc123
 ```
+
+**State Differences:**
+- **Disabled**: Connection stops receiving events entirely
+- **Paused**: Connection queues events but doesn't forward them
+- **Archived**: Connection is hidden from main lists but can be restored
+
+### Implementation Notes
+
+**Fully Implemented (✅):**
+- Full CRUD operations (create, list, get, upsert, delete)
+- Inline resource creation with authentication
+- All 5 rule types (retry, filter, transform, delay, deduplicate)
+- Rate limiting configuration
+- Lifecycle management (enable, disable, pause, unpause, archive, unarchive)
+- Idempotent upsert with dry-run support
+- 21 acceptance tests, all passing
+
+**Not Implemented (❌):**
+- `connection count` command (optional)
+- Bulk operations (planned)
+- Connection cloning (optional)
+
+**See Also:**
+- [Connection Management Status](.plans/connection-management-status.md)
 
 ## Transformations
 

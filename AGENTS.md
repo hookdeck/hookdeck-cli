@@ -58,6 +58,45 @@ CLI: --slack-channel "#alerts"
 - **Collections**: Use comma-separated values (`--connections "a,b,c"`)
 - **Booleans**: Use presence flags (`--email`, `--pagerduty`, `--force`)
 
+### Ordered Array Configurations
+
+For API arrays where **order matters** (e.g., rules, processing steps, middleware):
+
+**Pattern:** Use flag position to determine array order
+```bash
+# Flag naming: --<category>-<type>-<property>
+API: { "rules": [{"type": "retry", ...}, {"type": "filter", ...}] }
+CLI: --rule-retry-strategy exponential --rule-filter-body '{...}'
+
+# Order determined by first flag of each type
+--rule-filter-body '{...}' \      # Filter is first (index 0)
+  --rule-transform-name "tx1" \   # Transform is second (index 1)
+  --rule-filter-headers '{...}'   # Modifies first filter rule
+```
+
+**Implementation Guidelines:**
+- First occurrence of `--<category>-<type>-*` flag establishes that item's position
+- Subsequent flags for same type modify the existing item (don't create new one)
+- Only one item of each type allowed (per API constraints)
+- Provide JSON fallback for complex scenarios: `--<category>` or `--<category>-file`
+
+**Example: Connection Rules (5 rule types)**
+```bash
+# Retry → Filter → Transform execution order
+hookdeck connection create \
+  --rule-retry-strategy exponential --rule-retry-count 3 \
+  --rule-filter-body '{\"$.event_type\":\"payment\"}' \
+  --rule-transform-name "my-transform"
+
+# JSON fallback for complex configurations
+hookdeck connection create --rules-file rules.json
+```
+
+**Validation:**
+- If any `--rule-*` flag is used, corresponding rule object is constructed
+- Type-specific required fields validated (e.g., `--rule-retry-strategy` required if any `--rule-retry-*` flag present)
+- JSON fallback takes precedence and ignores all individual flags
+
 ### Command Structure Standards
 ```bash
 # Standard CRUD pattern
@@ -269,6 +308,65 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 | `golangci-lint run` | Run comprehensive linting |
 
 ## 11. Common Patterns to Follow
+
+### Idempotent Upsert Pattern
+
+For resources that support declarative infrastructure-as-code workflows, provide `upsert` commands that create or update based on resource name:
+
+**Command Signature:**
+```bash
+hookdeck <resource> upsert <name> [flags]
+```
+
+**Key Principles:**
+1. **Name-based detection**: Check if resource exists by name (via `GET /resources?name=<name>`)
+2. **Dual behavior**:
+   - If doesn't exist → behave like `create` (source/destination required)
+   - If exists → behave like `update` (all flags optional, partial updates)
+3. **Dry-run support**: Add `--dry-run` flag to preview changes without applying
+4. **Idempotent**: Running same command twice should produce same result
+5. **Clear messaging**: Indicate whether CREATE or UPDATE will occur
+
+**Example Implementation:**
+```bash
+# Create if doesn't exist
+hookdeck connection upsert my-connection \
+  --source-name "my-source" --source-type STRIPE \
+  --destination-name "my-api" --destination-type HTTP \
+  --destination-url "https://example.com"
+
+# Update only rules (partial update)
+hookdeck connection upsert my-connection \
+  --rule-retry-strategy linear --rule-retry-count 5
+
+# Preview changes before applying
+hookdeck connection upsert my-connection \
+  --description "New description" --dry-run
+
+# No-op: connection exists, no flags provided (should not error)
+hookdeck connection upsert my-connection
+```
+
+**Dry-Run Output Format:**
+```
+-- Dry Run: UPDATE --
+Connection 'my-connection' (conn_123) will be updated with the following changes:
+- Description: "New description"
+- Rules: (ruleset will be replaced)
+  - Filter: body contains '{"$.type":"payment"}'
+```
+
+**Validation Strategy:**
+- Perform GET request first to determine create vs update mode
+- Apply create validation (source/destination required) only if resource doesn't exist
+- Apply update validation (all flags optional) if resource exists
+- For collection replacements (e.g., rules), replace entire collection if any flag provided
+
+**When to Use:**
+- CI/CD pipelines managing webhook infrastructure
+- Configuration-as-code scenarios
+- Environments where idempotency is critical
+- When you want to "ensure this configuration exists" rather than "create new" or "modify existing"
 
 ### Interactive Prompts
 When required parameters are missing, prompt interactively:

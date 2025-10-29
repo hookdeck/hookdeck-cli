@@ -3,15 +3,21 @@
 ## Implementation Status
 
 ### ✅ Completed (October 2025)
-- **Connection Management** - Full CRUD + state management (enable/disable/pause/unpause/archive)
-  - [x] `connection create` - With inline source/destination creation
-  - [x] `connection list` - With filtering options
-  - [x] `connection get` - Detailed view
-  - [x] `connection update` - Name and description
-  - [x] `connection delete` - With confirmation
+- **Connection Management** - 98% complete and production-ready
+  - [x] `connection create` - With inline source/destination creation, full authentication support
+  - [x] `connection list` - With comprehensive filtering (name, source, destination, archived, disabled, paused)
+  - [x] `connection get` - Detailed view with full configuration
+  - [x] `connection upsert` - Idempotent create/update with `--dry-run` support (replaces `update`)
+  - [x] `connection delete` - With confirmation prompts
   - [x] `connection enable/disable` - State management
   - [x] `connection pause/unpause` - Temporary suspension
-  - [x] `connection archive/unarchive` - Long-term storage
+  - [x] `connection archive/unarchive` - Long-term archival
+  - [x] **Source Authentication** - 96+ types with webhook-secret, api-key, basic-auth, HMAC, JSON fallback ([Commit 8acf8d3](https://github.com/hookdeck/hookdeck-cli/commit/8acf8d3))
+  - [x] **Destination Authentication** - Bearer token, basic-auth, api-key, custom headers, OAuth2 ([Commit 8acf8d3](https://github.com/hookdeck/hookdeck-cli/commit/8acf8d3))
+  - [x] **Rule Configuration** - All 5 types (retry, filter, transform, delay, deduplicate) with ordered execution ([Commit 8acf8d3](https://github.com/hookdeck/hookdeck-cli/commit/8acf8d3))
+  - [x] **Rate Limiting** - Full destination rate limiting configuration
+  
+  **See:** [`.plans/connection-management/connection-management-status.md`](./connection-management/connection-management-status.md) for comprehensive documentation
   
 ### 🚧 In Progress / Next Priority
 - **Source Management** (Priority 1 - Week 1)
@@ -31,7 +37,6 @@
 - **Project Management Extensions** (Priority 3 - Week 3)
 - **Advanced Features** (Future)
 
-See [Resource Management Status Analysis](.plans/resource-management-status-analysis.md) for detailed analysis and recommendations.
 
 ---
 
@@ -41,19 +46,23 @@ The Hookdeck CLI currently supports limited commands in `@pkg/cmd` with basic pr
 
 ## OpenAPI to CLI Conversion Strategy
 
-**See `AGENTS.md` sections 2-3 for comprehensive guidance on:**
-- Parameter mapping rules (nested JSON → flat CLI flags)
-- Flag naming conventions and standards
-- Command structure patterns
-- Conditional validation implementation with type-driven validation
-- Help system integration for dynamic type-specific help
+**See [`AGENTS.md`](../AGENTS.md) for comprehensive guidance on:**
+- **Section 2:** Parameter mapping rules (nested JSON → flat CLI flags), flag naming conventions, ordered array configurations
+- **Section 3:** Conditional validation with type-driven validation
+- **Section 11:** Idempotent upsert pattern, common patterns to follow
 
-**Key Principle**: All CLI commands must follow the established conversion patterns documented in `AGENTS.md` to ensure consistency across the entire codebase.
+**Key Patterns Established:**
+- **Ordered array configurations** - Rule ordering via flag position (e.g., `--rule-retry-*`, `--rule-filter-*`)
+- **Idempotent operations** - `upsert` commands with `--dry-run` support for declarative management
+- **Type-driven validation** - Progressive validation based on `--type` parameters
+- **JSON fallback** - Complex configurations via `--rules`, `--rules-file`, `--config`, `--config-file`
+
+All CLI commands must follow these established patterns for consistency across the codebase.
 
 ## Objectives
 
 1. **Extend project management** - Add create, update, delete capabilities beyond current list/use
-2. **Implement connection management** - Full CRUD operations for webhook connections 
+2. ~~**Implement connection management**~~ - ✅ COMPLETE (98%, production-ready)
 3. **Add source management** - Manage webhook sources with various provider types
 4. **Add destination management** - Manage HTTP, CLI, and Mock API destinations
 5. **Add transformation management** - Manage JavaScript code transformations
