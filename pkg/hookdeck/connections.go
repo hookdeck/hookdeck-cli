@@ -38,12 +38,6 @@ type ConnectionCreateRequest struct {
 	Rules         []Rule                  `json:"rules,omitempty"`
 }
 
-// ConnectionUpdateRequest represents the request to update a connection
-type ConnectionUpdateRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-}
-
 // ConnectionListResponse represents the response from listing connections
 type ConnectionListResponse struct {
 	Models     []Connection       `json:"models"`
@@ -125,14 +119,15 @@ func (c *Client) CreateConnection(ctx context.Context, req *ConnectionCreateRequ
 	return &connection, nil
 }
 
-// UpdateConnection updates an existing connection
-func (c *Client) UpdateConnection(ctx context.Context, id string, req *ConnectionUpdateRequest) (*Connection, error) {
+// UpsertConnection creates or updates a connection by name
+// Uses PUT /connections endpoint with name as the unique identifier
+func (c *Client) UpsertConnection(ctx context.Context, req *ConnectionCreateRequest) (*Connection, error) {
 	data, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal connection update request: %w", err)
+		return nil, fmt.Errorf("failed to marshal connection upsert request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s", id), data, nil)
+	resp, err := c.Put(ctx, "/2025-07-01/connections", data, nil)
 	if err != nil {
 		return nil, err
 	}

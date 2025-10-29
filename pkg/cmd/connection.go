@@ -25,9 +25,9 @@ existing resources.`,
 	}
 
 	cc.cmd.AddCommand(newConnectionCreateCmd().cmd)
+	cc.cmd.AddCommand(newConnectionUpsertCmd().cmd)
 	cc.cmd.AddCommand(newConnectionListCmd().cmd)
 	cc.cmd.AddCommand(newConnectionGetCmd().cmd)
-	cc.cmd.AddCommand(newConnectionUpdateCmd().cmd)
 	cc.cmd.AddCommand(newConnectionDeleteCmd().cmd)
 	cc.cmd.AddCommand(newConnectionEnableCmd().cmd)
 	cc.cmd.AddCommand(newConnectionDisableCmd().cmd)

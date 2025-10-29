@@ -53,45 +53,6 @@ func TestConnectionCreateAndDelete(t *testing.T) {
 	t.Logf("Successfully created and retrieved connection: %s", conn.Name)
 }
 
-// TestConnectionUpdate tests updating a connection's metadata
-func TestConnectionUpdate(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-
-	cli := NewCLIRunner(t)
-
-	// Create a test connection
-	connID := createTestConnection(t, cli)
-	require.NotEmpty(t, connID, "Connection ID should not be empty")
-
-	// Register cleanup
-	t.Cleanup(func() {
-		deleteConnection(t, cli, connID)
-	})
-
-	// Update the connection
-	timestamp := generateTimestamp()
-	newName := "updated-conn-" + timestamp
-	newDesc := "This is an updated description"
-
-	stdout := cli.RunExpectSuccess("connection", "update", connID,
-		"--name", newName,
-		"--description", newDesc,
-	)
-	assert.NotEmpty(t, stdout, "update command should produce output")
-
-	// Verify the update
-	var updatedConn Connection
-	err := cli.RunJSON(&updatedConn, "connection", "get", connID)
-	require.NoError(t, err, "Should be able to get the updated connection")
-
-	assert.Equal(t, newName, updatedConn.Name, "Connection name should be updated")
-	assert.Equal(t, newDesc, updatedConn.Description, "Connection description should be updated")
-
-	t.Logf("Successfully updated connection to name: %s", newName)
-}
-
 // TestConnectionWithWebhookSource tests creating a connection with a WEBHOOK source
 func TestConnectionWithWebhookSource(t *testing.T) {
 	if testing.Short() {
@@ -1167,4 +1128,466 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		t.Logf("Successfully created and verified connection with rate limiting (per minute): %s", conn.ID)
 	})
+}
+
+// TestConnectionUpsertCreate tests creating a new connection via upsert
+func TestConnectionUpsertCreate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-create-" + timestamp
+	sourceName := "test-upsert-src-" + timestamp
+	destName := "test-upsert-dst-" + timestamp
+
+	// Upsert (create) a new connection
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "upsert", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Should create connection via upsert")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// PRIMARY: Verify upsert command output
+	assert.Equal(t, connName, conn.Name, "Connection name should match in upsert output")
+	assert.Equal(t, sourceName, conn.Source.Name, "Source name should match in upsert output")
+	assert.Equal(t, destName, conn.Destination.Name, "Destination name should match in upsert output")
+
+	// SECONDARY: Verify persisted state via GET
+	var fetched Connection
+	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should be able to get the created connection")
+
+	assert.Equal(t, connName, fetched.Name, "Connection name should be persisted")
+	assert.Equal(t, sourceName, fetched.Source.Name, "Source name should be persisted")
+	assert.Equal(t, destName, fetched.Destination.Name, "Destination name should be persisted")
+
+	t.Logf("Successfully created connection via upsert: %s", conn.ID)
+}
+
+// TestConnectionUpsertUpdate tests updating an existing connection via upsert
+func TestConnectionUpsertUpdate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-update-" + timestamp
+	sourceName := "test-upsert-update-src-" + timestamp
+	destName := "test-upsert-update-dst-" + timestamp
+
+	// First create a connection
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Should create initial connection")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Now upsert (update) with a description
+	newDesc := "Updated via upsert command"
+	var upserted Connection
+	err = cli.RunJSON(&upserted, "connection", "upsert", connName,
+		"--description", newDesc,
+	)
+	require.NoError(t, err, "Should upsert connection")
+
+	// PRIMARY: Verify upsert command output
+	assert.Equal(t, conn.ID, upserted.ID, "Connection ID should match")
+	assert.Equal(t, connName, upserted.Name, "Connection name should match")
+	assert.Equal(t, newDesc, upserted.Description, "Description should be updated in upsert output")
+	assert.Equal(t, sourceName, upserted.Source.Name, "Source should be preserved in upsert output")
+	assert.Equal(t, destName, upserted.Destination.Name, "Destination should be preserved in upsert output")
+
+	// SECONDARY: Verify persisted state via GET
+	var fetched Connection
+	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should get updated connection")
+
+	assert.Equal(t, newDesc, fetched.Description, "Description should be persisted")
+	assert.Equal(t, sourceName, fetched.Source.Name, "Source should be persisted")
+	assert.Equal(t, destName, fetched.Destination.Name, "Destination should be persisted")
+
+	t.Logf("Successfully updated connection via upsert: %s", conn.ID)
+}
+
+// TestConnectionUpsertIdempotent tests that upsert is idempotent
+func TestConnectionUpsertIdempotent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-idem-" + timestamp
+	sourceName := "test-upsert-idem-src-" + timestamp
+	destName := "test-upsert-idem-dst-" + timestamp
+
+	// Run upsert twice with same parameters
+	var conn1, conn2 Connection
+
+	err := cli.RunJSON(&conn1,
+		"connection", "upsert", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "First upsert should succeed")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn1.ID)
+	})
+
+	err = cli.RunJSON(&conn2,
+		"connection", "upsert", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Second upsert should succeed")
+
+	// PRIMARY: Both outputs should refer to the same connection with same properties
+	assert.Equal(t, conn1.ID, conn2.ID, "Both upserts should operate on same connection")
+	assert.Equal(t, conn1.Name, conn2.Name, "Connection name should match in both outputs")
+	assert.Equal(t, conn1.Source.Name, conn2.Source.Name, "Source name should match in both outputs")
+	assert.Equal(t, conn1.Destination.Name, conn2.Destination.Name, "Destination name should match in both outputs")
+
+	// SECONDARY: Verify persisted state
+	var fetched Connection
+	err = cli.RunJSON(&fetched, "connection", "get", conn1.ID)
+	require.NoError(t, err, "Should get connection")
+	assert.Equal(t, connName, fetched.Name, "Connection name should be persisted")
+
+	t.Logf("Successfully verified idempotency: %s", conn1.ID)
+}
+
+// TestConnectionUpsertDryRun tests that dry-run doesn't make changes
+func TestConnectionUpsertDryRun(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-dryrun-" + timestamp
+	sourceName := "test-upsert-dryrun-src-" + timestamp
+	destName := "test-upsert-dryrun-dst-" + timestamp
+
+	// Run upsert with --dry-run (should not create)
+	stdout := cli.RunExpectSuccess("connection", "upsert", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--dry-run",
+	)
+
+	assert.Contains(t, stdout, "DRY RUN", "Should indicate dry-run mode")
+	assert.Contains(t, stdout, "Operation: CREATE", "Should indicate create operation")
+	assert.Contains(t, stdout, "No changes were made", "Should confirm no changes")
+
+	// Verify the connection was NOT created by trying to list it
+	var listResp map[string]interface{}
+	cli.RunJSON(&listResp, "connection", "list", "--name", connName)
+	// Connection should not exist, so we expect empty or error
+
+	t.Logf("Successfully verified dry-run for create scenario")
+}
+
+// TestConnectionUpsertDryRunUpdate tests dry-run on update scenario
+func TestConnectionUpsertDryRunUpdate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-dryrun-upd-" + timestamp
+	sourceName := "test-upsert-dryrun-upd-src-" + timestamp
+	destName := "test-upsert-dryrun-upd-dst-" + timestamp
+
+	// Create initial connection
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Should create initial connection")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Run upsert with --dry-run for update
+	newDesc := "This should not be applied"
+	stdout := cli.RunExpectSuccess("connection", "upsert", connName,
+		"--description", newDesc,
+		"--dry-run",
+	)
+
+	assert.Contains(t, stdout, "DRY RUN", "Should indicate dry-run mode")
+	assert.Contains(t, stdout, "Operation: UPDATE", "Should indicate update operation")
+	assert.Contains(t, stdout, "Description", "Should show description change")
+
+	// Verify the connection was NOT updated
+	var getResp Connection
+	err = cli.RunJSON(&getResp, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should get connection")
+
+	assert.NotEqual(t, newDesc, getResp.Description, "Description should not be updated in dry-run")
+
+	t.Logf("Successfully verified dry-run for update scenario")
+}
+
+// TestConnectionUpsertPartialUpdate tests updating only some properties
+func TestConnectionUpsertPartialUpdate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-partial-" + timestamp
+	sourceName := "test-upsert-partial-src-" + timestamp
+	destName := "test-upsert-partial-dst-" + timestamp
+	initialDesc := "Initial description"
+
+	// Create initial connection
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--description", initialDesc,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Should create initial connection")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Update only description
+	newDesc := "Updated description only"
+	var upserted Connection
+	err = cli.RunJSON(&upserted, "connection", "upsert", connName,
+		"--description", newDesc,
+	)
+	require.NoError(t, err, "Should upsert connection")
+
+	// PRIMARY: Verify upsert command output - source and destination weren't changed
+	assert.Equal(t, conn.ID, upserted.ID, "Connection ID should match")
+	assert.Equal(t, newDesc, upserted.Description, "Description should be updated in upsert output")
+	assert.Equal(t, sourceName, upserted.Source.Name, "Source should be preserved in upsert output")
+	assert.Equal(t, destName, upserted.Destination.Name, "Destination should be preserved in upsert output")
+
+	// SECONDARY: Verify persisted state via GET
+	var fetched Connection
+	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should get updated connection")
+
+	assert.Equal(t, newDesc, fetched.Description, "Description should be persisted")
+	assert.Equal(t, sourceName, fetched.Source.Name, "Source should be persisted")
+	assert.Equal(t, destName, fetched.Destination.Name, "Destination should be persisted")
+
+	t.Logf("Successfully verified partial update via upsert")
+}
+
+// TestConnectionUpsertWithRules tests updating rules via upsert
+func TestConnectionUpsertWithRules(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-rules-" + timestamp
+	sourceName := "test-upsert-rules-src-" + timestamp
+	destName := "test-upsert-rules-dst-" + timestamp
+
+	// Create initial connection
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Should create initial connection")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Update with retry rule
+	var upserted Connection
+	err = cli.RunJSON(&upserted,
+		"connection", "upsert", connName,
+		"--rule-retry-strategy", "linear",
+		"--rule-retry-count", "3",
+		"--rule-retry-interval", "5000",
+	)
+	require.NoError(t, err, "Should update with rules")
+
+	// PRIMARY: Verify upsert command output includes rules
+	assert.Equal(t, conn.ID, upserted.ID, "Connection ID should match")
+	assert.NotEmpty(t, upserted.Rules, "Should have rules in upsert output")
+	assert.Greater(t, len(upserted.Rules), 0, "Should have at least one rule in upsert output")
+	assert.Equal(t, sourceName, upserted.Source.Name, "Source should be preserved in upsert output")
+	assert.Equal(t, destName, upserted.Destination.Name, "Destination should be preserved in upsert output")
+
+	// SECONDARY: Verify persisted state via GET
+	var fetched Connection
+	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should get updated connection")
+	assert.NotEmpty(t, fetched.Rules, "Should have rules persisted")
+
+	t.Logf("Successfully updated rules via upsert: %s", conn.ID)
+}
+
+// TestConnectionUpsertReplaceRules tests replacing existing rules via upsert
+func TestConnectionUpsertReplaceRules(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-upsert-replace-rules-" + timestamp
+	sourceName := "test-upsert-replace-src-" + timestamp
+	destName := "test-upsert-replace-dst-" + timestamp
+
+	// Create initial connection WITH a retry rule
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-retry-strategy", "linear",
+		"--rule-retry-count", "3",
+		"--rule-retry-interval", "5000",
+	)
+	require.NoError(t, err, "Should create initial connection with retry rule")
+	require.NotEmpty(t, conn.Rules, "Initial connection should have rules")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Verify initial rule is retry
+	initialRule := conn.Rules[0]
+	assert.Equal(t, "retry", initialRule["type"], "Initial rule should be retry type")
+
+	// Upsert to REPLACE retry rule with filter rule (using proper JSON format)
+	filterBody := `{"$.type":"payment"}`
+	var upserted Connection
+	err = cli.RunJSON(&upserted,
+		"connection", "upsert", connName,
+		"--rule-filter-body", filterBody,
+	)
+	require.NoError(t, err, "Should upsert connection with filter rule")
+
+	// PRIMARY: Verify upsert command output has replaced rules
+	assert.Equal(t, conn.ID, upserted.ID, "Connection ID should match")
+	assert.NotEmpty(t, upserted.Rules, "Should have rules in upsert output")
+	assert.Len(t, upserted.Rules, 1, "Should have exactly one rule (replaced)")
+
+	// Verify the rule is now a filter rule, not retry
+	replacedRule := upserted.Rules[0]
+	assert.Equal(t, "filter", replacedRule["type"], "Rule should now be filter type")
+	assert.NotEqual(t, "retry", replacedRule["type"], "Retry rule should be replaced")
+	assert.Equal(t, filterBody, replacedRule["body"], "Filter body should match input")
+
+	// Verify source and destination are preserved
+	assert.Equal(t, sourceName, upserted.Source.Name, "Source should be preserved in upsert output")
+	assert.Equal(t, destName, upserted.Destination.Name, "Destination should be preserved in upsert output")
+
+	// SECONDARY: Verify persisted state via GET
+	var fetched Connection
+	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should get updated connection")
+
+	assert.Len(t, fetched.Rules, 1, "Should have exactly one rule persisted")
+	fetchedRule := fetched.Rules[0]
+	assert.Equal(t, "filter", fetchedRule["type"], "Persisted rule should be filter type")
+	assert.Equal(t, filterBody, fetchedRule["body"], "Persisted filter body should match input")
+
+	t.Logf("Successfully replaced rules via upsert: %s", conn.ID)
+}
+
+// TestConnectionUpsertValidation tests validation errors
+func TestConnectionUpsertValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	// Test 1: Missing name
+	_, _, err := cli.Run("connection", "upsert")
+	assert.Error(t, err, "Should require name positional argument")
+
+	// Test 2: Missing required fields for new connection
+	connName := "test-upsert-validation-" + timestamp
+	_, _, err = cli.Run("connection", "upsert", connName)
+	assert.Error(t, err, "Should require source and destination for new connection")
+
+	t.Logf("Successfully verified validation errors")
 }

@@ -1070,17 +1070,44 @@ hookdeck connection create --name "filtered-webhooks" \
   --filter-body "type=invoice.payment_succeeded,invoice.payment_failed"
 ```
 
-### Update a connection
+### Create or update a connection (upsert) ✅
+
+The `upsert` command provides idempotent create-or-update behavior using the connection name as a unique identifier. This is the recommended way to manage connections declaratively.
+
 ```bash
-# Update connection name
-hookdeck connection update <connection-id> --name "new-name"
+# Create a new connection (when it doesn't exist)
+hookdeck connection upsert "my-connection" \
+  --source-name "stripe-prod" \
+  --source-type STRIPE \
+  --destination-name "my-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhooks"
 
-# Update description
-hookdeck connection update <connection-id> --description "Updated description"
+# Update an existing connection (only updates specified properties)
+hookdeck connection upsert "my-connection" \
+  --description "Updated description"
 
-# Update both
-hookdeck connection update <connection-id> --name "new-name" --description "Updated description"
+# Preview changes without applying them
+hookdeck connection upsert "my-connection" \
+  --description "New description" \
+  --dry-run
+
+# Update with rules
+hookdeck connection upsert "my-connection" \
+  --rule-retry-strategy linear \
+  --rule-retry-count 5
 ```
+
+**Key Features:**
+- **Idempotent**: Safe to run multiple times with the same arguments
+- **Partial updates**: Only updates properties explicitly provided
+- **Dry-run support**: Use `--dry-run` to preview changes before applying
+- **Create or update**: Automatically detects if connection exists by name
+
+**When to use:**
+- CI/CD pipelines and automation
+- Infrastructure-as-code workflows
+- When you want to ensure a specific configuration state
 
 ### Delete a connection
 ```bash
