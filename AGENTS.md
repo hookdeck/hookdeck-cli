@@ -319,13 +319,14 @@ hookdeck <resource> upsert <name> [flags]
 ```
 
 **Key Principles:**
-1. **Name-based detection**: Check if resource exists by name (via `GET /resources?name=<name>`)
-2. **Dual behavior**:
-   - If doesn't exist → behave like `create` (source/destination required)
-   - If exists → behave like `update` (all flags optional, partial updates)
-3. **Dry-run support**: Add `--dry-run` flag to preview changes without applying
-4. **Idempotent**: Running same command twice should produce same result
-5. **Clear messaging**: Indicate whether CREATE or UPDATE will occur
+1. **API-native idempotency**: Hookdeck PUT endpoints handle create-or-update natively when name is in request body
+2. **Client-side checking ONLY for dry-run**: GET request only needed for `--dry-run` preview functionality
+3. **Normal upsert flow**: Call PUT directly without checking existence (API handles it)
+4. **Dual validation modes**:
+   - Create mode: Requires source/destination (validated client-side before PUT)
+   - Update mode: All flags optional, partial updates (API determines which mode applies)
+5. **Dry-run support**: Add `--dry-run` flag to preview changes without applying
+6. **Clear messaging**: Indicate whether CREATE or UPDATE will occur after API responds
 
 **Example Implementation:**
 ```bash
@@ -356,11 +357,38 @@ Connection 'my-connection' (conn_123) will be updated with the following changes
   - Filter: body contains '{"$.type":"payment"}'
 ```
 
+**Implementation Strategy:**
+```go
+func runUpsertCommand(name string, flags Flags, dryRun bool) error {
+    client := GetAPIClient()
+    
+    // DRY-RUN: GET request needed to show preview
+    if dryRun {
+        existing, err := client.GetResourceByName(name)
+        if err != nil && !isNotFound(err) {
+            return err
+        }
+        return previewChanges(existing, flags)
+    }
+    
+    // NORMAL UPSERT: Call PUT directly, API handles idempotency
+    req := buildUpsertRequest(name, flags)
+    resource, err := client.UpsertResource(req)
+    if err != nil {
+        return err
+    }
+    
+    // API response indicates whether CREATE or UPDATE occurred
+    displayResult(resource)
+    return nil
+}
+```
+
 **Validation Strategy:**
-- Perform GET request first to determine create vs update mode
-- Apply create validation (source/destination required) only if resource doesn't exist
-- Apply update validation (all flags optional) if resource exists
-- For collection replacements (e.g., rules), replace entire collection if any flag provided
+- **Normal upsert**: Skip GET request, validate only required fields for create mode client-side
+- **Dry-run mode**: Perform GET to fetch existing state, show diff preview
+- **API validation**: Let PUT endpoint determine if operation is valid
+- **Error handling**: API will return appropriate error if validation fails
 
 **When to Use:**
 - CI/CD pipelines managing webhook infrastructure
