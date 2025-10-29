@@ -625,7 +625,7 @@ $ hookdeck connection create \
   --destination-name "processor" \
   --destination-type HTTP \
   --destination-url "https://api.example.com/process" \
-  --rule-filter-body '{"$.event_type":"payment.succeeded"}'
+  --rule-filter-body '{"event_type":"payment.succeeded"}'
 
 # Combined filtering
 $ hookdeck connection create \
@@ -634,7 +634,7 @@ $ hookdeck connection create \
   --destination-name "order-processor" \
   --destination-type HTTP \
   --destination-url "https://api.example.com/orders" \
-  --rule-filter-body '{"$.type":"order"}' \
+  --rule-filter-body '{"type":"order"}' \
   --rule-retry-strategy exponential \
   --rule-retry-count 3
 ```

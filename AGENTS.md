@@ -85,7 +85,7 @@ CLI: --rule-retry-strategy exponential --rule-filter-body '{...}'
 # Retry → Filter → Transform execution order
 hookdeck connection create \
   --rule-retry-strategy exponential --rule-retry-count 3 \
-  --rule-filter-body '{\"$.event_type\":\"payment\"}' \
+  --rule-filter-body '{"event_type":"payment"}' \
   --rule-transform-name "my-transform"
 
 # JSON fallback for complex configurations
@@ -354,7 +354,7 @@ hookdeck connection upsert my-connection
 Connection 'my-connection' (conn_123) will be updated with the following changes:
 - Description: "New description"
 - Rules: (ruleset will be replaced)
-  - Filter: body contains '{"$.type":"payment"}'
+  - Filter: body contains '{"type":"payment"}'
 ```
 
 **Implementation Strategy:**

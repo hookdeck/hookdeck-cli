@@ -782,8 +782,8 @@ func TestConnectionWithFilterRule(t *testing.T) {
 		"--destination-name", destName,
 		"--destination-type", "CLI",
 		"--destination-cli-path", "/webhooks",
-		"--rule-filter-body", `{"$.type":"payment"}`,
-		"--rule-filter-headers", `{"$.content-type":"application/json"}`,
+		"--rule-filter-body", `{"type":"payment"}`,
+		"--rule-filter-headers", `{"content-type":"application/json"}`,
 	)
 	require.NoError(t, err, "Should create connection with filter rule")
 	require.NotEmpty(t, conn.ID, "Connection should have an ID")
@@ -803,8 +803,8 @@ func TestConnectionWithFilterRule(t *testing.T) {
 
 	rule := getConn.Rules[0]
 	assert.Equal(t, "filter", rule["type"], "Rule type should be filter")
-	assert.Equal(t, `{"$.type":"payment"}`, rule["body"], "Filter body should match input")
-	assert.Equal(t, `{"$.content-type":"application/json"}`, rule["headers"], "Filter headers should match input")
+	assert.Equal(t, `{"type":"payment"}`, rule["body"], "Filter body should match input")
+	assert.Equal(t, `{"content-type":"application/json"}`, rule["headers"], "Filter headers should match input")
 
 	t.Logf("Successfully created and verified connection with filter rule: %s", conn.ID)
 }
@@ -987,7 +987,7 @@ func TestConnectionWithMultipleRules(t *testing.T) {
 		"--destination-name", destName,
 		"--destination-type", "CLI",
 		"--destination-cli-path", "/webhooks",
-		"--rule-filter-body", `{"$.type":"payment"}`,
+		"--rule-filter-body", `{"type":"payment"}`,
 		"--rule-retry-strategy", "exponential",
 		"--rule-retry-count", "5",
 		"--rule-retry-interval", "60000",
@@ -1015,7 +1015,7 @@ func TestConnectionWithMultipleRules(t *testing.T) {
 	assert.Equal(t, "retry", getConn.Rules[2]["type"], "Third rule should be retry (logical order)")
 
 	// Verify filter rule details
-	assert.Equal(t, `{"$.type":"payment"}`, getConn.Rules[0]["body"], "Filter should have body expression")
+	assert.Equal(t, `{"type":"payment"}`, getConn.Rules[0]["body"], "Filter should have body expression")
 
 	// Verify delay rule details
 	assert.Equal(t, float64(1000), getConn.Rules[1]["delay"], "Delay should be 1000 milliseconds")
@@ -1535,7 +1535,7 @@ func TestConnectionUpsertReplaceRules(t *testing.T) {
 	assert.Equal(t, "retry", initialRule["type"], "Initial rule should be retry type")
 
 	// Upsert to REPLACE retry rule with filter rule (using proper JSON format)
-	filterBody := `{"$.type":"payment"}`
+	filterBody := `{"type":"payment"}`
 	var upserted Connection
 	err = cli.RunJSON(&upserted,
 		"connection", "upsert", connName,
@@ -1590,4 +1590,63 @@ func TestConnectionUpsertValidation(t *testing.T) {
 	assert.Error(t, err, "Should require source and destination for new connection")
 
 	t.Logf("Successfully verified validation errors")
+}
+
+// TestConnectionCreateOutputStructure tests the human-readable output format
+func TestConnectionCreateOutputStructure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-output-" + timestamp
+	sourceName := "test-src-output-" + timestamp
+	destName := "test-dst-output-" + timestamp
+
+	// Create connection without --output json to get human-readable format
+	stdout := cli.RunExpectSuccess(
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+
+	// Parse connection ID from output for cleanup (it appears in multiple places)
+	// Look for pattern "Successfully created connection with ID: conn_xxxxx"
+	lines := strings.Split(stdout, "\n")
+	var connID string
+	for _, line := range lines {
+		if strings.Contains(line, "Successfully created connection with ID:") {
+			parts := strings.Split(line, ":")
+			if len(parts) >= 2 {
+				connID = strings.TrimSpace(parts[1])
+				break
+			}
+		}
+	}
+	require.NotEmpty(t, connID, "Should be able to parse connection ID from output")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, connID)
+	})
+
+	// Verify output structure contains expected elements from create command
+	assert.Contains(t, stdout, "Successfully created connection with ID:", "Should show success message")
+	assert.Contains(t, stdout, "Connection:", "Should show Connection label")
+	assert.Contains(t, stdout, connName, "Should include connection name")
+	assert.Contains(t, stdout, connID, "Should include connection ID")
+	assert.Contains(t, stdout, "Source:", "Should show Source label")
+	assert.Contains(t, stdout, sourceName, "Should include source name")
+	assert.Contains(t, stdout, "Source URL:", "Should show source URL label")
+	assert.Contains(t, stdout, "https://hkdk.events/", "Should include Hookdeck event URL")
+	assert.Contains(t, stdout, "Destination:", "Should show Destination label")
+	assert.Contains(t, stdout, destName, "Should include destination name")
+
+	t.Logf("Successfully verified connection create output structure")
 }
