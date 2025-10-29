@@ -137,10 +137,12 @@ func (r *CLIRunner) RunJSON(result interface{}, args ...string) error {
 	return nil
 }
 
-// generateTimestamp returns a timestamp string in the format YYYYMMDDHHMMSS
+// generateTimestamp returns a timestamp string in the format YYYYMMDDHHMMSS plus microseconds
 // This is used for creating unique test resource names
 func generateTimestamp() string {
-	return time.Now().Format("20060102150405")
+	now := time.Now()
+	// Format: YYYYMMDDHHMMSS plus last 6 digits of Unix nano for uniqueness
+	return fmt.Sprintf("%s%d", now.Format("20060102150405"), now.UnixNano()%1000000)
 }
 
 // Connection represents a Hookdeck connection for testing
@@ -153,9 +155,11 @@ type Connection struct {
 		Type string `json:"type"`
 	} `json:"source"`
 	Destination struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
+		Name   string      `json:"name"`
+		Type   string      `json:"type"`
+		Config interface{} `json:"config"`
 	} `json:"destination"`
+	Rules []map[string]interface{} `json:"rules"`
 }
 
 // createTestConnection creates a basic test connection and returns its ID

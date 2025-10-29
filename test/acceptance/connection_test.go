@@ -746,3 +746,425 @@ func TestConnectionBulkDelete(t *testing.T) {
 
 	t.Logf("Verified all connections were deleted")
 }
+
+// TestConnectionWithRetryRule tests creating a connection with a retry rule
+func TestConnectionWithRetryRule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-retry-rule-" + timestamp
+	sourceName := "test-src-retry-" + timestamp
+	destName := "test-dst-retry-" + timestamp
+
+	// Test with linear retry strategy
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-retry-strategy", "linear",
+		"--rule-retry-count", "3",
+		"--rule-retry-interval", "5000",
+	)
+	require.NoError(t, err, "Should create connection with retry rule")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Verify the rule was created by getting the connection
+	var getConn Connection
+	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should be able to get the created connection")
+
+	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
+	require.Len(t, getConn.Rules, 1, "Connection should have exactly one rule")
+
+	rule := getConn.Rules[0]
+	assert.Equal(t, "retry", rule["type"], "Rule type should be retry")
+	assert.Equal(t, "linear", rule["strategy"], "Retry strategy should be linear")
+	assert.Equal(t, float64(3), rule["count"], "Retry count should be 3")
+	assert.Equal(t, float64(5000), rule["interval"], "Retry interval should be 5000")
+
+	t.Logf("Successfully created and verified connection with retry rule: %s", conn.ID)
+}
+
+// TestConnectionWithFilterRule tests creating a connection with a filter rule
+func TestConnectionWithFilterRule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-filter-rule-" + timestamp
+	sourceName := "test-src-filter-" + timestamp
+	destName := "test-dst-filter-" + timestamp
+
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-filter-body", `{"$.type":"payment"}`,
+		"--rule-filter-headers", `{"$.content-type":"application/json"}`,
+	)
+	require.NoError(t, err, "Should create connection with filter rule")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Verify the rule was created by getting the connection
+	var getConn Connection
+	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should be able to get the created connection")
+
+	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
+	require.Len(t, getConn.Rules, 1, "Connection should have exactly one rule")
+
+	rule := getConn.Rules[0]
+	assert.Equal(t, "filter", rule["type"], "Rule type should be filter")
+	assert.Equal(t, `{"$.type":"payment"}`, rule["body"], "Filter body should match input")
+	assert.Equal(t, `{"$.content-type":"application/json"}`, rule["headers"], "Filter headers should match input")
+
+	t.Logf("Successfully created and verified connection with filter rule: %s", conn.ID)
+}
+
+// TestConnectionWithTransformRule tests creating a connection with a transform rule
+func TestConnectionWithTransformRule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-transform-rule-" + timestamp
+	sourceName := "test-src-transform-" + timestamp
+	destName := "test-dst-transform-" + timestamp
+
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-transform-name", "my-transform",
+		"--rule-transform-code", "return { transformed: true };",
+	)
+	require.NoError(t, err, "Should create connection with transform rule")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Verify the rule was created by getting the connection
+	var getConn Connection
+	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should be able to get the created connection")
+
+	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
+	require.Len(t, getConn.Rules, 1, "Connection should have exactly one rule")
+
+	rule := getConn.Rules[0]
+	assert.Equal(t, "transform", rule["type"], "Rule type should be transform")
+
+	// The API creates a transformation resource and returns just the ID reference
+	assert.NotEmpty(t, rule["transformation_id"], "Transform rule should have a transformation_id")
+
+	t.Logf("Successfully created and verified connection with transform rule: %s", conn.ID)
+}
+
+// TestConnectionWithDelayRule tests creating a connection with a delay rule
+func TestConnectionWithDelayRule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-delay-rule-" + timestamp
+	sourceName := "test-src-delay-" + timestamp
+	destName := "test-dst-delay-" + timestamp
+
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-delay", "3000",
+	)
+	require.NoError(t, err, "Should create connection with delay rule")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Verify the rule was created by getting the connection
+	var getConn Connection
+	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should be able to get the created connection")
+
+	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
+	require.Len(t, getConn.Rules, 1, "Connection should have exactly one rule")
+
+	rule := getConn.Rules[0]
+	assert.Equal(t, "delay", rule["type"], "Rule type should be delay")
+	assert.Equal(t, float64(3000), rule["delay"], "Delay should be 3000 milliseconds")
+
+	t.Logf("Successfully created and verified connection with delay rule: %s", conn.ID)
+}
+
+// TestConnectionWithDeduplicateRule tests creating a connection with a deduplicate rule
+func TestConnectionWithDeduplicateRule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-dedupe-rule-" + timestamp
+	sourceName := "test-src-dedupe-" + timestamp
+	destName := "test-dst-dedupe-" + timestamp
+
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-deduplicate-window", "86400",
+		"--rule-deduplicate-include-fields", "body.id,body.timestamp",
+	)
+	require.NoError(t, err, "Should create connection with deduplicate rule")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Verify the rule was created by getting the connection
+	var getConn Connection
+	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should be able to get the created connection")
+
+	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
+	require.Len(t, getConn.Rules, 1, "Connection should have exactly one rule")
+
+	rule := getConn.Rules[0]
+	assert.Equal(t, "deduplicate", rule["type"], "Rule type should be deduplicate")
+	assert.Equal(t, float64(86400), rule["window"], "Deduplicate window should be 86400 milliseconds")
+
+	// Verify include_fields is correctly set and matches our input
+	if includeFields, ok := rule["include_fields"].([]interface{}); ok {
+		require.Len(t, includeFields, 2, "Should have 2 include fields")
+		assert.Equal(t, "body.id", includeFields[0], "First include field should be 'body.id'")
+		assert.Equal(t, "body.timestamp", includeFields[1], "Second include field should be 'body.timestamp'")
+	} else {
+		t.Fatal("include_fields should be an array in the response")
+	}
+
+	t.Logf("Successfully created and verified connection with deduplicate rule: %s", conn.ID)
+}
+
+// TestConnectionWithMultipleRules tests creating a connection with multiple rules and verifies logical ordering
+func TestConnectionWithMultipleRules(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-multi-rules-" + timestamp
+	sourceName := "test-src-multi-" + timestamp
+	destName := "test-dst-multi-" + timestamp
+
+	// Note: Rules are created in logical order (deduplicate -> transform -> filter -> delay -> retry)
+	// This order matches the API's default ordering for proper data flow through the pipeline.
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-filter-body", `{"$.type":"payment"}`,
+		"--rule-retry-strategy", "exponential",
+		"--rule-retry-count", "5",
+		"--rule-retry-interval", "60000",
+		"--rule-delay", "1000",
+	)
+	require.NoError(t, err, "Should create connection with multiple rules")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	// Verify the rules were created by getting the connection
+	var getConn Connection
+	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	require.NoError(t, err, "Should be able to get the created connection")
+
+	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
+	require.Len(t, getConn.Rules, 3, "Connection should have exactly three rules")
+
+	// Verify logical order: filter -> delay -> retry (deduplicate/transform not present in this test)
+	assert.Equal(t, "filter", getConn.Rules[0]["type"], "First rule should be filter (logical order)")
+	assert.Equal(t, "delay", getConn.Rules[1]["type"], "Second rule should be delay (logical order)")
+	assert.Equal(t, "retry", getConn.Rules[2]["type"], "Third rule should be retry (logical order)")
+
+	// Verify filter rule details
+	assert.Equal(t, `{"$.type":"payment"}`, getConn.Rules[0]["body"], "Filter should have body expression")
+
+	// Verify delay rule details
+	assert.Equal(t, float64(1000), getConn.Rules[1]["delay"], "Delay should be 1000 milliseconds")
+
+	// Verify retry rule details
+	assert.Equal(t, "exponential", getConn.Rules[2]["strategy"], "Retry strategy should be exponential")
+	assert.Equal(t, float64(5), getConn.Rules[2]["count"], "Retry count should be 5")
+	assert.Equal(t, float64(60000), getConn.Rules[2]["interval"], "Retry interval should be 60000")
+
+	t.Logf("Successfully created and verified connection with multiple rules in logical order: %s", conn.ID)
+}
+
+// TestConnectionWithRateLimiting tests creating a connection with rate limiting
+func TestConnectionWithRateLimiting(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	t.Run("RateLimit_PerSecond", func(t *testing.T) {
+		connName := "test-ratelimit-sec-" + timestamp
+		sourceName := "test-src-rl-sec-" + timestamp
+		destName := "test-dst-rl-sec-" + timestamp
+
+		var conn Connection
+		err := cli.RunJSON(&conn,
+			"connection", "create",
+			"--name", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://api.example.com/webhooks",
+			"--destination-rate-limit", "100",
+			"--destination-rate-limit-period", "second",
+		)
+		require.NoError(t, err, "Should create connection with rate limiting")
+		require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, conn.ID)
+		})
+
+		// Verify rate limiting configuration by getting the connection
+		var getConn Connection
+		err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+		require.NoError(t, err, "Should be able to get the created connection")
+
+		require.NotNil(t, getConn.Destination, "Connection should have a destination")
+		if config, ok := getConn.Destination.Config.(map[string]interface{}); ok {
+			rateLimit, hasRateLimit := config["rate_limit"].(float64)
+			require.True(t, hasRateLimit, "Rate limit should be present in destination config")
+			assert.Equal(t, float64(100), rateLimit, "Rate limit should be 100")
+
+			period, hasPeriod := config["rate_limit_period"].(string)
+			require.True(t, hasPeriod, "Rate limit period should be present in destination config")
+			assert.Equal(t, "second", period, "Rate limit period should be second")
+		} else {
+			t.Fatal("Destination config should be present")
+		}
+
+		t.Logf("Successfully created and verified connection with rate limiting (per second): %s", conn.ID)
+	})
+
+	t.Run("RateLimit_PerMinute", func(t *testing.T) {
+		connName := "test-ratelimit-min-" + timestamp
+		sourceName := "test-src-rl-min-" + timestamp
+		destName := "test-dst-rl-min-" + timestamp
+
+		var conn Connection
+		err := cli.RunJSON(&conn,
+			"connection", "create",
+			"--name", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://api.example.com/webhooks",
+			"--destination-rate-limit", "1000",
+			"--destination-rate-limit-period", "minute",
+		)
+		require.NoError(t, err, "Should create connection with rate limiting")
+		require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, conn.ID)
+		})
+
+		// Verify rate limiting configuration by getting the connection
+		var getConn Connection
+		err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+		require.NoError(t, err, "Should be able to get the created connection")
+
+		require.NotNil(t, getConn.Destination, "Connection should have a destination")
+		if config, ok := getConn.Destination.Config.(map[string]interface{}); ok {
+			rateLimit, hasRateLimit := config["rate_limit"].(float64)
+			require.True(t, hasRateLimit, "Rate limit should be present in destination config")
+			assert.Equal(t, float64(1000), rateLimit, "Rate limit should be 1000")
+
+			period, hasPeriod := config["rate_limit_period"].(string)
+			require.True(t, hasPeriod, "Rate limit period should be present in destination config")
+			assert.Equal(t, "minute", period, "Rate limit period should be minute")
+		} else {
+			t.Fatal("Destination config should be present")
+		}
+
+		t.Logf("Successfully created and verified connection with rate limiting (per minute): %s", conn.ID)
+	})
+}

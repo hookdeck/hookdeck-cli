@@ -62,6 +62,39 @@ type connectionCreateCmd struct {
 	DestinationOauthClientSecret string
 	DestinationOauthTokenURL     string
 
+	// Destination rate limiting flags
+	DestinationRateLimit       int
+	DestinationRateLimitPeriod string
+
+	// Rule flags - Retry
+	RuleRetryStrategy           string
+	RuleRetryCount              int
+	RuleRetryInterval           int
+	RuleRetryResponseStatusCode string
+
+	// Rule flags - Filter
+	RuleFilterBody    string
+	RuleFilterHeaders string
+	RuleFilterQuery   string
+	RuleFilterPath    string
+
+	// Rule flags - Transform
+	RuleTransformName string
+	RuleTransformCode string
+	RuleTransformEnv  string
+
+	// Rule flags - Delay
+	RuleDelay int
+
+	// Rule flags - Deduplicate
+	RuleDeduplicateWindow        int
+	RuleDeduplicateIncludeFields string
+	RuleDeduplicateExcludeFields string
+
+	// Rules JSON fallback
+	Rules     string
+	RulesFile string
+
 	// Reference existing resources
 	sourceID      string
 	destinationID string
@@ -135,6 +168,39 @@ Examples:
 	cc.cmd.Flags().StringVar(&cc.DestinationOauthClientID, "destination-oauth-client-id", "", "OAuth2 client ID for destination authentication")
 	cc.cmd.Flags().StringVar(&cc.DestinationOauthClientSecret, "destination-oauth-client-secret", "", "OAuth2 client secret for destination authentication")
 	cc.cmd.Flags().StringVar(&cc.DestinationOauthTokenURL, "destination-oauth-token-url", "", "OAuth2 token URL for destination authentication")
+
+	// Destination rate limiting flags
+	cc.cmd.Flags().IntVar(&cc.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
+	cc.cmd.Flags().StringVar(&cc.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour)")
+
+	// Rule flags - Retry
+	cc.cmd.Flags().StringVar(&cc.RuleRetryStrategy, "rule-retry-strategy", "", "Retry strategy (linear, exponential)")
+	cc.cmd.Flags().IntVar(&cc.RuleRetryCount, "rule-retry-count", 0, "Number of retry attempts")
+	cc.cmd.Flags().IntVar(&cc.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
+	cc.cmd.Flags().StringVar(&cc.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on (e.g., '429,500,502')")
+
+	// Rule flags - Filter
+	cc.cmd.Flags().StringVar(&cc.RuleFilterBody, "rule-filter-body", "", "JQ expression to filter on request body")
+	cc.cmd.Flags().StringVar(&cc.RuleFilterHeaders, "rule-filter-headers", "", "JQ expression to filter on request headers")
+	cc.cmd.Flags().StringVar(&cc.RuleFilterQuery, "rule-filter-query", "", "JQ expression to filter on request query parameters")
+	cc.cmd.Flags().StringVar(&cc.RuleFilterPath, "rule-filter-path", "", "JQ expression to filter on request path")
+
+	// Rule flags - Transform
+	cc.cmd.Flags().StringVar(&cc.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
+	cc.cmd.Flags().StringVar(&cc.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
+	cc.cmd.Flags().StringVar(&cc.RuleTransformEnv, "rule-transform-env", "", "JSON string representing environment variables for transformation")
+
+	// Rule flags - Delay
+	cc.cmd.Flags().IntVar(&cc.RuleDelay, "rule-delay", 0, "Delay in milliseconds")
+
+	// Rule flags - Deduplicate
+	cc.cmd.Flags().IntVar(&cc.RuleDeduplicateWindow, "rule-deduplicate-window", 0, "Time window in seconds for deduplication")
+	cc.cmd.Flags().StringVar(&cc.RuleDeduplicateIncludeFields, "rule-deduplicate-include-fields", "", "Comma-separated list of fields to include for deduplication")
+	cc.cmd.Flags().StringVar(&cc.RuleDeduplicateExcludeFields, "rule-deduplicate-exclude-fields", "", "Comma-separated list of fields to exclude for deduplication")
+
+	// Rules JSON fallback
+	cc.cmd.Flags().StringVar(&cc.Rules, "rules", "", "JSON string representing the entire rules array")
+	cc.cmd.Flags().StringVar(&cc.RulesFile, "rules-file", "", "Path to a JSON file containing the rules array")
 
 	// Reference existing resources
 	cc.cmd.Flags().StringVar(&cc.sourceID, "source-id", "", "Use existing source by ID")
@@ -228,6 +294,117 @@ func (cc *connectionCreateCmd) validateFlags(cmd *cobra.Command, args []string) 
 		}
 	}
 
+	// Validate rules configuration
+	if err := cc.validateRules(); err != nil {
+		return err
+	}
+
+	// Validate rate limiting configuration
+	if err := cc.validateRateLimiting(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cc *connectionCreateCmd) validateRules() error {
+	// Check if JSON fallback is used
+	hasJSONRules := cc.Rules != "" || cc.RulesFile != ""
+
+	// Check if any individual rule flags are set
+	hasRetryFlags := cc.RuleRetryStrategy != "" || cc.RuleRetryCount > 0 || cc.RuleRetryInterval > 0 || cc.RuleRetryResponseStatusCode != ""
+	hasFilterFlags := cc.RuleFilterBody != "" || cc.RuleFilterHeaders != "" || cc.RuleFilterQuery != "" || cc.RuleFilterPath != ""
+	hasTransformFlags := cc.RuleTransformName != "" || cc.RuleTransformCode != "" || cc.RuleTransformEnv != ""
+	hasDelayFlags := cc.RuleDelay > 0
+	hasDeduplicateFlags := cc.RuleDeduplicateWindow > 0 || cc.RuleDeduplicateIncludeFields != "" || cc.RuleDeduplicateExcludeFields != ""
+
+	hasIndividualFlags := hasRetryFlags || hasFilterFlags || hasTransformFlags || hasDelayFlags || hasDeduplicateFlags
+
+	// If JSON fallback is used, individual flags must not be set
+	if hasJSONRules && hasIndividualFlags {
+		return fmt.Errorf("cannot use --rules or --rules-file with individual --rule-* flags")
+	}
+
+	// Validate retry rule
+	if hasRetryFlags {
+		if cc.RuleRetryStrategy == "" {
+			return fmt.Errorf("--rule-retry-strategy is required when using retry rule flags")
+		}
+		if cc.RuleRetryStrategy != "linear" && cc.RuleRetryStrategy != "exponential" {
+			return fmt.Errorf("--rule-retry-strategy must be 'linear' or 'exponential', got: %s", cc.RuleRetryStrategy)
+		}
+		if cc.RuleRetryCount < 0 {
+			return fmt.Errorf("--rule-retry-count must be a positive integer")
+		}
+		if cc.RuleRetryInterval < 0 {
+			return fmt.Errorf("--rule-retry-interval must be a positive integer")
+		}
+	}
+
+	// Validate filter rule
+	if hasFilterFlags {
+		if cc.RuleFilterBody == "" && cc.RuleFilterHeaders == "" && cc.RuleFilterQuery == "" && cc.RuleFilterPath == "" {
+			return fmt.Errorf("at least one filter expression must be provided when using filter rule flags")
+		}
+	}
+
+	// Validate transform rule
+	if hasTransformFlags {
+		if cc.RuleTransformName == "" {
+			return fmt.Errorf("--rule-transform-name is required when using transform rule flags")
+		}
+		if cc.RuleTransformEnv != "" {
+			// Validate JSON
+			var env map[string]interface{}
+			if err := json.Unmarshal([]byte(cc.RuleTransformEnv), &env); err != nil {
+				return fmt.Errorf("--rule-transform-env must be a valid JSON string: %w", err)
+			}
+		}
+	}
+
+	// Validate delay rule
+	if hasDelayFlags {
+		if cc.RuleDelay < 0 {
+			return fmt.Errorf("--rule-delay must be a positive integer")
+		}
+	}
+
+	// Validate deduplicate rule
+	if hasDeduplicateFlags {
+		if cc.RuleDeduplicateWindow == 0 {
+			return fmt.Errorf("--rule-deduplicate-window is required when using deduplicate rule flags")
+		}
+		if cc.RuleDeduplicateWindow < 0 {
+			return fmt.Errorf("--rule-deduplicate-window must be a positive integer")
+		}
+	}
+
+	return nil
+}
+
+func (cc *connectionCreateCmd) validateRateLimiting() error {
+	hasRateLimit := cc.DestinationRateLimit > 0 || cc.DestinationRateLimitPeriod != ""
+
+	if hasRateLimit {
+		if cc.DestinationRateLimit <= 0 {
+			return fmt.Errorf("--destination-rate-limit must be a positive integer when rate limiting is configured")
+		}
+		if cc.DestinationRateLimitPeriod == "" {
+			return fmt.Errorf("--destination-rate-limit-period is required when --destination-rate-limit is set")
+		}
+		validPeriods := []string{"second", "minute", "hour"}
+		isValid := false
+		for _, p := range validPeriods {
+			if cc.DestinationRateLimitPeriod == p {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return fmt.Errorf("--destination-rate-limit-period must be 'second', 'minute', or 'hour', got: %s", cc.DestinationRateLimitPeriod)
+		}
+	}
+
 	return nil
 }
 
@@ -267,6 +444,15 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 			return err
 		}
 		req.Destination = destinationInput
+	}
+
+	// Handle Rules
+	rules, err := cc.buildRulesArray(cmd)
+	if err != nil {
+		return err
+	}
+	if len(rules) > 0 {
+		req.Rules = rules
 	}
 
 	if cc.output != "json" {
@@ -439,6 +625,12 @@ func (cc *connectionCreateCmd) buildDestinationConfig() (map[string]interface{},
 		config["auth_method"] = authConfig
 	}
 
+	// Add rate limiting configuration
+	if cc.DestinationRateLimit > 0 {
+		config["rate_limit"] = cc.DestinationRateLimit
+		config["rate_limit_period"] = cc.DestinationRateLimitPeriod
+	}
+
 	if len(config) == 0 {
 		return make(map[string]interface{}), nil
 	}
@@ -494,4 +686,144 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 	}
 
 	return config, nil
+}
+
+// buildRulesArray constructs the rules array from flags in logical execution order
+// Order: filter -> transform -> deduplicate -> delay -> retry
+// Note: This is the default order for individual flags. For custom order, use --rules or --rules-file
+func (cc *connectionCreateCmd) buildRulesArray(cmd *cobra.Command) ([]hookdeck.Rule, error) {
+	// Handle JSON fallback first
+	if cc.Rules != "" {
+		var rules []hookdeck.Rule
+		if err := json.Unmarshal([]byte(cc.Rules), &rules); err != nil {
+			return nil, fmt.Errorf("invalid JSON in --rules: %w", err)
+		}
+		return rules, nil
+	}
+	if cc.RulesFile != "" {
+		data, err := os.ReadFile(cc.RulesFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not read --rules-file: %w", err)
+		}
+		var rules []hookdeck.Rule
+		if err := json.Unmarshal(data, &rules); err != nil {
+			return nil, fmt.Errorf("invalid JSON in --rules-file: %w", err)
+		}
+		return rules, nil
+	}
+
+	// Track which rule types have been encountered
+	ruleMap := make(map[string]hookdeck.Rule)
+
+	// Determine which rule types are present by checking flags
+	// Note: We don't track order from flags because pflag.Visit() processes flags alphabetically
+	hasRetryFlags := cc.RuleRetryStrategy != "" || cc.RuleRetryCount > 0 || cc.RuleRetryInterval > 0 || cc.RuleRetryResponseStatusCode != ""
+	hasFilterFlags := cc.RuleFilterBody != "" || cc.RuleFilterHeaders != "" || cc.RuleFilterQuery != "" || cc.RuleFilterPath != ""
+	hasTransformFlags := cc.RuleTransformName != "" || cc.RuleTransformCode != "" || cc.RuleTransformEnv != ""
+	hasDelayFlags := cc.RuleDelay > 0
+	hasDeduplicateFlags := cc.RuleDeduplicateWindow > 0 || cc.RuleDeduplicateIncludeFields != "" || cc.RuleDeduplicateExcludeFields != ""
+
+	// Initialize rule entries for each type that has flags set
+	if hasRetryFlags {
+		ruleMap["retry"] = make(hookdeck.Rule)
+	}
+	if hasFilterFlags {
+		ruleMap["filter"] = make(hookdeck.Rule)
+	}
+	if hasTransformFlags {
+		ruleMap["transform"] = make(hookdeck.Rule)
+	}
+	if hasDelayFlags {
+		ruleMap["delay"] = make(hookdeck.Rule)
+	}
+	if hasDeduplicateFlags {
+		ruleMap["deduplicate"] = make(hookdeck.Rule)
+	}
+
+	// Build each rule based on the flags set
+	if rule, ok := ruleMap["retry"]; ok {
+		rule["type"] = "retry"
+		if cc.RuleRetryStrategy != "" {
+			rule["strategy"] = cc.RuleRetryStrategy
+		}
+		if cc.RuleRetryCount > 0 {
+			rule["count"] = cc.RuleRetryCount
+		}
+		if cc.RuleRetryInterval > 0 {
+			rule["interval"] = cc.RuleRetryInterval
+		}
+		if cc.RuleRetryResponseStatusCode != "" {
+			rule["response_status_codes"] = cc.RuleRetryResponseStatusCode
+		}
+	}
+
+	if rule, ok := ruleMap["filter"]; ok {
+		rule["type"] = "filter"
+		if cc.RuleFilterBody != "" {
+			rule["body"] = cc.RuleFilterBody
+		}
+		if cc.RuleFilterHeaders != "" {
+			rule["headers"] = cc.RuleFilterHeaders
+		}
+		if cc.RuleFilterQuery != "" {
+			rule["query"] = cc.RuleFilterQuery
+		}
+		if cc.RuleFilterPath != "" {
+			rule["path"] = cc.RuleFilterPath
+		}
+	}
+
+	if rule, ok := ruleMap["transform"]; ok {
+		rule["type"] = "transform"
+		transformConfig := make(map[string]interface{})
+		if cc.RuleTransformName != "" {
+			transformConfig["name"] = cc.RuleTransformName
+		}
+		if cc.RuleTransformCode != "" {
+			transformConfig["code"] = cc.RuleTransformCode
+		}
+		if cc.RuleTransformEnv != "" {
+			var env map[string]interface{}
+			if err := json.Unmarshal([]byte(cc.RuleTransformEnv), &env); err != nil {
+				return nil, fmt.Errorf("invalid JSON in --rule-transform-env: %w", err)
+			}
+			transformConfig["env"] = env
+		}
+		rule["transformation"] = transformConfig
+	}
+
+	if rule, ok := ruleMap["delay"]; ok {
+		rule["type"] = "delay"
+		if cc.RuleDelay > 0 {
+			rule["delay"] = cc.RuleDelay
+		}
+	}
+
+	if rule, ok := ruleMap["deduplicate"]; ok {
+		rule["type"] = "deduplicate"
+		if cc.RuleDeduplicateWindow > 0 {
+			rule["window"] = cc.RuleDeduplicateWindow
+		}
+		if cc.RuleDeduplicateIncludeFields != "" {
+			fields := strings.Split(cc.RuleDeduplicateIncludeFields, ",")
+			rule["include_fields"] = fields
+		}
+		if cc.RuleDeduplicateExcludeFields != "" {
+			fields := strings.Split(cc.RuleDeduplicateExcludeFields, ",")
+			rule["exclude_fields"] = fields
+		}
+	}
+
+	// Build rules array in logical execution order
+	// Order: deduplicate -> transform -> filter -> delay -> retry
+	// This order matches the API's default ordering for proper data flow through the pipeline
+	rules := make([]hookdeck.Rule, 0, len(ruleMap))
+	ruleTypes := []string{"deduplicate", "transform", "filter", "delay", "retry"}
+	for _, ruleType := range ruleTypes {
+		if rule, ok := ruleMap[ruleType]; ok {
+			rules = append(rules, rule)
+		}
+	}
+
+	return rules, nil
 }
