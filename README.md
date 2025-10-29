@@ -742,6 +742,40 @@ Then run the locally generated `hookdeck-cli` binary:
 ./hookdeck-cli
 ```
 
+## Testing
+
+### Running Acceptance Tests
+
+The Hookdeck CLI includes comprehensive acceptance tests written in Go. These tests verify end-to-end functionality by executing the CLI and validating outputs.
+
+**Local testing:**
+
+```bash
+# Run all acceptance tests
+go test ./test/acceptance/... -v
+
+# Run specific test
+go test ./test/acceptance/... -v -run TestCLIBasics
+
+# Skip acceptance tests (short mode)
+go test ./test/acceptance/... -short
+```
+
+**Environment setup:**
+
+For local testing, create a `.env` file in `test/acceptance/`:
+
+```bash
+# test/acceptance/.env
+HOOKDECK_CLI_TESTING_API_KEY=your_api_key_here
+```
+
+**CI/CD:**
+
+In CI environments, set the `HOOKDECK_CLI_TESTING_API_KEY` environment variable directly in your workflow configuration or repository secrets.
+
+For detailed testing documentation and troubleshooting, see [`test/acceptance/README.md`](test/acceptance/README.md).
+
 ### Testing against a local API
 
 When testing against a non-production Hookdeck API, you can use the

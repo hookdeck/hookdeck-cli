@@ -137,6 +137,37 @@ These Go-based tests replace the shell script acceptance tests in `test-scripts/
 - Easier maintenance and debugging
 - Structured test output with `-v` flag
 
+### Shell Script Coverage Mapping
+
+All functionality from `test-scripts/test-acceptance.sh` has been successfully ported to Go tests:
+
+| Shell Script Test (Line) | Go Test Location | Status |
+|--------------------------|------------------|--------|
+| Build CLI (33-34) | Not needed - `go run` builds automatically | ✅ N/A |
+| Version command (40-41) | [`basic_test.go:TestCLIBasics/Version`](basic_test.go:18) | ✅ Ported |
+| Help command (43-44) | [`basic_test.go:TestCLIBasics/Help`](basic_test.go:31) | ✅ Ported |
+| CI auth (47) | [`helpers.go:NewCLIRunner`](helpers.go) | ✅ Ported |
+| Whoami (49-50) | [`basic_test.go:TestCLIBasics/Authentication`](basic_test.go:43) | ✅ Ported |
+| Listen command (52-70) | [`listen_test.go:TestListenCommandBasic`](listen_test.go:15) | ✅ Ported |
+| Connection list (75-76) | [`connection_test.go:TestConnectionListBasic`](connection_test.go:13) | ✅ Ported |
+| Connection create - WEBHOOK (124-131) | [`connection_test.go:TestConnectionAuthenticationTypes/WEBHOOK_Source_NoAuth`](connection_test.go:140) | ✅ Ported |
+| Connection create - STRIPE (133-141) | [`connection_test.go:TestConnectionAuthenticationTypes/STRIPE_Source_WebhookSecret`](connection_test.go:212) | ✅ Ported |
+| Connection create - HTTP API key (143-152) | [`connection_test.go:TestConnectionAuthenticationTypes/HTTP_Source_APIKey`](connection_test.go:281) | ✅ Ported |
+| Connection create - HTTP basic auth (154-163) | [`connection_test.go:TestConnectionAuthenticationTypes/HTTP_Source_BasicAuth`](connection_test.go:346) | ✅ Ported |
+| Connection create - TWILIO HMAC (165-174) | [`connection_test.go:TestConnectionAuthenticationTypes/TWILIO_Source_HMAC`](connection_test.go:419) | ✅ Ported |
+| Connection create - HTTP dest bearer (178-187) | [`connection_test.go:TestConnectionAuthenticationTypes/HTTP_Destination_BearerToken`](connection_test.go:493) | ✅ Ported |
+| Connection create - HTTP dest basic (189-199) | [`connection_test.go:TestConnectionAuthenticationTypes/HTTP_Destination_BasicAuth`](connection_test.go:576) | ✅ Ported |
+| Connection update (201-238) | [`connection_test.go:TestConnectionUpdate`](connection_test.go:57) | ✅ Ported |
+| Connection bulk delete (240-246) | [`connection_test.go:TestConnectionBulkDelete`](connection_test.go:707) | ✅ Ported |
+| Logout (251-252) | Not needed - handled automatically by test cleanup | ✅ N/A |
+
+**Migration Notes:**
+- Build step is unnecessary in Go tests as `go run` compiles on-the-fly
+- Authentication is handled centrally in `NewCLIRunner()` helper
+- Logout is not required as each test gets a fresh runner instance
+- Go tests provide better isolation with `t.Cleanup()` for resource management
+- All authentication types and edge cases are covered with more granular tests
+
 ## Troubleshooting
 
 ### API Key Not Set
