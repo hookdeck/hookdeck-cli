@@ -994,18 +994,6 @@ hookdeck connection create \
   --destination-bearer-token "bearer_token_xyz"
 ```
 
-**5. Custom Headers for Destination**
-```bash
-hookdeck connection create \
-  --source-name "webhook-source" \
-  --source-type HTTP \
-  --destination-name "custom-api" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/webhook" \
-  --destination-custom-header "X-API-Version:v2" \
-  --destination-custom-header "X-Client-ID:client123"
-```
-
 #### Rule Configuration Examples
 
 **6. Retry Rules**
@@ -1089,7 +1077,6 @@ hookdeck connection create \
 - `--destination-api-key <key>` - API key
 - `--destination-basic-auth-user <user>` - Basic auth username
 - `--destination-basic-auth-pass <pass>` - Basic auth password
-- `--destination-custom-header <name:value>` - Custom headers (repeatable)
 - `--destination-oauth-client-id <id>` - OAuth2 client ID
 - `--destination-oauth-client-secret <secret>` - OAuth2 client secret
 - `--destination-oauth-token-url <url>` - OAuth2 token URL

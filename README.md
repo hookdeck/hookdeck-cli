@@ -591,9 +591,7 @@ $ hookdeck connection create \
   --source-type HTTP \
   --destination-name "custom-api" \
   --destination-type HTTP \
-  --destination-url "https://api.example.com/webhooks" \
-  --destination-custom-header "X-API-Version:v2" \
-  --destination-custom-header "X-Client-ID:client123"
+  --destination-url "https://api.example.com/webhooks"
 ```
 
 #### Configure retry rules
