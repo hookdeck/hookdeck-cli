@@ -153,34 +153,93 @@ func (cu *connectionUpsertCmd) validateUpsertFlags(cmd *cobra.Command, args []st
 	name := args[0]
 	cu.name = name
 
-	// For dry-run, we don't need strict validation upfront
+	// For dry-run, we allow any combination of flags (will check existence during execution)
 	if cu.dryRun {
 		return nil
 	}
 
-	// Check if connection exists to determine validation mode
-	client := Config.GetAPIClient()
-	connections, err := client.ListConnections(context.Background(), map[string]string{
-		"name": name,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to check if connection exists: %w", err)
+	// For normal upsert, validate internal flag consistency only
+	// We don't check if connection exists - let the API handle validation
+
+	// Validate rules if provided
+	if cu.hasAnyRuleFlag() {
+		if err := cu.validateRules(); err != nil {
+			return err
+		}
 	}
 
-	// Connection exists - allow partial updates (relaxed validation)
-	if connections != nil && len(connections.Models) > 0 {
-		// For updates, only validate what's provided
-		if cu.validateRules() != nil {
-			return cu.validateRules()
+	// Validate rate limiting if provided
+	if cu.hasAnyRateLimitFlag() {
+		if err := cu.validateRateLimiting(); err != nil {
+			return err
 		}
-		if cu.validateRateLimiting() != nil {
-			return cu.validateRateLimiting()
-		}
-		return nil
 	}
 
-	// Connection doesn't exist - require source and destination (same as create)
-	return cu.connectionCreateCmd.validateFlags(cmd, args)
+	// If source or destination flags are provided, validate them
+	if cu.hasAnySourceFlag() {
+		if err := cu.validateSourceFlags(); err != nil {
+			return err
+		}
+	}
+
+	if cu.hasAnyDestinationFlag() {
+		if err := cu.validateDestinationFlags(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Helper to check if any source flags are set
+func (cu *connectionUpsertCmd) hasAnySourceFlag() bool {
+	return cu.sourceName != "" || cu.sourceType != "" || cu.sourceID != ""
+}
+
+// Helper to check if any destination flags are set
+func (cu *connectionUpsertCmd) hasAnyDestinationFlag() bool {
+	return cu.destinationName != "" || cu.destinationType != "" || cu.destinationID != "" || cu.destinationURL != ""
+}
+
+// Helper to check if any rule flags are set
+func (cu *connectionUpsertCmd) hasAnyRuleFlag() bool {
+	return cu.RuleRetryStrategy != "" || cu.RuleFilterBody != "" || cu.RuleTransformName != "" ||
+		cu.RuleDelay != 0 || cu.RuleDeduplicateWindow != 0 || cu.Rules != "" || cu.RulesFile != ""
+}
+
+// Helper to check if any rate limit flags are set
+func (cu *connectionUpsertCmd) hasAnyRateLimitFlag() bool {
+	return cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != ""
+}
+
+// Validate source flags for consistency
+func (cu *connectionUpsertCmd) validateSourceFlags() error {
+	// If using source-id, don't allow inline creation flags
+	if cu.sourceID != "" && (cu.sourceName != "" || cu.sourceType != "") {
+		return fmt.Errorf("cannot use --source-id with --source-name or --source-type")
+	}
+
+	// If creating inline, require both name and type
+	if (cu.sourceName != "" || cu.sourceType != "") && (cu.sourceName == "" || cu.sourceType == "") {
+		return fmt.Errorf("both --source-name and --source-type are required for inline source creation")
+	}
+
+	return nil
+}
+
+// Validate destination flags for consistency
+func (cu *connectionUpsertCmd) validateDestinationFlags() error {
+	// If using destination-id, don't allow inline creation flags
+	if cu.destinationID != "" && (cu.destinationName != "" || cu.destinationType != "") {
+		return fmt.Errorf("cannot use --destination-id with --destination-name or --destination-type")
+	}
+
+	// If creating inline, require both name and type
+	if (cu.destinationName != "" || cu.destinationType != "") && (cu.destinationName == "" || cu.destinationType == "") {
+		return fmt.Errorf("both --destination-name and --destination-type are required for inline destination creation")
+	}
+
+	return nil
 }
 
 func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args []string) error {
@@ -190,78 +249,43 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 
 	client := Config.GetAPIClient()
 
-	// Check if connection exists
-	connections, err := client.ListConnections(context.Background(), map[string]string{
-		"name": name,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to check if connection exists: %w", err)
-	}
+	// Determine if we need to fetch existing connection
+	// Only needed when:
+	// 1. Dry-run mode (to show preview)
+	// 2. Partial update (source/destination not provided in flags)
+	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag())
 
 	var existing *hookdeck.Connection
-	isUpdate := false
-	if connections != nil && len(connections.Models) > 0 {
-		existing = &connections.Models[0]
-		isUpdate = true
+	var isUpdate bool
+
+	if needsExisting {
+		connections, err := client.ListConnections(context.Background(), map[string]string{
+			"name": name,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to check if connection exists: %w", err)
+		}
+
+		if connections != nil && len(connections.Models) > 0 {
+			existing = &connections.Models[0]
+			isUpdate = true
+		}
 	}
 
 	// Build the request
-	req := &hookdeck.ConnectionCreateRequest{
-		Name: &cu.name,
-	}
-	if cu.description != "" {
-		req.Description = &cu.description
-	}
-
-	// Handle Source
-	if cu.sourceID != "" {
-		req.SourceID = &cu.sourceID
-	} else if cu.sourceName != "" || cu.sourceType != "" {
-		sourceInput, err := cu.buildSourceInput()
-		if err != nil {
-			return err
-		}
-		req.Source = sourceInput
-	} else if isUpdate && existing != nil && existing.Source != nil {
-		// Preserve existing source when updating and no source flags provided
-		req.SourceID = &existing.Source.ID
-	}
-
-	// Handle Destination
-	if cu.destinationID != "" {
-		req.DestinationID = &cu.destinationID
-	} else if cu.destinationName != "" || cu.destinationType != "" {
-		destinationInput, err := cu.buildDestinationInput()
-		if err != nil {
-			return err
-		}
-		req.Destination = destinationInput
-	} else if isUpdate && existing != nil && existing.Destination != nil {
-		// Preserve existing destination when updating and no destination flags provided
-		req.DestinationID = &existing.Destination.ID
-	}
-
-	// Handle Rules
-	rules, err := cu.buildRulesArray(cmd)
+	req, err := cu.buildUpsertRequest(existing, isUpdate)
 	if err != nil {
 		return err
 	}
-	if len(rules) > 0 {
-		req.Rules = rules
-	}
 
-	// Dry-run mode: preview changes without applying
+	// For dry-run mode, preview changes without applying
 	if cu.dryRun {
 		return cu.previewUpsertChanges(existing, req, isUpdate)
 	}
 
 	// Execute the upsert
 	if cu.output != "json" {
-		if isUpdate {
-			fmt.Printf("Updating connection '%s'...\n", cu.name)
-		} else {
-			fmt.Printf("Creating connection '%s'...\n", cu.name)
-		}
+		fmt.Printf("Upserting connection '%s'...\n", cu.name)
 	}
 
 	connection, err := client.UpsertConnection(context.Background(), req)
@@ -277,11 +301,7 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 		}
 		fmt.Println(string(jsonBytes))
 	} else {
-		if isUpdate {
-			fmt.Printf("✓ Updated connection: %s\n", cu.name)
-		} else {
-			fmt.Printf("✓ Created connection: %s\n", cu.name)
-		}
+		fmt.Printf("✓ Connection upserted: %s\n", cu.name)
 
 		fmt.Printf("\nConnection Details:\n")
 		fmt.Printf("  ID: %s\n", connection.ID)
@@ -303,6 +323,57 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	}
 
 	return nil
+}
+
+// buildUpsertRequest constructs the upsert request from flags
+// existing and isUpdate are used to preserve unspecified fields when doing partial updates
+func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection, isUpdate bool) (*hookdeck.ConnectionCreateRequest, error) {
+	req := &hookdeck.ConnectionCreateRequest{
+		Name: &cu.name,
+	}
+
+	if cu.description != "" {
+		req.Description = &cu.description
+	}
+
+	// Handle Source
+	if cu.sourceID != "" {
+		req.SourceID = &cu.sourceID
+	} else if cu.sourceName != "" || cu.sourceType != "" {
+		sourceInput, err := cu.buildSourceInput()
+		if err != nil {
+			return nil, err
+		}
+		req.Source = sourceInput
+	} else if isUpdate && existing != nil && existing.Source != nil {
+		// Preserve existing source when updating and no source flags provided
+		req.SourceID = &existing.Source.ID
+	}
+
+	// Handle Destination
+	if cu.destinationID != "" {
+		req.DestinationID = &cu.destinationID
+	} else if cu.destinationName != "" || cu.destinationType != "" {
+		destinationInput, err := cu.buildDestinationInput()
+		if err != nil {
+			return nil, err
+		}
+		req.Destination = destinationInput
+	} else if isUpdate && existing != nil && existing.Destination != nil {
+		// Preserve existing destination when updating and no destination flags provided
+		req.DestinationID = &existing.Destination.ID
+	}
+
+	// Handle Rules
+	rules, err := cu.buildRulesArray(nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(rules) > 0 {
+		req.Rules = rules
+	}
+
+	return req, nil
 }
 
 func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connection, req *hookdeck.ConnectionCreateRequest, isUpdate bool) error {
