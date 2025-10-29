@@ -422,7 +422,7 @@ Events • [↑↓] Navigate ─────────────────
 
 ### Manage connections
 
-Create and manage webhook connections between sources and destinations. See the [Manage connections](#manage-connections-1) section for detailed examples.
+Create and manage webhook connections between sources and destinations with inline resource creation, authentication, processing rules, and lifecycle management. For detailed examples with authentication, filters, retry rules, and rate limiting, see the complete [connection management](#manage-connections) section below.
 
 ```sh
 hookdeck connection [command]
@@ -431,7 +431,7 @@ hookdeck connection [command]
 hookdeck connection list      # List all connections
 hookdeck connection get       # Get connection details
 hookdeck connection create    # Create a new connection
-hookdeck connection update    # Update a connection
+hookdeck connection upsert    # Create or update a connection (idempotent)
 hookdeck connection delete    # Delete a connection
 hookdeck connection enable    # Enable a connection
 hookdeck connection disable   # Disable a connection
@@ -509,42 +509,201 @@ Upon successful selection, you will generally see a confirmation message like:
 
 ### Manage connections
 
-Connections link sources to destinations in Hookdeck. You can create and manage connections using the CLI.
+Connections link sources to destinations and define how events are processed. You can create connections, including source/destination definitions, configure authentication, add processing rules (retry, filter, transform, delay, deduplicate), and manage their lifecycle.
 
-#### List connections
+#### Create a connection
 
-List all connections in your project:
+Create a new connection between a source and destination. You can create the source and destination inline or reference existing resources:
+
+```sh
+# Basic connection with inline source and destination
+$ hookdeck connection create \
+  --source-name "github-repo" \
+  --source-type GITHUB \
+  --destination-name "ci-system" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhooks"
+
+✔ Connection created successfully
+Connection: github-repo-to-ci-system (conn_abc123)
+Source: github-repo (src_xyz789)
+Source URL: https://hkdk.events/src_xyz789
+Destination: ci-system (dst_def456)
+
+# Using existing source and destination
+$ hookdeck connection create \
+  --source "existing-source-name" \
+  --destination "existing-dest-name" \
+  --name "new-connection" \
+  --description "Connects existing resources"
+```
+
+#### Add source authentication
+
+Verify webhooks from providers like Stripe, GitHub, or Shopify by adding source authentication:
+
+```sh
+# Stripe webhook signature verification
+$ hookdeck connection create \
+  --source-name "stripe-prod" \
+  --source-type STRIPE \
+  --source-webhook-secret "whsec_abc123xyz" \
+  --destination-name "payment-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhooks/stripe"
+
+# GitHub webhook signature verification
+$ hookdeck connection create \
+  --source-name "github-webhooks" \
+  --source-type GITHUB \
+  --source-webhook-secret "ghp_secret123" \
+  --destination-name "ci-system" \
+  --destination-type HTTP \
+  --destination-url "https://ci.example.com/webhook"
+```
+
+#### Add destination authentication
+
+Secure your destination endpoint with bearer tokens, API keys, or basic authentication:
+
+```sh
+# Destination with bearer token
+$ hookdeck connection create \
+  --source-name "webhook-source" \
+  --source-type HTTP \
+  --destination-name "secure-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhooks" \
+  --destination-bearer-token "bearer_token_xyz"
+
+# Destination with API key
+$ hookdeck connection create \
+  --source-name "webhook-source" \
+  --source-type HTTP \
+  --destination-name "api-endpoint" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhooks" \
+  --destination-api-key "your_api_key"
+
+# Destination with custom headers
+$ hookdeck connection create \
+  --source-name "webhook-source" \
+  --source-type HTTP \
+  --destination-name "custom-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhooks" \
+  --destination-custom-header "X-API-Version:v2" \
+  --destination-custom-header "X-Client-ID:client123"
+```
+
+#### Configure retry rules
+
+Add automatic retry logic with exponential or linear backoff:
+
+```sh
+# Exponential backoff retry strategy
+$ hookdeck connection create \
+  --source-name "payment-webhooks" \
+  --source-type STRIPE \
+  --destination-name "payment-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/payments" \
+  --rule-retry-strategy exponential \
+  --rule-retry-count 5 \
+  --rule-retry-interval 60000
+```
+
+#### Add event filters
+
+Filter events based on request body, headers, path, or query parameters:
+
+```sh
+# Filter by event type in body
+$ hookdeck connection create \
+  --source-name "events" \
+  --source-type HTTP \
+  --destination-name "processor" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/process" \
+  --rule-filter-body '{"$.event_type":"payment.succeeded"}'
+
+# Combined filtering
+$ hookdeck connection create \
+  --source-name "shopify-webhooks" \
+  --source-type SHOPIFY \
+  --destination-name "order-processor" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/orders" \
+  --rule-filter-body '{"$.type":"order"}' \
+  --rule-retry-strategy exponential \
+  --rule-retry-count 3
+```
+
+#### Configure rate limiting
+
+Control the rate of event delivery to your destination:
+
+```sh
+# Limit to 100 requests per minute
+$ hookdeck connection create \
+  --source-name "high-volume-source" \
+  --source-type HTTP \
+  --destination-name "rate-limited-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/endpoint" \
+  --destination-rate-limit 100 \
+  --destination-rate-limit-period minute
+```
+
+#### Upsert connections
+
+Create or update connections idempotently based on connection name - perfect for CI/CD and infrastructure-as-code workflows:
+
+```sh
+# Create if doesn't exist, update if it does
+$ hookdeck connection upsert my-connection \
+  --source-name "stripe-prod" \
+  --source-type STRIPE \
+  --destination-name "api-prod" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com"
+
+# Partial update of existing connection
+$ hookdeck connection upsert my-connection \
+  --description "Updated description" \
+  --rule-retry-count 5
+
+# Preview changes without applying (dry-run)
+$ hookdeck connection upsert my-connection \
+  --description "New description" \
+  --dry-run
+
+-- Dry Run: UPDATE --
+Connection 'my-connection' (conn_123) will be updated with the following changes:
+- Description: "New description"
+```
+
+#### List and filter connections
+
+View all connections with flexible filtering options:
 
 ```sh
 # List all connections
 $ hookdeck connection list
 
-# Filter connections
-$ hookdeck connection list --name "my-connection"
-$ hookdeck connection list --source-id src_123abc
-$ hookdeck connection list --destination-id dst_456def
+# Filter by source or destination
+$ hookdeck connection list --source src_abc123
+$ hookdeck connection list --destination dest_xyz789
+
+# Filter by name pattern
+$ hookdeck connection list --name "production-*"
+
+# Include disabled or paused connections
 $ hookdeck connection list --disabled
 $ hookdeck connection list --paused
-```
 
-#### Create a connection
-
-Create a new connection between a source and destination. You can reference existing resources or create them inline:
-
-```sh
-# Create connection with existing source and destination
-$ hookdeck connection create \
-  --name "my-connection" \
-  --source-id src_123abc \
-  --destination-id dst_456def
-
-# Create connection with inline source and destination
-$ hookdeck connection create \
-  --name "stripe-to-local" \
-  --source-type STRIPE \
-  --source-name "stripe-webhooks" \
-  --destination-type CLI \
-  --destination-name "local-dev"
+# Output as JSON
+$ hookdeck connection list --output json
 ```
 
 #### Get connection details
@@ -552,44 +711,44 @@ $ hookdeck connection create \
 View detailed information about a specific connection:
 
 ```sh
+# Get by ID
 $ hookdeck connection get conn_123abc
-```
 
-#### Update a connection
+# Get by name
+$ hookdeck connection get "my-connection"
 
-Update connection properties:
-
-```sh
-# Update connection name
-$ hookdeck connection update conn_123abc --name "new-name"
-
-# Update description
-$ hookdeck connection update conn_123abc --description "New description"
+# Get as JSON
+$ hookdeck connection get conn_123abc --output json
 ```
 
 #### Connection lifecycle management
 
-Enable, disable, pause, or archive connections:
+Control connection state and event processing behavior:
 
 ```sh
-# Disable a connection (stops event delivery)
+# Disable a connection (stops receiving events entirely)
 $ hookdeck connection disable conn_123abc
 
 # Enable a disabled connection
 $ hookdeck connection enable conn_123abc
 
-# Pause a connection temporarily
+# Pause a connection (queues events without forwarding)
 $ hookdeck connection pause conn_123abc
 
 # Resume a paused connection
 $ hookdeck connection unpause conn_123abc
 
-# Archive a connection
+# Archive a connection (hide from main lists)
 $ hookdeck connection archive conn_123abc
 
 # Restore an archived connection
 $ hookdeck connection unarchive conn_123abc
 ```
+
+**State differences:**
+- **Disabled**: Connection stops receiving events entirely
+- **Paused**: Connection queues events but doesn't forward them (useful during maintenance)
+- **Archived**: Connection is hidden from main lists but can be restored
 
 #### Delete a connection
 
@@ -599,11 +758,14 @@ Delete a connection permanently:
 # Delete with confirmation prompt
 $ hookdeck connection delete conn_123abc
 
-# Delete without confirmation
+# Delete by name
+$ hookdeck connection delete "my-connection"
+
+# Skip confirmation
 $ hookdeck connection delete conn_123abc --force
 ```
 
-For more details on connection management, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
+For complete flag documentation and all examples, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
 
 ## Configuration files
 
