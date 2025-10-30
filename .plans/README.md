@@ -25,10 +25,6 @@ See [`connection-management-status.md`](./connection-management/connection-manag
 - **[`connection-management-status.md`](./connection-management/connection-management-status.md)** - Current implementation status (98% complete)
 - **[`resource-management-implementation.md`](./resource-management-implementation.md)** - Overall resource management plan
 
-## Other Resources
-
-- **[`localhost-quickstart.mdoc`](./localhost-quickstart.mdoc)** - Quick start guide for local development
-
 ## Development Guidelines
 
 All CLI development follows the patterns documented in [`AGENTS.md`](../AGENTS.md):

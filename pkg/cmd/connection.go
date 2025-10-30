@@ -14,14 +14,18 @@ func newConnectionCmd() *connectionCmd {
 	cc := &connectionCmd{}
 
 	cc.cmd = &cobra.Command{
-		Use:   "connection",
-		Args:  validators.NoArgs,
-		Short: "Manage your connections",
+		Use:     "connection",
+		Aliases: []string{"connections"},
+		Args:    validators.NoArgs,
+		Short:   "Manage your connections [BETA]",
 		Long: `Manage connections between sources and destinations.
 
 A connection links a source to a destination and defines how webhooks are routed.
 You can create connections with inline source and destination creation, or reference
-existing resources.`,
+existing resources.
+
+[BETA] This feature is in beta. Please share bugs and feedback via:
+https://github.com/hookdeck/hookdeck-cli/issues`,
 	}
 
 	cc.cmd.AddCommand(newConnectionCreateCmd().cmd)

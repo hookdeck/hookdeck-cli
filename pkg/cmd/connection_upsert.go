@@ -373,24 +373,44 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 		}
 		fmt.Println(string(jsonBytes))
 	} else {
-		fmt.Printf("✓ Connection upserted: %s\n", cu.name)
+		// Determine if this was a create or update based on whether connection existed
+		if isUpdate {
+			fmt.Println("✔ Connection updated successfully")
+		} else {
+			fmt.Println("✔ Connection created successfully")
+		}
+		fmt.Println()
 
-		fmt.Printf("\nConnection Details:\n")
-		fmt.Printf("  ID: %s\n", connection.ID)
+		// Connection name
 		if connection.Name != nil {
-			fmt.Printf("  Name: %s\n", *connection.Name)
+			fmt.Printf("Connection:  %s (%s)\n", *connection.Name, connection.ID)
+		} else {
+			fmt.Printf("Connection:  (unnamed) (%s)\n", connection.ID)
 		}
 
+		// Source details
 		if connection.Source != nil {
-			fmt.Printf("  Source: %s (%s)\n", connection.Source.Name, connection.Source.ID)
+			fmt.Printf("Source:      %s (%s)\n", connection.Source.Name, connection.Source.ID)
+			fmt.Printf("Source Type: %s\n", connection.Source.Type)
+			fmt.Printf("Source URL:  %s\n", connection.Source.URL)
 		}
 
+		// Destination details
 		if connection.Destination != nil {
-			fmt.Printf("  Destination: %s (%s)\n", connection.Destination.Name, connection.Destination.ID)
-		}
+			fmt.Printf("Destination: %s (%s)\n", connection.Destination.Name, connection.Destination.ID)
+			fmt.Printf("Destination Type: %s\n", connection.Destination.Type)
 
-		if len(connection.Rules) > 0 {
-			fmt.Printf("  Rules: %d configured\n", len(connection.Rules))
+			// Show additional fields based on destination type
+			switch strings.ToUpper(connection.Destination.Type) {
+			case "HTTP":
+				if url := connection.Destination.GetHTTPURL(); url != nil {
+					fmt.Printf("Destination URL: %s\n", *url)
+				}
+			case "CLI":
+				if path := connection.Destination.GetCLIPath(); path != nil {
+					fmt.Printf("Destination Path: %s\n", *path)
+				}
+			}
 		}
 	}
 

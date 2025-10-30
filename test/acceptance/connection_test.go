@@ -1972,15 +1972,17 @@ func TestConnectionCreateOutputStructure(t *testing.T) {
 		"--destination-cli-path", "/webhooks",
 	)
 
-	// Parse connection ID from output for cleanup (it appears in multiple places)
-	// Look for pattern "Successfully created connection with ID: conn_xxxxx"
+	// Parse connection ID from output for cleanup
+	// New format: "Connection:  test-output-xxx (web_xxxxx)"
 	lines := strings.Split(stdout, "\n")
 	var connID string
 	for _, line := range lines {
-		if strings.Contains(line, "Successfully created connection with ID:") {
-			parts := strings.Split(line, ":")
-			if len(parts) >= 2 {
-				connID = strings.TrimSpace(parts[1])
+		if strings.Contains(line, "Connection:") && strings.Contains(line, "(") && strings.Contains(line, ")") {
+			// Extract ID from parentheses
+			start := strings.Index(line, "(")
+			end := strings.Index(line, ")")
+			if start != -1 && end != -1 && end > start {
+				connID = strings.TrimSpace(line[start+1 : end])
 				break
 			}
 		}
@@ -1993,16 +1995,41 @@ func TestConnectionCreateOutputStructure(t *testing.T) {
 	})
 
 	// Verify output structure contains expected elements from create command
-	assert.Contains(t, stdout, "Successfully created connection with ID:", "Should show success message")
+	// Expected format:
+	// ✔ Connection created successfully
+	//
+	// Connection:  test-webhooks-to-local (conn_abc123)
+	// Source:      test-webhooks (src_123abc)
+	// Source Type: WEBHOOK
+	// Source URL:  https://hkdk.events/src_123abc
+	// Destination: local-dev (dst_456def)
+	// Destination Type: CLI
+	// Destination Path: /webhooks (for CLI destinations)
+
+	assert.Contains(t, stdout, "✔ Connection created successfully", "Should show success message")
+
+	// Verify Connection line format: "Connection:  name (id)"
 	assert.Contains(t, stdout, "Connection:", "Should show Connection label")
 	assert.Contains(t, stdout, connName, "Should include connection name")
-	assert.Contains(t, stdout, connID, "Should include connection ID")
+	assert.Contains(t, stdout, connID, "Should include connection ID in parentheses")
+
+	// Verify Source details
 	assert.Contains(t, stdout, "Source:", "Should show Source label")
 	assert.Contains(t, stdout, sourceName, "Should include source name")
+	assert.Contains(t, stdout, "Source Type:", "Should show source type label")
+	assert.Contains(t, stdout, "WEBHOOK", "Should show source type value")
 	assert.Contains(t, stdout, "Source URL:", "Should show source URL label")
 	assert.Contains(t, stdout, "https://hkdk.events/", "Should include Hookdeck event URL")
+
+	// Verify Destination details
 	assert.Contains(t, stdout, "Destination:", "Should show Destination label")
 	assert.Contains(t, stdout, destName, "Should include destination name")
+	assert.Contains(t, stdout, "Destination Type:", "Should show destination type label")
+	assert.Contains(t, stdout, "CLI", "Should show destination type value")
+
+	// For CLI destinations, should show Destination Path
+	assert.Contains(t, stdout, "Destination Path:", "Should show destination path label for CLI destinations")
+	assert.Contains(t, stdout, "/webhooks", "Should show the destination path value")
 
 	t.Logf("Successfully verified connection create output structure")
 }
