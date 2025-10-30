@@ -19,8 +19,5 @@ jobs:
         with:
           go-version: "1.24.9"
 
-      - name: Make script executable
-        run: chmod +x test-scripts/test-acceptance.sh
-
-      - name: Run acceptance tests
-        run: ./test-scripts/test-acceptance.sh
+      - name: Run Go Acceptance Tests
+        run: go test ./test/acceptance/... -v -timeout 10m

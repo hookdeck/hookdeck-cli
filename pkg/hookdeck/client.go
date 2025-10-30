@@ -47,6 +47,11 @@ type Client struct {
 	// stdout.
 	Verbose bool
 
+	// When this is enabled, HTTP 429 (rate limit) errors will be logged at
+	// DEBUG level instead of ERROR level. Useful for polling scenarios where
+	// rate limiting is expected.
+	SuppressRateLimitErrors bool
+
 	// Cached HTTP client, lazily created the first time the Client is used to
 	// send a request.
 	httpClient *http.Client
@@ -117,20 +122,29 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 			"method": req.Method,
 			"url":    req.URL.String(),
 			"error":  err.Error(),
-			"status": resp.StatusCode,
 		}).Error("Failed to perform request")
 		return nil, err
 	}
 
 	err = checkAndPrintError(resp)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"prefix": "client.Client.PerformRequest 2",
-			"method": req.Method,
-			"url":    req.URL.String(),
-			"error":  err.Error(),
-			"status": resp.StatusCode,
-		}).Error("Unexpected response")
+		// Allow callers to suppress rate limit error logging for polling scenarios
+		if c.SuppressRateLimitErrors && resp.StatusCode == http.StatusTooManyRequests {
+			log.WithFields(log.Fields{
+				"prefix": "client.Client.PerformRequest",
+				"method": req.Method,
+				"url":    req.URL.String(),
+				"status": resp.StatusCode,
+			}).Debug("Rate limited")
+		} else {
+			log.WithFields(log.Fields{
+				"prefix": "client.Client.PerformRequest 2",
+				"method": req.Method,
+				"url":    req.URL.String(),
+				"error":  err.Error(),
+				"status": resp.StatusCode,
+			}).Error("Unexpected response")
+		}
 		return nil, err
 	}
 
