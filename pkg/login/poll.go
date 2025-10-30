@@ -6,13 +6,16 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	log "github.com/sirupsen/logrus"
 )
 
 const maxAttemptsDefault = 2 * 60
-const intervalDefault = 1 * time.Second
+const intervalDefault = 2 * time.Second
+const maxBackoffInterval = 30 * time.Second
 
 // PollAPIKeyResponse returns the data of the polling client login
 type PollAPIKeyResponse struct {
@@ -47,12 +50,42 @@ func PollForKey(pollURL string, interval time.Duration, maxAttempts int) (*PollA
 	baseURL := &url.URL{Scheme: parsedURL.Scheme, Host: parsedURL.Host}
 
 	client := &hookdeck.Client{
-		BaseURL: baseURL,
+		BaseURL:                 baseURL,
+		SuppressRateLimitErrors: true, // Rate limiting is expected during polling
 	}
 
 	var count = 0
+	currentInterval := interval
+	consecutiveRateLimits := 0
+
 	for count < maxAttempts {
 		res, err := client.Get(context.TODO(), parsedURL.Path, parsedURL.Query().Encode(), nil)
+
+		// Check if error is due to rate limiting (429)
+		if err != nil && isRateLimitError(err) {
+			consecutiveRateLimits++
+			backoffInterval := calculateBackoff(currentInterval, consecutiveRateLimits)
+
+			log.WithFields(log.Fields{
+				"attempt":          count + 1,
+				"max_attempts":     maxAttempts,
+				"backoff_interval": backoffInterval,
+				"rate_limits":      consecutiveRateLimits,
+			}).Debug("Rate limited while polling, waiting before retry...")
+
+			time.Sleep(backoffInterval)
+			currentInterval = backoffInterval
+			count++
+			continue
+		}
+
+		// Reset back-off on successful request
+		if err == nil {
+			consecutiveRateLimits = 0
+			currentInterval = interval
+		}
+
+		// Handle other errors (non-429)
 		if err != nil {
 			return nil, err
 		}
@@ -74,8 +107,30 @@ func PollForKey(pollURL string, interval time.Duration, maxAttempts int) (*PollA
 		}
 
 		count++
-		time.Sleep(interval)
+		time.Sleep(currentInterval)
 	}
 
 	return nil, errors.New("exceeded max attempts")
+}
+
+// isRateLimitError checks if an error is a 429 rate limit error
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "429") || strings.Contains(errMsg, "Too Many Requests")
+}
+
+// calculateBackoff implements exponential back-off with a maximum cap
+func calculateBackoff(baseInterval time.Duration, consecutiveFailures int) time.Duration {
+	// Exponential: baseInterval * 2^consecutiveFailures
+	backoff := baseInterval * time.Duration(1<<uint(consecutiveFailures))
+
+	// Cap at maxBackoffInterval
+	if backoff > maxBackoffInterval {
+		backoff = maxBackoffInterval
+	}
+
+	return backoff
 }
