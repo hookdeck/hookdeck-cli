@@ -14,7 +14,8 @@ Hookdeck for development is completely free, and we monetize the platform with o
 
 For a complete reference, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
 
-https://github.com/user-attachments/assets/5fca7842-9c41-411c-8cd6-2f32f84fa907
+https://github.com/user-attachments/assets/7a333c5b-e4cb-45bb-8570-29fafd137bd2
+
 
 ## Installation
 
@@ -139,7 +140,16 @@ hookdeck login --interactive
 Start a session to forward your events to an HTTP server.
 
 ```sh
-hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [--path?] [--output?]
+hookdeck listen <port-or-URL> <source-alias?> <connection-query?> [flags]
+
+Flags:
+  --path string             Sets the path to which events are forwarded (e.g., /webhooks or /api/stripe)
+  --output string           Output mode: interactive (full UI), compact (simple logs), quiet (only fatal errors) (default "interactive")
+  --max-connections int     Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)
+  --filter-body string      Filter events by request body using Hookdeck filter syntax (JSON)
+  --filter-headers string   Filter events by request headers using Hookdeck filter syntax (JSON)
+  --filter-query string     Filter events by query parameters using Hookdeck filter syntax (JSON)
+  --filter-path string      Filter events by request path using Hookdeck filter syntax (JSON)
 ```
 
 Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
