@@ -1,5 +1,8 @@
 # Hookdeck CLI Reference
 
+> [!IMPORTANT]
+> This document is a work in progress and is not 100% accurate.
+
 The Hookdeck CLI provides comprehensive webhook infrastructure management including authentication, project management, resource management, event and attempt querying, and local development tools. This reference covers all available commands and their usage.
 
 ## Table of Contents
