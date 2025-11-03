@@ -14,9 +14,10 @@ func newProjectCmd() *projectCmd {
 	lc := &projectCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:   "project",
-		Args:  validators.NoArgs,
-		Short: "Manage your projects",
+		Use:     "project",
+		Aliases: []string{"projects"},
+		Args:    validators.NoArgs,
+		Short:   "Manage your projects",
 	}
 
 	lc.cmd.AddCommand(newProjectListCmd().cmd)
