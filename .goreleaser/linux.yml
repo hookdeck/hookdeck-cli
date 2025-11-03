@@ -29,6 +29,9 @@ builds:
       - linux
     goarch:
       - arm64
+release:
+  prerelease: auto
+  mode: append
 changelog:
   sort: asc
   filters:
@@ -40,12 +43,15 @@ checksum:
 snapshot:
   name_template: "{{ .Tag }}-next"
 nfpms:
-  - builds:
+  - package_name: "{{ if .Prerelease }}hookdeck-beta{{ else }}hookdeck{{ end }}"
+    file_name_template: "{{ .PackageName }}_{{ .Version }}_{{ .Arch }}"
+    builds:
       - hookdeck-linux
     vendor: Hookdeck
     homepage: https://hookdeck.com
     maintainer: Hookdeck <support@hookdeck.com>
-    description: Hookdeck CLI utility
+    description: |-
+      Hookdeck CLI utility{{ if .Prerelease }} (Beta){{ end }}
     license: Apache 2.0
     formats:
       - deb
