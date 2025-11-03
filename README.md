@@ -29,12 +29,24 @@ Hookdeck CLI is distributed as an NPM package:
 npm install hookdeck-cli -g
 ```
 
+To install a beta (pre-release) version:
+
+```sh
+npm install hookdeck-cli@beta -g
+```
+
 ### macOS
 
 Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/):
 
 ```sh
 brew install hookdeck/hookdeck/hookdeck
+```
+
+To install a beta (pre-release) version:
+
+```sh
+brew install hookdeck/hookdeck/hookdeck-beta
 ```
 
 ### Windows
@@ -46,6 +58,12 @@ scoop bucket add hookdeck https://github.com/hookdeck/scoop-hookdeck-cli.git
 scoop install hookdeck
 ```
 
+To install a beta (pre-release) version:
+
+```sh
+scoop install hookdeck-beta
+```
+
 ### Linux Or without package managers
 
 To install the Hookdeck CLI on Linux without a package manager:
@@ -53,6 +71,8 @@ To install the Hookdeck CLI on Linux without a package manager:
 1. Download the latest linux tar.gz file from https://github.com/hookdeck/hookdeck-cli/releases/latest
 2. Unzip the file: tar -xvf hookdeck_X.X.X_linux_amd64.tar.gz
 3. Run the executable: ./hookdeck
+
+For beta (pre-release) versions, download the `.deb` or `.rpm` packages from the [GitHub releases page](https://github.com/hookdeck/hookdeck-cli/releases) (look for releases marked as "Pre-release").
 
 ### Docker
 
@@ -62,6 +82,14 @@ The CLI is also available as a Docker image: [`hookdeck/hookdeck-cli`](https://h
 docker run --rm -it hookdeck/hookdeck-cli version
 hookdeck version x.y.z (beta)
 ```
+
+To use a specific version (including beta releases), specify the version tag:
+
+```sh
+docker run --rm -it hookdeck/hookdeck-cli:v1.2.3-beta.1 version
+```
+
+Note: Beta releases do not update the `latest` tag. Only stable releases update `latest`.
 
 If you want to login to your Hookdeck account with the CLI and persist
 credentials, you can bind mount the `~/.config/hookdeck` directory:
@@ -642,6 +670,90 @@ docker run --rm -it \
     listen \
     http://host.docker.internal:1234
 ```
+
+## Releasing
+
+This section describes the branching strategy and release process for the Hookdeck CLI.
+
+### Branching Strategy
+
+The project uses two primary branches:
+
+- **`main`** - The stable, production-ready branch. All production releases are created from this branch.
+- **`next`** - The beta/pre-release branch. All new features are merged here first for testing before being promoted to `main`.
+
+### Beta Releases
+
+Beta releases allow you to publish pre-release versions for testing without blocking the `main` branch or affecting stable releases.
+
+**Process:**
+
+1. Ensure all desired features are merged into the `next` branch
+2. Pull the latest changes locally:
+   ```sh
+   git checkout next
+   git pull origin next
+   ```
+3. Create and push a beta tag with a pre-release identifier:
+   ```sh
+   git tag v1.2.3-beta.0
+   git push origin v1.2.3-beta.0
+   ```
+4. The GitHub Actions workflow will automatically:
+   - Build binaries for all platforms (macOS, Linux, Windows)
+   - Create a GitHub pre-release (marked as "Pre-release")
+   - Publish to NPM with the `beta` tag
+   - Create beta packages:
+     - Homebrew: `hookdeck-beta` formula
+     - Scoop: `hookdeck-beta` package
+     - Docker: Tagged with the version (e.g., `v1.2.3-beta.0`), but not `latest`
+
+**Installing beta releases:**
+
+```sh
+# NPM
+npm install hookdeck-cli@beta -g
+
+# Homebrew
+brew install hookdeck/hookdeck/hookdeck-beta
+
+# Scoop
+scoop install hookdeck-beta
+
+# Docker
+docker run hookdeck/hookdeck-cli:v1.2.3-beta.0 version
+```
+
+### Production Releases
+
+Production releases are created from the `main` branch using GitHub's release interface.
+
+**Process:**
+
+1. Merge the `next` branch into `main`:
+   ```sh
+   git checkout main
+   git pull origin main
+   git merge next
+   git push origin main
+   ```
+2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
+3. Click "Draft a new release"
+4. Create a new tag with a stable version (e.g., `v1.3.0`)
+5. Target the `main` branch
+6. Generate release notes or write them manually
+7. Publish the release
+
+The GitHub Actions workflow will automatically:
+- Build binaries for all platforms
+- Create a stable GitHub release
+- Publish to NPM with the `latest` tag
+- Update package managers:
+  - Homebrew: `hookdeck` formula
+  - Scoop: `hookdeck` package
+  - Docker: Updates both the version tag and `latest`
+
+**Note:** Only stable releases (without pre-release identifiers) will update the `latest` tags across all distribution channels.
 
 ## License
 
