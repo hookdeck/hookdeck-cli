@@ -20,7 +20,6 @@ type connectionListCmd struct {
 	sourceID      string
 	destinationID string
 	disabled      bool
-	paused        bool
 	limit         int
 	output        string
 }
@@ -50,9 +49,6 @@ Examples:
   # Include disabled connections
   hookdeck connection list --disabled
 
-  # Include paused connections
-  hookdeck connection list --paused
-
   # Limit results
   hookdeck connection list --limit 10`,
 		RunE: cc.runConnectionListCmd,
@@ -62,7 +58,6 @@ Examples:
 	cc.cmd.Flags().StringVar(&cc.sourceID, "source-id", "", "Filter by source ID")
 	cc.cmd.Flags().StringVar(&cc.destinationID, "destination-id", "", "Filter by destination ID")
 	cc.cmd.Flags().BoolVar(&cc.disabled, "disabled", false, "Include disabled connections")
-	cc.cmd.Flags().BoolVar(&cc.paused, "paused", false, "Include paused connections")
 	cc.cmd.Flags().IntVar(&cc.limit, "limit", 100, "Limit number of results")
 	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
 
@@ -91,12 +86,22 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 		params["destination_id"] = cc.destinationID
 	}
 
-	if !cc.disabled {
+	// API behavior (tested in test-scripts/test-disabled-behavior.sh):
+	// - NO parameter: Returns ALL connections (both active and disabled)
+	// - disabled=false: Returns ONLY active connections (excludes disabled)
+	// - disabled=true: Returns ALL connections (both active and disabled)
+	//
+	// CLI behavior (from test expectations):
+	// - --disabled flag present: Include ALL connections (both active and disabled)
+	// - --disabled flag absent: Include only active connections
+	//
+	// Therefore:
+	// - When --disabled flag is PRESENT: Send disabled=true (to get all)
+	// - When --disabled flag is ABSENT: Send disabled=false (to exclude disabled)
+	if cc.disabled {
+		params["disabled"] = "true"
+	} else {
 		params["disabled"] = "false"
-	}
-
-	if !cc.paused {
-		params["paused"] = "false"
 	}
 
 	params["limit"] = strconv.Itoa(cc.limit)

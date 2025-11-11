@@ -222,38 +222,6 @@ func (c *Client) UnpauseConnection(ctx context.Context, id string) (*Connection,
 	return &connection, nil
 }
 
-// ArchiveConnection archives a connection
-func (c *Client) ArchiveConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/archive", id), []byte("{}"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var connection Connection
-	_, err = postprocessJsonResponse(resp, &connection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection response: %w", err)
-	}
-
-	return &connection, nil
-}
-
-// UnarchiveConnection unarchives a connection
-func (c *Client) UnarchiveConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s/unarchive", id), []byte("{}"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var connection Connection
-	_, err = postprocessJsonResponse(resp, &connection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection response: %w", err)
-	}
-
-	return &connection, nil
-}
-
 // CountConnections counts connections matching the given filters
 func (c *Client) CountConnections(ctx context.Context, params map[string]string) (*ConnectionCountResponse, error) {
 	queryParams := url.Values{}

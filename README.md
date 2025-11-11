@@ -465,8 +465,6 @@ hookdeck connection enable    # Enable a connection
 hookdeck connection disable   # Disable a connection
 hookdeck connection pause     # Pause a connection
 hookdeck connection unpause   # Unpause a connection
-hookdeck connection archive   # Archive a connection
-hookdeck connection unarchive # Unarchive a connection
 ```
 
 ### Manage active project
@@ -724,9 +722,8 @@ $ hookdeck connection list --destination dest_xyz789
 # Filter by name pattern
 $ hookdeck connection list --name "production-*"
 
-# Include disabled or paused connections
+# Include disabled connections
 $ hookdeck connection list --disabled
-$ hookdeck connection list --paused
 
 # Output as JSON
 $ hookdeck connection list --output json
@@ -763,18 +760,11 @@ $ hookdeck connection pause conn_123abc
 
 # Resume a paused connection
 $ hookdeck connection unpause conn_123abc
-
-# Archive a connection (hide from main lists)
-$ hookdeck connection archive conn_123abc
-
-# Restore an archived connection
-$ hookdeck connection unarchive conn_123abc
 ```
 
 **State differences:**
 - **Disabled**: Connection stops receiving events entirely
 - **Paused**: Connection queues events but doesn't forward them (useful during maintenance)
-- **Archived**: Connection is hidden from main lists but can be restored
 
 #### Delete a connection
 
