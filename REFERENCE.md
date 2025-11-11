@@ -51,10 +51,16 @@ All commands support these global options:
 --help, -h              Show help information
 ```
 
-### 🚧 Planned Global Options
+### 🔄 Partially Implemented Options
+```bash
+--output json           Output in JSON format (available on: connection create/list/get/upsert)
+                        Default: human-readable format
+```
+
+### � Planned Global Options
 ```bash
 --project string         Project ID to use (overrides profile)
---format string          Output format: table, json, yaml (default "table")
+--output string          Additional output formats: table, yaml (currently only json supported)
 ```
 
 ## Authentication
@@ -293,7 +299,7 @@ The Hookdeck CLI provides comprehensive connection management capabilities. The 
 | Project Management | 🔄 **Partial** | `project list`, `project use` |
 | Local Development | ✅ **Current** | `listen` |
 | CI/CD | ✅ **Current** | `ci` |
-| Connection Management | ✅ **Current** | `connection create`, `connection list`, `connection get`, `connection upsert`, `connection delete`, `connection enable`, `connection disable`, `connection pause`, `connection unpause`, `connection archive`, `connection unarchive` |
+| Connection Management | ✅ **Current** | `connection create`, `connection list`, `connection get`, `connection upsert`, `connection delete`, `connection enable`, `connection disable`, `connection pause`, `connection unpause` |
 | Shell Completion | ✅ **Current** | `completion` (bash, zsh) |
 | Source Management | 🚧 **Planned** | *(Not implemented)* |
 | Destination Management | 🚧 **Planned** | *(Not implemented)* |
@@ -450,7 +456,7 @@ hookdeck project delete proj_123 --force
 <source-id>          # Required positional argument for source ID
 --force              # Force delete without confirmation (boolean flag)
 
-# Source enable/disable/archive/unarchive command parameters
+# Source enable/disable command parameters
 <source-id>          # Required positional argument for source ID
 ```
 
@@ -662,12 +668,6 @@ hookdeck source enable <source-id>
 
 # Disable source
 hookdeck source disable <source-id>
-
-# Archive source
-hookdeck source archive <source-id>
-
-# Unarchive source
-hookdeck source unarchive <source-id>
 ```
 
 ## Destinations
@@ -729,7 +729,7 @@ hookdeck source unarchive <source-id>
 <destination-id>     # Required positional argument for destination ID
 --force              # Force delete without confirmation (boolean flag)
 
-# Destination enable/disable/archive/unarchive command parameters
+# Destination enable/disable command parameters
 <destination-id>     # Required positional argument for destination ID
 ```
 
@@ -863,12 +863,6 @@ hookdeck destination enable <destination-id>
 
 # Disable destination
 hookdeck destination disable <destination-id>
-
-# Archive destination
-hookdeck destination archive <destination-id>
-
-# Unarchive destination
-hookdeck destination unarchive <destination-id>
 ```
 
 ## Connections
@@ -883,7 +877,6 @@ hookdeck destination unarchive <destination-id>
 - `connection delete` - Delete connections with confirmation
 - `connection enable/disable` - Control connection state
 - `connection pause/unpause` - Pause/resume event processing
-- `connection archive/unarchive` - Archive inactive connections
 
 **Implementation Status:**
 - ✅ Full CRUD operations
@@ -902,36 +895,34 @@ hookdeck destination unarchive <destination-id>
 # List all connections
 hookdeck connection list
 
-# Filter by source
-hookdeck connection list --source src_abc123
+# Filter by source ID
+hookdeck connection list --source-id src_abc123
 
-# Filter by destination
-hookdeck connection list --destination dest_xyz789
+# Filter by destination ID
+hookdeck connection list --destination-id dest_xyz789
 
-# Filter by name pattern
-hookdeck connection list --name "production-*"
+# Filter by connection name
+hookdeck connection list --name "production-connection"
 
 # Include disabled connections
 hookdeck connection list --disabled
 
-# Include paused connections
-hookdeck connection list --paused
-
-# Include archived connections
-hookdeck connection list --archived
-
 # Combine filters
-hookdeck connection list --source src_abc123 --disabled
+hookdeck connection list --source-id src_abc123 --disabled
+
+# Limit results
+hookdeck connection list --limit 50
+
+# Output as JSON
+hookdeck connection list --output json
 ```
 
 **Available Flags:**
-- `--source <id-or-name>` - Filter by source ID or name
-- `--destination <id-or-name>` - Filter by destination ID or name
-- `--name <pattern>` - Filter by connection name
-- `--full-name <pattern>` - Filter by full connection name (source > connection > destination)
-- `--disabled` - Show only disabled connections
-- `--paused` - Show only paused connections
-- `--archived` - Show only archived connections
+- `--name <string>` - Filter by connection name
+- `--source-id <string>` - Filter by source ID
+- `--destination-id <string>` - Filter by destination ID
+- `--disabled` - Include disabled connections
+- `--limit <int>` - Limit number of results (default: 100)
 - `--output json` - Output in JSON format
 
 ### Get Connection
@@ -1236,16 +1227,11 @@ hookdeck connection enable conn_abc123
 # Pause/Unpause (queue events without forwarding)
 hookdeck connection pause conn_abc123
 hookdeck connection unpause conn_abc123
-
-# Archive/Unarchive (for inactive connections)
-hookdeck connection archive conn_abc123
-hookdeck connection unarchive conn_abc123
 ```
 
 **State Differences:**
 - **Disabled**: Connection stops receiving events entirely
 - **Paused**: Connection queues events but doesn't forward them
-- **Archived**: Connection is hidden from main lists but can be restored
 
 ### Implementation Notes
 
@@ -1254,7 +1240,7 @@ hookdeck connection unarchive conn_abc123
 - Inline resource creation with authentication
 - All 5 rule types (retry, filter, transform, delay, deduplicate)
 - Rate limiting configuration
-- Lifecycle management (enable, disable, pause, unpause, archive, unarchive)
+- Lifecycle management (enable, disable, pause, unpause)
 - Idempotent upsert with dry-run support
 - 21 acceptance tests, all passing
 

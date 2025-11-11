@@ -37,8 +37,6 @@ https://github.com/hookdeck/hookdeck-cli/issues`,
 	cc.cmd.AddCommand(newConnectionDisableCmd().cmd)
 	cc.cmd.AddCommand(newConnectionPauseCmd().cmd)
 	cc.cmd.AddCommand(newConnectionUnpauseCmd().cmd)
-	cc.cmd.AddCommand(newConnectionArchiveCmd().cmd)
-	cc.cmd.AddCommand(newConnectionUnarchiveCmd().cmd)
 
 	return cc
 }
