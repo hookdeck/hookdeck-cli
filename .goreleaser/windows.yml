@@ -28,11 +28,7 @@ release:
   prerelease: auto
   mode: append
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  disable: true
 checksum:
   name_template: "{{ .ProjectName }}-windows-checksums.txt"
 snapshot:
