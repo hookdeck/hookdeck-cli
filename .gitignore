@@ -13,3 +13,4 @@ default_cassette.yaml
 .vscode/
 __debug_bin
 node_modules/
+.env
