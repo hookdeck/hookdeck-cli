@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -161,6 +162,92 @@ func (c *Config) UseProject(projectId string, projectMode string) error {
 	c.Profile.ProjectId = projectId
 	c.Profile.ProjectMode = projectMode
 	return c.Profile.SaveProfile()
+}
+
+// UseProjectLocal selects the active project to be used in local config
+// Returns true if a new file was created, false if existing file was updated
+func (c *Config) UseProjectLocal(projectId string, projectMode string) (bool, error) {
+	// Get current working directory
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return false, fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Create .hookdeck directory
+	hookdeckDir := filepath.Join(workingDir, ".hookdeck")
+	if err := os.MkdirAll(hookdeckDir, 0755); err != nil {
+		return false, fmt.Errorf("failed to create .hookdeck directory: %w", err)
+	}
+
+	// Define local config path
+	localConfigPath := filepath.Join(hookdeckDir, "config.toml")
+
+	// Check if local config file exists
+	fileExists, err := c.fs.fileExists(localConfigPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if local config exists: %w", err)
+	}
+
+	// Update in-memory state
+	c.Profile.ProjectId = projectId
+	c.Profile.ProjectMode = projectMode
+
+	// Write to local config file using shared helper
+	if err := c.writeProjectConfig(localConfigPath, !fileExists); err != nil {
+		return false, err
+	}
+
+	return !fileExists, nil
+}
+
+// writeProjectConfig writes the current profile's project configuration to the specified config file
+func (c *Config) writeProjectConfig(configPath string, isNewFile bool) error {
+	// Create a new viper instance for the config
+	v := viper.New()
+	v.SetConfigType("toml")
+	v.SetConfigFile(configPath)
+
+	// Try to read existing config (ignore error if doesn't exist)
+	_ = v.ReadInConfig()
+
+	// Set all profile fields
+	c.setProfileFieldsInViper(v)
+
+	// Write config file
+	var writeErr error
+	if isNewFile {
+		writeErr = v.SafeWriteConfig()
+	} else {
+		writeErr = v.WriteConfig()
+	}
+	if writeErr != nil {
+		return fmt.Errorf("failed to write config to %s: %w", configPath, writeErr)
+	}
+
+	return nil
+}
+
+// setProfileFieldsInViper sets the current profile's fields in the given viper instance
+func (c *Config) setProfileFieldsInViper(v *viper.Viper) {
+	if c.Profile.APIKey != "" {
+		v.Set(c.Profile.getConfigField("api_key"), c.Profile.APIKey)
+	}
+	v.Set("profile", c.Profile.Name)
+	v.Set(c.Profile.getConfigField("project_id"), c.Profile.ProjectId)
+	v.Set(c.Profile.getConfigField("project_mode"), c.Profile.ProjectMode)
+	if c.Profile.GuestURL != "" {
+		v.Set(c.Profile.getConfigField("guest_url"), c.Profile.GuestURL)
+	}
+}
+
+// GetConfigFile returns the path of the currently loaded config file
+func (c *Config) GetConfigFile() string {
+	return c.configFile
+}
+
+// FileExists checks if a file exists at the given path
+func (c *Config) FileExists(path string) (bool, error) {
+	return c.fs.fileExists(path)
 }
 
 func (c *Config) ListProfiles() []string {

@@ -52,8 +52,9 @@ func loadEnvFile() {
 
 // CLIRunner provides utilities for running CLI commands in tests
 type CLIRunner struct {
-	t      *testing.T
-	apiKey string
+	t           *testing.T
+	apiKey      string
+	projectRoot string
 }
 
 // NewCLIRunner creates a new CLI runner for tests
@@ -64,9 +65,14 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 	apiKey := os.Getenv("HOOKDECK_CLI_TESTING_API_KEY")
 	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY environment variable must be set")
 
+	// Get and store the absolute project root path before any directory changes
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
 	runner := &CLIRunner{
-		t:      t,
-		apiKey: apiKey,
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
 	}
 
 	// Authenticate in CI mode for tests
@@ -81,20 +87,15 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 
-	// Get the absolute path to the project root (test/acceptance -> ../..)
-	projectRoot, err := filepath.Abs("../..")
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get project root: %w", err)
-	}
-
-	mainGoPath := filepath.Join(projectRoot, "main.go")
+	// Use the stored project root path (set during NewCLIRunner)
+	mainGoPath := filepath.Join(r.projectRoot, "main.go")
 
 	// Build command: go run main.go [args...]
 	cmdArgs := append([]string{"run", mainGoPath}, args...)
 	cmd := exec.Command("go", cmdArgs...)
 
 	// Set working directory to project root
-	cmd.Dir = projectRoot
+	cmd.Dir = r.projectRoot
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
