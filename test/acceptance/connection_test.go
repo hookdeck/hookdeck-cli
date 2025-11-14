@@ -41,14 +41,23 @@ func TestConnectionCreateAndDelete(t *testing.T) {
 		deleteConnection(t, cli, connID)
 	})
 
-	// Verify the connection was created by getting it
+	// Verify the connection was created by getting it (JSON output)
 	var conn Connection
 	err := cli.RunJSON(&conn, "connection", "get", connID)
 	require.NoError(t, err, "Should be able to get the created connection")
 	assert.Equal(t, connID, conn.ID, "Retrieved connection ID should match")
 	assert.NotEmpty(t, conn.Name, "Connection should have a name")
 	assert.NotEmpty(t, conn.Source.Name, "Connection should have a source")
+	assert.NotEmpty(t, conn.Source.Type, "Connection source should have a type")
 	assert.NotEmpty(t, conn.Destination.Name, "Connection should have a destination")
+	assert.NotEmpty(t, conn.Destination.Type, "Connection destination should have a type")
+
+	// Verify human-readable output includes type information
+	stdout := cli.RunExpectSuccess("connection", "get", connID)
+	assert.Contains(t, stdout, "Type:", "Human-readable output should include 'Type:' label")
+	assert.True(t,
+		strings.Contains(stdout, conn.Source.Type) && strings.Contains(stdout, conn.Destination.Type),
+		"Human-readable output should display both source and destination types")
 
 	t.Logf("Successfully created and retrieved connection: %s", conn.Name)
 }

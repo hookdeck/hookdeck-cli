@@ -88,6 +88,7 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 			fmt.Printf("Source:\n")
 			fmt.Printf("  Name: %s\n", conn.Source.Name)
 			fmt.Printf("  ID: %s\n", conn.Source.ID)
+			fmt.Printf("  Type: %s\n", conn.Source.Type)
 			fmt.Printf("  URL: %s\n", conn.Source.URL)
 			fmt.Printf("\n")
 		}
@@ -97,6 +98,7 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 			fmt.Printf("Destination:\n")
 			fmt.Printf("  Name: %s\n", conn.Destination.Name)
 			fmt.Printf("  ID: %s\n", conn.Destination.ID)
+			fmt.Printf("  Type: %s\n", conn.Destination.Type)
 
 			if cliPath := conn.Destination.GetCLIPath(); cliPath != nil {
 				fmt.Printf("  CLI Path: %s\n", *cliPath)

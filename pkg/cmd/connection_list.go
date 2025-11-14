@@ -142,23 +142,27 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 
 		sourceName := "unknown"
 		sourceID := "unknown"
+		sourceType := "unknown"
 		if conn.Source != nil {
 			sourceName = conn.Source.Name
 			sourceID = conn.Source.ID
+			sourceType = conn.Source.Type
 		}
 
 		destinationName := "unknown"
 		destinationID := "unknown"
+		destinationType := "unknown"
 		if conn.Destination != nil {
 			destinationName = conn.Destination.Name
 			destinationID = conn.Destination.ID
+			destinationType = conn.Destination.Type
 		}
 
 		// Show connection name in color
 		fmt.Printf("%s\n", color.Green(connectionName))
 		fmt.Printf("  ID: %s\n", conn.ID)
-		fmt.Printf("  Source: %s (%s)\n", sourceName, sourceID)
-		fmt.Printf("  Destination: %s (%s)\n", destinationName, destinationID)
+		fmt.Printf("  Source: %s (%s) [%s]\n", sourceName, sourceID, sourceType)
+		fmt.Printf("  Destination: %s (%s) [%s]\n", destinationName, destinationID, destinationType)
 
 		if conn.DisabledAt != nil {
 			fmt.Printf("  Status: %s\n", color.Red("disabled"))
