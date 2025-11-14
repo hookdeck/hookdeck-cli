@@ -249,6 +249,30 @@ func TestConnectionListFilters(t *testing.T) {
 		}
 
 		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-human-output-" + timestamp
+		sourceName := "test-human-src-" + timestamp
+		destName := "test-human-dst-" + timestamp
+
+		// Create a connection to test output format
+		var conn Connection
+		err := cli.RunJSON(&conn,
+			"connection", "create",
+			"--name", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "CLI",
+			"--destination-cli-path", "/webhooks",
+		)
+		require.NoError(t, err, "Should create connection")
+		require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, conn.ID)
+		})
 
 		// List without --output json to get human-readable format
 		stdout := cli.RunExpectSuccess("connection", "list")
@@ -258,6 +282,14 @@ func TestConnectionListFilters(t *testing.T) {
 			strings.Contains(stdout, "connection") || strings.Contains(stdout, "No connections found"),
 			"Should produce human-readable output")
 
-		t.Logf("Successfully tested human-readable output format")
+		// Verify source and destination types are displayed
+		assert.True(t,
+			strings.Contains(stdout, "[WEBHOOK]") || strings.Contains(stdout, "[webhook]"),
+			"Should display source type in output")
+		assert.True(t,
+			strings.Contains(stdout, "[CLI]") || strings.Contains(stdout, "[cli]"),
+			"Should display destination type in output")
+
+		t.Logf("Successfully tested human-readable output format with type display")
 	})
 }

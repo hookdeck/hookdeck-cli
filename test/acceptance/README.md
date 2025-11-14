@@ -2,6 +2,22 @@
 
 This directory contains Go-based acceptance tests for the Hookdeck CLI. These tests verify end-to-end functionality by executing the CLI and validating outputs.
 
+## Test Categories
+
+Tests are divided into two categories:
+
+### 1. Automated Tests (CI-Compatible)
+These tests run automatically in CI using API keys from `hookdeck ci`. They don't require human interaction.
+
+**Files:** All test files without build tags (e.g., `basic_test.go`, `connection_test.go`, `project_use_test.go`)
+
+### 2. Manual Tests (Require Human Interaction)
+These tests require browser-based authentication via `hookdeck login` and must be run manually by developers.
+
+**Files:** Test files with `//go:build manual` tag (e.g., `project_use_manual_test.go`)
+
+**Why Manual?** These tests access endpoints (like `/teams`) that require CLI authentication keys obtained through interactive browser login, which aren't available to CI service accounts.
+
 ## Setup
 
 ### Local Development
@@ -21,14 +37,19 @@ In CI environments (GitHub Actions), set the `HOOKDECK_CLI_TESTING_API_KEY` envi
 
 ## Running Tests
 
-### Run all acceptance tests:
+### Run all automated (CI) tests:
 ```bash
 go test ./test/acceptance/... -v
 ```
 
-### Run specific test:
+### Run manual tests (requires human authentication):
 ```bash
-go test ./test/acceptance/... -v -run TestCLIBasics
+go test -tags=manual -v ./test/acceptance/
+```
+
+### Run specific manual test:
+```bash
+go test -tags=manual -run TestProjectUseLocalCreatesConfig -v ./test/acceptance/
 ```
 
 ### Skip acceptance tests (short mode):
@@ -38,12 +59,89 @@ go test ./test/acceptance/... -short
 
 All acceptance tests are skipped when `-short` flag is used, allowing fast unit test runs.
 
+## Manual Test Workflow
+
+When you run manual tests, here's what happens:
+
+### Example Session
+```bash
+$ go test -tags=manual -v ./test/acceptance/
+
+=== RUN   TestProjectUseLocalCreatesConfig
+
+🔐 Fresh Authentication Required
+=================================
+These tests require fresh CLI authentication with project access.
+
+Step 1: Clearing existing authentication...
+✅ Authentication cleared
+
+Step 2: Starting login process...
+Running: hookdeck login
+
+[Browser opens for authentication - complete the login process]
+
+Please complete the browser authentication if not already done.
+Press Enter when you've successfully logged in and are ready to continue...
+
+[User presses Enter]
+
+Verifying authentication...
+✅ Authenticated successfully: Logged in as user@example.com on project my-project in organization Acme Inc
+
+--- PASS: TestProjectUseLocalCreatesConfig (15.34s)
+
+=== RUN   TestProjectUseSmartDefault
+✅ Already authenticated (from previous test)
+--- PASS: TestProjectUseSmartDefault (1.12s)
+
+...
+```
+
+### What the Helper Does
+
+The [`RequireCLIAuthenticationOnce(t)`](helpers.go:268) helper function:
+
+1. **Clears existing authentication** by running `hookdeck logout` and deleting config files
+2. **Runs `hookdeck login`** which opens a browser for authentication
+3. **Waits for you to press Enter** after completing browser authentication (gives you full control)
+4. **Verifies authentication** by running `hookdeck whoami`
+5. **Fails the test** if authentication doesn't succeed
+6. **Runs only once per test session** - subsequent tests in the same run reuse the authentication
+
+### Which Tests Require Manual Authentication
+
+**Automated Tests (project_use_test.go):**
+- ✅ `TestProjectUseLocalAndConfigFlagConflict` - Flag validation only, no API calls
+- ✅ `TestLocalConfigHelpers` - Helper function tests, no API calls
+
+**Manual Tests (project_use_manual_test.go):**
+- 🔐 `TestProjectUseLocalCreatesConfig` - Requires `/teams` endpoint access
+- 🔐 `TestProjectUseSmartDefault` - Requires `/teams` endpoint access
+- 🔐 `TestProjectUseLocalCreateDirectory` - Requires `/teams` endpoint access
+- 🔐 `TestProjectUseLocalSecurityWarning` - Requires `/teams` endpoint access
+
+### Tips for Running Manual Tests
+
+- **Run all manual tests together** to authenticate only once:
+  ```bash
+  go test -tags=manual -v ./test/acceptance/
+  ```
+
+- **Authentication persists** across tests in the same run (handled by `RequireCLIAuthenticationOnce`)
+
+- **Fresh authentication each run** - existing auth is always cleared at the start
+
+- **Be ready to authenticate** - the browser will open automatically when you run the tests
+
 ## Test Structure
 
 ### Files
 
 - **`helpers.go`** - Test infrastructure and utilities
   - `CLIRunner` - Executes CLI commands via `go run main.go`
+  - `RequireCLIAuthentication(t)` - Forces fresh CLI authentication for manual tests
+  - `RequireCLIAuthenticationOnce(t)` - Authenticates once per test run
   - Helper functions for creating/deleting test resources
   - JSON parsing utilities
   - Data structures (Connection, etc.)
@@ -64,6 +162,16 @@ All acceptance tests are skipped when `-short` flag is used, allowing fast unit 
   - Basic listen command startup and termination
   - Context-based process management
   - Background process handling
+
+- **`project_use_test.go`** - Project use automated tests (CI-compatible)
+  - Flag validation tests
+  - Helper function tests
+  - Tests that don't require `/teams` endpoint access
+
+- **`project_use_manual_test.go`** - Project use manual tests (requires human auth)
+  - Build tag: `//go:build manual`
+  - Tests that require browser-based authentication
+  - Tests that access `/teams` endpoint
 
 - **`.env`** - Local environment variables (git-ignored)
 
