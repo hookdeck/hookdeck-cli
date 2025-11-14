@@ -62,6 +62,82 @@ func TestConnectionCreateAndDelete(t *testing.T) {
 	t.Logf("Successfully created and retrieved connection: %s", conn.Name)
 }
 
+// TestConnectionGetByName tests that connection get works with connection name
+func TestConnectionGetByName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-get-by-name-" + timestamp
+	sourceName := "test-src-" + timestamp
+	destName := "test-dst-" + timestamp
+
+	// Create a test connection
+	var createResp Connection
+	err := cli.RunJSON(&createResp,
+		"connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Should create test connection")
+	require.NotEmpty(t, createResp.ID, "Connection should have an ID")
+
+	// Cleanup
+	t.Cleanup(func() {
+		deleteConnection(t, cli, createResp.ID)
+	})
+
+	// Test 1: Get by ID (original behavior)
+	var getByID Connection
+	err = cli.RunJSON(&getByID, "connection", "get", createResp.ID)
+	require.NoError(t, err, "Should be able to get connection by ID")
+	assert.Equal(t, createResp.ID, getByID.ID, "Connection ID should match")
+
+	// Test 2: Get by name (new behavior)
+	var getByName Connection
+	err = cli.RunJSON(&getByName, "connection", "get", connName)
+	require.NoError(t, err, "Should be able to get connection by name")
+	assert.Equal(t, createResp.ID, getByName.ID, "Connection ID should match when retrieved by name")
+	assert.Equal(t, connName, getByName.Name, "Connection name should match")
+
+	// Test 3: Verify both methods return the same connection
+	assert.Equal(t, getByID.ID, getByName.ID, "Getting by ID and name should return same connection")
+
+	t.Logf("Successfully tested connection get by both ID (%s) and name (%s)", createResp.ID, connName)
+}
+
+// TestConnectionGetNotFound tests error handling for non-existent connections
+func TestConnectionGetNotFound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	// Test 1: Non-existent ID
+	stdout, stderr, err := cli.Run("connection", "get", "conn_nonexistent123")
+	require.Error(t, err, "Should error when connection ID doesn't exist")
+	combinedOutput := stdout + stderr
+	assert.Contains(t, combinedOutput, "connection not found", "Error should indicate connection not found")
+	assert.Contains(t, combinedOutput, "Please check the connection name or ID", "Error should suggest checking the identifier")
+
+	// Test 2: Non-existent name
+	stdout, stderr, err = cli.Run("connection", "get", "nonexistent-connection-name-xyz")
+	require.Error(t, err, "Should error when connection name doesn't exist")
+	combinedOutput = stdout + stderr
+	assert.Contains(t, combinedOutput, "connection not found", "Error should indicate connection not found")
+	assert.Contains(t, combinedOutput, "Please check the connection name or ID", "Error should suggest checking the identifier")
+
+	t.Logf("Successfully tested error handling for non-existent connections")
+}
+
 // TestConnectionWithWebhookSource tests creating a connection with a WEBHOOK source
 func TestConnectionWithWebhookSource(t *testing.T) {
 	if testing.Short() {

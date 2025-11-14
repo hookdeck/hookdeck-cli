@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
@@ -22,14 +24,19 @@ func newConnectionGetCmd() *connectionGetCmd {
 	cc := &connectionGetCmd{}
 
 	cc.cmd = &cobra.Command{
-		Use:   "get <connection-id>",
+		Use:   "get <connection-id-or-name>",
 		Args:  validators.ExactArgs(1),
 		Short: "Get connection details",
 		Long: `Get detailed information about a specific connection.
 
+You can specify either a connection ID or name.
+
 Examples:
-  # Get connection details
-  hookdeck connection get conn_abc123`,
+	 # Get connection by ID
+	 hookdeck connection get conn_abc123
+	 
+	 # Get connection by name
+	 hookdeck connection get my-connection`,
 		RunE: cc.runConnectionGetCmd,
 	}
 
@@ -43,14 +50,20 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 		return err
 	}
 
-	connectionID := args[0]
-	client := Config.GetAPIClient()
+	connectionIDOrName := args[0]
+	apiClient := Config.GetAPIClient()
 	ctx := context.Background()
 
-	// Get connection by ID
-	conn, err := client.GetConnection(ctx, connectionID)
+	// Resolve connection ID from name or ID
+	connectionID, err := resolveConnectionID(ctx, apiClient, connectionIDOrName)
 	if err != nil {
-		return fmt.Errorf("failed to get connection: %w", err)
+		return err
+	}
+
+	// Get connection by ID
+	conn, err := apiClient.GetConnection(ctx, connectionID)
+	if err != nil {
+		return formatConnectionError(err, connectionIDOrName)
 	}
 
 	if cc.output == "json" {
@@ -140,4 +153,63 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 	}
 
 	return nil
+}
+
+// resolveConnectionID accepts both connection names and IDs
+// Try as ID first (if it starts with conn_ or web_), then lookup by name
+func resolveConnectionID(ctx context.Context, client *hookdeck.Client, nameOrID string) (string, error) {
+	// If it looks like a connection ID, try it directly
+	if strings.HasPrefix(nameOrID, "conn_") || strings.HasPrefix(nameOrID, "web_") {
+		// Try to get it to verify it exists
+		_, err := client.GetConnection(ctx, nameOrID)
+		if err == nil {
+			return nameOrID, nil
+		}
+		// If we get a 404, fall through to name lookup
+		// For other errors, format and return the error
+		errMsg := strings.ToLower(err.Error())
+		if !strings.Contains(errMsg, "404") && !strings.Contains(errMsg, "not found") {
+			return "", err
+		}
+		// 404 on ID lookup - fall through to try name lookup
+	}
+
+	// Try to find by name
+	params := map[string]string{
+		"name": nameOrID,
+	}
+
+	result, err := client.ListConnections(ctx, params)
+	if err != nil {
+		return "", fmt.Errorf("failed to lookup connection by name '%s': %w", nameOrID, err)
+	}
+
+	if result.Pagination.Limit == 0 || len(result.Models) == 0 {
+		return "", fmt.Errorf("connection not found: '%s'\n\nPlease check the connection name or ID and try again", nameOrID)
+	}
+
+	if len(result.Models) > 1 {
+		return "", fmt.Errorf("multiple connections found with name '%s', please use the connection ID instead", nameOrID)
+	}
+
+	return result.Models[0].ID, nil
+}
+
+// formatConnectionError provides user-friendly error messages for connection get failures
+func formatConnectionError(err error, identifier string) error {
+	errMsg := err.Error()
+
+	// Check for 404/not found errors (case-insensitive)
+	errMsgLower := strings.ToLower(errMsg)
+	if strings.Contains(errMsgLower, "404") || strings.Contains(errMsgLower, "not found") {
+		return fmt.Errorf("connection not found: '%s'\n\nPlease check the connection name or ID and try again", identifier)
+	}
+
+	// Check for network/timeout errors
+	if strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "connection refused") {
+		return fmt.Errorf("failed to connect to Hookdeck API: %w\n\nPlease check your network connection and try again", err)
+	}
+
+	// Default to the original error with some context
+	return fmt.Errorf("failed to get connection '%s': %w", identifier, err)
 }
