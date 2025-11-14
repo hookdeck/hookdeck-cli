@@ -205,21 +205,19 @@ func (c *Config) writeProjectConfig(configPath string, isNewFile bool) error {
 	// Create a new viper instance for the config
 	v := viper.New()
 	v.SetConfigType("toml")
-	v.SetConfigFile(configPath)
 
-	// Try to read existing config (ignore error if doesn't exist)
-	_ = v.ReadInConfig()
+	// If file exists, read it first to preserve any other settings
+	if !isNewFile {
+		v.SetConfigFile(configPath)
+		_ = v.ReadInConfig() // Ignore error - we'll overwrite anyway
+	}
 
 	// Set all profile fields
 	c.setProfileFieldsInViper(v)
 
-	// Write config file
-	var writeErr error
-	if isNewFile {
-		writeErr = v.SafeWriteConfig()
-	} else {
-		writeErr = v.WriteConfig()
-	}
+	// Write config file using WriteConfigAs which explicitly takes a path
+	// This avoids the viper internal "configPath" issue
+	writeErr := v.WriteConfigAs(configPath)
 	if writeErr != nil {
 		return fmt.Errorf("failed to write config to %s: %w", configPath, writeErr)
 	}

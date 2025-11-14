@@ -243,6 +243,10 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 	if strings.Contains(configPath, ".hookdeck/config.toml") {
 		if isNewConfig && lc.local {
 			fmt.Printf("Created: %s\n", configPath)
+			// Show security warning for new local configs
+			fmt.Printf("\n%s\n", color.Yellow("Security:"))
+			fmt.Printf("  Local config files contain credentials and should NOT be committed to source control.\n")
+			fmt.Printf("  Add .hookdeck/ to your .gitignore file.\n")
 		} else {
 			fmt.Printf("Updated: %s\n", configPath)
 		}
