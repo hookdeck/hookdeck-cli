@@ -52,8 +52,9 @@ func loadEnvFile() {
 
 // CLIRunner provides utilities for running CLI commands in tests
 type CLIRunner struct {
-	t      *testing.T
-	apiKey string
+	t           *testing.T
+	apiKey      string
+	projectRoot string
 }
 
 // NewCLIRunner creates a new CLI runner for tests
@@ -64,9 +65,14 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 	apiKey := os.Getenv("HOOKDECK_CLI_TESTING_API_KEY")
 	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY environment variable must be set")
 
+	// Get and store the absolute project root path before any directory changes
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
 	runner := &CLIRunner{
-		t:      t,
-		apiKey: apiKey,
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
 	}
 
 	// Authenticate in CI mode for tests
@@ -76,29 +82,79 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 	return runner
 }
 
+// NewManualCLIRunner creates a CLI runner for manual tests that use human authentication.
+// Unlike NewCLIRunner, this does NOT run `hookdeck ci` and relies on existing CLI credentials
+// from `hookdeck login`.
+func NewManualCLIRunner(t *testing.T) *CLIRunner {
+	t.Helper()
+
+	// Get and store the absolute project root path before any directory changes
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
+	runner := &CLIRunner{
+		t:           t,
+		apiKey:      "", // No API key - using CLI credentials from `hookdeck login`
+		projectRoot: projectRoot,
+	}
+
+	// Do NOT run `hookdeck ci` - manual tests use credentials from `hookdeck login`
+
+	return runner
+}
+
 // Run executes the CLI with the given arguments and returns stdout, stderr, and error
 // The CLI is executed via `go run main.go` from the project root
 func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 
-	// Get the absolute path to the project root (test/acceptance -> ../..)
-	projectRoot, err := filepath.Abs("../..")
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get project root: %w", err)
-	}
-
-	mainGoPath := filepath.Join(projectRoot, "main.go")
+	// Use the stored project root path (set during NewCLIRunner)
+	mainGoPath := filepath.Join(r.projectRoot, "main.go")
 
 	// Build command: go run main.go [args...]
 	cmdArgs := append([]string{"run", mainGoPath}, args...)
 	cmd := exec.Command("go", cmdArgs...)
 
 	// Set working directory to project root
-	cmd.Dir = projectRoot
+	cmd.Dir = r.projectRoot
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
+
+	err = cmd.Run()
+
+	return stdoutBuf.String(), stderrBuf.String(), err
+}
+
+// RunFromCwd executes the CLI from the current working directory.
+// This is useful for tests that need to test --local flag behavior,
+// which creates config in the current directory.
+//
+// This builds a temporary binary in the project root, then runs it from
+// the current working directory.
+func (r *CLIRunner) RunFromCwd(args ...string) (stdout, stderr string, err error) {
+	r.t.Helper()
+
+	// Build a temporary binary
+	tmpBinary := filepath.Join(r.projectRoot, "hookdeck-test-"+generateTimestamp())
+	defer os.Remove(tmpBinary) // Clean up after
+
+	// Build the binary in the project root
+	buildCmd := exec.Command("go", "build", "-o", tmpBinary, ".")
+	buildCmd.Dir = r.projectRoot
+	if err := buildCmd.Run(); err != nil {
+		return "", "", fmt.Errorf("failed to build CLI binary: %w", err)
+	}
+
+	// Run the binary from the current working directory
+	cmd := exec.Command(tmpBinary, args...)
+	// Don't set cmd.Dir - use current working directory
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	cmd.Stdin = os.Stdin // Allow interactive input
 
 	err = cmd.Run()
 
@@ -222,4 +278,217 @@ func assertContains(t *testing.T, s, substr, msgAndArgs string) {
 	if !strings.Contains(s, substr) {
 		t.Errorf("Expected string to contain %q but it didn't: %s\nActual: %s", substr, msgAndArgs, s)
 	}
+}
+
+// RequireCLIAuthentication forces fresh CLI authentication for tests that need human interaction.
+// This helper:
+// 1. Clears any existing authentication
+// 2. Runs `hookdeck login` for the user
+// 3. Prompts user to complete browser authentication
+// 4. Waits for user confirmation (Enter key)
+// 5. Verifies authentication succeeded via `hookdeck whoami`
+// 6. Fails the test if authentication doesn't succeed
+//
+// This ensures tests always run with fresh human-interactive CLI login.
+func RequireCLIAuthentication(t *testing.T) string {
+	t.Helper()
+
+	// Get project root for running commands
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
+	mainGoPath := filepath.Join(projectRoot, "main.go")
+
+	fmt.Println("\n🔐 Fresh Authentication Required")
+	fmt.Println("=================================")
+	fmt.Println("These tests require fresh CLI authentication with project access.")
+	fmt.Println()
+
+	// Step 1: Clear existing authentication
+	fmt.Println("Step 1: Clearing existing authentication...")
+
+	// Run logout command to clear authentication
+	logoutCmd := exec.Command("go", "run", mainGoPath, "logout")
+	logoutCmd.Dir = projectRoot
+	logoutCmd.Stdout = os.Stdout
+	logoutCmd.Stderr = os.Stderr
+	_ = logoutCmd.Run() // Ignore errors - logout might fail if not logged in
+
+	// Also delete config file directly to ensure clean state
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		configPath := filepath.Join(homeDir, ".config", "hookdeck", "config.toml")
+		_ = os.Remove(configPath) // Ignore errors - file might not exist
+	}
+
+	fmt.Println("✅ Authentication cleared")
+	fmt.Println()
+
+	// Step 2: Start login process
+	fmt.Println("Step 2: Starting login process...")
+	fmt.Println()
+	fmt.Println("Running: hookdeck login")
+	fmt.Println("(The login command will prompt you to press Enter before opening the browser)")
+	fmt.Println()
+
+	// Open /dev/tty directly to ensure we can read user input even when stdin is redirected by go test
+	tty, err := os.Open("/dev/tty")
+	require.NoError(t, err, "Failed to open /dev/tty - tests must be run in an interactive terminal")
+	defer tty.Close()
+
+	// Run login command interactively - user will see project selection
+	// CRITICAL: Connect directly to /dev/tty for full interactivity
+	loginCmd := exec.Command("go", "run", mainGoPath, "login")
+	loginCmd.Dir = projectRoot
+	loginCmd.Stdout = os.Stdout
+	loginCmd.Stderr = os.Stderr
+	loginCmd.Stdin = tty // Use the actual terminal device, not os.Stdin
+
+	// Run the command and let it inherit the terminal completely
+	err = loginCmd.Run()
+	require.NoError(t, err, "Login command failed - please ensure you completed browser authentication and project selection")
+
+	fmt.Println()
+
+	// Step 3: Verify authentication
+	fmt.Println("Verifying authentication...")
+
+	whoamiCmd := exec.Command("go", "run", mainGoPath, "whoami")
+	whoamiCmd.Dir = projectRoot
+	var whoamiOut bytes.Buffer
+	whoamiCmd.Stdout = &whoamiOut
+	whoamiCmd.Stderr = &whoamiOut
+
+	err = whoamiCmd.Run()
+	require.NoError(t, err, "Authentication verification failed. Please ensure you completed the login process.\nOutput: %s", whoamiOut.String())
+
+	whoamiOutput := whoamiOut.String()
+	require.Contains(t, whoamiOutput, "Logged in as", "whoami output should contain 'Logged in as'")
+
+	// Extract and display user info from whoami output
+	lines := strings.Split(whoamiOutput, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "Logged in as") {
+			fmt.Printf("✅ Authenticated successfully: %s\n", strings.TrimSpace(line))
+			break
+		}
+	}
+	fmt.Println()
+
+	// Step 4: Let user select project to use for testing (safety measure)
+	fmt.Println("⚠️  Project Selection for Testing")
+	fmt.Println("====================================")
+	fmt.Println("To avoid accidentally running tests against a production project,")
+	fmt.Println("please select which project to use for these tests.")
+	fmt.Println()
+	fmt.Println("Running: hookdeck project use")
+	fmt.Println()
+
+	// Run project use interactively to let user select test project
+	projectUseCmd := exec.Command("go", "run", mainGoPath, "project", "use")
+	projectUseCmd.Dir = projectRoot
+	projectUseCmd.Stdout = os.Stdout
+	projectUseCmd.Stderr = os.Stderr
+	projectUseCmd.Stdin = tty
+
+	err = projectUseCmd.Run()
+	require.NoError(t, err, "Failed to select project")
+
+	fmt.Println()
+
+	// Get the selected project via whoami again
+	whoamiCmd2 := exec.Command("go", "run", mainGoPath, "whoami")
+	whoamiCmd2.Dir = projectRoot
+	var whoamiOut2 bytes.Buffer
+	whoamiCmd2.Stdout = &whoamiOut2
+	whoamiCmd2.Stderr = &whoamiOut2
+
+	err = whoamiCmd2.Run()
+	require.NoError(t, err, "Failed to verify project selection")
+
+	selectedWhoami := whoamiOut2.String()
+	fmt.Println("✅ Tests will run against:")
+	for _, line := range strings.Split(selectedWhoami, "\n") {
+		if strings.Contains(line, "on project") {
+			fmt.Printf("   %s\n", strings.TrimSpace(line))
+			break
+		}
+	}
+	fmt.Println()
+
+	// Return the final whoami output so tests can parse org/project if needed
+	return selectedWhoami
+}
+
+// ParseOrgAndProjectFromWhoami extracts organization and project names from whoami output.
+// Expected format: "Logged in as ... on project PROJECT_NAME in organization ORG_NAME"
+func ParseOrgAndProjectFromWhoami(t *testing.T, whoamiOutput string) (org, project string) {
+	t.Helper()
+
+	lines := strings.Split(whoamiOutput, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "on project") && strings.Contains(line, "in organization") {
+			// Extract project name (between "on project " and " in organization")
+			projectStart := strings.Index(line, "on project ") + len("on project ")
+			projectEnd := strings.Index(line, " in organization")
+			if projectStart > 0 && projectEnd > projectStart {
+				project = strings.TrimSpace(line[projectStart:projectEnd])
+			}
+
+			// Extract org name (after "in organization ")
+			orgStart := strings.Index(line, "in organization ") + len("in organization ")
+			if orgStart > 0 && orgStart < len(line) {
+				org = strings.TrimSpace(line[orgStart:])
+			}
+
+			break
+		}
+	}
+
+	require.NotEmpty(t, org, "Failed to parse organization from whoami output: %s", whoamiOutput)
+	require.NotEmpty(t, project, "Failed to parse project from whoami output: %s", whoamiOutput)
+
+	return org, project
+}
+
+// GetCurrentOrgAndProject returns the current organization and project from whoami.
+// This is useful for tests that need to know which project they're working with.
+func GetCurrentOrgAndProject(t *testing.T) (org, project string) {
+	t.Helper()
+
+	// Get project root for running commands
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
+	mainGoPath := filepath.Join(projectRoot, "main.go")
+
+	whoamiCmd := exec.Command("go", "run", mainGoPath, "whoami")
+	whoamiCmd.Dir = projectRoot
+	var whoamiOut bytes.Buffer
+	whoamiCmd.Stdout = &whoamiOut
+	whoamiCmd.Stderr = &whoamiOut
+
+	err = whoamiCmd.Run()
+	require.NoError(t, err, "Failed to run whoami: %s", whoamiOut.String())
+
+	return ParseOrgAndProjectFromWhoami(t, whoamiOut.String())
+}
+
+// RequireCLIAuthenticationOnce calls RequireCLIAuthentication only once per test run.
+// Use this when running multiple manual tests to avoid repeated authentication.
+var authenticationDone = false
+var cachedWhoamiOutput string
+
+func RequireCLIAuthenticationOnce(t *testing.T) string {
+	t.Helper()
+
+	if !authenticationDone {
+		cachedWhoamiOutput = RequireCLIAuthentication(t)
+		authenticationDone = true
+	} else {
+		fmt.Println("✅ Already authenticated (from previous test)")
+		fmt.Println()
+	}
+
+	return cachedWhoamiOutput
 }

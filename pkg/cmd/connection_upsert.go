@@ -255,7 +255,8 @@ func (cu *connectionUpsertCmd) hasAnySourceFlag() bool {
 
 // Helper to check if any destination flags are set
 func (cu *connectionUpsertCmd) hasAnyDestinationFlag() bool {
-	return cu.destinationName != "" || cu.destinationType != "" || cu.destinationID != "" || cu.destinationURL != "" ||
+	return cu.destinationName != "" || cu.destinationType != "" || cu.destinationID != "" ||
+		cu.destinationURL != "" || cu.destinationCliPath != "" ||
 		cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
 		cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" ||
 		cu.DestinationAuthMethod != ""
@@ -321,7 +322,8 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 		cu.SourceCustomResponseBody != "" || cu.SourceConfig != "" || cu.SourceConfigFile != "") &&
 		cu.sourceName == "" && cu.sourceType == "" && cu.sourceID == ""
 
-	hasDestinationConfigOnly := (cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
+	hasDestinationConfigOnly := (cu.destinationURL != "" || cu.destinationCliPath != "" ||
+		cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
 		cu.DestinationRateLimit != 0 || cu.DestinationAuthMethod != "") &&
 		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
 
@@ -470,7 +472,8 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		req.Destination = destinationInput
 	} else if isUpdate && existing != nil && existing.Destination != nil {
 		// Check if any destination config fields are being updated
-		hasDestinationConfigUpdate := cu.destinationPathForwardingDisabled != nil ||
+		hasDestinationConfigUpdate := cu.destinationURL != "" || cu.destinationCliPath != "" ||
+			cu.destinationPathForwardingDisabled != nil ||
 			cu.destinationHTTPMethod != "" ||
 			cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" ||
 			cu.DestinationAuthMethod != ""
@@ -562,6 +565,10 @@ func (cu *connectionUpsertCmd) buildDestinationInputForUpdate(existingDest *hook
 	// Apply any new config values from flags
 	if cu.destinationURL != "" {
 		destConfig["url"] = cu.destinationURL
+	}
+
+	if cu.destinationCliPath != "" {
+		destConfig["path"] = cu.destinationCliPath
 	}
 
 	if cu.destinationPathForwardingDisabled != nil {

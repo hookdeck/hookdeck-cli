@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -15,8 +16,8 @@ import (
 )
 
 type projectUseCmd struct {
-	cmd *cobra.Command
-	// local bool
+	cmd   *cobra.Command
+	local bool
 }
 
 func newProjectUseCmd() *projectUseCmd {
@@ -29,10 +30,17 @@ func newProjectUseCmd() *projectUseCmd {
 		RunE:  lc.runProjectUseCmd,
 	}
 
+	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save project to current directory (.hookdeck/config.toml)")
+
 	return lc
 }
 
 func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) error {
+	// Validate flag compatibility
+	if lc.local && Config.ConfigFileFlag != "" {
+		return fmt.Errorf("Error: --local and --config flags cannot be used together\n  --local creates config at: .hookdeck/config.toml\n  --config uses custom path: %s", Config.ConfigFileFlag)
+	}
+
 	if err := Config.Profile.ValidateAPIKey(); err != nil {
 		return err
 	}
@@ -182,12 +190,69 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		return fmt.Errorf("a project could not be determined based on the provided arguments")
 	}
 
-	err = Config.UseProject(selectedProject.Id, selectedProject.Mode)
-	if err != nil {
-		return err
+	// Determine which config to update
+	var configPath string
+	var isNewConfig bool
+
+	if lc.local {
+		// User explicitly requested local config
+		isNewConfig, err = Config.UseProjectLocal(selectedProject.Id, selectedProject.Mode)
+		if err != nil {
+			return err
+		}
+
+		workingDir, wdErr := os.Getwd()
+		if wdErr != nil {
+			return wdErr
+		}
+		configPath = filepath.Join(workingDir, ".hookdeck/config.toml")
+	} else {
+		// Smart default: check if local config exists
+		workingDir, wdErr := os.Getwd()
+		if wdErr != nil {
+			return wdErr
+		}
+
+		localConfigPath := filepath.Join(workingDir, ".hookdeck/config.toml")
+		localConfigExists, _ := Config.FileExists(localConfigPath)
+
+		if localConfigExists {
+			// Local config exists, update it
+			isNewConfig, err = Config.UseProjectLocal(selectedProject.Id, selectedProject.Mode)
+			if err != nil {
+				return err
+			}
+			configPath = localConfigPath
+		} else {
+			// No local config, use global (existing behavior)
+			err = Config.UseProject(selectedProject.Id, selectedProject.Mode)
+			if err != nil {
+				return err
+			}
+
+			// Get global config path from Config
+			configPath = Config.GetConfigFile()
+			isNewConfig = false
+		}
 	}
 
 	color := ansi.Color(os.Stdout)
 	fmt.Printf("Successfully set active project to: %s\n", color.Green(selectedProject.Name))
+
+	// Show which config was updated
+	if strings.Contains(configPath, ".hookdeck/config.toml") {
+		if isNewConfig && lc.local {
+			fmt.Printf("Created: %s\n", configPath)
+			// Show security warning for new local configs
+			fmt.Printf("\n%s\n", color.Yellow("Security:"))
+			fmt.Printf("  Local config files contain credentials and should NOT be committed to source control.\n")
+			fmt.Printf("  Add .hookdeck/ to your .gitignore file.\n")
+		} else {
+			fmt.Printf("Updated: %s\n", configPath)
+		}
+	} else {
+		fmt.Printf("Saved to: %s\n", configPath)
+	}
+
 	return nil
 }

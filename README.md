@@ -471,7 +471,7 @@ hookdeck connection unpause   # Unpause a connection
 
 If you are a part of multiple projects, you can switch between them using our project management commands.
 
-To list your projects, you can use the `hookdeck project list` command. It can take optional organization and project name substrings to filter the list. The matching is partial and case-insensitive.
+#### List projects
 
 ```sh
 # List all projects
@@ -480,58 +480,149 @@ My Org / My Project (current)
 My Org / Another Project
 Another Org / Yet Another One
 
-# List projects with "Org" in the organization name and "Proj" in the project name
+# Filter by organization and project name
 $ hookdeck project list Org Proj
 My Org / My Project (current)
 My Org / Another Project
 ```
 
-To select or change the active project, use the `hookdeck project use` command. When arguments are provided, it uses exact, case-insensitive matching for the organization and project names.
+#### Select active project
 
 ```console
-hookdeck project use [<organization_name> [<project_name>]]
+hookdeck project use [<organization_name> [<project_name>]] [--local]
+
+Flags:
+  --local    Save project to current directory (.hookdeck/config.toml)
 ```
 
-**Behavior:**
+**Project Selection Modes:**
 
-- **`hookdeck project use`** (no arguments):
-  An interactive prompt will guide you through selecting your organization and then the project within that organization.
+- **No arguments**: Interactive prompt to select organization and project
+- **One argument**: Filter by organization name (prompts if multiple projects)
+- **Two arguments**: Directly select organization and project
 
-  ```sh
-  $ hookdeck project use
-  Use the arrow keys to navigate: ↓ ↑ → ←
-  ? Select Organization:
-      My Org
-    ▸ Another Org
-  ...
-  ? Select Project (Another Org):
-      Project X
-    ▸ Project Y
-  Selecting project Project Y
-  Successfully set active project to: [Another Org] Project Y
+```sh
+$ hookdeck project use my-org my-project
+Successfully set active project to: my-org / my-project
+```
+
+#### Configuration scope: Global vs Local
+
+By default, `project use` saves your selection to the **global configuration** (`~/.config/hookdeck/config.toml`). You can pin a specific project to the **current directory** using the `--local` flag.
+
+**Configuration file precedence (only ONE is used):**
+
+The CLI uses exactly one configuration file based on this precedence:
+
+1. **Custom config** (via `--config` flag) - highest priority
+2. **Local config** - `${PWD}/.hookdeck/config.toml` (if exists)
+3. **Global config** - `~/.config/hookdeck/config.toml` (default)
+
+Unlike Git, Hookdeck **does not merge** multiple config files - only the highest precedence config is used.
+
+**Examples:**
+
+```sh
+# No local config exists → saves to global
+$ hookdeck project use my-org my-project
+Successfully set active project to: my-org / my-project
+Saved to: ~/.config/hookdeck/config.toml
+
+# Local config exists → automatically updates local
+$ cd ~/repo-with-local-config  # has .hookdeck/config.toml
+$ hookdeck project use another-org another-project
+Successfully set active project to: another-org / another-project
+Updated: .hookdeck/config.toml
+
+# Create new local config
+$ cd ~/my-new-repo  # no .hookdeck/ directory
+$ hookdeck project use my-org my-project --local
+Successfully set active project to: my-org / my-project
+Created: .hookdeck/config.toml
+⚠️  Security: Add .hookdeck/ to .gitignore (contains credentials)
+
+# Update existing local config with confirmation
+$ hookdeck project use another-org another-project --local
+Local configuration already exists at: .hookdeck/config.toml
+? Overwrite with new project configuration? (y/N) y
+Successfully set active project to: another-org / another-project
+Updated: .hookdeck/config.toml
+```
+
+**Smart default behavior:**
+
+When you run `project use` without `--local`:
+- **If `.hookdeck/config.toml` exists**: Updates the local config
+- **Otherwise**: Updates the global config
+
+This ensures your directory-specific configuration is preserved when it exists.
+
+**Flag validation:**
+
+```sh
+# ✅ Valid
+hookdeck project use my-org my-project
+hookdeck project use my-org my-project --local
+
+# ❌ Invalid (cannot combine --config with --local)
+hookdeck --config custom.toml project use my-org my-project --local
+Error: --local and --config flags cannot be used together
+  --local creates config at: .hookdeck/config.toml
+  --config uses custom path: custom.toml
+```
+
+#### Benefits of local project pinning
+
+- **Per-repository configuration**: Each repository can use a different Hookdeck project
+- **Team collaboration**: Commit `.hookdeck/config.toml` to private repos (see security note)
+- **No context switching**: Automatically uses the right project when you `cd` into a directory
+- **CI/CD friendly**: Works seamlessly in automated environments
+
+#### Security: Config files and source control
+
+⚠️ **IMPORTANT**: Configuration files contain your Hookdeck credentials and should be treated as sensitive.
+
+**Credential Types:**
+
+- **CLI Key**: Created when you run `hookdeck login` (interactive authentication)
+- **CI Key**: Created in the Hookdeck dashboard for use in CI/CD pipelines
+- Both are stored as `api_key` in config files
+
+**Recommended practices:**
+
+- **Private repositories**: You MAY commit `.hookdeck/config.toml` if your repository is guaranteed to remain private and all collaborators should have access to the credentials.
+
+- **Public repositories**: You MUST add `.hookdeck/` to your `.gitignore`:
+  ```gitignore
+  # Hookdeck CLI configuration (contains credentials)
+  .hookdeck/
   ```
 
-- **`hookdeck project use <organization_name>`** (one argument):
-  Filters projects by the specified `<organization_name>`.
-
-  - If multiple projects exist under that organization, you'll be prompted to choose one.
-  - If only one project exists, it will be selected automatically.
-
+- **CI/CD environments**: Use the `HOOKDECK_API_KEY` environment variable:
   ```sh
-  $ hookdeck project use "My Org"
-  # (If multiple projects, prompts to select. If one, auto-selects)
-  Successfully set active project to: [My Org] Default Project
+  # The ci command automatically reads HOOKDECK_API_KEY
+  export HOOKDECK_API_KEY="your-ci-key"
+  hookdeck ci
+  hookdeck listen 3000
   ```
 
-- **`hookdeck project use <organization_name> <project_name>`** (two arguments):
-  Directly selects the project `<project_name>` under the organization `<organization_name>`.
-  ```sh
-  $ hookdeck project use "My Corp" "API Staging"
-  Successfully set active project to: [My Corp] API Staging
-  ```
+**Checking which config is active:**
 
-Upon successful selection, you will generally see a confirmation message like:
-`Successfully set active project to: [<organization_name>] <project_name>`
+```sh
+$ hookdeck whoami
+Logged in as: user@example.com
+Active project: my-org / my-project
+Config file: /Users/username/my-repo/.hookdeck/config.toml (local)
+```
+
+**Removing local configuration:**
+
+To stop using local configuration and switch back to global:
+
+```sh
+$ rm -rf .hookdeck/
+# Now CLI uses global config
+```
 
 ### Manage connections
 
@@ -1019,6 +1110,9 @@ npm install hookdeck-cli@beta -g
 
 # Homebrew
 brew install hookdeck/hookdeck/hookdeck-beta
+
+# To force the symlink update and overwrite all conflicting files:
+# brew link --overwrite hookdeck-beta
 
 # Scoop
 scoop install hookdeck-beta
