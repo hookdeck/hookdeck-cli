@@ -1111,6 +1111,9 @@ npm install hookdeck-cli@beta -g
 # Homebrew
 brew install hookdeck/hookdeck/hookdeck-beta
 
+# To force the symlink update and overwrite all conflicting files:
+# brew link --overwrite hookdeck-beta
+
 # Scoop
 scoop install hookdeck-beta
 
