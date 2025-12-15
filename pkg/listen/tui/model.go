@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
@@ -38,6 +39,9 @@ type EventInfo struct {
 type Model struct {
 	// Configuration
 	cfg *Config
+
+	// API client (initialized once)
+	client *hookdeck.Client
 
 	// Event history
 	events        []EventInfo
@@ -83,8 +87,15 @@ type Config struct {
 
 // NewModel creates a new TUI model
 func NewModel(cfg *Config) Model {
+	parsedBaseURL, _ := url.Parse(cfg.APIBaseURL)
+
 	return Model{
-		cfg:           cfg,
+		cfg: cfg,
+		client: &hookdeck.Client{
+			BaseURL:   parsedBaseURL,
+			APIKey:    cfg.APIKey,
+			ProjectID: cfg.ProjectID,
+		},
 		events:        make([]EventInfo, 0),
 		selectedIndex: -1,
 		ready:         false,

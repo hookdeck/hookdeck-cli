@@ -2,8 +2,6 @@ package login
 
 import (
 	"bufio"
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,12 +30,6 @@ func InteractiveLogin(config *config.Config) error {
 
 	s := ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 
-	// Call poll function
-	response, err := PollForKey(config.APIBaseURL+"/cli-auth/poll?key="+apiKey, 0, 0)
-	if err != nil {
-		return err
-	}
-
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return err
@@ -45,19 +37,19 @@ func InteractiveLogin(config *config.Config) error {
 
 	client := &hookdeck.Client{
 		BaseURL: parsedBaseURL,
-		APIKey:  response.APIKey,
 	}
 
-	data := struct {
-		DeviceName string `json:"device_name"`
-	}{}
-	data.DeviceName = config.DeviceName
-	json_data, err := json.Marshal(data)
+	response, err := client.PollForAPIKeyWithKey(apiKey, 0, 0)
 	if err != nil {
 		return err
 	}
 
-	_, err = client.Put(context.TODO(), "/cli/"+response.ClientID, json_data, nil)
+	// Update client with the new API key to make the UpdateClient call
+	client.APIKey = response.APIKey
+
+	err = client.UpdateClient(response.ClientID, hookdeck.UpdateClientInput{
+		DeviceName: config.DeviceName,
+	})
 	if err != nil {
 		return err
 	}
