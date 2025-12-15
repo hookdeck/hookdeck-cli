@@ -7,7 +7,7 @@ import (
 
 // RetryEvent retries an event by ID
 func (c *Client) RetryEvent(eventID string) error {
-	retryURL := fmt.Sprintf("/events/%s/retry", eventID)
+	retryURL := fmt.Sprintf("/2025-07-01/events/%s/retry", eventID)
 	resp, err := c.Post(context.Background(), retryURL, []byte("{}"), nil)
 	if err != nil {
 		return err

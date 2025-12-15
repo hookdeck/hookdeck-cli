@@ -29,7 +29,7 @@ func (c *Client) CreateCIClient(input CreateCIClientInput) (CIClient, error) {
 	if err != nil {
 		return CIClient{}, err
 	}
-	res, err := c.Post(context.Background(), "/cli-auth/ci", input_bytes, nil)
+	res, err := c.Post(context.Background(), "/2025-07-01/cli-auth/ci", input_bytes, nil)
 	if err != nil {
 		return CIClient{}, err
 	}
