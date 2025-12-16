@@ -41,7 +41,7 @@ var (
 			Bold(true)
 
 	brandAccentStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("4")) // Blue
+				Foreground(lipgloss.Color("4")) // Blue
 
 	// Component styles
 	selectionIndicatorStyle = lipgloss.NewStyle().

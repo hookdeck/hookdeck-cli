@@ -1,15 +1,11 @@
 package tui
 
 import (
-	"context"
-	"fmt"
-	"net/url"
 	"os/exec"
 	"runtime"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 // Update handles all events in the Bubble Tea event loop
@@ -179,30 +175,13 @@ func (m Model) retrySelectedEvent() tea.Cmd {
 	}
 
 	eventID := selectedEvent.ID
-	apiKey := m.cfg.APIKey
-	apiBaseURL := m.cfg.APIBaseURL
-	projectID := m.cfg.ProjectID
+	client := m.client
 
 	return func() tea.Msg {
-		// Create HTTP client
-		parsedBaseURL, err := url.Parse(apiBaseURL)
+		err := client.RetryEvent(eventID)
 		if err != nil {
 			return retryResultMsg{err: err}
 		}
-
-		client := &hookdeck.Client{
-			BaseURL:   parsedBaseURL,
-			APIKey:    apiKey,
-			ProjectID: projectID,
-		}
-
-		// Make retry request
-		retryURL := fmt.Sprintf("/events/%s/retry", eventID)
-		resp, err := client.Post(context.Background(), retryURL, []byte("{}"), nil)
-		if err != nil {
-			return retryResultMsg{err: err}
-		}
-		defer resp.Body.Close()
 
 		return retryResultMsg{success: true}
 	}
