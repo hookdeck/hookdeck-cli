@@ -29,7 +29,7 @@ func (c *Client) CreateSession(input CreateSessionInput) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
-	res, err := c.Post(context.Background(), "/cli-sessions", input_bytes, nil)
+	res, err := c.Post(context.Background(), "/2025-07-01/cli-sessions", input_bytes, nil)
 	if err != nil {
 		return Session{}, err
 	}

@@ -185,9 +185,9 @@ Examples:
 
     hookdeck listen %[1]d shopify
 
-  Forward events to a local server running on "http://myapp.test":
+  Forward events to a local server running on "http://myapp.test:%[1]d":
 
-    hookdeck listen %[1]d http://myapp.test
+    hookdeck listen http://myapp.test:%[1]d
 
   Forward events to the path "/webhooks" on local server running on port %[1]d:
 
