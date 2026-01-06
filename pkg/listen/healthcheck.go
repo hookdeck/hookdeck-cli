@@ -11,9 +11,8 @@ import (
 type ServerHealthStatus int
 
 const (
-	HealthUnknown     ServerHealthStatus = iota
-	HealthHealthy                        // TCP connection successful
-	HealthUnreachable                    // Connection refused or timeout
+	HealthHealthy     ServerHealthStatus = iota // TCP connection successful
+	HealthUnreachable                           // Connection refused or timeout
 )
 
 // HealthCheckResult contains the result of a health check

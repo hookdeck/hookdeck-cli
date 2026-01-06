@@ -136,7 +136,7 @@ Specify a single destination to update the path. For example, pass a connection 
 			fmt.Println()
 			fmt.Println(warningMsg)
 			fmt.Println()
-			time.Sleep(2 * time.Second) // Give user time to see warning before TUI starts
+			time.Sleep(500 * time.Millisecond) // Give user time to see warning before TUI starts
 		} else {
 			// Compact/quiet modes: print warning before connection info
 			fmt.Println()

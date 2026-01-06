@@ -74,9 +74,8 @@ type Proxy struct {
 	renderer        Renderer
 
 	// Server health monitoring
-	serverHealthy       bool
-	lastHealthCheck     time.Time
-	healthCheckInterval time.Duration
+	serverHealthy   atomic.Bool
+	lastHealthCheck time.Time
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -124,9 +123,6 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 	// Notify renderer we're connecting
 	p.renderer.OnConnecting()
 
-	// Start health check monitor in background
-	go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
-
 	session, err := p.createSession(signalCtx)
 	if err != nil {
 		p.renderer.OnError(err)
@@ -163,8 +159,11 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 
 			// Perform initial health check and notify renderer immediately
 			healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second)
-			p.serverHealthy = healthy
+			p.serverHealthy.Store(healthy)
 			p.renderer.OnServerHealthChanged(healthy, err)
+
+			// Start health check monitor after initial check
+			go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
 		}()
 
 		// Run the websocket in the background
@@ -450,7 +449,8 @@ func (p *Proxy) processEndpointResponse(eventID string, webhookEvent *websocket.
 	}
 }
 
-// checkServerHealth performs a TCP connection check to the target URL
+// checkServerHealth performs a simple TCP connection check to the target URL
+// This is a lightweight wrapper that extracts the host/port logic for reuse
 func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) {
 	host := targetURL.Hostname()
 	port := targetURL.Port()
@@ -465,13 +465,11 @@ func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) 
 	}
 
 	address := net.JoinHostPort(host, port)
-
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		return false, err
 	}
 
-	// Successfully connected - server is healthy
 	conn.Close()
 	return true, nil
 }
@@ -480,11 +478,8 @@ func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) 
 // Uses adaptive intervals: 5 seconds when unhealthy, 30 seconds when healthy
 func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL) {
 	// Determine initial interval based on current server health state
-	// Wait a moment for initial health check to complete
-	time.Sleep(500 * time.Millisecond)
-
 	initialInterval := 30 * time.Second
-	if !p.serverHealthy {
+	if !p.serverHealthy.Load() {
 		// Server is unhealthy, check more frequently
 		initialInterval = 5 * time.Second
 	}
@@ -501,8 +496,8 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 			healthy, err := checkServerHealth(targetURL, 3*time.Second)
 
 			// Only notify on state changes
-			if healthy != p.serverHealthy {
-				p.serverHealthy = healthy
+			if healthy != p.serverHealthy.Load() {
+				p.serverHealthy.Store(healthy)
 				p.renderer.OnServerHealthChanged(healthy, err)
 
 				// Adjust check interval based on health status
