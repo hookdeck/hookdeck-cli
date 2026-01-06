@@ -157,7 +157,7 @@ func (r *SimpleRenderer) OnEventError(eventID string, attempt *websocket.Attempt
 func (r *SimpleRenderer) OnConnectionWarning(activeRequests int32, maxConns int) {
 	color := ansi.Color(os.Stdout)
 	fmt.Printf("\n%s High connection load detected (%d active requests)\n",
-		color.Yellow("⚠ WARNING:"), activeRequests)
+		color.Yellow("● WARNING:"), activeRequests)
 	fmt.Printf("  The CLI is limited to %d concurrent connections per host.\n", maxConns)
 	fmt.Printf("  Consider reducing request rate or increasing connection limit.\n")
 	fmt.Printf("  Run with --max-connections=%d to increase the limit.\n\n", maxConns*2)
@@ -183,11 +183,11 @@ func (r *SimpleRenderer) OnServerHealthChanged(healthy bool, err error) {
 	if !healthy {
 		// Server became unreachable - show warning
 		fmt.Printf("\n%s %s is unreachable\n",
-			color.Yellow("⚠ Warning:"), targetURL)
+			color.Yellow("● Warning:"), targetURL)
 	} else {
 		// Server recovered - show brief success message
 		fmt.Printf("%s %s is reachable\n",
-			color.Green("✓"), targetURL)
+			color.Green("→"), targetURL)
 	}
 
 	// Update last known state

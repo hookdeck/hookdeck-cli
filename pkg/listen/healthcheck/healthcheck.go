@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"time"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 )
 
 // ServerHealthStatus represents the health status of the target server
@@ -67,14 +70,16 @@ func CheckServerHealth(targetURL *url.URL, timeout time.Duration) HealthCheckRes
 // FormatHealthMessage creates a user-friendly health status message
 func FormatHealthMessage(result HealthCheckResult, targetURL *url.URL) string {
 	if result.Healthy {
-		return fmt.Sprintf("✓ Local server is reachable at %s", targetURL.String())
+		return fmt.Sprintf("→ Local server is reachable at %s", targetURL.String())
 	}
 
+	color := ansi.Color(os.Stdout)
 	errorMessage := "unknown error"
 	if result.Error != nil {
 		errorMessage = result.Error.Error()
 	}
-	return fmt.Sprintf("⚠ Warning: Cannot connect to local server at %s\n  %s\n  The server may not be running. Events will fail until the server starts.",
+	return fmt.Sprintf("%s Cannot connect to local server at %s\n  %s\n  The server may not be running. Events will fail until the server starts.",
+		color.Yellow("● Warning:"),
 		targetURL.String(),
 		errorMessage)
 }

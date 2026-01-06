@@ -123,8 +123,8 @@ func TestFormatHealthMessage_Healthy(t *testing.T) {
 	if len(msg) == 0 {
 		t.Errorf("Expected non-empty message")
 	}
-	if !strings.Contains(msg, "✓") {
-		t.Errorf("Expected message to contain ✓")
+	if !strings.Contains(msg, "→") {
+		t.Errorf("Expected message to contain →")
 	}
 	if !strings.Contains(msg, "Local server is reachable") {
 		t.Errorf("Expected message to contain 'Local server is reachable'")
@@ -145,8 +145,8 @@ func TestFormatHealthMessage_Unhealthy(t *testing.T) {
 		t.Errorf("Expected non-empty message")
 	}
 	// Should contain warning indicator
-	if !strings.Contains(msg, "⚠") {
-		t.Errorf("Expected message to contain ⚠")
+	if !strings.Contains(msg, "●") {
+		t.Errorf("Expected message to contain ●")
 	}
 	if !strings.Contains(msg, "Warning") {
 		t.Errorf("Expected message to contain 'Warning'")
