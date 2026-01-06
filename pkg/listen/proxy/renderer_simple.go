@@ -16,12 +16,14 @@ const simpleTimeLayout = "2006-01-02 15:04:05"
 
 // SimpleRenderer renders events to stdout for compact and quiet modes
 type SimpleRenderer struct {
-	cfg            *RendererConfig
-	quietMode      bool
-	doneCh         chan struct{}
-	spinner        *spinner.Spinner
-	hasConnected   bool // Track if we've successfully connected at least once
-	isReconnecting bool // Track if we're currently in reconnection mode
+	cfg               *RendererConfig
+	quietMode         bool
+	doneCh            chan struct{}
+	spinner           *spinner.Spinner
+	hasConnected      bool // Track if we've successfully connected at least once
+	isReconnecting    bool // Track if we're currently in reconnection mode
+	serverHealthKnown bool // Track if we've received a health status
+	lastServerHealthy bool // Track the last known server health state
 }
 
 // NewSimpleRenderer creates a new simple renderer
@@ -159,6 +161,36 @@ func (r *SimpleRenderer) OnConnectionWarning(activeRequests int32, maxConns int)
 	fmt.Printf("  The CLI is limited to %d concurrent connections per host.\n", maxConns)
 	fmt.Printf("  Consider reducing request rate or increasing connection limit.\n")
 	fmt.Printf("  Run with --max-connections=%d to increase the limit.\n\n", maxConns*2)
+}
+
+// OnServerHealthChanged is called when server health status changes
+func (r *SimpleRenderer) OnServerHealthChanged(healthy bool, err error) {
+	// Skip if this is the first health check (initial state, not a change)
+	if !r.serverHealthKnown {
+		r.serverHealthKnown = true
+		r.lastServerHealthy = healthy
+		return
+	}
+
+	// Only show messages on actual state transitions
+	if healthy == r.lastServerHealthy {
+		return // No state change
+	}
+
+	color := ansi.Color(os.Stdout)
+
+	if !healthy {
+		// Server became unreachable - show warning
+		fmt.Printf("\n%s Local server unreachable\n",
+			color.Yellow("⚠ WARNING:"))
+	} else {
+		// Server recovered - show brief success message
+		fmt.Printf("%s Local server is online\n",
+			color.Green("✓"))
+	}
+
+	// Update last known state
+	r.lastServerHealthy = healthy
 }
 
 // Cleanup stops the spinner and cleans up resources

@@ -23,6 +23,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -120,6 +121,28 @@ Specify a single destination to update the path. For example, pass a connection 
 
 	if err := validateData(sources, connections); err != nil {
 		return err
+	}
+
+	// Perform initial health check on target server
+	healthCheckTimeout := 3 * time.Second
+	healthResult := CheckServerHealth(URL, healthCheckTimeout)
+
+	// For all output modes, warn if server isn't reachable
+	if !healthResult.Healthy {
+		warningMsg := FormatHealthMessage(healthResult, URL)
+
+		if flags.Output == "interactive" {
+			// Interactive mode will show warning before TUI starts
+			fmt.Println()
+			fmt.Println(warningMsg)
+			fmt.Println()
+			time.Sleep(2 * time.Second) // Give user time to see warning before TUI starts
+		} else {
+			// Compact/quiet modes: print warning before connection info
+			fmt.Println()
+			fmt.Println(warningMsg)
+			fmt.Println()
+		}
 	}
 
 	// Start proxy

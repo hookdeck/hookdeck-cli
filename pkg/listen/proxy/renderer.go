@@ -26,6 +26,9 @@ type Renderer interface {
 	// Connection warnings
 	OnConnectionWarning(activeRequests int32, maxConns int)
 
+	// Server health monitoring
+	OnServerHealthChanged(healthy bool, err error)
+
 	// Cleanup is called before exit to clean up resources (e.g., stop TUI, stop spinner)
 	Cleanup()
 
