@@ -67,7 +67,11 @@ func (r *SimpleRenderer) OnConnected() {
 			fmt.Println()
 		}
 
-		fmt.Printf("%s\n\n", color.Faint("Connected. Waiting for events..."))
+		if r.quietMode {
+			fmt.Printf("%s\n\n", color.Faint("Connected. Quiet mode: only errors and warnings will be shown."))
+		} else {
+			fmt.Printf("%s\n\n", color.Faint("Connected. Waiting for events..."))
+		}
 	}
 }
 
