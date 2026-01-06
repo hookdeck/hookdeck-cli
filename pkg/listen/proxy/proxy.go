@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/healthcheck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
@@ -155,15 +155,20 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		go func() {
 			<-p.webSocketClient.Connected()
 			p.renderer.OnConnected()
-			hasConnectedOnce = true
 
-			// Perform initial health check and notify renderer immediately
-			healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second)
-			p.serverHealthy.Store(healthy)
-			p.renderer.OnServerHealthChanged(healthy, err)
+			// Only start health monitoring on first successful connection
+			// to prevent goroutine leaks on reconnects
+			if !hasConnectedOnce {
+				hasConnectedOnce = true
 
-			// Start health check monitor after initial check
-			go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
+				// Perform initial health check and notify renderer immediately
+				healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second)
+				p.serverHealthy.Store(healthy)
+				p.renderer.OnServerHealthChanged(healthy, err)
+
+				// Start health check monitor after initial check
+				go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
+			}
 		}()
 
 		// Run the websocket in the background
@@ -449,29 +454,10 @@ func (p *Proxy) processEndpointResponse(eventID string, webhookEvent *websocket.
 	}
 }
 
-// checkServerHealth performs a simple TCP connection check to the target URL
-// This is a lightweight wrapper that extracts the host/port logic for reuse
+// checkServerHealth is a simple wrapper around the healthcheck package's CheckServerHealth
 func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) {
-	host := targetURL.Hostname()
-	port := targetURL.Port()
-
-	// Default ports if not specified
-	if port == "" {
-		if targetURL.Scheme == "https" {
-			port = "443"
-		} else {
-			port = "80"
-		}
-	}
-
-	address := net.JoinHostPort(host, port)
-	conn, err := net.DialTimeout("tcp", address, timeout)
-	if err != nil {
-		return false, err
-	}
-
-	conn.Close()
-	return true, nil
+	result := healthcheck.CheckServerHealth(targetURL, timeout)
+	return result.Healthy, result.Error
 }
 
 // startHealthCheckMonitor runs periodic health checks in the background
@@ -495,9 +481,9 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 			// Perform health check
 			healthy, err := checkServerHealth(targetURL, 3*time.Second)
 
-			// Only notify on state changes
-			if healthy != p.serverHealthy.Load() {
-				p.serverHealthy.Store(healthy)
+			// Only notify on state changes, atomically
+			prevHealthy := p.serverHealthy.Swap(healthy)
+			if healthy != prevHealthy {
 				p.renderer.OnServerHealthChanged(healthy, err)
 
 				// Adjust check interval based on health status

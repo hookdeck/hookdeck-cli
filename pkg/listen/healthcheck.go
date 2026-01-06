@@ -1,76 +1,29 @@
 package listen
 
 import (
-	"fmt"
-	"net"
 	"net/url"
 	"time"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/healthcheck"
 )
 
-// ServerHealthStatus represents the health status of the target server
-type ServerHealthStatus int
+// Re-export types and constants from healthcheck subpackage for backward compatibility
+type ServerHealthStatus = healthcheck.ServerHealthStatus
+type HealthCheckResult = healthcheck.HealthCheckResult
 
 const (
-	HealthHealthy     ServerHealthStatus = iota // TCP connection successful
-	HealthUnreachable                           // Connection refused or timeout
+	HealthHealthy     = healthcheck.HealthHealthy
+	HealthUnreachable = healthcheck.HealthUnreachable
 )
 
-// HealthCheckResult contains the result of a health check
-type HealthCheckResult struct {
-	Status    ServerHealthStatus
-	Healthy   bool
-	Error     error
-	Timestamp time.Time
-	Duration  time.Duration
-}
-
 // CheckServerHealth performs a TCP connection check to the target URL
+// This is a wrapper around the healthcheck package function for backward compatibility
 func CheckServerHealth(targetURL *url.URL, timeout time.Duration) HealthCheckResult {
-	start := time.Now()
-
-	host := targetURL.Hostname()
-	port := targetURL.Port()
-
-	// Default ports if not specified
-	if port == "" {
-		if targetURL.Scheme == "https" {
-			port = "443"
-		} else {
-			port = "80"
-		}
-	}
-
-	address := net.JoinHostPort(host, port)
-
-	conn, err := net.DialTimeout("tcp", address, timeout)
-	duration := time.Since(start)
-
-	result := HealthCheckResult{
-		Timestamp: start,
-		Duration:  duration,
-	}
-
-	if err != nil {
-		result.Healthy = false
-		result.Error = err
-		result.Status = HealthUnreachable
-		return result
-	}
-
-	// Successfully connected - server is healthy
-	conn.Close()
-	result.Healthy = true
-	result.Status = HealthHealthy
-	return result
+	return healthcheck.CheckServerHealth(targetURL, timeout)
 }
 
 // FormatHealthMessage creates a user-friendly health status message
+// This is a wrapper around the healthcheck package function for backward compatibility
 func FormatHealthMessage(result HealthCheckResult, targetURL *url.URL) string {
-	if result.Healthy {
-		return fmt.Sprintf("✓ Local server is reachable at %s", targetURL.String())
-	}
-
-	return fmt.Sprintf("⚠ Warning: Cannot connect to local server at %s\n  %s\n  The server may not be running. Events will fail until the server starts.",
-		targetURL.String(),
-		result.Error.Error())
+	return healthcheck.FormatHealthMessage(result, targetURL)
 }

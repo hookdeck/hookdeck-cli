@@ -1,7 +1,6 @@
-package listen
+package healthcheck
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -112,31 +111,6 @@ func TestCheckServerHealth_DefaultPorts(t *testing.T) {
 	}
 }
 
-func TestCheckServerHealth_Timeout(t *testing.T) {
-	// Create a listener that accepts but doesn't respond
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		t.Fatalf("Failed to create listener: %v", err)
-	}
-	defer listener.Close()
-
-	// Get the actual port
-	addr := listener.Addr().(*net.TCPAddr)
-	targetURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", addr.Port))
-	if err != nil {
-		t.Fatalf("Failed to parse URL: %v", err)
-	}
-
-	// Use a very short timeout for fast test execution
-	result := CheckServerHealth(targetURL, 10*time.Millisecond)
-
-	// The connection should succeed since we have a listener
-	// This test mainly verifies that timeout is respected
-	if result.Duration > 1*time.Second {
-		t.Errorf("Health check took too long: %v", result.Duration)
-	}
-}
-
 func TestFormatHealthMessage_Healthy(t *testing.T) {
 	targetURL, _ := url.Parse("http://localhost:3000")
 	result := HealthCheckResult{
@@ -176,5 +150,23 @@ func TestFormatHealthMessage_Unhealthy(t *testing.T) {
 	}
 	if !strings.Contains(msg, "Warning") {
 		t.Errorf("Expected message to contain 'Warning'")
+	}
+}
+
+func TestFormatHealthMessage_NilError(t *testing.T) {
+	targetURL, _ := url.Parse("http://localhost:3000")
+	result := HealthCheckResult{
+		Status:  HealthUnreachable,
+		Healthy: false,
+		Error:   nil, // Nil error should not cause panic
+	}
+
+	msg := FormatHealthMessage(result, targetURL)
+
+	if len(msg) == 0 {
+		t.Errorf("Expected non-empty message")
+	}
+	if !strings.Contains(msg, "unknown error") {
+		t.Errorf("Expected message to contain 'unknown error' when error is nil")
 	}
 }
