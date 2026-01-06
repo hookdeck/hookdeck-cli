@@ -404,12 +404,7 @@ func (m Model) renderConnectionInfo() string {
 	if m.serverHealthChecked && !m.serverHealthy {
 		s.WriteString("\n")
 		targetURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host
-		// Flash the dot to draw attention
-		dot := "●"
-		if m.waitingFrameToggle {
-			dot = "○"
-		}
-		warningMsg := fmt.Sprintf("%s %s is unreachable. Check the server is running", yellowStyle.Render(dot), targetURL)
+		warningMsg := fmt.Sprintf("%s %s is unreachable. Check the server is running", yellowStyle.Render("● Warning:"), targetURL)
 		s.WriteString(warningMsg)
 		s.WriteString("\n")
 	}
@@ -513,12 +508,7 @@ func (m Model) renderCompactHeader() string {
 	if m.serverHealthChecked && !m.serverHealthy {
 		s.WriteString("\n")
 		targetURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host
-		// Flash the dot to draw attention
-		dot := "●"
-		if m.waitingFrameToggle {
-			dot = "○"
-		}
-		warningMsg := fmt.Sprintf("%s %s is unreachable. Check the server is running", yellowStyle.Render(dot), targetURL)
+		warningMsg := fmt.Sprintf("%s %s is unreachable. Check the server is running", yellowStyle.Render("● Warning:"), targetURL)
 		s.WriteString(warningMsg)
 		s.WriteString("\n")
 	}
