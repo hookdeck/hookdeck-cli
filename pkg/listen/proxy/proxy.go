@@ -26,7 +26,10 @@ import (
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
-const timeLayout = "2006-01-02 15:04:05"
+const (
+	healthyCheckInterval   = 15 * time.Second // Check every 15s when server is healthy
+	unhealthyCheckInterval = 5 * time.Second  // Check every 5s when server is unhealthy
+)
 
 // Config provides the configuration of a Proxy
 type Config struct {
@@ -460,13 +463,12 @@ func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) 
 }
 
 // startHealthCheckMonitor runs periodic health checks in the background
-// Uses adaptive intervals: 5 seconds when unhealthy, 30 seconds when healthy
 func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL) {
 	// Determine initial interval based on current server health state
-	initialInterval := 30 * time.Second
+	initialInterval := healthyCheckInterval
 	if !p.serverHealthy.Load() {
 		// Server is unhealthy, check more frequently
-		initialInterval = 5 * time.Second
+		initialInterval = unhealthyCheckInterval
 	}
 
 	ticker := time.NewTicker(initialInterval)
@@ -489,10 +491,10 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 				ticker.Stop()
 				if healthy {
 					// Server is healthy, check less frequently
-					ticker = time.NewTicker(30 * time.Second)
+					ticker = time.NewTicker(healthyCheckInterval)
 				} else {
 					// Server is unhealthy, check more frequently to detect recovery
-					ticker = time.NewTicker(5 * time.Second)
+					ticker = time.NewTicker(unhealthyCheckInterval)
 				}
 			}
 		}

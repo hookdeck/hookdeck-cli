@@ -187,26 +187,9 @@ func (m Model) renderDetailsView() string {
 
 // renderStatusBar renders the bottom status bar with keyboard shortcuts
 func (m Model) renderStatusBar() string {
-	// Build status parts array
-	var statusParts []string
-
-	// Add server health indicator (left side)
-	if m.serverHealthChecked {
-		if m.serverHealthy {
-			statusParts = append(statusParts, greenStyle.Render("● Server OK"))
-		} else {
-			statusParts = append(statusParts, redStyle.Render("● Server Unreachable"))
-		}
-	}
-
-	// If no events yet, just show server health and quit instruction
+	// If no events yet, just show quit instruction
 	selectedEvent := m.GetSelectedEvent()
 	if selectedEvent == nil {
-		if len(statusParts) > 0 {
-			statusParts = append(statusParts, "[q] Quit")
-			statusMsg := strings.Join(statusParts, " | ")
-			return statusBarStyle.Render(statusMsg)
-		}
 		return statusBarStyle.Render("[q] Quit")
 	}
 
@@ -263,12 +246,7 @@ func (m Model) renderStatusBar() string {
 		}
 	}
 
-	statusParts = append(statusParts, eventStatusMsg)
-
-	// Combine status parts
-	statusMsg := strings.Join(statusParts, " | ")
-
-	return statusBarStyle.Render(statusMsg)
+	return statusBarStyle.Render(eventStatusMsg)
 }
 
 // FormatEventLog formats an event into a log line matching the current style
@@ -420,6 +398,15 @@ func (m Model) renderConnectionInfo() string {
 				s.WriteString("\n")
 			}
 		}
+	}
+
+	// Show server health warning if unhealthy
+	if m.serverHealthChecked && !m.serverHealthy {
+		s.WriteString("\n")
+		targetURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host
+		warningMsg := fmt.Sprintf("⚠ %s is unreachable. Check the server is running", targetURL)
+		s.WriteString(yellowStyle.Render(warningMsg))
+		s.WriteString("\n")
 	}
 
 	// Show filters if any are active

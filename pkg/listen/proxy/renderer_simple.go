@@ -178,15 +178,16 @@ func (r *SimpleRenderer) OnServerHealthChanged(healthy bool, err error) {
 	}
 
 	color := ansi.Color(os.Stdout)
+	targetURL := r.cfg.TargetURL.Scheme + "://" + r.cfg.TargetURL.Host
 
 	if !healthy {
 		// Server became unreachable - show warning
-		fmt.Printf("\n%s Local server unreachable\n",
-			color.Yellow("⚠ WARNING:"))
+		fmt.Printf("\n%s %s is unreachable\n",
+			color.Yellow("⚠ Warning:"), targetURL)
 	} else {
 		// Server recovered - show brief success message
-		fmt.Printf("%s Local server is online\n",
-			color.Green("✓"))
+		fmt.Printf("%s %s is reachable\n",
+			color.Green("✓"), targetURL)
 	}
 
 	// Update last known state
