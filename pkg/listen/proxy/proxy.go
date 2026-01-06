@@ -74,8 +74,7 @@ type Proxy struct {
 	renderer        Renderer
 
 	// Server health monitoring
-	serverHealthy   atomic.Bool
-	lastHealthCheck time.Time
+	serverHealthy atomic.Bool
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -496,8 +495,6 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 					ticker = time.NewTicker(5 * time.Second)
 				}
 			}
-
-			p.lastHealthCheck = time.Now()
 		}
 	}
 }
