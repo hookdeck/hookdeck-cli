@@ -70,7 +70,7 @@ func FormatHealthMessage(result HealthCheckResult, targetURL *url.URL) string {
 		return fmt.Sprintf("✓ Local server is reachable at %s", targetURL.String())
 	}
 
-	return fmt.Sprintf("⚠ Warning: Cannot connect to local server at %s\n  %s\n  The server may not be running. Webhooks will fail until the server starts.",
+	return fmt.Sprintf("⚠ Warning: Cannot connect to local server at %s\n  %s\n  The server may not be running. Events will fail until the server starts.",
 		targetURL.String(),
 		result.Error.Error())
 }
