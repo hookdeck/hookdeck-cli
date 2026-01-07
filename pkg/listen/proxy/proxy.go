@@ -488,13 +488,12 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 				p.renderer.OnServerHealthChanged(healthy, err)
 
 				// Adjust check interval based on health status
-				ticker.Stop()
 				if healthy {
 					// Server is healthy, check less frequently
-					ticker = time.NewTicker(healthyCheckInterval)
+					ticker.Reset(healthyCheckInterval)
 				} else {
 					// Server is unhealthy, check more frequently to detect recovery
-					ticker = time.NewTicker(unhealthyCheckInterval)
+					ticker.Reset(unhealthyCheckInterval)
 				}
 			}
 		}
