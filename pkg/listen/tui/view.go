@@ -190,11 +190,13 @@ func (m Model) renderStatusBar() string {
 	// If no events yet, just show quit instruction
 	selectedEvent := m.GetSelectedEvent()
 	if selectedEvent == nil {
-		return statusBarStyle.Render("[q] Quit")
+		return statusBarStyle.Width(m.width).Render("[q] Quit")
 	}
 
 	// Determine width-based verbosity
-	isNarrow := m.width < 100
+	// Threshold chosen to show full text only when it fits without wrapping
+	// Full text requires ~105 chars with some padding
+	isNarrow := m.width < 108
 	isVeryNarrow := m.width < 60
 
 	// Build event status message
@@ -213,7 +215,7 @@ func (m Model) renderStatusBar() string {
 			eventStatusMsg = fmt.Sprintf("> %s %s succeeded [%d] | [r] [o] [d] [q]",
 				checkmark, eventType, selectedEvent.Status)
 		} else {
-			eventStatusMsg = fmt.Sprintf("> %s %s succeeded with status %d | [r] Retry • [o] Open in dashboard • [d] Show data",
+			eventStatusMsg = fmt.Sprintf("> %s %s succeeded with status %d | [r] Retry • [o] Open in dashboard • [d] Show data • [q] Quit",
 				checkmark, eventType, selectedEvent.Status)
 		}
 	} else {
@@ -241,12 +243,12 @@ func (m Model) renderStatusBar() string {
 					xmark, eventType, selectedEvent.Status)
 			}
 		} else {
-			eventStatusMsg = fmt.Sprintf("> %s %s %s | [r] Retry • [o] Open in dashboard • [d] Show event data",
+			eventStatusMsg = fmt.Sprintf("> %s %s %s | [r] Retry • [o] Open in dashboard • [d] Show event data • [q] Quit",
 				xmark, eventType, statusText)
 		}
 	}
 
-	return statusBarStyle.Render(eventStatusMsg)
+	return statusBarStyle.Width(m.width).Render(eventStatusMsg)
 }
 
 // FormatEventLog formats an event into a log line matching the current style
