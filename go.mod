@@ -23,7 +23,7 @@ require (
 	github.com/tidwall/pretty v1.2.1
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/sys v0.40.0
-	golang.org/x/term v0.37.0
+	golang.org/x/term v0.38.0
 )
 
 require (
