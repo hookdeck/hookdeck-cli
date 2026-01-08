@@ -124,6 +124,9 @@ Specify a single destination to update the path. For example, pass a connection 
 	}
 
 	// Perform initial health check on target server
+	// Using 3-second timeout optimized for local development scenarios.
+	// This assumes low latency to localhost. For production/edge deployments,
+	// this timeout may need to be configurable in future iterations.
 	healthCheckTimeout := 3 * time.Second
 	healthResult := CheckServerHealth(URL, healthCheckTimeout)
 

@@ -7,7 +7,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/healthcheck"
 )
 
-// Re-export types and constants from healthcheck subpackage for backward compatibility
+// Re-export types and constants from healthcheck subpackage for convenience
 type ServerHealthStatus = healthcheck.ServerHealthStatus
 type HealthCheckResult = healthcheck.HealthCheckResult
 

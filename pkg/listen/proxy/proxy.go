@@ -158,8 +158,10 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			<-p.webSocketClient.Connected()
 			p.renderer.OnConnected()
 
-			// Only start health monitoring on first successful connection
-			// to prevent goroutine leaks on reconnects
+			// Only start health monitoring on first successful connection to prevent
+			// goroutine leaks on reconnects. The hasConnectedOnce guard ensures that
+			// even if the websocket reconnects multiple times (which happens in the
+			// Run() loop), we only spawn the health monitor goroutine once.
 			if !hasConnectedOnce {
 				hasConnectedOnce = true
 

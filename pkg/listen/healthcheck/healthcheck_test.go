@@ -1,6 +1,7 @@
 package healthcheck
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -168,5 +169,31 @@ func TestFormatHealthMessage_NilError(t *testing.T) {
 	}
 	if !strings.Contains(msg, "unknown error") {
 		t.Errorf("Expected message to contain 'unknown error' when error is nil")
+	}
+}
+
+func TestCheckServerHealth_PortInURL(t *testing.T) {
+	// Create a server on a non-standard port
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+	defer listener.Close()
+
+	// Get the actual port assigned by the OS
+	addr := listener.Addr().(*net.TCPAddr)
+	targetURL, _ := url.Parse(fmt.Sprintf("http://localhost:%d/path", addr.Port))
+
+	// Perform health check
+	result := CheckServerHealth(targetURL, 3*time.Second)
+
+	// Verify that the health check succeeded
+	// This confirms that when a port is already in the URL, we don't append
+	// a default port (which would cause localhost:8080 to become localhost:8080:80)
+	if !result.Healthy {
+		t.Errorf("Expected healthy=true for server with port in URL, got false: %v", result.Error)
+	}
+	if result.Error != nil {
+		t.Errorf("Expected no error for server with port in URL, got: %v", result.Error)
 	}
 }

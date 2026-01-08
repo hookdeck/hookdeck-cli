@@ -27,7 +27,10 @@ type HealthCheckResult struct {
 	Duration  time.Duration
 }
 
-// CheckServerHealth performs a TCP connection check to the target URL
+// CheckServerHealth performs a TCP connection check to verify a server is listening.
+// The timeout parameter should be appropriate for the deployment context:
+// - Local development: 3s is typically sufficient
+// - Production/edge: May require longer timeouts due to network conditions
 func CheckServerHealth(targetURL *url.URL, timeout time.Duration) HealthCheckResult {
 	start := time.Now()
 
