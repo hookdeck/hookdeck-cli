@@ -21,11 +21,15 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/healthcheck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
-const timeLayout = "2006-01-02 15:04:05"
+const (
+	healthyCheckInterval   = 15 * time.Second // Check every 15s when server is healthy
+	unhealthyCheckInterval = 5 * time.Second  // Check every 5s when server is unhealthy
+)
 
 // Config provides the configuration of a Proxy
 type Config struct {
@@ -71,6 +75,9 @@ type Proxy struct {
 	activeRequests  int32
 	maxConnWarned   bool // Track if we've warned about connection limit
 	renderer        Renderer
+
+	// Server health monitoring
+	serverHealthy atomic.Bool
 }
 
 func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
@@ -150,7 +157,22 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		go func() {
 			<-p.webSocketClient.Connected()
 			p.renderer.OnConnected()
-			hasConnectedOnce = true
+
+			// Only start health monitoring on first successful connection to prevent
+			// goroutine leaks on reconnects. The hasConnectedOnce guard ensures that
+			// even if the websocket reconnects multiple times (which happens in the
+			// Run() loop), we only spawn the health monitor goroutine once.
+			if !hasConnectedOnce {
+				hasConnectedOnce = true
+
+				// Perform initial health check and notify renderer immediately
+				healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second)
+				p.serverHealthy.Store(healthy)
+				p.renderer.OnServerHealthChanged(healthy, err)
+
+				// Start health check monitor after initial check
+				go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
+			}
 		}()
 
 		// Run the websocket in the background
@@ -433,6 +455,50 @@ func (p *Proxy) processEndpointResponse(eventID string, webhookEvent *websocket.
 					Data:      string(buf),
 				},
 			}})
+	}
+}
+
+// checkServerHealth is a simple wrapper around the healthcheck package's CheckServerHealth
+func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) {
+	result := healthcheck.CheckServerHealth(targetURL, timeout)
+	return result.Healthy, result.Error
+}
+
+// startHealthCheckMonitor runs periodic health checks in the background
+func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL) {
+	// Determine initial interval based on current server health state
+	initialInterval := healthyCheckInterval
+	if !p.serverHealthy.Load() {
+		// Server is unhealthy, check more frequently
+		initialInterval = unhealthyCheckInterval
+	}
+
+	ticker := time.NewTicker(initialInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Perform health check
+			healthy, err := checkServerHealth(targetURL, 3*time.Second)
+
+			// Only notify on state changes, atomically
+			prevHealthy := p.serverHealthy.Swap(healthy)
+			if healthy != prevHealthy {
+				p.renderer.OnServerHealthChanged(healthy, err)
+
+				// Adjust check interval based on health status
+				if healthy {
+					// Server is healthy, check less frequently
+					ticker.Reset(healthyCheckInterval)
+				} else {
+					// Server is unhealthy, check more frequently to detect recovery
+					ticker.Reset(unhealthyCheckInterval)
+				}
+			}
+		}
 	}
 }
 

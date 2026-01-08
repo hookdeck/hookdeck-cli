@@ -66,10 +66,12 @@ func (m Model) View() string {
 	// We need: header lines + viewport lines + divider (1) + status (1) = m.height
 
 	var viewportHeight int
-	if m.hasReceivedEvent {
+	if m.isConnected {
+		// When connected, always show status bar (for server health indicator)
 		// Total lines: header + viewport + divider + status
 		viewportHeight = m.height - headerHeight - 2
 	} else {
+		// When not connected, no status bar
 		// Total lines: header + viewport
 		viewportHeight = m.height - headerHeight
 	}
@@ -91,7 +93,8 @@ func (m Model) View() string {
 	viewportOutput := m.viewport.View()
 	output += viewportOutput
 
-	if m.hasReceivedEvent {
+	if m.isConnected {
+		// When connected, always show status bar (includes server health indicator)
 		// Ensure we have a newline before divider if viewport doesn't end with one
 		if !strings.HasSuffix(viewportOutput, "\n") {
 			output += "\n"
@@ -184,17 +187,18 @@ func (m Model) renderDetailsView() string {
 
 // renderStatusBar renders the bottom status bar with keyboard shortcuts
 func (m Model) renderStatusBar() string {
+	// If no events yet, just show quit instruction
 	selectedEvent := m.GetSelectedEvent()
 	if selectedEvent == nil {
-		return ""
+		return statusBarStyle.Render("[q] Quit")
 	}
 
 	// Determine width-based verbosity
 	isNarrow := m.width < 100
 	isVeryNarrow := m.width < 60
 
-	// Build status message
-	var statusMsg string
+	// Build event status message
+	var eventStatusMsg string
 	eventType := "Last event"
 	if m.userNavigated {
 		eventType = "Selected event"
@@ -204,12 +208,12 @@ func (m Model) renderStatusBar() string {
 		// Success status
 		checkmark := greenStyle.Render("✓")
 		if isVeryNarrow {
-			statusMsg = fmt.Sprintf("> %s %s [%d]", checkmark, eventType, selectedEvent.Status)
+			eventStatusMsg = fmt.Sprintf("> %s %s [%d]", checkmark, eventType, selectedEvent.Status)
 		} else if isNarrow {
-			statusMsg = fmt.Sprintf("> %s %s succeeded [%d] | [r] [o] [d] [q]",
+			eventStatusMsg = fmt.Sprintf("> %s %s succeeded [%d] | [r] [o] [d] [q]",
 				checkmark, eventType, selectedEvent.Status)
 		} else {
-			statusMsg = fmt.Sprintf("> %s %s succeeded with status %d | [r] Retry • [o] Open in dashboard • [d] Show data",
+			eventStatusMsg = fmt.Sprintf("> %s %s succeeded with status %d | [r] Retry • [o] Open in dashboard • [d] Show data",
 				checkmark, eventType, selectedEvent.Status)
 		}
 	} else {
@@ -224,25 +228,25 @@ func (m Model) renderStatusBar() string {
 
 		if isVeryNarrow {
 			if selectedEvent.Status == 0 {
-				statusMsg = fmt.Sprintf("> %s %s [ERR]", xmark, eventType)
+				eventStatusMsg = fmt.Sprintf("> %s %s [ERR]", xmark, eventType)
 			} else {
-				statusMsg = fmt.Sprintf("> %s %s [%d]", xmark, eventType, selectedEvent.Status)
+				eventStatusMsg = fmt.Sprintf("> %s %s [%d]", xmark, eventType, selectedEvent.Status)
 			}
 		} else if isNarrow {
 			if selectedEvent.Status == 0 {
-				statusMsg = fmt.Sprintf("> %s %s failed | [r] [o] [d] [q]",
+				eventStatusMsg = fmt.Sprintf("> %s %s failed | [r] [o] [d] [q]",
 					xmark, eventType)
 			} else {
-				statusMsg = fmt.Sprintf("> %s %s failed [%d] | [r] [o] [d] [q]",
+				eventStatusMsg = fmt.Sprintf("> %s %s failed [%d] | [r] [o] [d] [q]",
 					xmark, eventType, selectedEvent.Status)
 			}
 		} else {
-			statusMsg = fmt.Sprintf("> %s %s %s | [r] Retry • [o] Open in dashboard • [d] Show event data",
+			eventStatusMsg = fmt.Sprintf("> %s %s %s | [r] Retry • [o] Open in dashboard • [d] Show event data",
 				xmark, eventType, statusText)
 		}
 	}
 
-	return statusBarStyle.Render(statusMsg)
+	return statusBarStyle.Render(eventStatusMsg)
 }
 
 // FormatEventLog formats an event into a log line matching the current style
@@ -396,6 +400,15 @@ func (m Model) renderConnectionInfo() string {
 		}
 	}
 
+	// Show server health warning if unhealthy
+	if m.serverHealthChecked && !m.serverHealthy {
+		s.WriteString("\n")
+		targetURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host
+		warningMsg := fmt.Sprintf("%s %s is unreachable. Check the server is running", yellowStyle.Render("● Warning:"), targetURL)
+		s.WriteString(warningMsg)
+		s.WriteString("\n")
+	}
+
 	// Show filters if any are active
 	if m.cfg.Filters != nil {
 		// Type assert to SessionFilters and display each filter
@@ -490,6 +503,15 @@ func (m Model) renderCompactHeader() string {
 		connectionsText)
 	s.WriteString(faintStyle.Render(summary))
 	s.WriteString("\n")
+
+	// Show server health warning if unhealthy (ensure it's always visible even when collapsed)
+	if m.serverHealthChecked && !m.serverHealthy {
+		s.WriteString("\n")
+		targetURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host
+		warningMsg := fmt.Sprintf("%s %s is unreachable. Check the server is running", yellowStyle.Render("● Warning:"), targetURL)
+		s.WriteString(warningMsg)
+		s.WriteString("\n")
+	}
 
 	return s.String()
 }
