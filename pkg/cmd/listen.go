@@ -153,7 +153,7 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
 	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
 
-	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (only fatal errors)")
+	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only)")
 
 	lc.cmd.Flags().StringVar(&lc.filterBody, "filter-body", "", "Filter events by request body using Hookdeck filter syntax (JSON)")
 	lc.cmd.Flags().StringVar(&lc.filterHeaders, "filter-headers", "", "Filter events by request headers using Hookdeck filter syntax (JSON)")

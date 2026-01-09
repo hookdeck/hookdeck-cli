@@ -57,6 +57,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isConnected = false
 		return m, nil
 
+	case ServerHealthMsg:
+		m.serverHealthy = msg.Healthy
+		m.serverHealthError = msg.Error
+		m.serverHealthChecked = true
+		return m, nil
+
 	case TickWaitingMsg:
 		// Toggle waiting animation
 		if !m.hasReceivedEvent {

@@ -210,6 +210,16 @@ func (r *InteractiveRenderer) OnConnectionWarning(activeRequests int32, maxConns
 	}).Warn("High connection load detected; consider increasing --max-connections")
 }
 
+// OnServerHealthChanged is called when server health status changes
+func (r *InteractiveRenderer) OnServerHealthChanged(healthy bool, err error) {
+	if r.teaProgram != nil {
+		r.teaProgram.Send(tui.ServerHealthMsg{
+			Healthy: healthy,
+			Error:   err,
+		})
+	}
+}
+
 // Cleanup gracefully stops the TUI and restores terminal
 func (r *InteractiveRenderer) Cleanup() {
 	if r.teaProgram != nil {

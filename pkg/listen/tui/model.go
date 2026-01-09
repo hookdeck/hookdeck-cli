@@ -67,6 +67,11 @@ type Model struct {
 
 	// Header state
 	headerCollapsed bool // Track if connection header is collapsed
+
+	// Server health state
+	serverHealthy       bool
+	serverHealthError   error
+	serverHealthChecked bool
 }
 
 // Config holds configuration for the TUI
@@ -419,4 +424,10 @@ func tickWaitingAnimation() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return TickWaitingMsg{}
 	})
+}
+
+// ServerHealthMsg is sent when server health status changes
+type ServerHealthMsg struct {
+	Healthy bool
+	Error   error
 }
