@@ -116,7 +116,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.destinationHTTPMethod, "destination-http-method", "", "HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE)")
 
 	// Destination authentication flags
-	cu.cmd.Flags().StringVar(&cu.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)")
+	cu.cmd.Flags().StringVar(&cu.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws, gcp)")
 
 	// Bearer Token
 	cu.cmd.Flags().StringVar(&cu.DestinationBearerToken, "destination-bearer-token", "", "Bearer token for destination authentication")
@@ -149,6 +149,10 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.DestinationAWSSecretAccessKey, "destination-aws-secret-access-key", "", "AWS secret access key")
 	cu.cmd.Flags().StringVar(&cu.DestinationAWSRegion, "destination-aws-region", "", "AWS region")
 	cu.cmd.Flags().StringVar(&cu.DestinationAWSService, "destination-aws-service", "", "AWS service name")
+
+	// GCP Service Account
+	cu.cmd.Flags().StringVar(&cu.DestinationGCPServiceAccountKey, "destination-gcp-service-account-key", "", "GCP service account key JSON for destination authentication")
+	cu.cmd.Flags().StringVar(&cu.DestinationGCPScope, "destination-gcp-scope", "", "GCP scope for service account authentication")
 
 	// Destination rate limiting flags
 	cu.cmd.Flags().IntVar(&cu.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")

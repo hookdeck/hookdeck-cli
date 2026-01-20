@@ -184,4 +184,62 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 
 		t.Logf("Successfully tested HTTP destination with AWS Signature: %s", connID)
 	})
+
+	t.Run("HTTP_Destination_GCP_ServiceAccount", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-gcp-sa-conn-" + timestamp
+		sourceName := "test-gcp-sa-source-" + timestamp
+		destName := "test-gcp-sa-dest-" + timestamp
+		destURL := "https://api.hookdeck.com/dev/null"
+
+		// Create connection with HTTP destination (GCP Service Account)
+		// Using a minimal but valid JSON structure for service account key
+		serviceAccountKey := `{"type":"service_account","project_id":"test-project","private_key_id":"test-key-id","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC\n-----END PRIVATE KEY-----\n","client_email":"test@test-project.iam.gserviceaccount.com","client_id":"123456789","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}`
+
+		stdout, stderr, err := cli.Run("connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+			"--destination-auth-method", "gcp",
+			"--destination-gcp-service-account-key", serviceAccountKey,
+			"--destination-gcp-scope", "https://www.googleapis.com/auth/cloud-platform",
+			"--output", "json")
+		require.NoError(t, err, "Failed to create connection: stderr=%s", stderr)
+
+		var createResp map[string]interface{}
+		err = json.Unmarshal([]byte(stdout), &createResp)
+		require.NoError(t, err, "Failed to parse creation response: %s", stdout)
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in creation response")
+
+		// Verify destination auth configuration
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in creation response")
+
+		destConfig, ok := dest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config object")
+
+		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
+			assert.Equal(t, "GCP_SERVICE_ACCOUNT", authMethod["type"], "Auth type should be GCP_SERVICE_ACCOUNT")
+			assert.Equal(t, "https://www.googleapis.com/auth/cloud-platform", authMethod["scope"], "GCP scope should match")
+			// Service account key should not be returned for security reasons
+		}
+
+		// Cleanup
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		t.Logf("Successfully tested HTTP destination with GCP Service Account: %s", connID)
+	})
 }
