@@ -1323,7 +1323,7 @@ func TestConnectionWithDeduplicateRule(t *testing.T) {
 		"--destination-name", destName,
 		"--destination-type", "CLI",
 		"--destination-cli-path", "/webhooks",
-		"--rule-deduplicate-window", "86400",
+		"--rule-deduplicate-window", "60000",
 		"--rule-deduplicate-include-fields", "body.id,body.timestamp",
 	)
 	require.NoError(t, err, "Should create connection with deduplicate rule")
@@ -1344,7 +1344,7 @@ func TestConnectionWithDeduplicateRule(t *testing.T) {
 
 	rule := getConn.Rules[0]
 	assert.Equal(t, "deduplicate", rule["type"], "Rule type should be deduplicate")
-	assert.Equal(t, float64(86400), rule["window"], "Deduplicate window should be 86400 milliseconds")
+	assert.Equal(t, float64(60000), rule["window"], "Deduplicate window should be 60000 milliseconds (60 seconds)")
 
 	// Verify include_fields is correctly set and matches our input
 	if includeFields, ok := rule["include_fields"].([]interface{}); ok {

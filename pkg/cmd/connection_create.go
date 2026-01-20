@@ -84,6 +84,10 @@ type connectionCreateCmd struct {
 	DestinationAWSRegion          string
 	DestinationAWSService         string
 
+	// GCP Service Account flags
+	DestinationGCPServiceAccountKey string
+	DestinationGCPScope             string
+
 	// Destination rate limiting flags
 	DestinationRateLimit       int
 	DestinationRateLimitPeriod string
@@ -207,7 +211,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd.Flags().StringVar(&cc.destinationHTTPMethod, "destination-http-method", "", "HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE)")
 
 	// Destination authentication flags
-	cc.cmd.Flags().StringVar(&cc.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)")
+	cc.cmd.Flags().StringVar(&cc.DestinationAuthMethod, "destination-auth-method", "", "Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws, gcp)")
 
 	// Bearer Token
 	cc.cmd.Flags().StringVar(&cc.DestinationBearerToken, "destination-bearer-token", "", "Bearer token for destination authentication")
@@ -240,6 +244,10 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd.Flags().StringVar(&cc.DestinationAWSSecretAccessKey, "destination-aws-secret-access-key", "", "AWS secret access key")
 	cc.cmd.Flags().StringVar(&cc.DestinationAWSRegion, "destination-aws-region", "", "AWS region")
 	cc.cmd.Flags().StringVar(&cc.DestinationAWSService, "destination-aws-service", "", "AWS service name")
+
+	// GCP Service Account
+	cc.cmd.Flags().StringVar(&cc.DestinationGCPServiceAccountKey, "destination-gcp-service-account-key", "", "GCP service account key JSON for destination authentication")
+	cc.cmd.Flags().StringVar(&cc.DestinationGCPScope, "destination-gcp-scope", "", "GCP scope for service account authentication")
 
 	// Destination rate limiting flags
 	cc.cmd.Flags().IntVar(&cc.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
@@ -790,8 +798,20 @@ func (cc *connectionCreateCmd) buildAuthConfig() (map[string]interface{}, error)
 		authConfig["region"] = cc.DestinationAWSRegion
 		authConfig["service"] = cc.DestinationAWSService
 
+	case "gcp":
+		// GCP_SERVICE_ACCOUNT
+		if cc.DestinationGCPServiceAccountKey == "" {
+			return nil, fmt.Errorf("--destination-gcp-service-account-key is required for gcp auth method")
+		}
+		authConfig["type"] = "GCP_SERVICE_ACCOUNT"
+		authConfig["service_account_key"] = cc.DestinationGCPServiceAccountKey
+
+		if cc.DestinationGCPScope != "" {
+			authConfig["scope"] = cc.DestinationGCPScope
+		}
+
 	default:
-		return nil, fmt.Errorf("unsupported destination authentication method: %s (supported: hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws)", cc.DestinationAuthMethod)
+		return nil, fmt.Errorf("unsupported destination authentication method: %s (supported: hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws, gcp)", cc.DestinationAuthMethod)
 	}
 
 	return authConfig, nil

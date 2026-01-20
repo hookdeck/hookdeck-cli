@@ -296,6 +296,55 @@ func TestBuildAuthConfig(t *testing.T) {
 			errContains: "--destination-aws-region is required",
 		},
 		{
+			name: "gcp service account auth - valid",
+			setup: func(cc *connectionCreateCmd) {
+				cc.DestinationAuthMethod = "gcp"
+				cc.DestinationGCPServiceAccountKey = `{"type":"service_account","project_id":"test"}`
+				cc.DestinationGCPScope = "https://www.googleapis.com/auth/cloud-platform"
+			},
+			wantType: "GCP_SERVICE_ACCOUNT",
+			wantErr:  false,
+			validate: func(t *testing.T, config map[string]interface{}) {
+				if config["type"] != "GCP_SERVICE_ACCOUNT" {
+					t.Errorf("expected type GCP_SERVICE_ACCOUNT, got %v", config["type"])
+				}
+				if config["service_account_key"] == "" {
+					t.Error("expected service_account_key to be set")
+				}
+				if config["scope"] != "https://www.googleapis.com/auth/cloud-platform" {
+					t.Errorf("expected scope, got %v", config["scope"])
+				}
+			},
+		},
+		{
+			name: "gcp service account auth - valid without scope",
+			setup: func(cc *connectionCreateCmd) {
+				cc.DestinationAuthMethod = "gcp"
+				cc.DestinationGCPServiceAccountKey = `{"type":"service_account","project_id":"test"}`
+			},
+			wantType: "GCP_SERVICE_ACCOUNT",
+			wantErr:  false,
+			validate: func(t *testing.T, config map[string]interface{}) {
+				if config["type"] != "GCP_SERVICE_ACCOUNT" {
+					t.Errorf("expected type GCP_SERVICE_ACCOUNT, got %v", config["type"])
+				}
+				if config["service_account_key"] == "" {
+					t.Error("expected service_account_key to be set")
+				}
+				if _, hasScope := config["scope"]; hasScope {
+					t.Error("expected scope to not be set when not provided")
+				}
+			},
+		},
+		{
+			name: "gcp service account auth - missing key",
+			setup: func(cc *connectionCreateCmd) {
+				cc.DestinationAuthMethod = "gcp"
+			},
+			wantErr:     true,
+			errContains: "--destination-gcp-service-account-key is required",
+		},
+		{
 			name: "unsupported auth method",
 			setup: func(cc *connectionCreateCmd) {
 				cc.DestinationAuthMethod = "invalid_method"

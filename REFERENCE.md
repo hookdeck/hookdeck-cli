@@ -976,7 +976,21 @@ hookdeck connection create \
   --destination-url "https://api.example.com/stripe"
 ```
 
-**4. Destination with Bearer Token**
+**4. Destination with Hookdeck Signature (Default)**
+```bash
+# Hookdeck automatically signs outgoing webhooks - no configuration needed
+hookdeck connection create \
+  --source-name "stripe-webhooks" \
+  --source-type STRIPE \
+  --source-webhook-secret "whsec_stripe_secret" \
+  --destination-name "api-with-verification" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/webhook" \
+  --destination-auth-method hookdeck
+```
+*Note: Hookdeck Signature authentication is the default. Hookdeck automatically signs all outgoing webhooks with a signature that can be verified using Hookdeck's verification libraries. No webhook secret needs to be configured.*
+
+**5. Destination with Bearer Token**
 ```bash
 hookdeck connection create \
   --source-name "github-webhooks" \
@@ -985,9 +999,11 @@ hookdeck connection create \
   --destination-name "ci-system" \
   --destination-type HTTP \
   --destination-url "https://ci.example.com/webhook" \
+  --destination-auth-method bearer \
   --destination-bearer-token "bearer_token_xyz"
+```
 
-**5. Source with Custom Response and Allowed HTTP Methods**
+**6. Source with Custom Response and Allowed HTTP Methods**
 ```bash
 hookdeck connection create \
   --source-name "api-webhooks" \
@@ -1002,7 +1018,7 @@ hookdeck connection create \
 
 #### Rule Configuration Examples
 
-**6. Retry Rules**
+**7. Retry Rules**
 ```bash
 hookdeck connection create \
   --source-name "payment-webhooks" \
@@ -1015,7 +1031,7 @@ hookdeck connection create \
   --rule-retry-interval 60000
 ```
 
-**7. Filter Rules**
+**8. Filter Rules**
 ```bash
 hookdeck connection create \
   --source-name "events" \
@@ -1026,7 +1042,7 @@ hookdeck connection create \
   --rule-filter-body '{"event_type":"payment.succeeded"}'
 ```
 
-**8. All Rule Types Combined**
+**9. All Rule Types Combined**
 ```bash
 hookdeck connection create \
   --source-name "shopify-webhooks" \
@@ -1042,7 +1058,7 @@ hookdeck connection create \
   --rule-delay 5000
 ```
 
-**9. Rate Limiting**
+**10. Rate Limiting**
 ```bash
 hookdeck connection create \
   --source-name "high-volume-source" \
@@ -1052,6 +1068,19 @@ hookdeck connection create \
   --destination-url "https://api.example.com/endpoint" \
   --destination-rate-limit 100 \
   --destination-rate-limit-period minute
+```
+
+**11. GCP Service Account Authentication**
+```bash
+hookdeck connection create \
+  --source-name "webhooks" \
+  --source-type HTTP \
+  --destination-name "gcp-cloud-function" \
+  --destination-type HTTP \
+  --destination-url "https://us-central1-project-id.cloudfunctions.net/function" \
+  --destination-auth-method gcp \
+  --destination-gcp-service-account-key '{"type":"service_account","project_id":"project-id","private_key_id":"key-id","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"service-account@project-id.iam.gserviceaccount.com"}' \
+  --destination-gcp-scope "https://www.googleapis.com/auth/cloud-platform"
 ```
 
 #### Available Flags
@@ -1084,7 +1113,7 @@ hookdeck connection create \
 - `--destination-cli-path <path>` - CLI path (default: `/`)
 - `--destination-path-forwarding-disabled <true|false>` - Disable path forwarding for HTTP destinations (default: false)
 - `--destination-http-method <method>` - HTTP method for HTTP destinations: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`
-- `--destination-auth-method <method>` - Authentication method: `hookdeck`, `bearer`, `basic`, `api_key`, `custom_signature`, `oauth2_client_credentials`, `oauth2_authorization_code`, `aws`
+- `--destination-auth-method <method>` - Authentication method: `hookdeck`, `bearer`, `basic`, `api_key`, `custom_signature`, `oauth2_client_credentials`, `oauth2_authorization_code`, `aws`, `gcp`
 - `--destination-rate-limit <number>` - Rate limit (requests per period)
 - `--destination-rate-limit-period <period>` - Period: `second`, `minute`, `hour`, `day`, `month`, `year`
 
@@ -1135,6 +1164,11 @@ hookdeck connection create \
 - `--destination-aws-secret-access-key <key>` - AWS secret access key
 - `--destination-aws-region <region>` - AWS region
 - `--destination-aws-service <service>` - AWS service name
+
+*GCP Service Account:*
+- `--destination-auth-method gcp`
+- `--destination-gcp-service-account-key <json>` - GCP service account key JSON
+- `--destination-gcp-scope <scope>` - GCP scope (optional)
 
 **Rules - Retry:**
 - `--rule-retry-strategy <strategy>` - Strategy: `linear`, `exponential`
