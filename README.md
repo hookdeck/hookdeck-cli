@@ -1121,19 +1121,13 @@ scoop install hookdeck-beta
 docker run hookdeck/hookdeck-cli:v1.2.3-beta.0 version
 ```
 
-### Production Releases
+## Release Process
 
-Production releases are created from the `main` branch using GitHub's release interface.
+The release workflow supports tagging from ANY branch - it automatically detects which branch contains the tag.
 
-**Process:**
+### Stable Release (Preferred Method: GitHub UI)
 
-1. Merge the `next` branch into `main`:
-   ```sh
-   git checkout main
-   git pull origin main
-   git merge next
-   git push origin main
-   ```
+1. Ensure all tests pass on `main`
 2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
 3. Click "Draft a new release"
 4. Create a new tag with a stable version (e.g., `v1.3.0`)
@@ -1150,7 +1144,82 @@ The GitHub Actions workflow will automatically:
   - Scoop: `hookdeck` package
   - Docker: Updates both the version tag and `latest`
 
-**Note:** Only stable releases (without pre-release identifiers) will update the `latest` tags across all distribution channels.
+**Alternative (Command Line):**
+```bash
+git checkout main
+git tag v1.3.0
+git push origin v1.3.0
+# Then create release notes on GitHub Releases page
+```
+
+### Pre-release from Main (General Beta Testing)
+
+**Preferred Method: GitHub UI**
+1. Ensure `main` branch is in the desired state
+2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
+3. Click "Draft a new release"
+4. Create a new tag with pre-release version (e.g., `v1.3.0-beta.1`)
+5. Target the `main` branch
+6. Check "Set as a pre-release"
+7. Publish the release
+8. GitHub Actions will build and publish with npm tag `beta`
+
+**Alternative (Command Line):**
+```bash
+git checkout main
+git tag v1.3.0-beta.1
+git push origin v1.3.0-beta.1
+```
+
+### Pre-release from Feature Branch (Feature-Specific Testing)
+
+For testing a specific feature in isolation before merging to main:
+
+**Preferred Method: GitHub UI**
+1. Ensure your feature branch is pushed to origin
+2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
+3. Click "Draft a new release"
+4. Create a new tag with pre-release version (e.g., `v1.3.0-beta.1`)
+5. Target your feature branch (e.g., `feat/my-feature`)
+6. Check "Set as a pre-release"
+7. Add notes about what's being tested
+8. Publish the release
+9. GitHub Actions will automatically detect the branch and build from it
+
+**Alternative (Command Line):**
+```bash
+git checkout feat/my-feature
+git tag v1.3.0-beta.1
+git push origin v1.3.0-beta.1
+# Then create release notes on GitHub Releases page
+```
+
+**Note:** Only stable releases (without pre-release identifiers like `-beta`, `-alpha`) will update the `latest` tags across all distribution channels.
+
+## Repository Setup
+
+### GitHub Repository Settings
+
+To maintain code quality and protect the main branch, configure the following settings in your GitHub repository:
+
+**Default Branch:**
+1. Go to Settings → Branches
+2. Set default branch to `main` (if not already set)
+
+**Branch Protection Rules for `main`:**
+1. Go to Settings → Branches → Branch protection rules
+2. Add rule for `main` branch
+3. Enable the following settings:
+   - **Require a pull request before merging**
+     - Require approvals: 1 (or as needed for your team)
+   - **Require status checks to pass before merging**
+     - Require branches to be up to date before merging
+     - Add status check: `build-linux`, `build-mac`, `build-windows` (from test workflow)
+   - **Do not allow bypassing the above settings**
+   - **Restrict force pushes** (recommended)
+   - **Restrict deletions** (recommended)
+
+These settings ensure that all changes to `main` go through proper review and testing before being merged.
 
 ## License
 
