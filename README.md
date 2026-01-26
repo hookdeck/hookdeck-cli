@@ -1137,63 +1137,11 @@ docker run --rm -it \
 
 ## Releasing
 
-This section describes the branching strategy and release process for the Hookdeck CLI.
-
-### Branching Strategy
-
-The project uses two primary branches:
-
-- **`main`** - The stable, production-ready branch. All production releases are created from this branch.
-- **`next`** - The beta/pre-release branch. All new features are merged here first for testing before being promoted to `main`.
-
-### Beta Releases
-
-Beta releases allow you to publish pre-release versions for testing without blocking the `main` branch or affecting stable releases.
-
-**Process:**
-
-1. Ensure all desired features are merged into the `next` branch
-2. Pull the latest changes locally:
-   ```sh
-   git checkout next
-   git pull origin next
-   ```
-3. Create and push a beta tag with a pre-release identifier:
-   ```sh
-   git tag v1.2.3-beta.0
-   git push origin v1.2.3-beta.0
-   ```
-4. The GitHub Actions workflow will automatically:
-   - Build binaries for all platforms (macOS, Linux, Windows)
-   - Create a GitHub pre-release (marked as "Pre-release")
-   - Publish to NPM with the `beta` tag
-   - Create beta packages:
-     - Homebrew: `hookdeck-beta` formula
-     - Scoop: `hookdeck-beta` package
-     - Docker: Tagged with the version (e.g., `v1.2.3-beta.0`), but not `latest`
-
-**Installing beta releases:**
-
-```sh
-# NPM
-npm install hookdeck-cli@beta -g
-
-# Homebrew
-brew install hookdeck/hookdeck/hookdeck-beta
-
-# To force the symlink update and overwrite all conflicting files:
-# brew link --overwrite hookdeck-beta
-
-# Scoop
-scoop install hookdeck-beta
-
-# Docker
-docker run hookdeck/hookdeck-cli:v1.2.3-beta.0 version
-```
+This section describes the release process for the Hookdeck CLI.
 
 ## Release Process
 
-The release workflow supports tagging from ANY branch - it automatically detects which branch contains the tag.
+The release workflow supports tagging from **ANY branch** - it automatically detects which branch contains the tag. This means you can create beta releases directly from feature branches for testing before merging to `main`.
 
 ### Stable Release (Preferred Method: GitHub UI)
 
@@ -1224,6 +1172,8 @@ git push origin v1.3.0
 
 ### Pre-release from Main (General Beta Testing)
 
+For general beta testing of features that have been merged to `main`:
+
 **Preferred Method: GitHub UI**
 1. Ensure `main` branch is in the desired state
 2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
@@ -1239,6 +1189,25 @@ git push origin v1.3.0
 git checkout main
 git tag v1.3.0-beta.1
 git push origin v1.3.0-beta.1
+```
+
+**Installing beta releases:**
+
+```sh
+# NPM
+npm install hookdeck-cli@beta -g
+
+# Homebrew
+brew install hookdeck/hookdeck/hookdeck-beta
+
+# To force the symlink update and overwrite all conflicting files:
+# brew link --overwrite hookdeck-beta
+
+# Scoop
+scoop install hookdeck-beta
+
+# Docker
+docker run hookdeck/hookdeck-cli:v1.3.0-beta.1 version
 ```
 
 ### Pre-release from Feature Branch (Feature-Specific Testing)
@@ -1262,6 +1231,25 @@ git checkout feat/my-feature
 git tag v1.3.0-beta.1
 git push origin v1.3.0-beta.1
 # Then create release notes on GitHub Releases page
+```
+
+**Installing beta releases:**
+
+```sh
+# NPM
+npm install hookdeck-cli@beta -g
+
+# Homebrew
+brew install hookdeck/hookdeck/hookdeck-beta
+
+# To force the symlink update and overwrite all conflicting files:
+# brew link --overwrite hookdeck-beta
+
+# Scoop
+scoop install hookdeck-beta
+
+# Docker
+docker run hookdeck/hookdeck-cli:v1.3.0-beta.1 version
 ```
 
 **Note:** Only stable releases (without pre-release identifiers like `-beta`, `-alpha`) will update the `latest` tags across all distribution channels.

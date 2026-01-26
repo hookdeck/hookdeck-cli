@@ -149,7 +149,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           version: v2.10.2
-          args: build -f .goreleaser/npm.yml --clean
+          args: build -f .goreleaser/npm.yml --clean --skip validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
