@@ -1,0 +1,122 @@
+name: 'Test npm install'
+description: 'Install and verify hookdeck-cli npm package'
+
+inputs:
+  version:
+    description: 'Version to install (e.g., @beta, @latest, or specific version)'
+    required: true
+  platform:
+    description: 'Platform being tested (darwin, linux, win32)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Wait for npm registry propagation
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        
+        # If testing a specific version (not a tag), poll until available
+        if [[ "$VERSION" =~ ^[0-9] ]]; then
+          echo "Waiting for version $VERSION to be available on npm..."
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if npm view "hookdeck-cli@$VERSION" version > /dev/null 2>&1; then
+              echo "✓ Version $VERSION is now available on npm"
+              break
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Version not yet available, waiting 10 seconds..."
+            sleep 10
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "✗ Version $VERSION not available after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+        else
+          echo "Testing with npm tag: $VERSION (no polling needed)"
+        fi
+
+    - name: Install hookdeck-cli
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        echo "Installing hookdeck-cli${VERSION}..."
+        npm install -g "hookdeck-cli${VERSION}"
+
+    - name: Verify installation
+      shell: bash
+      run: |
+        echo "Checking hookdeck binary location..."
+        which hookdeck || (echo "hookdeck not in PATH" && exit 1)
+        
+        echo "Checking hookdeck version..."
+        hookdeck --version
+
+    - name: Test wrapper script
+      shell: bash
+      run: |
+        echo "Testing wrapper script execution..."
+        hookdeck --help > /dev/null
+        echo "✓ Wrapper script works"
+
+    - name: Verify package structure
+      shell: bash
+      run: |
+        HOOKDECK_PATH=$(which hookdeck)
+        HOOKDECK_DIR=$(dirname "$HOOKDECK_PATH")
+        PACKAGE_DIR=$(dirname "$HOOKDECK_DIR")
+        
+        echo "Package directory: $PACKAGE_DIR"
+        
+        echo "Checking for wrapper script..."
+        if [ -f "$PACKAGE_DIR/bin/hookdeck.js" ]; then
+          echo "✓ Wrapper script found"
+        else
+          echo "✗ Wrapper script not found"
+          exit 1
+        fi
+        
+        echo "Checking for binaries directory..."
+        if [ -d "$PACKAGE_DIR/binaries" ]; then
+          echo "✓ Binaries directory found"
+          echo "Binaries included:"
+          ls -la "$PACKAGE_DIR/binaries" || true
+        else
+          echo "✗ Binaries directory not found"
+          exit 1
+        fi
+        
+        # Check platform-specific binary
+        PLATFORM="${{ inputs.platform }}"
+        case "$PLATFORM" in
+          darwin)
+            if [ -f "$PACKAGE_DIR/binaries/darwin-amd64/hookdeck" ] || [ -f "$PACKAGE_DIR/binaries/darwin-arm64/hookdeck" ]; then
+              echo "✓ macOS binary found"
+            else
+              echo "✗ macOS binary not found"
+              exit 1
+            fi
+            ;;
+          linux)
+            if [ -f "$PACKAGE_DIR/binaries/linux-amd64/hookdeck" ]; then
+              echo "✓ Linux binary found"
+            else
+              echo "✗ Linux binary not found"
+              exit 1
+            fi
+            ;;
+          win32)
+            if [ -f "$PACKAGE_DIR/binaries/win32-amd64/hookdeck.exe" ]; then
+              echo "✓ Windows binary found"
+            else
+              echo "✗ Windows binary not found"
+              exit 1
+            fi
+            ;;
+        esac

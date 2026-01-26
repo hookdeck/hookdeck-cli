@@ -1,0 +1,128 @@
+name: test-npm-install
+
+on:
+  # Trigger after release workflow completes successfully
+  # This will trigger for releases from ANY branch (main, feature branches, etc.)
+  workflow_run:
+    workflows: ["release"]
+    types:
+      - completed
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      npm_version:
+        description: "npm version to test (e.g., @beta, @latest, or specific version like 1.6.1-beta.1)"
+        required: false
+        default: "@beta"
+        type: string
+
+jobs:
+  determine-version:
+    runs-on: ubuntu-latest
+    # Always run, but only extract version if triggered by release workflow
+    if: always()
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      npm_tag: ${{ steps.extract.outputs.npm_tag }}
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Extract version from tag
+        id: extract
+        run: |
+          # For manual dispatch, skip version extraction (will use input instead)
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual dispatch - version will be provided via input"
+            echo "version=" >> $GITHUB_OUTPUT
+            echo "npm_tag=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # For workflow_run, check if release workflow succeeded
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ] || [ "${{ github.event.workflow_run.event }}" != "push" ]; then
+            echo "Release workflow did not succeed or was not a tag push, skipping"
+            echo "version=" >> $GITHUB_OUTPUT
+            echo "npm_tag=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Try to extract tag from workflow_run head_branch (for tag pushes, this should be refs/tags/v*)
+          TAG_REF="${{ github.event.workflow_run.head_branch }}"
+          
+          # If head_branch contains a tag ref, extract it
+          if [[ "$TAG_REF" == refs/tags/v* ]]; then
+            TAG_VERSION=${TAG_REF#refs/tags/v}
+            echo "Extracted version from tag ref: $TAG_VERSION"
+          else
+            # Fallback: Query npm for the latest version in the beta tag
+            echo "Warning: Could not extract tag from head_branch: $TAG_REF"
+            echo "Attempting to determine version from npm registry..."
+            
+            # Check beta tag first (most common for feature branch releases)
+            BETA_VERSION=$(npm view hookdeck-cli@beta version 2>/dev/null || echo "")
+            if [ -n "$BETA_VERSION" ]; then
+              TAG_VERSION="$BETA_VERSION"
+              echo "Using latest beta version: $TAG_VERSION"
+            else
+              # Fall back to latest
+              TAG_VERSION=$(npm view hookdeck-cli@latest version 2>/dev/null || echo "")
+              echo "Using latest version: $TAG_VERSION"
+            fi
+          fi
+          
+          echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
+          
+          # Determine npm tag
+          NPM_TAG="latest"
+          if [[ "$TAG_VERSION" == *-* ]]; then
+            NPM_TAG=$(echo "$TAG_VERSION" | cut -d'-' -f2 | cut -d'.' -f1)
+          fi
+          echo "npm_tag=$NPM_TAG" >> $GITHUB_OUTPUT
+          echo "Final: version=$TAG_VERSION, npm tag=$NPM_TAG"
+
+  test-npm-install:
+    needs: [determine-version]
+    # Run if: manual dispatch OR (workflow_run trigger AND determine-version has version output)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && needs.determine-version.outputs.version != '')
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win32
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Determine version to test
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.npm_version || '@beta' }}"
+          else
+            VERSION="${{ needs.determine-version.outputs.version }}"
+            NPM_TAG="${{ needs.determine-version.outputs.npm_tag }}"
+            # Use npm tag if it's a pre-release
+            if [ "$NPM_TAG" != "latest" ]; then
+              VERSION="@${NPM_TAG}"
+            fi
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Testing version: $VERSION"
+
+      - name: Test npm install
+        uses: ./.github/actions/test-npm-install
+        with:
+          version: ${{ steps.version.outputs.version }}
+          platform: ${{ matrix.platform }}
