@@ -18,9 +18,6 @@ jobs:
         with:
           go-version: 1.24.9
       
-      - name: Install GoReleaser
-        run: go install github.com/goreleaser/goreleaser@latest
-      
       - name: Install Windows cross-compilation tools
         run: |
           sudo apt-get update
@@ -30,6 +27,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
+      
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: v2.10.2
+          install-only: true
       
       - name: Run npm build tests
         run: |
