@@ -16,19 +16,12 @@
   },
   "homepage": "https://github.com/hookdeck/hookdeck-cli#readme",
   "bin": {
-    "hookdeck": "./bin/hookdeck"
+    "hookdeck": "./bin/hookdeck.js"
   },
-  "files": [],
-  "scripts": {
-    "postinstall": "go-npm install",
-    "preuninstall": "go-npm uninstall"
-  },
-  "goBinary": {
-    "name": "hookdeck",
-    "path": "./bin",
-    "url": "https://github.com/hookdeck/hookdeck-cli/releases/download/v{{version}}/hookdeck_{{version}}_{{platform}}_{{arch}}.tar.gz"
-  },
-  "dependencies": {
-    "go-npm-next": "^1.1.0"
-  }
+  "files": [
+    "bin/",
+    "binaries/"
+  ],
+  "scripts": {},
+  "dependencies": {}
 }
