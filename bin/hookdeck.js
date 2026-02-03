@@ -33,5 +33,5 @@ try {
 } catch (error) {
   // execFileSync will exit with the same code as the binary
   // If there's an error executing, exit with code 1
-  process.exit(error.status || 1);
+  process.exit(error.status ?? 1);
 }

@@ -7,14 +7,14 @@ before:
     - go generate ./...
 project_name: hookdeck
 builds:
-  # Darwin builds
+  # Darwin builds (CGO disabled for cross-compilation from Ubuntu)
   - id: npm-darwin-amd64
     binary: hookdeck
     main: ./main.go
     goos: [darwin]
     goarch: [amd64]
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     ldflags:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     hooks:
@@ -28,6 +28,8 @@ builds:
     main: ./main.go
     goos: [darwin]
     goarch: [arm64]
+    env:
+      - CGO_ENABLED=0
     ldflags:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     hooks:
@@ -67,16 +69,14 @@ builds:
         - cp "{{ .Path }}" binaries/linux-arm64/hookdeck
         - chmod +x binaries/linux-arm64/hookdeck
   
-  # Windows builds
+  # Windows builds (CGO disabled - codebase is pure Go)
   - id: npm-windows-amd64
     binary: hookdeck
     main: ./main.go
     goos: [windows]
     goarch: [amd64]
     env:
-      - CGO_ENABLED=1
-      - CC=x86_64-w64-mingw32-gcc
-      - CXX=x86_64-w64-mingw32-g++
+      - CGO_ENABLED=0
     ldflags:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     hooks:
@@ -90,9 +90,7 @@ builds:
     goos: [windows]
     goarch: [386]
     env:
-      - CGO_ENABLED=1
-      - CC=x86_64-w64-mingw32-gcc
-      - CXX=x86_64-w64-mingw32-g++
+      - CGO_ENABLED=0
     ldflags:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     hooks:
