@@ -32,6 +32,6 @@ try {
   execFileSync(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
 } catch (error) {
   // execFileSync will exit with the same code as the binary
-  // If there's an error executing, exit with code 1
-  process.exit(error.status || 1);
+  // If there's an error executing (status is null or undefined), exit with code 1
+  process.exit(error.status ?? 1);
 }
