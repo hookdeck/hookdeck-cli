@@ -35,6 +35,7 @@ import (
 
 type Flags struct {
 	NoWSS          bool
+	NoHealthcheck  bool
 	Path           string
 	MaxConnections int
 	Output         string
@@ -123,28 +124,30 @@ Specify a single destination to update the path. For example, pass a connection 
 		return err
 	}
 
-	// Perform initial health check on target server
+	// Perform initial health check on target server (unless disabled)
 	// Using 3-second timeout optimized for local development scenarios.
 	// This assumes low latency to localhost. For production/edge deployments,
 	// this timeout may need to be configurable in future iterations.
-	healthCheckTimeout := 3 * time.Second
-	healthResult := CheckServerHealth(URL, healthCheckTimeout)
+	if !flags.NoHealthcheck {
+		healthCheckTimeout := 3 * time.Second
+		healthResult := CheckServerHealth(URL, healthCheckTimeout, config.Insecure)
 
-	// For all output modes, warn if server isn't reachable
-	if !healthResult.Healthy {
-		warningMsg := FormatHealthMessage(healthResult, URL)
+		// For all output modes, warn if server isn't reachable
+		if !healthResult.Healthy {
+			warningMsg := FormatHealthMessage(healthResult, URL)
 
-		if flags.Output == "interactive" {
-			// Interactive mode will show warning before TUI starts
-			fmt.Println()
-			fmt.Println(warningMsg)
-			fmt.Println()
-			time.Sleep(500 * time.Millisecond) // Give user time to see warning before TUI starts
-		} else {
-			// Compact/quiet modes: print warning before connection info
-			fmt.Println()
-			fmt.Println(warningMsg)
-			fmt.Println()
+			if flags.Output == "interactive" {
+				// Interactive mode will show warning before TUI starts
+				fmt.Println()
+				fmt.Println(warningMsg)
+				fmt.Println()
+				time.Sleep(500 * time.Millisecond) // Give user time to see warning before TUI starts
+			} else {
+				// Compact/quiet modes: print warning before connection info
+				fmt.Println()
+				fmt.Println(warningMsg)
+				fmt.Println()
+			}
 		}
 	}
 
@@ -168,6 +171,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		ConsoleBaseURL:   config.ConsoleBaseURL,
 		WSBaseURL:        config.WSBaseURL,
 		NoWSS:            flags.NoWSS,
+		NoHealthcheck:    flags.NoHealthcheck,
 		URL:              URL,
 		Log:              log.StandardLogger(),
 		Insecure:         config.Insecure,

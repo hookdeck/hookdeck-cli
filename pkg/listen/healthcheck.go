@@ -16,10 +16,11 @@ const (
 	HealthUnreachable = healthcheck.HealthUnreachable
 )
 
-// CheckServerHealth performs a TCP connection check to the target URL
+// CheckServerHealth performs a connection check to the target URL
+// For HTTPS URLs, it performs a TLS handshake with optional certificate verification skip.
 // This is a wrapper around the healthcheck package function for backward compatibility
-func CheckServerHealth(targetURL *url.URL, timeout time.Duration) HealthCheckResult {
-	return healthcheck.CheckServerHealth(targetURL, timeout)
+func CheckServerHealth(targetURL *url.URL, timeout time.Duration, insecure bool) HealthCheckResult {
+	return healthcheck.CheckServerHealth(targetURL, timeout, insecure)
 }
 
 // FormatHealthMessage creates a user-friendly health status message
