@@ -1,0 +1,35 @@
+name: test-npm-build
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test-npm-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: v2.10.2
+          install-only: true
+
+      - name: Run npm build tests
+        run: |
+          chmod +x test-scripts/test-npm-build.sh
+          ./test-scripts/test-npm-build.sh

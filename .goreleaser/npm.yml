@@ -1,0 +1,99 @@
+version: 2
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    - go mod download
+    - go generate ./...
+project_name: hookdeck
+builds:
+  # Darwin builds (CGO disabled for cross-compilation from Ubuntu)
+  - id: npm-darwin-amd64
+    binary: hookdeck
+    main: ./main.go
+    goos: [darwin]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    hooks:
+      post:
+        - mkdir -p binaries/darwin-amd64
+        - cp "{{ .Path }}" binaries/darwin-amd64/hookdeck
+        - chmod +x binaries/darwin-amd64/hookdeck
+  
+  - id: npm-darwin-arm64
+    binary: hookdeck
+    main: ./main.go
+    goos: [darwin]
+    goarch: [arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    hooks:
+      post:
+        - mkdir -p binaries/darwin-arm64
+        - cp "{{ .Path }}" binaries/darwin-arm64/hookdeck
+        - chmod +x binaries/darwin-arm64/hookdeck
+  
+  # Linux builds
+  - id: npm-linux-amd64
+    binary: hookdeck
+    main: ./main.go
+    goos: [linux]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    hooks:
+      post:
+        - mkdir -p binaries/linux-amd64
+        - cp "{{ .Path }}" binaries/linux-amd64/hookdeck
+        - chmod +x binaries/linux-amd64/hookdeck
+  
+  - id: npm-linux-arm64
+    binary: hookdeck
+    main: ./main.go
+    goos: [linux]
+    goarch: [arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    hooks:
+      post:
+        - mkdir -p binaries/linux-arm64
+        - cp "{{ .Path }}" binaries/linux-arm64/hookdeck
+        - chmod +x binaries/linux-arm64/hookdeck
+  
+  # Windows builds (CGO disabled - codebase is pure Go)
+  - id: npm-windows-amd64
+    binary: hookdeck
+    main: ./main.go
+    goos: [windows]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    hooks:
+      post:
+        - mkdir -p binaries/win32-amd64
+        - cp "{{ .Path }}" binaries/win32-amd64/hookdeck.exe
+  
+  - id: npm-windows-386
+    binary: hookdeck
+    main: ./main.go
+    goos: [windows]
+    goarch: [386]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
+    hooks:
+      post:
+        - mkdir -p binaries/win32-386
+        - cp "{{ .Path }}" binaries/win32-386/hookdeck.exe

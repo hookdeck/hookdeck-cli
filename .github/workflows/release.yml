@@ -135,6 +135,19 @@ jobs:
 
       - run: npm ci
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.9
+
+      - name: Build npm binaries with GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: v2.10.2
+          args: build -f .goreleaser/npm.yml --clean --skip validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Determine npm tag for pre-releases
         id: npm_tag
         run: |

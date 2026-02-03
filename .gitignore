@@ -1,7 +1,9 @@
 
 completions/
 dist/
-bin/
+bin/*
+!bin/hookdeck.js
+binaries/
 coverage.txt
 /hookdeck
 /hookdeck-darwin

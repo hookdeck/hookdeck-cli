@@ -1019,6 +1019,46 @@ Then run the locally generated `hookdeck-cli` binary:
 ./hookdeck-cli
 ```
 
+### Testing the npm package build
+
+To test the npm package build process locally (including the wrapper script), you can use the automated test script:
+
+```sh
+# Run the automated test script (recommended)
+./test-scripts/test-npm-build.sh
+```
+
+The test script will:
+- Build all 6 platform binaries using GoReleaser
+- Verify the binaries directory structure
+- Test the wrapper script on your current platform
+- Verify npm pack includes all required files
+
+**Manual testing (if you prefer step-by-step):**
+
+```sh
+# Install GoReleaser (if not already installed)
+# Option 1: Using Homebrew (recommended on macOS)
+brew install goreleaser
+
+# Option 2: Download binary from GitHub releases
+# Visit https://github.com/goreleaser/goreleaser/releases/latest
+
+# Build all platform binaries for npm
+goreleaser build -f .goreleaser/npm.yml --snapshot --clean
+
+# Verify binaries directory structure
+ls -R binaries/
+
+# Test the wrapper script on your platform
+node bin/hookdeck.js --version
+
+# Test npm package creation (dry-run)
+npm pack --dry-run
+```
+
+This will create the `binaries/` directory with all 6 platform binaries, allowing you to test the wrapper script locally before publishing.
+
 ## Testing
 
 ### Running Acceptance Tests
@@ -1053,6 +1093,36 @@ In CI environments, set the `HOOKDECK_CLI_TESTING_API_KEY` environment variable 
 
 For detailed testing documentation and troubleshooting, see [`test/acceptance/README.md`](test/acceptance/README.md).
 
+### Testing npm package and wrapper script
+
+The npm package includes a wrapper script (`bin/hookdeck.js`) that detects the platform and executes the correct binary. 
+
+**Quick test (using automated script):**
+
+```sh
+./test-scripts/test-npm-build.sh
+```
+
+**Manual testing:**
+
+```sh
+# Ensure GoReleaser is installed (see "Testing the npm package build" section above)
+
+# Build all platform binaries
+goreleaser build -f .goreleaser/npm.yml --snapshot --clean
+
+# Test wrapper script on current platform
+node bin/hookdeck.js version
+
+# Verify wrapper script can find binary
+node bin/hookdeck.js --help
+
+# Test npm pack includes all files
+npm pack --dry-run | grep -E "(bin/hookdeck.js|binaries/)"
+```
+
+**Note:** The wrapper script expects binaries in `binaries/{platform}-{arch}/hookdeck[.exe]`. When building locally, ensure all platforms are built or the wrapper will fail for missing platforms.
+
 ### Testing against a local API
 
 When testing against a non-production Hookdeck API, you can use the
@@ -1075,63 +1145,11 @@ docker run --rm -it \
 
 ## Releasing
 
-This section describes the branching strategy and release process for the Hookdeck CLI.
-
-### Branching Strategy
-
-The project uses two primary branches:
-
-- **`main`** - The stable, production-ready branch. All production releases are created from this branch.
-- **`next`** - The beta/pre-release branch. All new features are merged here first for testing before being promoted to `main`.
-
-### Beta Releases
-
-Beta releases allow you to publish pre-release versions for testing without blocking the `main` branch or affecting stable releases.
-
-**Process:**
-
-1. Ensure all desired features are merged into the `next` branch
-2. Pull the latest changes locally:
-   ```sh
-   git checkout next
-   git pull origin next
-   ```
-3. Create and push a beta tag with a pre-release identifier:
-   ```sh
-   git tag v1.2.3-beta.0
-   git push origin v1.2.3-beta.0
-   ```
-4. The GitHub Actions workflow will automatically:
-   - Build binaries for all platforms (macOS, Linux, Windows)
-   - Create a GitHub pre-release (marked as "Pre-release")
-   - Publish to NPM with the `beta` tag
-   - Create beta packages:
-     - Homebrew: `hookdeck-beta` formula
-     - Scoop: `hookdeck-beta` package
-     - Docker: Tagged with the version (e.g., `v1.2.3-beta.0`), but not `latest`
-
-**Installing beta releases:**
-
-```sh
-# NPM
-npm install hookdeck-cli@beta -g
-
-# Homebrew
-brew install hookdeck/hookdeck/hookdeck-beta
-
-# To force the symlink update and overwrite all conflicting files:
-# brew link --overwrite hookdeck-beta
-
-# Scoop
-scoop install hookdeck-beta
-
-# Docker
-docker run hookdeck/hookdeck-cli:v1.2.3-beta.0 version
-```
+This section describes the release process for the Hookdeck CLI.
 
 ## Release Process
 
-The release workflow supports tagging from ANY branch - it automatically detects which branch contains the tag.
+The release workflow supports tagging from **ANY branch** - it automatically detects which branch contains the tag. This means you can create beta releases directly from feature branches for testing before merging to `main`.
 
 ### Stable Release (Preferred Method: GitHub UI)
 
@@ -1162,6 +1180,8 @@ git push origin v1.3.0
 
 ### Pre-release from Main (General Beta Testing)
 
+For general beta testing of features that have been merged to `main`:
+
 **Preferred Method: GitHub UI**
 1. Ensure `main` branch is in the desired state
 2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
@@ -1177,6 +1197,25 @@ git push origin v1.3.0
 git checkout main
 git tag v1.3.0-beta.1
 git push origin v1.3.0-beta.1
+```
+
+**Installing beta releases:**
+
+```sh
+# NPM
+npm install hookdeck-cli@beta -g
+
+# Homebrew
+brew install hookdeck/hookdeck/hookdeck-beta
+
+# To force the symlink update and overwrite all conflicting files:
+# brew link --overwrite hookdeck-beta
+
+# Scoop
+scoop install hookdeck-beta
+
+# Docker
+docker run hookdeck/hookdeck-cli:v1.3.0-beta.1 version
 ```
 
 ### Pre-release from Feature Branch (Feature-Specific Testing)
@@ -1200,6 +1239,25 @@ git checkout feat/my-feature
 git tag v1.3.0-beta.1
 git push origin v1.3.0-beta.1
 # Then create release notes on GitHub Releases page
+```
+
+**Installing beta releases:**
+
+```sh
+# NPM
+npm install hookdeck-cli@beta -g
+
+# Homebrew
+brew install hookdeck/hookdeck/hookdeck-beta
+
+# To force the symlink update and overwrite all conflicting files:
+# brew link --overwrite hookdeck-beta
+
+# Scoop
+scoop install hookdeck-beta
+
+# Docker
+docker run hookdeck/hookdeck-cli:v1.3.0-beta.1 version
 ```
 
 **Note:** Only stable releases (without pre-release identifiers like `-beta`, `-alpha`) will update the `latest` tags across all distribution channels.
