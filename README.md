@@ -394,7 +394,7 @@ hookdeck logout
 
 When forwarding events to an HTTPS URL as the first argument to `hookdeck listen` (e.g., `https://localhost:1234/webhook`), you might encounter SSL validation errors if the destination is using a self-signed certificate.
 
-For local development scenarios, you can instruct the `listen` command to bypass this SSL certificate validation by using its `--insecure` flag. You must provide the full HTTPS URL.
+For local development scenarios, you can instruct the `listen` command to bypass this SSL certificate validation by using its `--insecure` flag. You must provide the full HTTPS URL. This flag also applies to the periodic server health checks that the CLI performs.
 
 **This is dangerous and should only be used in trusted local development environments for destinations you control.**
 
@@ -402,6 +402,14 @@ Example of skipping SSL validation for an HTTPS destination:
 
 ```sh
 hookdeck listen --insecure https://<your-ssl-url-or-url:port>/ <source-alias?> <connection-query?>
+```
+
+### Disable health checks
+
+The CLI periodically checks if your local server is reachable and displays warnings if the connection fails. If these health checks cause issues in your environment, you can disable them with the `--no-healthcheck` flag:
+
+```sh
+hookdeck listen --no-healthcheck 3000 <source-alias?>
 ```
 
 ### Version

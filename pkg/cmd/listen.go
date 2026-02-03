@@ -32,6 +32,7 @@ import (
 type listenCmd struct {
 	cmd            *cobra.Command
 	noWSS          bool
+	noHealthcheck  bool
 	path           string
 	maxConnections int
 	output         string
@@ -155,6 +156,8 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 
 	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only)")
 
+	lc.cmd.Flags().BoolVar(&lc.noHealthcheck, "no-healthcheck", false, "Disable periodic health checks of the local server")
+
 	lc.cmd.Flags().StringVar(&lc.filterBody, "filter-body", "", "Filter events by request body using Hookdeck filter syntax (JSON)")
 	lc.cmd.Flags().StringVar(&lc.filterHeaders, "filter-headers", "", "Filter events by request headers using Hookdeck filter syntax (JSON)")
 	lc.cmd.Flags().StringVar(&lc.filterQuery, "filter-query", "", "Filter events by query parameters using Hookdeck filter syntax (JSON)")
@@ -255,6 +258,7 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
 		NoWSS:          lc.noWSS,
+		NoHealthcheck:  lc.noHealthcheck,
 		Path:           lc.path,
 		Output:         lc.output,
 		MaxConnections: lc.maxConnections,

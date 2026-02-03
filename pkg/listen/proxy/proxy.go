@@ -48,8 +48,10 @@ type Config struct {
 	// Force use of unencrypted ws:// protocol instead of wss://
 	NoWSS    bool
 	Insecure bool
+	// Disable periodic health checks of the local server
+	NoHealthcheck bool
 	// Output mode: interactive, compact, quiet
-	Output   string
+	Output string
 	GuestURL string
 	// MaxConnections allows tuning the maximum concurrent connections per host.
 	// Default: 50 concurrent connections
@@ -165,13 +167,19 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			if !hasConnectedOnce {
 				hasConnectedOnce = true
 
-				// Perform initial health check and notify renderer immediately
-				healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second)
-				p.serverHealthy.Store(healthy)
-				p.renderer.OnServerHealthChanged(healthy, err)
+				// Skip health monitoring if disabled via --no-healthcheck flag
+				if p.cfg.NoHealthcheck {
+					// Assume server is healthy when healthchecks are disabled
+					p.serverHealthy.Store(true)
+				} else {
+					// Perform initial health check and notify renderer immediately
+					healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second, p.cfg.Insecure)
+					p.serverHealthy.Store(healthy)
+					p.renderer.OnServerHealthChanged(healthy, err)
 
-				// Start health check monitor after initial check
-				go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
+					// Start health check monitor after initial check
+					go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
+				}
 			}
 		}()
 
@@ -459,8 +467,8 @@ func (p *Proxy) processEndpointResponse(eventID string, webhookEvent *websocket.
 }
 
 // checkServerHealth is a simple wrapper around the healthcheck package's CheckServerHealth
-func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) {
-	result := healthcheck.CheckServerHealth(targetURL, timeout)
+func checkServerHealth(targetURL *url.URL, timeout time.Duration, insecure bool) (bool, error) {
+	result := healthcheck.CheckServerHealth(targetURL, timeout, insecure)
 	return result.Healthy, result.Error
 }
 
@@ -482,7 +490,7 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 			return
 		case <-ticker.C:
 			// Perform health check
-			healthy, err := checkServerHealth(targetURL, 3*time.Second)
+			healthy, err := checkServerHealth(targetURL, 3*time.Second, p.cfg.Insecure)
 
 			// Only notify on state changes, atomically
 			prevHealthy := p.serverHealthy.Swap(healthy)

@@ -186,6 +186,7 @@ hookdeck project use --profile production
 [source]              # Optional positional argument for source name
 [connection]          # Optional positional argument for connection name
 --path string         # Specific path to forward to (e.g., "/webhooks")
+--no-healthcheck      # Disable periodic health checks of the local server
 --no-wss             # Force unencrypted WebSocket connection (hidden flag)
 ```
 
@@ -205,6 +206,9 @@ hookdeck listen 3000 stripe-webhooks payment-connection
 
 # Forward to specific path
 hookdeck listen --path /webhooks
+
+# Disable periodic health checks of the local server
+hookdeck listen --no-healthcheck 3000
 
 # Force unencrypted WebSocket connection (hidden flag)
 hookdeck listen --no-wss
