@@ -522,7 +522,7 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 	// Single API call to create the connection
 	connection, err := client.CreateConnection(context.Background(), req)
 	if err != nil {
-		return fmt.Errorf("failed to create connection: %w", err)
+		return cc.enhanceCreateError(err)
 	}
 
 	// Display results
@@ -1048,4 +1048,35 @@ func (cc *connectionCreateCmd) buildRulesArray(cmd *cobra.Command) ([]hookdeck.R
 	}
 
 	return rules, nil
+}
+
+// enhanceCreateError adds helpful hints to API errors based on the flags used
+func (cc *connectionCreateCmd) enhanceCreateError(err error) error {
+	return cc.enhanceConnectionError(err, "create")
+}
+
+// enhanceConnectionError adds helpful hints to API errors based on the flags used
+// This is shared between create and upsert commands
+func (cc *connectionCreateCmd) enhanceConnectionError(err error, operation string) error {
+	errStr := err.Error()
+
+	// Check if this is a "Not Found" error, which commonly indicates an invalid resource ID
+	isNotFound := strings.Contains(errStr, "Not Found") || strings.Contains(errStr, "404")
+
+	if isNotFound {
+		var hints []string
+
+		if cc.sourceID != "" {
+			hints = append(hints, fmt.Sprintf("  - --source-id '%s' was provided. Source IDs typically start with 'src_'.", cc.sourceID))
+		}
+		if cc.destinationID != "" {
+			hints = append(hints, fmt.Sprintf("  - --destination-id '%s' was provided. Destination IDs typically start with 'des_'.", cc.destinationID))
+		}
+
+		if len(hints) > 0 {
+			return fmt.Errorf("failed to %s connection: %w\n\nHints:\n%s\n\nPlease verify the resource IDs exist and are the correct type.", operation, err, strings.Join(hints, "\n"))
+		}
+	}
+
+	return fmt.Errorf("failed to %s connection: %w", operation, err)
 }

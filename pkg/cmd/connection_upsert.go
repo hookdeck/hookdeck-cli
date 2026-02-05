@@ -368,7 +368,7 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 
 	connection, err := client.UpsertConnection(context.Background(), req)
 	if err != nil {
-		return fmt.Errorf("failed to upsert connection: %w", err)
+		return cu.enhanceConnectionError(err, "upsert")
 	}
 
 	// Display results
