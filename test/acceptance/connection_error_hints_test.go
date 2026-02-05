@@ -210,15 +210,13 @@ func TestConnectionCreateWithExistingSourceID(t *testing.T) {
 	require.NotEmpty(t, initialConn.ID, "Initial connection should have ID")
 
 	// Get the source ID from the created connection
-	sourceID := initialConn.Source.Name // We need the actual source ID, not name
-	// Actually, let's get the connection details which includes source ID
 	var connDetails map[string]interface{}
 	err = cli.RunJSON(&connDetails, "connection", "get", initialConn.ID)
 	require.NoError(t, err, "Should get connection details")
 
 	source, ok := connDetails["source"].(map[string]interface{})
 	require.True(t, ok, "Should have source in connection")
-	sourceID, ok = source["id"].(string)
+	sourceID, ok := source["id"].(string)
 	require.True(t, ok && sourceID != "", "Should have source ID")
 
 	t.Logf("Created initial connection with source ID: %s", sourceID)
