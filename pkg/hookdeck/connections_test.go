@@ -72,7 +72,7 @@ func TestListConnections(t *testing.T) {
 				"disabled":    "false",
 				"paused":      "false",
 				"source_id":   "src_123",
-				"destination": "dest_123",
+				"destination": "des_123",
 			},
 			mockResponse: ConnectionListResponse{
 				Models: []Connection{
@@ -267,7 +267,7 @@ func TestCreateConnection(t *testing.T) {
 				Name:          stringPtr("test-connection"),
 				Description:   stringPtr("test description"),
 				SourceID:      stringPtr("src_123"),
-				DestinationID: stringPtr("dest_123"),
+				DestinationID: stringPtr("des_123"),
 			},
 			mockResponse: Connection{
 				ID:          "conn_123",
