@@ -903,7 +903,7 @@ hookdeck connection list
 hookdeck connection list --source-id src_abc123
 
 # Filter by destination ID
-hookdeck connection list --destination-id dest_xyz789
+hookdeck connection list --destination-id des_xyz789
 
 # Filter by connection name
 hookdeck connection list --name "production-connection"
@@ -1586,7 +1586,7 @@ hookdeck attempt list
 hookdeck attempt list --event-id evt_123
 
 # List attempts for a destination
-hookdeck attempt list --destination-id dest_456
+hookdeck attempt list --destination-id des_456
 
 # Filter by status
 hookdeck attempt list --status FAILED

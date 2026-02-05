@@ -816,7 +816,7 @@ $ hookdeck connection list
 
 # Filter by source or destination
 $ hookdeck connection list --source src_abc123
-$ hookdeck connection list --destination dest_xyz789
+$ hookdeck connection list --destination des_xyz789
 
 # Filter by name pattern
 $ hookdeck connection list --name "production-*"
