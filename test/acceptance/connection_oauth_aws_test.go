@@ -53,12 +53,34 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		destConfig, ok := dest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object")
 
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "OAUTH2_CLIENT_CREDENTIALS", authMethod["type"], "Auth type should be OAUTH2_CLIENT_CREDENTIALS")
-			assert.Equal(t, "https://auth.example.com/oauth/token", authMethod["auth_server"], "Auth server should match")
-			assert.Equal(t, "client_123", authMethod["client_id"], "Client ID should match")
-			// Client secret and scopes may or may not be returned depending on API
-		}
+		authType, ok := destConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type string in destination config, got config: %v", destConfig)
+		assert.Equal(t, "OAUTH2_CLIENT_CREDENTIALS", authType, "Auth type should be OAUTH2_CLIENT_CREDENTIALS")
+
+		// Fetch connection with --include-destination-auth to verify credentials were stored
+		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+			"--include-destination-auth",
+			"--output", "json")
+		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)
+
+		var getResp map[string]interface{}
+		err = json.Unmarshal([]byte(getStdout), &getResp)
+		require.NoError(t, err, "Failed to parse get response: %s", getStdout)
+
+		getDest, ok := getResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination in get response")
+		getConfig, ok := getDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected config in get response destination")
+
+		getAuthType, ok := getConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type in get response config: %v", getConfig)
+		assert.Equal(t, "OAUTH2_CLIENT_CREDENTIALS", getAuthType, "Auth type should match on get")
+
+		getAuth, ok := getConfig["auth"].(map[string]interface{})
+		require.True(t, ok, "Expected auth object in get response config: %v", getConfig)
+		assert.Equal(t, "https://auth.example.com/oauth/token", getAuth["auth_server"], "Auth server should match")
+		assert.Equal(t, "client_123", getAuth["client_id"], "Client ID should match")
+		assert.Equal(t, "secret_456", getAuth["client_secret"], "Client secret should match with --include-destination-auth")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -112,12 +134,34 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		destConfig, ok := dest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object")
 
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "OAUTH2_AUTHORIZATION_CODE", authMethod["type"], "Auth type should be OAUTH2_AUTHORIZATION_CODE")
-			assert.Equal(t, "https://auth.example.com/oauth/token", authMethod["auth_server"], "Auth server should match")
-			assert.Equal(t, "client_789", authMethod["client_id"], "Client ID should match")
-			// Sensitive fields like client_secret, refresh_token may not be returned
-		}
+		authType, ok := destConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type string in destination config, got config: %v", destConfig)
+		assert.Equal(t, "OAUTH2_AUTHORIZATION_CODE", authType, "Auth type should be OAUTH2_AUTHORIZATION_CODE")
+
+		// Fetch connection with --include-destination-auth to verify credentials were stored
+		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+			"--include-destination-auth",
+			"--output", "json")
+		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)
+
+		var getResp map[string]interface{}
+		err = json.Unmarshal([]byte(getStdout), &getResp)
+		require.NoError(t, err, "Failed to parse get response: %s", getStdout)
+
+		getDest, ok := getResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination in get response")
+		getConfig, ok := getDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected config in get response destination")
+
+		getAuthType, ok := getConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type in get response config: %v", getConfig)
+		assert.Equal(t, "OAUTH2_AUTHORIZATION_CODE", getAuthType, "Auth type should match on get")
+
+		getAuth, ok := getConfig["auth"].(map[string]interface{})
+		require.True(t, ok, "Expected auth object in get response config: %v", getConfig)
+		assert.Equal(t, "https://auth.example.com/oauth/token", getAuth["auth_server"], "Auth server should match")
+		assert.Equal(t, "client_789", getAuth["client_id"], "Client ID should match")
+		assert.Equal(t, "secret_abc", getAuth["client_secret"], "Client secret should match with --include-destination-auth")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -170,12 +214,35 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		destConfig, ok := dest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object")
 
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "AWS_SIGNATURE", authMethod["type"], "Auth type should be AWS_SIGNATURE")
-			assert.Equal(t, "us-east-1", authMethod["region"], "AWS region should match")
-			assert.Equal(t, "execute-api", authMethod["service"], "AWS service should match")
-			// Access key may be returned but secret key should not be for security
-		}
+		authType, ok := destConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type string in destination config, got config: %v", destConfig)
+		assert.Equal(t, "AWS_SIGNATURE", authType, "Auth type should be AWS_SIGNATURE")
+
+		// Fetch connection with --include-destination-auth to verify credentials were stored
+		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+			"--include-destination-auth",
+			"--output", "json")
+		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)
+
+		var getResp map[string]interface{}
+		err = json.Unmarshal([]byte(getStdout), &getResp)
+		require.NoError(t, err, "Failed to parse get response: %s", getStdout)
+
+		getDest, ok := getResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination in get response")
+		getConfig, ok := getDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected config in get response destination")
+
+		getAuthType, ok := getConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type in get response config: %v", getConfig)
+		assert.Equal(t, "AWS_SIGNATURE", getAuthType, "Auth type should match on get")
+
+		getAuth, ok := getConfig["auth"].(map[string]interface{})
+		require.True(t, ok, "Expected auth object in get response config: %v", getConfig)
+		assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", getAuth["access_key_id"], "AWS access key ID should match")
+		assert.Equal(t, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", getAuth["secret_access_key"], "AWS secret access key should match")
+		assert.Equal(t, "us-east-1", getAuth["region"], "AWS region should match")
+		assert.Equal(t, "execute-api", getAuth["service"], "AWS service should match")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -229,11 +296,33 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		destConfig, ok := dest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object")
 
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "GCP_SERVICE_ACCOUNT", authMethod["type"], "Auth type should be GCP_SERVICE_ACCOUNT")
-			assert.Equal(t, "https://www.googleapis.com/auth/cloud-platform", authMethod["scope"], "GCP scope should match")
-			// Service account key should not be returned for security reasons
-		}
+		authType, ok := destConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type string in destination config, got config: %v", destConfig)
+		assert.Equal(t, "GCP_SERVICE_ACCOUNT", authType, "Auth type should be GCP_SERVICE_ACCOUNT")
+
+		// Fetch connection with --include-destination-auth to verify credentials were stored
+		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+			"--include-destination-auth",
+			"--output", "json")
+		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)
+
+		var getResp map[string]interface{}
+		err = json.Unmarshal([]byte(getStdout), &getResp)
+		require.NoError(t, err, "Failed to parse get response: %s", getStdout)
+
+		getDest, ok := getResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination in get response")
+		getConfig, ok := getDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected config in get response destination")
+
+		getAuthType, ok := getConfig["auth_type"].(string)
+		require.True(t, ok, "Expected auth_type in get response config: %v", getConfig)
+		assert.Equal(t, "GCP_SERVICE_ACCOUNT", getAuthType, "Auth type should match on get")
+
+		getAuth, ok := getConfig["auth"].(map[string]interface{})
+		require.True(t, ok, "Expected auth object in get response config: %v", getConfig)
+		assert.Equal(t, "https://www.googleapis.com/auth/cloud-platform", getAuth["scope"], "GCP scope should match")
+		assert.NotEmpty(t, getAuth["service_account_key"], "Service account key should be present with --include-destination-auth")
 
 		// Cleanup
 		t.Cleanup(func() {

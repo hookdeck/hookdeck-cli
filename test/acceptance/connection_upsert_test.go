@@ -181,9 +181,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		updatedDestConfig, ok := updatedDest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config")
 
-		if authMethod, ok := updatedDestConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "BEARER", authMethod["type"], "Auth type should be BEARER")
-		}
+		assert.Equal(t, "BEARER_TOKEN", updatedDestConfig["auth_type"], "Auth type should be BEARER_TOKEN")
 
 		t.Logf("Successfully updated connection %s auth method to bearer", connID)
 	})

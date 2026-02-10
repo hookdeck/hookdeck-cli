@@ -599,12 +599,24 @@ func (cu *connectionUpsertCmd) buildDestinationInputForUpdate(existingDest *hook
 
 	// Apply authentication config if provided
 	if cu.DestinationAuthMethod != "" {
+		// Clear any existing auth fields before setting new ones
+		delete(destConfig, "auth_type")
+		delete(destConfig, "auth")
+
 		authConfig, err := cu.buildAuthConfig()
 		if err != nil {
 			return nil, err
 		}
 		if len(authConfig) > 0 {
-			destConfig["auth_method"] = authConfig
+			// Use the correct API format: auth_type + auth as separate fields
+			destConfig["auth_type"] = authConfig["type"]
+			auth := make(map[string]interface{})
+			for k, v := range authConfig {
+				if k != "type" {
+					auth[k] = v
+				}
+			}
+			destConfig["auth"] = auth
 		}
 	}
 

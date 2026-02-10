@@ -17,7 +17,8 @@ import (
 type connectionGetCmd struct {
 	cmd *cobra.Command
 
-	output string
+	output      string
+	includeDestinationAuth bool
 }
 
 func newConnectionGetCmd() *connectionGetCmd {
@@ -41,6 +42,7 @@ Examples:
 	}
 
 	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	addIncludeDestinationAuthFlag(cc.cmd, &cc.includeDestinationAuth)
 
 	return cc
 }
@@ -64,6 +66,17 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 	conn, err := apiClient.GetConnection(ctx, connectionID)
 	if err != nil {
 		return formatConnectionError(err, connectionIDOrName)
+	}
+
+	// The connections API does not support include=config.auth, so when
+	// --include-destination-auth is requested we fetch the destination directly
+	// from GET /destinations/{id}?include=config.auth and merge the enriched
+	// config back into the connection response.
+	if cc.includeDestinationAuth && conn.Destination != nil {
+		dest, err := apiClient.GetDestination(ctx, conn.Destination.ID, includeAuthParams(true))
+		if err == nil {
+			conn.Destination = dest
+		}
 	}
 
 	if cc.output == "json" {
