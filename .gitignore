@@ -16,3 +16,4 @@ default_cassette.yaml
 __debug_bin
 node_modules/
 .env
+test-scripts/.install-test/
