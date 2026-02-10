@@ -654,7 +654,14 @@ func (cc *connectionCreateCmd) buildDestinationConfig() (map[string]interface{},
 	}
 
 	if len(authConfig) > 0 {
-		config["auth_method"] = authConfig
+		config["auth_type"] = authConfig["type"]
+		auth := make(map[string]interface{})
+		for k, v := range authConfig {
+			if k != "type" {
+				auth[k] = v
+			}
+		}
+		config["auth"] = auth
 	}
 
 	// Add rate limiting configuration

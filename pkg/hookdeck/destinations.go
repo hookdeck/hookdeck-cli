@@ -1,6 +1,9 @@
 package hookdeck
 
 import (
+	"context"
+	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -53,6 +56,27 @@ func (d *Destination) SetCLIPath(path string) {
 		}
 		d.Config["path"] = path
 	}
+}
+
+// GetDestination retrieves a single destination by ID
+func (c *Client) GetDestination(ctx context.Context, id string, params map[string]string) (*Destination, error) {
+	queryParams := url.Values{}
+	for k, v := range params {
+		queryParams.Add(k, v)
+	}
+
+	resp, err := c.Get(ctx, fmt.Sprintf("/2025-07-01/destinations/%s", id), queryParams.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var destination Destination
+	_, err = postprocessJsonResponse(resp, &destination)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse destination response: %w", err)
+	}
+
+	return &destination, nil
 }
 
 // DestinationCreateInput represents input for creating a destination inline

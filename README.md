@@ -841,6 +841,9 @@ $ hookdeck connection get "my-connection"
 
 # Get as JSON
 $ hookdeck connection get conn_123abc --output json
+
+# Include destination authentication credentials
+$ hookdeck connection get conn_123abc --include-destination-auth --output json
 ```
 
 #### Connection lifecycle management

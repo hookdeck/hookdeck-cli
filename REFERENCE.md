@@ -940,7 +940,15 @@ hookdeck connection get "my-connection"
 
 # Get as JSON
 hookdeck connection get conn_abc123 --output json
+
+# Include destination authentication credentials
+hookdeck connection get conn_abc123 --include-destination-auth --output json
 ```
+
+**Flags:**
+
+- `--output json` - Output in JSON format
+- `--include-destination-auth` - Include destination authentication credentials in the response (fetches via GET /destinations/{id}?include=config.auth)
 
 ### Create Connection
 
