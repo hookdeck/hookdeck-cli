@@ -1146,6 +1146,21 @@ docker run --rm -it \
     http://host.docker.internal:1234
 ```
 
+### Testing the published npm package
+
+To verify that the published npm package installs correctly and has the expected layout (wrapper script and platform binaries), use the local test script. It installs into a controlled directory (no global install) and runs the same checks as the `test-npm-install` CI workflow.
+
+```sh
+# Test with @latest (default)
+./test-scripts/test-npm-install-local.sh
+
+# Test with a specific version or tag
+./test-scripts/test-npm-install-local.sh 1.7.1
+./test-scripts/test-npm-install-local.sh @beta
+```
+
+Install output is written to `test-scripts/.install-test/` (gitignored).
+
 ## Releasing
 
 This section describes the release process for the Hookdeck CLI.

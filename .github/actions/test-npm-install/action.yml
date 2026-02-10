@@ -42,81 +42,31 @@ runs:
           echo "Testing with npm tag: $VERSION (no polling needed)"
         fi
 
-    - name: Install hookdeck-cli
+    - name: Install hookdeck-cli (local, no global)
       shell: bash
       run: |
         VERSION="${{ inputs.version }}"
-        echo "Installing hookdeck-cli${VERSION}..."
-        npm install -g "hookdeck-cli${VERSION}"
+        INSTALL_DIR="${RUNNER_TEMP}/hookdeck-cli-install-test"
+        mkdir -p "$INSTALL_DIR"
+        cd "$INSTALL_DIR"
+        # Explicit package.json so npm installs here (not in repo root if runner cwd leaks)
+        echo '{"name":"hookdeck-cli-install-test","version":"1.0.0","private":true}' > package.json
+        # npm install needs package@version; tags already have @ (e.g. @latest, @beta)
+        if [[ "$VERSION" == @* ]]; then
+          PKG_SPEC="hookdeck-cli${VERSION}"
+        else
+          PKG_SPEC="hookdeck-cli@${VERSION}"
+        fi
+        echo "Installing ${PKG_SPEC} into $INSTALL_DIR..."
+        npm install "$PKG_SPEC"
+        # Required by test-npm-install-verify.sh in the next step
+        echo "INSTALL_DIR=$INSTALL_DIR" >> "$GITHUB_ENV"
 
     - name: Verify installation
       shell: bash
+      env:
+        PLATFORM: ${{ inputs.platform }}
       run: |
-        echo "Checking hookdeck binary location..."
-        which hookdeck || (echo "hookdeck not in PATH" && exit 1)
-        
-        echo "Checking hookdeck version..."
-        hookdeck --version
-
-    - name: Test wrapper script
-      shell: bash
-      run: |
-        echo "Testing wrapper script execution..."
-        hookdeck --help > /dev/null
-        echo "✓ Wrapper script works"
-
-    - name: Verify package structure
-      shell: bash
-      run: |
-        HOOKDECK_PATH=$(which hookdeck)
-        HOOKDECK_DIR=$(dirname "$HOOKDECK_PATH")
-        PACKAGE_DIR=$(dirname "$HOOKDECK_DIR")
-        
-        echo "Package directory: $PACKAGE_DIR"
-        
-        echo "Checking for wrapper script..."
-        if [ -f "$PACKAGE_DIR/bin/hookdeck.js" ]; then
-          echo "✓ Wrapper script found"
-        else
-          echo "✗ Wrapper script not found"
-          exit 1
-        fi
-        
-        echo "Checking for binaries directory..."
-        if [ -d "$PACKAGE_DIR/binaries" ]; then
-          echo "✓ Binaries directory found"
-          echo "Binaries included:"
-          ls -la "$PACKAGE_DIR/binaries" || true
-        else
-          echo "✗ Binaries directory not found"
-          exit 1
-        fi
-        
-        # Check platform-specific binary
-        PLATFORM="${{ inputs.platform }}"
-        case "$PLATFORM" in
-          darwin)
-            if [ -f "$PACKAGE_DIR/binaries/darwin-amd64/hookdeck" ] || [ -f "$PACKAGE_DIR/binaries/darwin-arm64/hookdeck" ]; then
-              echo "✓ macOS binary found"
-            else
-              echo "✗ macOS binary not found"
-              exit 1
-            fi
-            ;;
-          linux)
-            if [ -f "$PACKAGE_DIR/binaries/linux-amd64/hookdeck" ]; then
-              echo "✓ Linux binary found"
-            else
-              echo "✗ Linux binary not found"
-              exit 1
-            fi
-            ;;
-          win32)
-            if [ -f "$PACKAGE_DIR/binaries/win32-amd64/hookdeck.exe" ]; then
-              echo "✓ Windows binary found"
-            else
-              echo "✗ Windows binary not found"
-              exit 1
-            fi
-            ;;
-        esac
+        # INSTALL_DIR is set by the previous step via GITHUB_ENV
+        chmod +x test-scripts/test-npm-install-verify.sh
+        ./test-scripts/test-npm-install-verify.sh
