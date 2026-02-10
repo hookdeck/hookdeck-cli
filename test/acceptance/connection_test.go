@@ -746,12 +746,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		destConfig, ok := dest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object")
 
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "API_KEY", authMethod["type"], "Auth type should be API_KEY")
-			assert.Equal(t, "X-API-Key", authMethod["key"], "Auth key should be X-API-Key")
-			assert.Equal(t, "header", authMethod["to"], "Auth location should be header")
-			// API key itself should not be returned for security
-		}
+		assert.Equal(t, "API_KEY", destConfig["auth_type"], "Auth type should be API_KEY")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -804,11 +799,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		destConfig, ok := dest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object")
 
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "API_KEY", authMethod["type"], "Auth type should be API_KEY")
-			assert.Equal(t, "api_key", authMethod["key"], "Auth key should be api_key")
-			assert.Equal(t, "query", authMethod["to"], "Auth location should be query")
-		}
+		assert.Equal(t, "API_KEY", destConfig["auth_type"], "Auth type should be API_KEY")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -859,11 +850,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		destConfig, ok := dest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object")
 
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "CUSTOM_SIGNATURE", authMethod["type"], "Auth type should be CUSTOM_SIGNATURE")
-			assert.Equal(t, "X-Signature", authMethod["key"], "Auth key should be X-Signature")
-			// Signing secret should not be returned for security
-		}
+		assert.Equal(t, "CUSTOM_SIGNATURE", destConfig["auth_type"], "Auth type should be CUSTOM_SIGNATURE")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -913,9 +900,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		require.True(t, ok, "Expected destination config object")
 
 		// Hookdeck signature should be set as the auth type
-		if authMethod, ok := destConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "HOOKDECK_SIGNATURE", authMethod["type"], "Auth type should be HOOKDECK_SIGNATURE")
-		}
+		assert.Equal(t, "HOOKDECK_SIGNATURE", destConfig["auth_type"], "Auth type should be HOOKDECK_SIGNATURE")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -983,10 +968,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		updateDestConfig, ok := updateDest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object in update response")
 
-		if authMethod, ok := updateDestConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "API_KEY", authMethod["type"], "Auth type should be updated to API_KEY")
-			assert.Equal(t, "X-API-Key", authMethod["key"], "Auth key should be X-API-Key")
-		}
+		assert.Equal(t, "API_KEY", updateDestConfig["auth_type"], "Auth type should be updated to API_KEY")
 
 		// Update to Hookdeck signature (reset to default)
 		stdout, stderr, err = cli.Run("connection", "upsert", connName,
@@ -1007,9 +989,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		resetDestConfig, ok := resetDest["config"].(map[string]interface{})
 		require.True(t, ok, "Expected destination config object in reset response")
 
-		if authMethod, ok := resetDestConfig["auth_method"].(map[string]interface{}); ok {
-			assert.Equal(t, "HOOKDECK_SIGNATURE", authMethod["type"], "Auth type should be reset to HOOKDECK_SIGNATURE")
-		}
+		assert.Equal(t, "HOOKDECK_SIGNATURE", resetDestConfig["auth_type"], "Auth type should be reset to HOOKDECK_SIGNATURE")
 
 		t.Logf("Successfully tested changing authentication methods via upsert: %s", connID)
 	})
