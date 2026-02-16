@@ -21,6 +21,8 @@ type sourceUpdateCmd struct {
 	config      string
 	configFile  string
 	output      string
+
+	sourceConfigFlags
 }
 
 func newSourceUpdateCmd() *sourceUpdateCmd {
@@ -43,11 +45,25 @@ Examples:
 	sc.cmd.Flags().StringVar(&sc.name, "name", "", "New source name")
 	sc.cmd.Flags().StringVar(&sc.description, "description", "", "New source description")
 	sc.cmd.Flags().StringVar(&sc.sourceType, "type", "", "Source type (e.g. WEBHOOK, STRIPE)")
-	sc.cmd.Flags().StringVar(&sc.config, "config", "", "JSON object for source config")
-	sc.cmd.Flags().StringVar(&sc.configFile, "config-file", "", "Path to JSON file for source config")
+	sc.cmd.Flags().StringVar(&sc.config, "config", "", "JSON object for source config (overrides individual flags if set)")
+	sc.cmd.Flags().StringVar(&sc.configFile, "config-file", "", "Path to JSON file for source config (overrides individual flags if set)")
+	sc.cmd.Flags().StringVar(&sc.WebhookSecret, "webhook-secret", "", "Webhook secret for source verification (e.g., Stripe)")
+	sc.cmd.Flags().StringVar(&sc.APIKey, "api-key", "", "API key for source authentication")
+	sc.cmd.Flags().StringVar(&sc.BasicAuthUser, "basic-auth-user", "", "Username for Basic authentication")
+	sc.cmd.Flags().StringVar(&sc.BasicAuthPass, "basic-auth-pass", "", "Password for Basic authentication")
+	sc.cmd.Flags().StringVar(&sc.HMACSecret, "hmac-secret", "", "HMAC secret for signature verification")
+	sc.cmd.Flags().StringVar(&sc.HMACAlgo, "hmac-algo", "", "HMAC algorithm (SHA256, etc.)")
+	sc.cmd.Flags().StringVar(&sc.AllowedHTTPMethods, "allowed-http-methods", "", "Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE)")
+	sc.cmd.Flags().StringVar(&sc.CustomResponseBody, "custom-response-body", "", "Custom response body (max 1000 chars)")
+	sc.cmd.Flags().StringVar(&sc.CustomResponseType, "custom-response-content-type", "", "Custom response content type (json, text, xml)")
 	sc.cmd.Flags().StringVar(&sc.output, "output", "", "Output format (json)")
 
 	return sc
+}
+
+// sourceUpdateRequestEmpty reports whether the update request has no fields set (all omitted).
+func sourceUpdateRequestEmpty(req *hookdeck.SourceUpdateRequest) bool {
+	return req.Name == "" && req.Description == nil && req.Type == "" && len(req.Config) == 0
 }
 
 func (sc *sourceUpdateCmd) validateFlags(cmd *cobra.Command, args []string) error {
@@ -65,8 +81,9 @@ func (sc *sourceUpdateCmd) runSourceUpdateCmd(cmd *cobra.Command, args []string)
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	// Build update request from flags (only set non-zero values)
-	req := &hookdeck.SourceCreateRequest{}
+	// Build update request from flags (only set non-zero values). Use SourceUpdateRequest so
+	// omitted fields are not sent (PUT /sources/{id} has no required fields).
+	req := &hookdeck.SourceUpdateRequest{}
 	req.Name = sc.name
 	if sc.description != "" {
 		req.Description = &sc.description
@@ -74,7 +91,7 @@ func (sc *sourceUpdateCmd) runSourceUpdateCmd(cmd *cobra.Command, args []string)
 	if sc.sourceType != "" {
 		req.Type = strings.ToUpper(sc.sourceType)
 	}
-	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile)
+	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags)
 	if err != nil {
 		return err
 	}
@@ -82,13 +99,9 @@ func (sc *sourceUpdateCmd) runSourceUpdateCmd(cmd *cobra.Command, args []string)
 		req.Config = config
 	}
 
-	// If no fields set, fetch current and re-send name at least (API may require name)
-	if req.Name == "" && req.Description == nil && req.Type == "" && len(req.Config) == 0 {
-		existing, err := client.GetSource(ctx, sourceID, nil)
-		if err != nil {
-			return fmt.Errorf("failed to get source: %w", err)
-		}
-		req.Name = existing.Name
+	// Only send fields that were explicitly set. OpenAPI: no required fields on PUT /sources/{id}.
+	if sourceUpdateRequestEmpty(req) {
+		return fmt.Errorf("no updates specified (set at least one of --name, --description, --type, or config flags)")
 	}
 
 	src, err := client.UpdateSource(ctx, sourceID, req)

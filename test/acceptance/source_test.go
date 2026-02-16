@@ -225,6 +225,187 @@ func TestSourceGetOutputJSON(t *testing.T) {
 	assert.Equal(t, "WEBHOOK", src.Type)
 }
 
+// TestSourceCreateWithWebhookSecret creates a source with --webhook-secret (individual flag).
+func TestSourceCreateWithWebhookSecret(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	name := "test-src-webhook-secret-" + timestamp
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "create",
+		"--name", name,
+		"--type", "WEBHOOK",
+		"--webhook-secret", "whsec_test_acceptance_123",
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+
+	stdout := cli.RunExpectSuccess("gateway", "source", "get", src.ID)
+	assert.Contains(t, stdout, name)
+	assert.Contains(t, stdout, "WEBHOOK")
+}
+
+// TestSourceCreateWithAllowedHTTPMethods creates a source with --allowed-http-methods.
+func TestSourceCreateWithAllowedHTTPMethods(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	name := "test-src-methods-" + timestamp
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "create",
+		"--name", name,
+		"--type", "WEBHOOK",
+		"--allowed-http-methods", "POST,PUT,PATCH",
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+
+	cli.RunExpectSuccess("gateway", "source", "get", src.ID)
+}
+
+// TestSourceCreateWithCustomResponse creates a source with custom response body and content type.
+func TestSourceCreateWithCustomResponse(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	name := "test-src-custom-resp-" + timestamp
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "create",
+		"--name", name,
+		"--type", "WEBHOOK",
+		"--custom-response-content-type", "json",
+		"--custom-response-body", `{"status":"received"}`,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+
+	cli.RunExpectSuccess("gateway", "source", "get", src.ID)
+}
+
+// TestSourceCreateWithConfigJSON creates a source with --config (JSON) for parity with individual flags.
+func TestSourceCreateWithConfigJSON(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	name := "test-src-config-json-" + timestamp
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "create",
+		"--name", name,
+		"--type", "WEBHOOK",
+		"--config", `{"webhook_secret":"whsec_from_json"}`,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+
+	cli.RunExpectSuccess("gateway", "source", "get", src.ID)
+}
+
+// TestSourceUpsertWithIndividualFlags creates via upsert with --webhook-secret, then updates with --allowed-http-methods.
+func TestSourceUpsertWithIndividualFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	name := "test-src-upsert-flags-" + timestamp
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "upsert", name, "--type", "WEBHOOK", "--webhook-secret", "whsec_upsert_123")
+	require.NoError(t, err)
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+
+	// Update via upsert with another config flag
+	err = cli.RunJSON(&src, "gateway", "source", "upsert", name, "--allowed-http-methods", "POST,PUT")
+	require.NoError(t, err)
+
+	cli.RunExpectSuccess("gateway", "source", "get", name)
+}
+
+// TestSourceUpdateWithIndividualFlags creates a source then updates it with --allowed-http-methods.
+func TestSourceUpdateWithIndividualFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	sourceID := createTestSource(t, cli)
+	t.Cleanup(func() { deleteSource(t, cli, sourceID) })
+
+	cli.RunExpectSuccess("gateway", "source", "update", sourceID, "--allowed-http-methods", "POST,PUT,DELETE")
+	cli.RunExpectSuccess("gateway", "source", "get", sourceID)
+}
+
+// TestSourceCreateWithAuthThenGetWithInclude creates a source with authentication
+// (--webhook-secret), then gets it with --include to verify auth is set (and exercises --include).
+func TestSourceCreateWithAuthThenGetWithInclude(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	name := "test-src-auth-include-" + timestamp
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "create",
+		"--name", name,
+		"--type", "WEBHOOK",
+		"--webhook-secret", "whsec_acceptance_include_test",
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+
+	var getResult map[string]interface{}
+	err = cli.RunJSON(&getResult, "gateway", "source", "get", src.ID, "--output", "json", "--include-auth")
+	require.NoError(t, err)
+
+	config, ok := getResult["config"].(map[string]interface{})
+	require.True(t, ok, "get with --include-auth should return config in response")
+	auth, ok := config["auth"].(map[string]interface{})
+	require.True(t, ok, "config.auth should be present when source was created with auth")
+	require.NotEmpty(t, auth, "config.auth should be non-empty when source was created with webhook-secret")
+}
+
+// TestSourceUpdateWithNoFlagsFails asserts that running source update with no flags
+// fails with "no updates specified" (CLI as user/agent would see).
+func TestSourceUpdateWithNoFlagsFails(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	sourceID := createTestSource(t, cli)
+	t.Cleanup(func() { deleteSource(t, cli, sourceID) })
+
+	stdout, stderr, err := cli.Run("gateway", "source", "update", sourceID)
+	require.Error(t, err)
+	combined := stdout + stderr
+	assert.Contains(t, combined, "no updates specified", "error should tell user to set at least one flag")
+}
+
 // TestStandaloneSourceThenConnection creates a standalone source via `source create`,
 // then creates a connection that uses that source via --source-id.
 func TestStandaloneSourceThenConnection(t *testing.T) {

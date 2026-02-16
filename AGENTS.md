@@ -14,6 +14,7 @@ This repository contains the Hookdeck CLI, a Go-based command-line tool for mana
 
 ### Key Files
 - `https://api.hookdeck.com/2025-07-01/openapi` - API specification (source of truth for all API interactions)
+- `pkg/cmd/sources/` - Fetches and caches the OpenAPI spec for source type enum and auth rules; use for validation and help in source and connection management
 - `.plans/` - Implementation plans and architectural decisions
 - `AGENTS.md` - This file (guidelines for AI agents)
 
@@ -171,11 +172,26 @@ func validateTypeA(flags map[string]interface{}) error {
 }
 ```
 
+### Validation Philosophy
+- **Prefer API feedback.** Let the API return errors for business rules and schema (invalid type, missing auth, bad payload). Avoid duplicating API validation client-side unless it clearly improves UX or you can use the cached OpenAPI spec.
+- **Client-side validation is for:** (1) clear UX wins (e.g. Cobra required flags, "no updates specified" when update is run with no flags), and (2) validation driven by the **cached OpenAPI spec** (e.g. source/connection type enum and required auth from `FetchSourceTypes()`). When the cache is used, validate type and type-specific required flags; if the spec cannot be fetched, warn and let the API validate.
+- **Do not** add ad-hoc client-side schema validation that duplicates or drifts from the API. When in doubt, send the request and surface the API error.
+
+### Create vs update request shapes
+- **Check the OpenAPI spec** for required request-body fields per operation: create/upsert often require an identifier (e.g. `name`); update (PUT by id) often has **no** required body fields.
+- When semantics differ, use **separate request types** (e.g. `SourceCreateRequest` vs `SourceUpdateRequest`): create/upsert structs send required fields; update structs use `omitempty` on all fields so only changed fields are sent. Never send empty strings for "unchanged" fields on update.
+- For update commands, if the user supplies no update flags, **fail in the CLI** with a clear message (e.g. "no updates specified (set at least one of …)") instead of sending an empty body.
+
+### Using the cached OpenAPI spec
+- Source type enum and auth rules are available via **`pkg/cmd/sources.FetchSourceTypes()`** (fetches from the API OpenAPI URL, caches under temp with TTL). Use it for **source management** (e.g. `source create`, `source upsert`) and **connection management** (e.g. `connection create` inline source) to validate `--type` and type-specific required auth flags.
+- If `FetchSourceTypes()` fails (network, parse), **warn and continue**—do not block the command; let the API validate. If the given type is not in the cached enum, let the API validate.
+- Prefer this over hardcoding type lists or required-auth rules so the CLI stays aligned with the API.
+
 ### Validation Layers (in order)
 1. **Flag parsing validation** - Ensure flag values are correctly typed
-2. **Type-specific validation** - Validate based on `--type` parameter
+2. **Type-specific validation** - Validate based on `--type` parameter (use cached spec when available)
 3. **Cross-parameter validation** - Check relationships between parameters
-4. **API schema validation** - Final validation against OpenAPI constraints
+4. **API** - Final authority; surface API errors to the user
 
 ### Help System Integration
 Provide dynamic help text based on selected type:
@@ -247,6 +263,9 @@ go run cmd/hookdeck/main.go <command>
 go run cmd/hookdeck/main.go login --help
 ```
 
+### Sandbox and command execution
+When running commands (build, test, acceptance tests), if you see **TLS/certificate errors** (e.g. `x509: certificate verify failed`, `tls: failed to verify certificate`), **permission errors** (e.g. `operation not permitted` when writing to the Go module cache), or similar failures that look environment-related, check whether the command is running inside a **sandbox**. If it is, prompt the user to re-run the command **outside the sandbox** (e.g. with full permissions) so the operation can succeed. Do not treat a build or test as passed if stderr shows these errors, even when the process exit code is 0.
+
 ## 6. Documentation Standards
 
 ### CLI Documentation
@@ -299,6 +318,9 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 4. Document new dependency usage patterns
 
 ## 9. Testing Guidelines
+
+- **Always run tests** when changing code. Run unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`) outside the sandbox so network and API access work.
+- **Create tests for new functionality.** Add unit tests for validation and business logic; add acceptance tests for flows that use the CLI as a user or agent would (success and failure paths). Acceptance tests must pass or fail—no skipping to avoid failures.
 
 ### Unit Testing
 - Test validation logic thoroughly

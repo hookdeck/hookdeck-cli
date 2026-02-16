@@ -15,9 +15,9 @@ import (
 )
 
 type sourceGetCmd struct {
-	cmd   *cobra.Command
-	output string
-	include string
+	cmd              *cobra.Command
+	output           string
+	includeAuth      bool
 }
 
 func newSourceGetCmd() *sourceGetCmd {
@@ -33,12 +33,12 @@ You can specify either a source ID (e.g. src_abc123) or name.
 
 Examples:
   hookdeck gateway source get src_abc123
-  hookdeck gateway source get my-source`,
+  hookdeck gateway source get my-source --include-auth`,
 		RunE: sc.runSourceGetCmd,
 	}
 
 	sc.cmd.Flags().StringVar(&sc.output, "output", "", "Output format (json)")
-	sc.cmd.Flags().StringVar(&sc.include, "include", "", "Comma-separated fields to include (e.g. config.auth)")
+	addIncludeSourceAuthFlag(sc.cmd, &sc.includeAuth)
 
 	return sc
 }
@@ -57,10 +57,7 @@ func (sc *sourceGetCmd) runSourceGetCmd(cmd *cobra.Command, args []string) error
 		return err
 	}
 
-	params := make(map[string]string)
-	if sc.include != "" {
-		params["include"] = sc.include
-	}
+	params := includeAuthParams(sc.includeAuth)
 
 	src, err := client.GetSource(ctx, sourceID, params)
 	if err != nil {

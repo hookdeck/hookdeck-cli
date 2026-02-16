@@ -30,11 +30,19 @@ type SourceCreateInput struct {
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
-// SourceCreateRequest is the request body for standalone source API calls
-// (CreateSource, UpsertSource, UpdateSource). Single responsibility: top-level source create/update.
-// Same shape as SourceCreateInput but used for direct /sources endpoints.
+// SourceCreateRequest is the request body for create and upsert (POST/PUT /sources).
+// API requires name for both. Same shape as SourceCreateInput but for direct /sources endpoints.
 type SourceCreateRequest struct {
 	Name        string                 `json:"name"`
+	Description *string                `json:"description,omitempty"`
+	Type        string                 `json:"type,omitempty"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+}
+
+// SourceUpdateRequest is the request body for update (PUT /sources/{id}).
+// API has no required fields; only include fields that are being updated.
+type SourceUpdateRequest struct {
+	Name        string                 `json:"name,omitempty"`
 	Description *string                `json:"description,omitempty"`
 	Type        string                 `json:"type,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
@@ -140,7 +148,7 @@ func (c *Client) UpsertSource(ctx context.Context, req *SourceCreateRequest) (*S
 }
 
 // UpdateSource updates an existing source by ID
-func (c *Client) UpdateSource(ctx context.Context, id string, req *SourceCreateRequest) (*Source, error) {
+func (c *Client) UpdateSource(ctx context.Context, id string, req *SourceUpdateRequest) (*Source, error) {
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal source update request: %w", err)

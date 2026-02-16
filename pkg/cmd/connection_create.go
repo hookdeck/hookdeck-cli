@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/cmd/sources"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -286,38 +285,17 @@ func (cc *connectionCreateCmd) validateFlags(cmd *cobra.Command, args []string) 
 		}
 	}
 
-	// Validate source authentication flags based on source type
-	if hasInlineSource && cc.SourceConfig == "" && cc.SourceConfigFile == "" {
-		sourceTypes, err := sources.FetchSourceTypes()
-		if err != nil {
-			// We can't validate, so we'll just warn and let the API handle it
-			fmt.Printf("Warning: could not fetch source types for validation: %v\n", err)
-			return nil
+	// Validate source authentication flags based on source type (cached OpenAPI spec)
+	if hasInlineSource {
+		auth := sourceAuthFlags{
+			WebhookSecret: cc.SourceWebhookSecret,
+			APIKey:        cc.SourceAPIKey,
+			BasicAuthUser: cc.SourceBasicAuthUser,
+			BasicAuthPass: cc.SourceBasicAuthPass,
+			HMACSecret:    cc.SourceHMACSecret,
 		}
-
-		sourceType, ok := sourceTypes[strings.ToUpper(cc.sourceType)]
-		if !ok {
-			// This is an unknown source type, let the API validate it
-			return nil
-		}
-
-		switch sourceType.AuthScheme {
-		case "webhook_secret":
-			if cc.SourceWebhookSecret == "" {
-				return fmt.Errorf("error: --source-webhook-secret is required for source type %s", cc.sourceType)
-			}
-		case "api_key":
-			if cc.SourceAPIKey == "" {
-				return fmt.Errorf("error: --source-api-key is required for source type %s", cc.sourceType)
-			}
-		case "basic_auth":
-			if cc.SourceBasicAuthUser == "" || cc.SourceBasicAuthPass == "" {
-				return fmt.Errorf("error: --source-basic-auth-user and --source-basic-auth-pass are required for source type %s", cc.sourceType)
-			}
-		case "hmac":
-			if cc.SourceHMACSecret == "" {
-				return fmt.Errorf("error: --source-hmac-secret is required for source type %s", cc.sourceType)
-			}
+		if err := validateSourceAuthFromSpec(cc.sourceType, cc.SourceConfig != "" || cc.SourceConfigFile != "", auth, "source-"); err != nil {
+			return err
 		}
 	}
 
@@ -772,7 +750,7 @@ func (cc *connectionCreateCmd) buildAuthConfig() (map[string]interface{}, error)
 }
 
 func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, error) {
-	// Handle JSON config first, as it overrides individual flags
+	// Handle JSON config first (same precedence as source commands)
 	if cc.SourceConfig != "" {
 		var config map[string]interface{}
 		if err := json.Unmarshal([]byte(cc.SourceConfig), &config); err != nil {
@@ -791,76 +769,25 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 		}
 		return config, nil
 	}
-
-	// Build config from individual flags
-	config := make(map[string]interface{})
-	if cc.SourceWebhookSecret != "" {
-		config["webhook_secret"] = cc.SourceWebhookSecret
+	// Build from individual --source-* flags using shared logic
+	f := &sourceConfigFlags{
+		WebhookSecret:        cc.SourceWebhookSecret,
+		APIKey:               cc.SourceAPIKey,
+		BasicAuthUser:        cc.SourceBasicAuthUser,
+		BasicAuthPass:        cc.SourceBasicAuthPass,
+		HMACSecret:           cc.SourceHMACSecret,
+		HMACAlgo:             cc.SourceHMACAlgo,
+		AllowedHTTPMethods:   cc.SourceAllowedHTTPMethods,
+		CustomResponseBody:   cc.SourceCustomResponseBody,
+		CustomResponseType:   cc.SourceCustomResponseType,
 	}
-	if cc.SourceAPIKey != "" {
-		config["api_key"] = cc.SourceAPIKey
+	config, err := buildSourceConfigFromIndividualFlags(f, "source-")
+	if err != nil {
+		return nil, err
 	}
-	if cc.SourceBasicAuthUser != "" || cc.SourceBasicAuthPass != "" {
-		config["basic_auth"] = map[string]string{
-			"username": cc.SourceBasicAuthUser,
-			"password": cc.SourceBasicAuthPass,
-		}
-	}
-	if cc.SourceHMACSecret != "" {
-		hmacConfig := map[string]string{"secret": cc.SourceHMACSecret}
-		if cc.SourceHMACAlgo != "" {
-			hmacConfig["algorithm"] = cc.SourceHMACAlgo
-		}
-		config["hmac"] = hmacConfig
-	}
-
-	// Add allowed HTTP methods
-	if cc.SourceAllowedHTTPMethods != "" {
-		methods := strings.Split(cc.SourceAllowedHTTPMethods, ",")
-		// Trim whitespace and validate
-		validMethods := []string{}
-		allowedMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true}
-		for _, method := range methods {
-			method = strings.TrimSpace(strings.ToUpper(method))
-			if !allowedMethods[method] {
-				return nil, fmt.Errorf("invalid HTTP method '%s' in --source-allowed-http-methods (allowed: GET, POST, PUT, PATCH, DELETE)", method)
-			}
-			validMethods = append(validMethods, method)
-		}
-		config["allowed_http_methods"] = validMethods
-	}
-
-	// Add custom response configuration
-	if cc.SourceCustomResponseType != "" || cc.SourceCustomResponseBody != "" {
-		if cc.SourceCustomResponseType == "" {
-			return nil, fmt.Errorf("--source-custom-response-content-type is required when using --source-custom-response-body")
-		}
-		if cc.SourceCustomResponseBody == "" {
-			return nil, fmt.Errorf("--source-custom-response-body is required when using --source-custom-response-content-type")
-		}
-
-		// Validate content type
-		validContentTypes := map[string]bool{"json": true, "text": true, "xml": true}
-		contentType := strings.ToLower(cc.SourceCustomResponseType)
-		if !validContentTypes[contentType] {
-			return nil, fmt.Errorf("invalid content type '%s' in --source-custom-response-content-type (allowed: json, text, xml)", cc.SourceCustomResponseType)
-		}
-
-		// Validate body length (max 1000 chars per API spec)
-		if len(cc.SourceCustomResponseBody) > 1000 {
-			return nil, fmt.Errorf("--source-custom-response-body exceeds maximum length of 1000 characters (got %d)", len(cc.SourceCustomResponseBody))
-		}
-
-		config["custom_response"] = map[string]interface{}{
-			"content_type": contentType,
-			"body":         cc.SourceCustomResponseBody,
-		}
-	}
-
 	if len(config) == 0 {
 		return make(map[string]interface{}), nil
 	}
-
 	return config, nil
 }
 

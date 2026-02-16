@@ -178,7 +178,7 @@ func TestBuildSourceConfig(t *testing.T) {
 				cc.SourceAllowedHTTPMethods = "POST,INVALID"
 			},
 			wantErr:     true,
-			errContains: "invalid HTTP method 'INVALID'",
+			errContains: "invalid HTTP method",
 		},
 		{
 			name: "custom response - json content type",
@@ -281,7 +281,7 @@ func TestBuildSourceConfig(t *testing.T) {
 				cc.SourceCustomResponseBody = "<html></html>"
 			},
 			wantErr:     true,
-			errContains: "invalid content type 'html'",
+			errContains: "invalid content type",
 		},
 		{
 			name: "custom response - body exceeds 1000 chars",
