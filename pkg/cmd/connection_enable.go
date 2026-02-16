@@ -19,10 +19,8 @@ func newConnectionEnableCmd() *connectionEnableCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "enable <connection-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Enable a connection",
-		Long: `Enable a disabled connection.
-
-The connection will resume processing events.`,
+		Short: ShortEnable(ResourceConnection),
+		Long:  LongEnableIntro(ResourceConnection),
 		RunE: cc.runConnectionEnableCmd,
 	}
 

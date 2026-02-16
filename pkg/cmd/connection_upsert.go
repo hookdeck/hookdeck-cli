@@ -24,9 +24,9 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd = &cobra.Command{
 		Use:   "upsert <name>",
 		Args:  cobra.ExactArgs(1),
-		Short: "Create or update a connection by name",
-		Long: `Create a new connection or update an existing one using name as the unique identifier.
-	
+		Short: ShortUpsert(ResourceConnection),
+		Long: LongUpsertIntro(ResourceConnection) + `
+
 	This command is idempotent - it can be safely run multiple times with the same arguments.
 	
 	When the connection doesn't exist:

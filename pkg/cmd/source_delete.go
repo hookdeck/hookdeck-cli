@@ -20,8 +20,8 @@ func newSourceDeleteCmd() *sourceDeleteCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "delete <source-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Delete a source",
-		Long: `Delete a source.
+		Short: ShortDelete(ResourceSource),
+		Long: LongDeleteIntro(ResourceSource) + `
 
 Examples:
   hookdeck gateway source delete src_abc123

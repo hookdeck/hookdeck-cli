@@ -27,10 +27,8 @@ func newConnectionGetCmd() *connectionGetCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "get <connection-id-or-name>",
 		Args:  validators.ExactArgs(1),
-		Short: "Get connection details",
-		Long: `Get detailed information about a specific connection.
-
-You can specify either a connection ID or name.
+		Short: ShortGet(ResourceConnection),
+		Long: LongGetIntro(ResourceConnection) + `
 
 Examples:
 	 # Get connection by ID

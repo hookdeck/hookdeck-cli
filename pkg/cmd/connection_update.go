@@ -33,8 +33,8 @@ func newConnectionUpdateCmd() *connectionUpdateCmd {
 	cu.cmd = &cobra.Command{
 		Use:   "update <connection-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Update a connection by ID",
-		Long: `Update an existing connection by its ID.
+		Short: ShortUpdate(ResourceConnection),
+		Long: LongUpdateIntro(ResourceConnection) + `
 
 Unlike upsert (which uses name as identifier), update takes a connection ID
 and allows changing any field including the connection name.

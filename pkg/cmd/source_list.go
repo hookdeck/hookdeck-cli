@@ -29,7 +29,7 @@ func newSourceListCmd() *sourceListCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "list",
 		Args:  validators.NoArgs,
-		Short: "List sources",
+		Short: ShortList(ResourceSource),
 		Long: `List all sources or filter by name or type.
 
 Examples:

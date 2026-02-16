@@ -32,8 +32,8 @@ func newSourceUpsertCmd() *sourceUpsertCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "upsert <name>",
 		Args:  validators.ExactArgs(1),
-		Short: "Create or update a source by name",
-		Long: `Create a new source or update an existing one by name (idempotent).
+		Short: ShortUpsert(ResourceSource),
+		Long: LongUpsertIntro(ResourceSource) + `
 
 Examples:
   hookdeck gateway source upsert my-webhook --type WEBHOOK

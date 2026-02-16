@@ -105,7 +105,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "create",
 		Args:  validators.NoArgs,
-		Short: "Create a new connection",
+		Short: ShortCreate(ResourceConnection),
 		Long: `Create a connection between a source and destination.
 	
 	You can either reference existing resources by ID or create them inline.

@@ -19,8 +19,8 @@ func newSourceEnableCmd() *sourceEnableCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "enable <source-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Enable a source",
-		Long: `Enable a disabled source.`,
+		Short: ShortEnable(ResourceSource),
+		Long:  LongEnableIntro(ResourceSource),
 		RunE: sc.runSourceEnableCmd,
 	}
 

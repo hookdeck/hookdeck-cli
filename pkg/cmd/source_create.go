@@ -31,7 +31,7 @@ func newSourceCreateCmd() *sourceCreateCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "create",
 		Args:  validators.NoArgs,
-		Short: "Create a new source",
+		Short: ShortCreate(ResourceSource),
 		Long: `Create a new source.
 
 Requires --name and --type. Use --config or --config-file for authentication (e.g. webhook_secret, api_key).

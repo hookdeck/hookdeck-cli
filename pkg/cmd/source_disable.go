@@ -19,8 +19,8 @@ func newSourceDisableCmd() *sourceDisableCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "disable <source-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Disable a source",
-		Long: `Disable an active source. It will stop receiving new events until re-enabled.`,
+		Short: ShortDisable(ResourceSource),
+		Long:  LongDisableIntro(ResourceSource),
 		RunE: sc.runSourceDisableCmd,
 	}
 

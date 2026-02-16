@@ -31,8 +31,8 @@ func newSourceUpdateCmd() *sourceUpdateCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "update <source-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Update a source by ID",
-		Long: `Update an existing source by its ID.
+		Short: ShortUpdate(ResourceSource),
+		Long: LongUpdateIntro(ResourceSource) + `
 
 Examples:
   hookdeck gateway source update src_abc123 --name new-name

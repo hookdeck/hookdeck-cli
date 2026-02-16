@@ -15,6 +15,7 @@ This repository contains the Hookdeck CLI, a Go-based command-line tool for mana
 ### Key Files
 - `https://api.hookdeck.com/2025-07-01/openapi` - API specification (source of truth for all API interactions)
 - `pkg/cmd/sources/` - Fetches and caches the OpenAPI spec for source type enum and auth rules; use for validation and help in source and connection management
+- `pkg/cmd/helptext.go` - Shared Short/Long help for resource commands (sources, connections); use when adding or editing command help to avoid duplication
 - `.plans/` - Implementation plans and architectural decisions
 - `AGENTS.md` - This file (guidelines for AI agents)
 
@@ -267,6 +268,16 @@ go run cmd/hookdeck/main.go login --help
 When running commands (build, test, acceptance tests), if you see **TLS/certificate errors** (e.g. `x509: certificate verify failed`, `tls: failed to verify certificate`), **permission errors** (e.g. `operation not permitted` when writing to the Go module cache), or similar failures that look environment-related, check whether the command is running inside a **sandbox**. If it is, prompt the user to re-run the command **outside the sandbox** (e.g. with full permissions) so the operation can succeed. Do not treat a build or test as passed if stderr shows these errors, even when the process exit code is 0.
 
 ## 6. Documentation Standards
+
+### Command help text (Short and Long)
+
+Use the shared helpers in **`pkg/cmd/helptext.go`** for resource commands so Short and the common part of Long are defined once and stay consistent across sources, connections, and any future resources.
+
+- **Resource constants:** `ResourceSource`, `ResourceConnection` (singular form, e.g. "source", "connection").
+- **Short (one line):** Use `ShortGet(resource)`, `ShortList(resource)`, `ShortDelete(resource)`, `ShortDisable(resource)`, `ShortEnable(resource)`, `ShortUpdate(resource)`, `ShortCreate(resource)`, `ShortUpsert(resource)` instead of literal strings.
+- **Long (intro paragraph):** Use `LongGetIntro(resource)`, `LongUpdateIntro(resource)`, `LongDeleteIntro(resource)`, `LongDisableIntro(resource)`, `LongEnableIntro(resource)`, `LongUpsertIntro(resource)` for the first sentence/paragraph, then append command-specific content (e.g. Examples, extra paragraphs) in the command file.
+
+When adding a **new resource** that follows the same CRUD/get/list/delete/disable/enable/create/upsert pattern, add a new constant (e.g. `ResourceDestination`) and use the same Short/Long intro helpers; extend `helptext.go` only when you need a new *pattern* (e.g. a new verb), not for each resource. Keep command-specific wording (e.g. "Create a connection between a source and destination", list filter descriptions) in the command file.
 
 ### CLI Documentation
 - **REFERENCE.md**: Must include all commands with examples

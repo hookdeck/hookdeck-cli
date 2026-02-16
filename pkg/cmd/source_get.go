@@ -26,10 +26,8 @@ func newSourceGetCmd() *sourceGetCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "get <source-id-or-name>",
 		Args:  validators.ExactArgs(1),
-		Short: "Get source details",
-		Long: `Get detailed information about a specific source.
-
-You can specify either a source ID (e.g. src_abc123) or name.
+		Short: ShortGet(ResourceSource),
+		Long: LongGetIntro(ResourceSource) + `
 
 Examples:
   hookdeck gateway source get src_abc123
