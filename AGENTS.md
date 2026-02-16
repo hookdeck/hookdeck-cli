@@ -116,6 +116,20 @@ hookdeck connection create \
   --destination-url "https://api.example.com/webhooks"
 ```
 
+### Resource command naming and plural alias
+For every **resource command group** (a top-level or gateway subcommand that manages a single resource type), use the **singular** as the primary `Use` and **always add the plural as an alias**. Many users type the plural (e.g. `projects`, `connections`, `sources`); supporting both keeps the CLI discoverable and consistent.
+
+- **Primary:** singular (`source`, `connection`, `project`)
+- **Alias:** plural (`sources`, `connections`, `projects`)
+
+Example in Cobra:
+```go
+Use:     "source",
+Aliases: []string{"sources"},
+```
+
+When adding a new resource command group (e.g. destination, transformation), add the plural alias at the same time. Existing groups: `connection`/`connections`, `project`/`projects`, `source`/`sources`.
+
 ## 3. Conditional Validation Implementation
 
 When `--type` parameters control other valid parameters, implement progressive validation:
