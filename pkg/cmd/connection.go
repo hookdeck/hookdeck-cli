@@ -1,10 +1,15 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
+
+const connectionDeprecationNotice = "Deprecation notice: 'hookdeck connection' and 'hookdeck connections' are deprecated. In a future version please use 'hookdeck gateway connection'.\n"
 
 type connectionCmd struct {
 	cmd *cobra.Command
@@ -26,6 +31,11 @@ existing resources.
 
 [BETA] This feature is in beta. Please share bugs and feedback via:
 https://github.com/hookdeck/hookdeck-cli/issues`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if shouldShowConnectionDeprecation() {
+				fmt.Fprint(os.Stderr, connectionDeprecationNotice)
+			}
+		},
 	}
 
 	cc.cmd.AddCommand(newConnectionCreateCmd().cmd)

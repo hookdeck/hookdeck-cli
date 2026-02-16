@@ -11,6 +11,33 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
+// shouldShowConnectionDeprecation returns true when the user invoked the
+// root-level alias (hookdeck connection / hookdeck connections) and we
+// should print a deprecation notice. Returns false when:
+// - Invoked under gateway (hookdeck gateway connection ...)
+// - Output is JSON (--output json or --output=json), so the notice would pollute machine output
+// - Any future silent/quiet flag is set (none today; add here when introduced)
+func shouldShowConnectionDeprecation() bool {
+	args := os.Args
+	if len(args) < 2 {
+		return false
+	}
+	first := args[1]
+	if first != "connection" && first != "connections" {
+		return false // under gateway or another command
+	}
+	for i, a := range args {
+		if a == "--output" && i+1 < len(args) && strings.TrimSpace(args[i+1]) == "json" {
+			return false
+		}
+		if strings.HasPrefix(a, "--output=") && strings.TrimSpace(strings.TrimPrefix(a, "--output=")) == "json" {
+			return false
+		}
+		// If a global silent/quiet flag is added later, check for it here and return false
+	}
+	return true
+}
+
 // connectionRuleFlags holds rule-related flags shared by connection create, update, and upsert.
 // Used to avoid duplicating flag definitions and rule-building logic.
 type connectionRuleFlags struct {
