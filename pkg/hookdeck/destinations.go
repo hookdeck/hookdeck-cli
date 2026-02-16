@@ -65,7 +65,7 @@ func (c *Client) GetDestination(ctx context.Context, id string, params map[strin
 		queryParams.Add(k, v)
 	}
 
-	resp, err := c.Get(ctx, fmt.Sprintf("/2025-07-01/destinations/%s", id), queryParams.Encode(), nil)
+	resp, err := c.Get(ctx, APIPathPrefix+"/destinations/"+id, queryParams.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}

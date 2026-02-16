@@ -281,3 +281,22 @@ func TestRootConnectionsAliasWorks(t *testing.T) {
 
 	t.Logf("Root 'connections' alias verified")
 }
+
+// TestGatewaySourcesAliasWorks verifies the plural alias "sources" works under gateway
+func TestGatewaySourcesAliasWorks(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	// "hookdeck gateway sources list" should behave like "gateway source list"
+	stdout := cli.RunExpectSuccess("gateway", "sources", "list")
+	assert.NotEmpty(t, stdout, "gateway sources list should produce output")
+
+	// Help should show source/sources
+	helpOut := cli.RunExpectSuccess("gateway", "sources", "--help")
+	assert.Contains(t, helpOut, "source", "gateway sources --help should describe source commands")
+
+	t.Logf("Gateway 'sources' alias verified")
+}

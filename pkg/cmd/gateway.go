@@ -35,6 +35,7 @@ Examples:
 
 	// Register resource subcommands (same factory as root backward-compat registration)
 	addConnectionCmdTo(g.cmd)
+	addSourceCmdTo(g.cmd)
 
 	return g
 }

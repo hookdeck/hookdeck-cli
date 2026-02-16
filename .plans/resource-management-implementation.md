@@ -56,6 +56,7 @@ The Hookdeck CLI currently supports limited commands in `@pkg/cmd` with basic pr
 - **Idempotent operations** - `upsert` commands with `--dry-run` support for declarative management
 - **Type-driven validation** - Progressive validation based on `--type` parameters
 - **JSON fallback** - Complex configurations via `--rules`, `--rules-file`, `--config`, `--config-file`
+- **Plural alias for resource commands** - Every resource command group uses singular as primary `Use` and **must** have the plural as an alias (e.g. `source`/`sources`, `connection`/`connections`, `project`/`projects`). See AGENTS.md § Resource command naming and plural alias.
 
 All CLI commands must follow these established patterns for consistency across the codebase.
 
@@ -463,6 +464,8 @@ cmd.Example = `  # List all sources
 ```
 
 ### Phase 5: Testing and Validation
+
+**CLI conventions checklist (all phases):** When adding or reviewing a resource command group, ensure it has a **plural alias** (e.g. `source`/`sources`, `connection`/`connections`, `project`/`projects`). See AGENTS.md § Resource command naming and plural alias.
 
 #### Task 5.1: Add Command Tests
 **Files to create:**

@@ -312,6 +312,39 @@ func cleanupConnections(t *testing.T, cli *CLIRunner, ids []string) {
 	}
 }
 
+// createTestSource creates a WEBHOOK source and returns its ID
+func createTestSource(t *testing.T, cli *CLIRunner) string {
+	t.Helper()
+
+	timestamp := generateTimestamp()
+	name := fmt.Sprintf("test-src-%s", timestamp)
+
+	var src Source
+	err := cli.RunJSON(&src,
+		"gateway", "source", "create",
+		"--name", name,
+		"--type", "WEBHOOK",
+	)
+	require.NoError(t, err, "Failed to create test source")
+	require.NotEmpty(t, src.ID, "Source ID should not be empty")
+
+	t.Logf("Created test source: %s (ID: %s)", name, src.ID)
+	return src.ID
+}
+
+// deleteSource deletes a source by ID using the --force flag
+func deleteSource(t *testing.T, cli *CLIRunner, id string) {
+	t.Helper()
+
+	stdout, stderr, err := cli.Run("gateway", "source", "delete", id, "--force")
+	if err != nil {
+		t.Logf("Warning: Failed to delete source %s: %v\nstdout: %s\nstderr: %s",
+			id, err, stdout, stderr)
+		return
+	}
+	t.Logf("Deleted source: %s", id)
+}
+
 // assertContains checks if a string contains a substring
 func assertContains(t *testing.T, s, substr, msgAndArgs string) {
 	t.Helper()
