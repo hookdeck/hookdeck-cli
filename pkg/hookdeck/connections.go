@@ -141,6 +141,28 @@ func (c *Client) UpsertConnection(ctx context.Context, req *ConnectionCreateRequ
 	return &connection, nil
 }
 
+// UpdateConnection updates an existing connection by ID
+// Uses PUT /connections/{id} endpoint
+func (c *Client) UpdateConnection(ctx context.Context, id string, req *ConnectionCreateRequest) (*Connection, error) {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal connection update request: %w", err)
+	}
+
+	resp, err := c.Put(ctx, fmt.Sprintf("/2025-07-01/connections/%s", id), data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var connection Connection
+	_, err = postprocessJsonResponse(resp, &connection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection response: %w", err)
+	}
+
+	return &connection, nil
+}
+
 // DeleteConnection deletes a connection
 func (c *Client) DeleteConnection(ctx context.Context, id string) error {
 	url := fmt.Sprintf("/2025-07-01/connections/%s", id)

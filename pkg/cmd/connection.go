@@ -30,6 +30,7 @@ https://github.com/hookdeck/hookdeck-cli/issues`,
 
 	cc.cmd.AddCommand(newConnectionCreateCmd().cmd)
 	cc.cmd.AddCommand(newConnectionUpsertCmd().cmd)
+	cc.cmd.AddCommand(newConnectionUpdateCmd().cmd)
 	cc.cmd.AddCommand(newConnectionListCmd().cmd)
 	cc.cmd.AddCommand(newConnectionGetCmd().cmd)
 	cc.cmd.AddCommand(newConnectionDeleteCmd().cmd)

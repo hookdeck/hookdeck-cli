@@ -18,7 +18,7 @@ func TestConnectionListBasic(t *testing.T) {
 	cli := NewCLIRunner(t)
 
 	// List should work even if there are no connections
-	stdout := cli.RunExpectSuccess("connection", "list")
+	stdout := cli.RunExpectSuccess("gateway", "connection", "list")
 	assert.NotEmpty(t, stdout, "connection list should produce output")
 
 	t.Logf("Connection list output: %s", strings.TrimSpace(stdout))
@@ -43,7 +43,7 @@ func TestConnectionCreateAndDelete(t *testing.T) {
 
 	// Verify the connection was created by getting it (JSON output)
 	var conn Connection
-	err := cli.RunJSON(&conn, "connection", "get", connID)
+	err := cli.RunJSON(&conn, "gateway", "connection", "get", connID)
 	require.NoError(t, err, "Should be able to get the created connection")
 	assert.Equal(t, connID, conn.ID, "Retrieved connection ID should match")
 	assert.NotEmpty(t, conn.Name, "Connection should have a name")
@@ -53,7 +53,7 @@ func TestConnectionCreateAndDelete(t *testing.T) {
 	assert.NotEmpty(t, conn.Destination.Type, "Connection destination should have a type")
 
 	// Verify human-readable output includes type information
-	stdout := cli.RunExpectSuccess("connection", "get", connID)
+	stdout := cli.RunExpectSuccess("gateway", "connection", "get", connID)
 	assert.Contains(t, stdout, "Type:", "Human-readable output should include 'Type:' label")
 	assert.True(t,
 		strings.Contains(stdout, conn.Source.Type) && strings.Contains(stdout, conn.Destination.Type),
@@ -78,7 +78,7 @@ func TestConnectionGetByName(t *testing.T) {
 	// Create a test connection
 	var createResp Connection
 	err := cli.RunJSON(&createResp,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -96,13 +96,13 @@ func TestConnectionGetByName(t *testing.T) {
 
 	// Test 1: Get by ID (original behavior)
 	var getByID Connection
-	err = cli.RunJSON(&getByID, "connection", "get", createResp.ID)
+	err = cli.RunJSON(&getByID, "gateway", "connection", "get", createResp.ID)
 	require.NoError(t, err, "Should be able to get connection by ID")
 	assert.Equal(t, createResp.ID, getByID.ID, "Connection ID should match")
 
 	// Test 2: Get by name (new behavior)
 	var getByName Connection
-	err = cli.RunJSON(&getByName, "connection", "get", connName)
+	err = cli.RunJSON(&getByName, "gateway", "connection", "get", connName)
 	require.NoError(t, err, "Should be able to get connection by name")
 	assert.Equal(t, createResp.ID, getByName.ID, "Connection ID should match when retrieved by name")
 	assert.Equal(t, connName, getByName.Name, "Connection name should match")
@@ -122,14 +122,14 @@ func TestConnectionGetNotFound(t *testing.T) {
 	cli := NewCLIRunner(t)
 
 	// Test 1: Non-existent ID
-	stdout, stderr, err := cli.Run("connection", "get", "conn_nonexistent123")
+	stdout, stderr, err := cli.Run("gateway", "connection", "get", "conn_nonexistent123")
 	require.Error(t, err, "Should error when connection ID doesn't exist")
 	combinedOutput := stdout + stderr
 	assert.Contains(t, combinedOutput, "connection not found", "Error should indicate connection not found")
 	assert.Contains(t, combinedOutput, "Please check the connection name or ID", "Error should suggest checking the identifier")
 
 	// Test 2: Non-existent name
-	stdout, stderr, err = cli.Run("connection", "get", "nonexistent-connection-name-xyz")
+	stdout, stderr, err = cli.Run("gateway", "connection", "get", "nonexistent-connection-name-xyz")
 	require.Error(t, err, "Should error when connection name doesn't exist")
 	combinedOutput = stdout + stderr
 	assert.Contains(t, combinedOutput, "connection not found", "Error should indicate connection not found")
@@ -153,7 +153,7 @@ func TestConnectionWithWebhookSource(t *testing.T) {
 
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -196,7 +196,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		destName := "test-webhook-dest-" + timestamp
 
 		// Create connection with WEBHOOK source (no authentication)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -233,7 +233,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		// Compare key fields between create and get responses
@@ -269,7 +269,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		webhookSecret := "whsec_test_secret_123"
 
 		// Create connection with STRIPE source (webhook secret authentication)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "STRIPE",
 			"--source-name", sourceName,
@@ -309,7 +309,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
@@ -338,7 +338,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		apiKey := "test_api_key_abc123"
 
 		// Create connection with HTTP source (API key authentication)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "HTTP",
 			"--source-name", sourceName,
@@ -376,7 +376,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
@@ -404,7 +404,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		password := "test_pass_123"
 
 		// Create connection with HTTP source (basic authentication)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "HTTP",
 			"--source-name", sourceName,
@@ -449,7 +449,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
@@ -476,7 +476,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		hmacSecret := "test_hmac_secret_xyz"
 
 		// Create connection with TWILIO source (HMAC authentication)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "TWILIO",
 			"--source-name", sourceName,
@@ -523,7 +523,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
@@ -551,7 +551,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		bearerToken := "test_bearer_token_abc123"
 
 		// Create connection with HTTP destination (bearer token authentication)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -598,7 +598,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
@@ -635,7 +635,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		password := "dest_pass_123"
 
 		// Create connection with HTTP destination (basic authentication)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -683,7 +683,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
@@ -718,7 +718,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		apiKey := "sk_test_123"
 
 		// Create connection with HTTP destination (API key in header)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -771,7 +771,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		apiKey := "sk_test_456"
 
 		// Create connection with HTTP destination (API key in query)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -823,7 +823,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		destURL := "https://api.hookdeck.com/dev/null"
 
 		// Create connection with HTTP destination (custom signature)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -874,7 +874,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		destURL := "https://api.hookdeck.com/dev/null"
 
 		// Create connection with HTTP destination (Hookdeck signature - explicit)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -924,7 +924,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		destURL := "https://api.hookdeck.com/dev/null"
 
 		// Create connection with bearer token auth
-		stdout, stderr, err := cli.Run("connection", "upsert", connName,
+		stdout, stderr, err := cli.Run("gateway", "connection", "upsert", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
 			"--destination-type", "HTTP",
@@ -948,7 +948,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		})
 
 		// Update to API key auth
-		stdout, stderr, err = cli.Run("connection", "upsert", connName,
+		stdout, stderr, err = cli.Run("gateway", "connection", "upsert", connName,
 			"--destination-auth-method", "api_key",
 			"--destination-api-key", "new_api_key",
 			"--destination-api-key-header", "X-API-Key",
@@ -971,7 +971,7 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		assert.Equal(t, "API_KEY", updateDestConfig["auth_type"], "Auth type should be updated to API_KEY")
 
 		// Update to Hookdeck signature (reset to default)
-		stdout, stderr, err = cli.Run("connection", "upsert", connName,
+		stdout, stderr, err = cli.Run("gateway", "connection", "upsert", connName,
 			"--destination-auth-method", "hookdeck",
 			"--output", "json")
 		require.NoError(t, err, "Failed to reset to Hookdeck signature: stderr=%s", stderr)
@@ -1009,19 +1009,19 @@ func TestConnectionDelete(t *testing.T) {
 
 	// Verify the connection exists before deletion
 	var conn Connection
-	err := cli.RunJSON(&conn, "connection", "get", connID)
+	err := cli.RunJSON(&conn, "gateway", "connection", "get", connID)
 	require.NoError(t, err, "Should be able to get the connection before deletion")
 	assert.Equal(t, connID, conn.ID, "Connection ID should match")
 
 	// Delete the connection using --force flag (no interactive prompt)
-	stdout := cli.RunExpectSuccess("connection", "delete", connID, "--force")
+	stdout := cli.RunExpectSuccess("gateway", "connection", "delete", connID, "--force")
 	assert.NotEmpty(t, stdout, "delete command should produce output")
 
 	t.Logf("Deleted connection: %s", connID)
 
 	// Verify deletion by attempting to get the connection
 	// This should fail because the connection no longer exists
-	stdout, stderr, err := cli.Run("connection", "get", connID, "--output", "json")
+	stdout, stderr, err := cli.Run("gateway", "connection", "get", connID, "--output", "json")
 
 	// We expect an error here since the connection was deleted
 	if err == nil {
@@ -1064,7 +1064,7 @@ func TestConnectionBulkDelete(t *testing.T) {
 	// Delete all connections using --force flag
 	for i, connID := range connectionIDs {
 		t.Logf("Deleting connection %d/%d: %s", i+1, numConnections, connID)
-		stdout := cli.RunExpectSuccess("connection", "delete", connID, "--force")
+		stdout := cli.RunExpectSuccess("gateway", "connection", "delete", connID, "--force")
 		assert.NotEmpty(t, stdout, "delete command should produce output")
 	}
 
@@ -1072,7 +1072,7 @@ func TestConnectionBulkDelete(t *testing.T) {
 
 	// Verify all connections are deleted
 	for _, connID := range connectionIDs {
-		_, _, err := cli.Run("connection", "get", connID, "--output", "json")
+		_, _, err := cli.Run("gateway", "connection", "get", connID, "--output", "json")
 
 		// We expect an error for each deleted connection
 		if err == nil {
@@ -1099,7 +1099,7 @@ func TestConnectionWithRetryRule(t *testing.T) {
 	// Test with linear retry strategy
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1120,7 +1120,7 @@ func TestConnectionWithRetryRule(t *testing.T) {
 
 	// Verify the rule was created by getting the connection
 	var getConn Connection
-	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should be able to get the created connection")
 
 	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
@@ -1150,7 +1150,7 @@ func TestConnectionWithFilterRule(t *testing.T) {
 
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1170,7 +1170,7 @@ func TestConnectionWithFilterRule(t *testing.T) {
 
 	// Verify the rule was created by getting the connection
 	var getConn Connection
-	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should be able to get the created connection")
 
 	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
@@ -1199,7 +1199,7 @@ func TestConnectionWithTransformRule(t *testing.T) {
 
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1219,7 +1219,7 @@ func TestConnectionWithTransformRule(t *testing.T) {
 
 	// Verify the rule was created by getting the connection
 	var getConn Connection
-	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should be able to get the created connection")
 
 	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
@@ -1249,7 +1249,7 @@ func TestConnectionWithDelayRule(t *testing.T) {
 
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1268,7 +1268,7 @@ func TestConnectionWithDelayRule(t *testing.T) {
 
 	// Verify the rule was created by getting the connection
 	var getConn Connection
-	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should be able to get the created connection")
 
 	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
@@ -1296,7 +1296,7 @@ func TestConnectionWithDeduplicateRule(t *testing.T) {
 
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1316,7 +1316,7 @@ func TestConnectionWithDeduplicateRule(t *testing.T) {
 
 	// Verify the rule was created by getting the connection
 	var getConn Connection
-	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should be able to get the created connection")
 
 	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
@@ -1355,7 +1355,7 @@ func TestConnectionWithMultipleRules(t *testing.T) {
 	// This order matches the API's default ordering for proper data flow through the pipeline.
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1378,7 +1378,7 @@ func TestConnectionWithMultipleRules(t *testing.T) {
 
 	// Verify the rules were created by getting the connection
 	var getConn Connection
-	err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+	err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should be able to get the created connection")
 
 	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
@@ -1419,7 +1419,7 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		var conn Connection
 		err := cli.RunJSON(&conn,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-name", sourceName,
 			"--source-type", "WEBHOOK",
@@ -1439,7 +1439,7 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		// Verify rate limiting configuration by getting the connection
 		var getConn Connection
-		err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+		err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		require.NotNil(t, getConn.Destination, "Connection should have a destination")
@@ -1465,7 +1465,7 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		var conn Connection
 		err := cli.RunJSON(&conn,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-name", sourceName,
 			"--source-type", "WEBHOOK",
@@ -1485,7 +1485,7 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		// Verify rate limiting configuration by getting the connection
 		var getConn Connection
-		err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+		err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		require.NotNil(t, getConn.Destination, "Connection should have a destination")
@@ -1510,7 +1510,7 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		var conn Connection
 		err := cli.RunJSON(&conn,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-name", sourceName,
 			"--source-type", "WEBHOOK",
@@ -1530,7 +1530,7 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		// Verify rate limiting configuration by getting the connection
 		var getConn Connection
-		err = cli.RunJSON(&getConn, "connection", "get", conn.ID)
+		err = cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		require.NotNil(t, getConn.Destination, "Connection should have a destination")
@@ -1567,7 +1567,7 @@ func TestConnectionUpsertCreate(t *testing.T) {
 	// Upsert (create) a new connection
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "upsert", connName,
+		"gateway", "connection", "upsert", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
 		"--destination-name", destName,
@@ -1589,7 +1589,7 @@ func TestConnectionUpsertCreate(t *testing.T) {
 
 	// SECONDARY: Verify persisted state via GET
 	var fetched Connection
-	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	err = cli.RunJSON(&fetched, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should be able to get the created connection")
 
 	assert.Equal(t, connName, fetched.Name, "Connection name should be persisted")
@@ -1615,7 +1615,7 @@ func TestConnectionUpsertUpdate(t *testing.T) {
 	// First create a connection
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1633,7 +1633,7 @@ func TestConnectionUpsertUpdate(t *testing.T) {
 	// Now upsert (update) with a description
 	newDesc := "Updated via upsert command"
 	var upserted Connection
-	err = cli.RunJSON(&upserted, "connection", "upsert", connName,
+	err = cli.RunJSON(&upserted, "gateway", "connection", "upsert", connName,
 		"--description", newDesc,
 	)
 	require.NoError(t, err, "Should upsert connection")
@@ -1647,7 +1647,7 @@ func TestConnectionUpsertUpdate(t *testing.T) {
 
 	// SECONDARY: Verify persisted state via GET
 	var fetched Connection
-	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	err = cli.RunJSON(&fetched, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should get updated connection")
 
 	assert.Equal(t, newDesc, fetched.Description, "Description should be persisted")
@@ -1674,7 +1674,7 @@ func TestConnectionUpsertIdempotent(t *testing.T) {
 	var conn1, conn2 Connection
 
 	err := cli.RunJSON(&conn1,
-		"connection", "upsert", connName,
+		"gateway", "connection", "upsert", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
 		"--destination-name", destName,
@@ -1689,7 +1689,7 @@ func TestConnectionUpsertIdempotent(t *testing.T) {
 	})
 
 	err = cli.RunJSON(&conn2,
-		"connection", "upsert", connName,
+		"gateway", "connection", "upsert", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
 		"--destination-name", destName,
@@ -1706,7 +1706,7 @@ func TestConnectionUpsertIdempotent(t *testing.T) {
 
 	// SECONDARY: Verify persisted state
 	var fetched Connection
-	err = cli.RunJSON(&fetched, "connection", "get", conn1.ID)
+	err = cli.RunJSON(&fetched, "gateway", "connection", "get", conn1.ID)
 	require.NoError(t, err, "Should get connection")
 	assert.Equal(t, connName, fetched.Name, "Connection name should be persisted")
 
@@ -1727,7 +1727,7 @@ func TestConnectionUpsertDryRun(t *testing.T) {
 	destName := "test-upsert-dryrun-dst-" + timestamp
 
 	// Run upsert with --dry-run (should not create)
-	stdout := cli.RunExpectSuccess("connection", "upsert", connName,
+	stdout := cli.RunExpectSuccess("gateway", "connection", "upsert", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
 		"--destination-name", destName,
@@ -1742,7 +1742,7 @@ func TestConnectionUpsertDryRun(t *testing.T) {
 
 	// Verify the connection was NOT created by trying to list it
 	var listResp map[string]interface{}
-	cli.RunJSON(&listResp, "connection", "list", "--name", connName)
+	cli.RunJSON(&listResp, "gateway", "connection", "list", "--name", connName)
 	// Connection should not exist, so we expect empty or error
 
 	t.Logf("Successfully verified dry-run for create scenario")
@@ -1764,7 +1764,7 @@ func TestConnectionUpsertDryRunUpdate(t *testing.T) {
 	// Create initial connection
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1781,7 +1781,7 @@ func TestConnectionUpsertDryRunUpdate(t *testing.T) {
 
 	// Run upsert with --dry-run for update
 	newDesc := "This should not be applied"
-	stdout := cli.RunExpectSuccess("connection", "upsert", connName,
+	stdout := cli.RunExpectSuccess("gateway", "connection", "upsert", connName,
 		"--description", newDesc,
 		"--dry-run",
 	)
@@ -1792,7 +1792,7 @@ func TestConnectionUpsertDryRunUpdate(t *testing.T) {
 
 	// Verify the connection was NOT updated
 	var getResp Connection
-	err = cli.RunJSON(&getResp, "connection", "get", conn.ID)
+	err = cli.RunJSON(&getResp, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should get connection")
 
 	assert.NotEqual(t, newDesc, getResp.Description, "Description should not be updated in dry-run")
@@ -1817,7 +1817,7 @@ func TestConnectionUpsertPartialUpdate(t *testing.T) {
 	// Create initial connection
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--description", initialDesc,
 		"--source-name", sourceName,
@@ -1836,7 +1836,7 @@ func TestConnectionUpsertPartialUpdate(t *testing.T) {
 	// Update only description
 	newDesc := "Updated description only"
 	var upserted Connection
-	err = cli.RunJSON(&upserted, "connection", "upsert", connName,
+	err = cli.RunJSON(&upserted, "gateway", "connection", "upsert", connName,
 		"--description", newDesc,
 	)
 	require.NoError(t, err, "Should upsert connection")
@@ -1849,7 +1849,7 @@ func TestConnectionUpsertPartialUpdate(t *testing.T) {
 
 	// SECONDARY: Verify persisted state via GET
 	var fetched Connection
-	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	err = cli.RunJSON(&fetched, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should get updated connection")
 
 	assert.Equal(t, newDesc, fetched.Description, "Description should be persisted")
@@ -1875,7 +1875,7 @@ func TestConnectionUpsertWithRules(t *testing.T) {
 	// Create initial connection
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1893,7 +1893,7 @@ func TestConnectionUpsertWithRules(t *testing.T) {
 	// Update with retry rule
 	var upserted Connection
 	err = cli.RunJSON(&upserted,
-		"connection", "upsert", connName,
+		"gateway", "connection", "upsert", connName,
 		"--rule-retry-strategy", "linear",
 		"--rule-retry-count", "3",
 		"--rule-retry-interval", "5000",
@@ -1909,7 +1909,7 @@ func TestConnectionUpsertWithRules(t *testing.T) {
 
 	// SECONDARY: Verify persisted state via GET
 	var fetched Connection
-	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	err = cli.RunJSON(&fetched, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should get updated connection")
 	assert.NotEmpty(t, fetched.Rules, "Should have rules persisted")
 
@@ -1932,7 +1932,7 @@ func TestConnectionUpsertReplaceRules(t *testing.T) {
 	// Create initial connection WITH a retry rule
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -1959,7 +1959,7 @@ func TestConnectionUpsertReplaceRules(t *testing.T) {
 	filterBody := `{"type":"payment"}`
 	var upserted Connection
 	err = cli.RunJSON(&upserted,
-		"connection", "upsert", connName,
+		"gateway", "connection", "upsert", connName,
 		"--rule-filter-body", filterBody,
 	)
 	require.NoError(t, err, "Should upsert connection with filter rule")
@@ -1981,7 +1981,7 @@ func TestConnectionUpsertReplaceRules(t *testing.T) {
 
 	// SECONDARY: Verify persisted state via GET
 	var fetched Connection
-	err = cli.RunJSON(&fetched, "connection", "get", conn.ID)
+	err = cli.RunJSON(&fetched, "gateway", "connection", "get", conn.ID)
 	require.NoError(t, err, "Should get updated connection")
 
 	assert.Len(t, fetched.Rules, 1, "Should have exactly one rule persisted")
@@ -2002,12 +2002,12 @@ func TestConnectionUpsertValidation(t *testing.T) {
 	timestamp := generateTimestamp()
 
 	// Test 1: Missing name
-	_, _, err := cli.Run("connection", "upsert")
+	_, _, err := cli.Run("gateway", "connection", "upsert")
 	assert.Error(t, err, "Should require name positional argument")
 
 	// Test 2: Missing required fields for new connection
 	connName := "test-upsert-validation-" + timestamp
-	_, _, err = cli.Run("connection", "upsert", connName)
+	_, _, err = cli.Run("gateway", "connection", "upsert", connName)
 	assert.Error(t, err, "Should require source and destination for new connection")
 
 	t.Logf("Successfully verified validation errors")
@@ -2028,7 +2028,7 @@ func TestConnectionCreateOutputStructure(t *testing.T) {
 
 	// Create connection without --output json to get human-readable format
 	stdout := cli.RunExpectSuccess(
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -2119,7 +2119,7 @@ func TestConnectionWithDestinationPathForwarding(t *testing.T) {
 		destURL := "https://api.hookdeck.com/dev/null"
 
 		// Create connection with path forwarding disabled and custom HTTP method
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2165,7 +2165,7 @@ func TestConnectionWithDestinationPathForwarding(t *testing.T) {
 
 		// Verify using connection get
 		var getResp map[string]interface{}
-		err = cli.RunJSON(&getResp, "connection", "get", connID)
+		err = cli.RunJSON(&getResp, "gateway", "connection", "get", connID)
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		// Verify destination config in get response
@@ -2208,7 +2208,7 @@ func TestConnectionWithDestinationPathForwarding(t *testing.T) {
 
 			var createResp map[string]interface{}
 			err := cli.RunJSON(&createResp,
-				"connection", "create",
+				"gateway", "connection", "create",
 				"--name", connName,
 				"--source-type", "WEBHOOK",
 				"--source-name", sourceName,
@@ -2262,7 +2262,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Create connection with path forwarding enabled (default)
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2293,7 +2293,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Upsert to disable path forwarding
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--destination-path-forwarding-disabled", "true")
 		require.NoError(t, err, "Failed to upsert connection")
 
@@ -2310,7 +2310,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Upsert again to re-enable path forwarding
 		var upsertResp2 map[string]interface{}
 		err = cli.RunJSON(&upsertResp2,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--destination-path-forwarding-disabled", "false")
 		require.NoError(t, err, "Failed to upsert connection second time")
 
@@ -2343,7 +2343,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Create connection with POST method
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2373,7 +2373,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Upsert to change method to PUT
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--destination-http-method", "PUT")
 		require.NoError(t, err, "Failed to upsert connection")
 
@@ -2404,7 +2404,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Create connection with allowed HTTP methods
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2462,7 +2462,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Create connection with custom response
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2518,7 +2518,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Note: allowed_http_methods and custom_response are only supported for WEBHOOK source types
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2573,7 +2573,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Create connection without allowed methods
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2593,7 +2593,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Upsert to add allowed HTTP methods
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--source-allowed-http-methods", "POST,GET")
 		require.NoError(t, err, "Failed to upsert connection with allowed methods")
 
@@ -2625,7 +2625,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		// Create connection without custom response
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -2646,7 +2646,7 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		customBody := `{"message":"accepted"}`
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--source-custom-response-content-type", "json",
 			"--source-custom-response-body", customBody)
 		require.NoError(t, err, "Failed to upsert connection with custom response")

@@ -38,6 +38,14 @@ var rootCmd = &cobra.Command{
 	Short:         "A CLI to forward events received on Hookdeck to your local server.",
 }
 
+// addConnectionCmdTo registers the connection command tree on a parent so that
+// "connection" (and alias "connections") is available there. Call twice to expose
+// the same subcommands under both gateway and root (backward compat).
+// Command definitions live only in newConnectionCmd(); this just registers the result.
+func addConnectionCmdTo(parent *cobra.Command) {
+	parent.AddCommand(newConnectionCmd().cmd)
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -127,5 +135,7 @@ func init() {
 	rootCmd.AddCommand(newCompletionCmd().cmd)
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
 	rootCmd.AddCommand(newProjectCmd().cmd)
-	rootCmd.AddCommand(newConnectionCmd().cmd)
+	rootCmd.AddCommand(newGatewayCmd().cmd)
+	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
+	addConnectionCmdTo(rootCmd)
 }

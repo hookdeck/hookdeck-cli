@@ -207,15 +207,55 @@ type Connection struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Source      struct {
+		ID   string `json:"id"`
 		Name string `json:"name"`
 		Type string `json:"type"`
 	} `json:"source"`
 	Destination struct {
+		ID     string      `json:"id"`
 		Name   string      `json:"name"`
 		Type   string      `json:"type"`
 		Config interface{} `json:"config"`
 	} `json:"destination"`
 	Rules []map[string]interface{} `json:"rules"`
+}
+
+// Source represents a Hookdeck source for testing
+type Source struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// Destination represents a Hookdeck destination for testing
+type Destination struct {
+	ID     string      `json:"id"`
+	Name   string      `json:"name"`
+	Type   string      `json:"type"`
+	Config interface{} `json:"config"`
+}
+
+// Transformation represents a Hookdeck transformation for testing
+type Transformation struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Code string `json:"code"`
+}
+
+// Event represents a Hookdeck event for testing
+type Event struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+}
+
+// Request represents a Hookdeck request for testing
+type Request struct {
+	ID string `json:"id"`
+}
+
+// Attempt represents a Hookdeck attempt for testing
+type Attempt struct {
+	ID string `json:"id"`
 }
 
 // createTestConnection creates a basic test connection and returns its ID
@@ -230,7 +270,7 @@ func createTestConnection(t *testing.T, cli *CLIRunner) string {
 
 	var conn Connection
 	err := cli.RunJSON(&conn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -251,7 +291,7 @@ func createTestConnection(t *testing.T, cli *CLIRunner) string {
 func deleteConnection(t *testing.T, cli *CLIRunner, id string) {
 	t.Helper()
 
-	stdout, stderr, err := cli.Run("connection", "delete", id, "--force")
+	stdout, stderr, err := cli.Run("gateway", "connection", "delete", id, "--force")
 	if err != nil {
 		// Log but don't fail the test on cleanup errors
 		t.Logf("Warning: Failed to delete connection %s: %v\nstdout: %s\nstderr: %s",
