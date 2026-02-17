@@ -756,6 +756,8 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 		if err := json.Unmarshal([]byte(cc.SourceConfig), &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config: %w", err)
 		}
+		normalizeSourceConfigAuth(config, cc.sourceType)
+		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 		return config, nil
 	}
 	if cc.SourceConfigFile != "" {
@@ -767,6 +769,8 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 		if err := json.Unmarshal(data, &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config-file: %w", err)
 		}
+		normalizeSourceConfigAuth(config, cc.sourceType)
+		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 		return config, nil
 	}
 	// Build from individual --source-* flags using shared logic
@@ -781,9 +785,12 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 		CustomResponseBody:   cc.SourceCustomResponseBody,
 		CustomResponseType:   cc.SourceCustomResponseType,
 	}
-	config, err := buildSourceConfigFromIndividualFlags(f, "source-")
+	config, err := buildSourceConfigFromIndividualFlags(f, "source-", cc.sourceType)
 	if err != nil {
 		return nil, err
+	}
+	if config != nil {
+		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 	}
 	if len(config) == 0 {
 		return make(map[string]interface{}), nil

@@ -84,9 +84,12 @@ func (sc *sourceUpsertCmd) runSourceUpsertCmd(cmd *cobra.Command, args []string)
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags)
+	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, sc.sourceType)
 	if err != nil {
 		return err
+	}
+	if config != nil {
+		ensureSourceConfigAuthTypeForHTTP(config, sc.sourceType)
 	}
 
 	req := &hookdeck.SourceCreateRequest{

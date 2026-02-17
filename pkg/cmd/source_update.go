@@ -62,6 +62,7 @@ Examples:
 }
 
 // sourceUpdateRequestEmpty reports whether the update request has no fields set (all omitted).
+// OpenAPI .plans/openapi-2025-07-01.json PUT /sources/{id} allows name, type, description, config.
 func sourceUpdateRequestEmpty(req *hookdeck.SourceUpdateRequest) bool {
 	return req.Name == "" && req.Description == nil && req.Type == "" && len(req.Config) == 0
 }
@@ -91,15 +92,18 @@ func (sc *sourceUpdateCmd) runSourceUpdateCmd(cmd *cobra.Command, args []string)
 	if sc.sourceType != "" {
 		req.Type = strings.ToUpper(sc.sourceType)
 	}
-	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags)
+	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, sc.sourceType)
 	if err != nil {
 		return err
+	}
+	if config != nil {
+		ensureSourceConfigAuthTypeForHTTP(config, sc.sourceType)
 	}
 	if len(config) > 0 {
 		req.Config = config
 	}
 
-	// Only send fields that were explicitly set. OpenAPI: no required fields on PUT /sources/{id}.
+	// Only send fields that were explicitly set. Spec: PUT /sources/{id} allows name, type, description, config.
 	if sourceUpdateRequestEmpty(req) {
 		return fmt.Errorf("no updates specified (set at least one of --name, --description, --type, or config flags)")
 	}
