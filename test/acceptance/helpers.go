@@ -345,6 +345,40 @@ func deleteSource(t *testing.T, cli *CLIRunner, id string) {
 	t.Logf("Deleted source: %s", id)
 }
 
+// createTestDestination creates an HTTP destination with a test URL and returns its ID
+func createTestDestination(t *testing.T, cli *CLIRunner) string {
+	t.Helper()
+
+	timestamp := generateTimestamp()
+	name := fmt.Sprintf("test-dst-%s", timestamp)
+
+	var dst Destination
+	err := cli.RunJSON(&dst,
+		"gateway", "destination", "create",
+		"--name", name,
+		"--type", "HTTP",
+		"--url", "https://example.com/webhooks",
+	)
+	require.NoError(t, err, "Failed to create test destination")
+	require.NotEmpty(t, dst.ID, "Destination ID should not be empty")
+
+	t.Logf("Created test destination: %s (ID: %s)", name, dst.ID)
+	return dst.ID
+}
+
+// deleteDestination deletes a destination by ID using the --force flag
+func deleteDestination(t *testing.T, cli *CLIRunner, id string) {
+	t.Helper()
+
+	stdout, stderr, err := cli.Run("gateway", "destination", "delete", id, "--force")
+	if err != nil {
+		t.Logf("Warning: Failed to delete destination %s: %v\nstdout: %s\nstderr: %s",
+			id, err, stdout, stderr)
+		return
+	}
+	t.Logf("Deleted destination: %s", id)
+}
+
 // assertContains checks if a string contains a substring
 func assertContains(t *testing.T, s, substr, msgAndArgs string) {
 	t.Helper()

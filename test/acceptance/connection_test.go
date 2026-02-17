@@ -381,6 +381,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
 
+		// Get with --include-source-auth and verify source config.auth_type is set
+		var getWithAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithAuthResp, "gateway", "connection", "get", connID, "--include-source-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-source-auth should succeed")
+		srcWithAuth, ok := getWithAuthResp["source"].(map[string]interface{})
+		require.True(t, ok, "connection response must include source")
+		srcConfig, ok := srcWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "source must include config when using --include-source-auth")
+		authType, ok := srcConfig["auth_type"].(string)
+		require.True(t, ok && authType != "", "source config must include auth_type when using --include-source-auth")
+		assert.Equal(t, "API_KEY", authType, "HTTP source with API key should have config.auth_type API_KEY")
+
 		// Cleanup
 		t.Cleanup(func() {
 			deleteConnection(t, cli, connID)
@@ -453,6 +465,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		require.NoError(t, err, "Should be able to get the created connection")
 
 		assert.Equal(t, connID, getResp["id"], "Connection ID should match")
+
+		// Get with --include-source-auth and verify source config.auth_type is set
+		var getWithAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithAuthResp, "gateway", "connection", "get", connID, "--include-source-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-source-auth should succeed")
+		srcWithAuth, ok := getWithAuthResp["source"].(map[string]interface{})
+		require.True(t, ok, "connection response must include source")
+		srcConfig, ok := srcWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "source must include config when using --include-source-auth")
+		authType, ok := srcConfig["auth_type"].(string)
+		require.True(t, ok && authType != "", "source config must include auth_type when using --include-source-auth")
+		assert.Equal(t, "BASIC_AUTH", authType, "HTTP source with basic auth should have config.auth_type BASIC_AUTH")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -611,6 +635,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 			t.Errorf("Expected destination URL in get response config, got: %v", getDestConfig["url"])
 		}
 
+		// Get with --include-destination-auth and verify destination config.auth_type is set
+		var getWithDestAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithDestAuthResp, "gateway", "connection", "get", connID, "--include-destination-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-destination-auth should succeed")
+		getDestWithAuth, ok := getWithDestAuthResp["destination"].(map[string]interface{})
+		require.True(t, ok, "connection response must include destination")
+		destConfigWithAuth, ok := getDestWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "destination must include config when using --include-destination-auth")
+		destAuthType, ok := destConfigWithAuth["auth_type"].(string)
+		require.True(t, ok && destAuthType != "", "destination config must include auth_type when using --include-destination-auth")
+		assert.Equal(t, "BEARER_TOKEN", destAuthType, "HTTP destination with bearer auth should have config.auth_type BEARER_TOKEN")
+
 		// Cleanup
 		t.Cleanup(func() {
 			deleteConnection(t, cli, connID)
@@ -696,6 +732,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 			t.Errorf("Expected destination URL in get response config, got: %v", getDestConfig["url"])
 		}
 
+		// Get with --include-destination-auth and verify destination config.auth_type is set
+		var getWithDestAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithDestAuthResp, "gateway", "connection", "get", connID, "--include-destination-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-destination-auth should succeed")
+		getDestWithAuth, ok := getWithDestAuthResp["destination"].(map[string]interface{})
+		require.True(t, ok, "connection response must include destination")
+		destConfigWithAuth, ok := getDestWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "destination must include config when using --include-destination-auth")
+		destAuthType, ok := destConfigWithAuth["auth_type"].(string)
+		require.True(t, ok && destAuthType != "", "destination config must include auth_type when using --include-destination-auth")
+		assert.Equal(t, "BASIC_AUTH", destAuthType, "HTTP destination with basic auth should have config.auth_type BASIC_AUTH")
+
 		// Cleanup
 		t.Cleanup(func() {
 			deleteConnection(t, cli, connID)
@@ -747,6 +795,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 		require.True(t, ok, "Expected destination config object")
 
 		assert.Equal(t, "API_KEY", destConfig["auth_type"], "Auth type should be API_KEY")
+
+		// Get with --include-destination-auth and verify destination config.auth_type is set
+		var getWithDestAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithDestAuthResp, "gateway", "connection", "get", connID, "--include-destination-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-destination-auth should succeed")
+		getDestWithAuth, ok := getWithDestAuthResp["destination"].(map[string]interface{})
+		require.True(t, ok, "connection response must include destination")
+		destConfigWithAuth, ok := getDestWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "destination must include config when using --include-destination-auth")
+		destAuthType, ok := destConfigWithAuth["auth_type"].(string)
+		require.True(t, ok && destAuthType != "", "destination config must include auth_type when using --include-destination-auth")
+		assert.Equal(t, "API_KEY", destAuthType, "HTTP destination with API key should have config.auth_type API_KEY")
 
 		// Cleanup
 		t.Cleanup(func() {
@@ -801,6 +861,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		assert.Equal(t, "API_KEY", destConfig["auth_type"], "Auth type should be API_KEY")
 
+		// Get with --include-destination-auth and verify destination config.auth_type is set
+		var getWithDestAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithDestAuthResp, "gateway", "connection", "get", connID, "--include-destination-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-destination-auth should succeed")
+		getDestWithAuth, ok := getWithDestAuthResp["destination"].(map[string]interface{})
+		require.True(t, ok, "connection response must include destination")
+		destConfigWithAuth, ok := getDestWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "destination must include config when using --include-destination-auth")
+		destAuthType, ok := destConfigWithAuth["auth_type"].(string)
+		require.True(t, ok && destAuthType != "", "destination config must include auth_type when using --include-destination-auth")
+		assert.Equal(t, "API_KEY", destAuthType, "HTTP destination with API key (query) should have config.auth_type API_KEY")
+
 		// Cleanup
 		t.Cleanup(func() {
 			deleteConnection(t, cli, connID)
@@ -852,6 +924,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		assert.Equal(t, "CUSTOM_SIGNATURE", destConfig["auth_type"], "Auth type should be CUSTOM_SIGNATURE")
 
+		// Get with --include-destination-auth and verify destination config.auth_type is set
+		var getWithDestAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithDestAuthResp, "gateway", "connection", "get", connID, "--include-destination-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-destination-auth should succeed")
+		getDestWithAuth, ok := getWithDestAuthResp["destination"].(map[string]interface{})
+		require.True(t, ok, "connection response must include destination")
+		destConfigWithAuth, ok := getDestWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "destination must include config when using --include-destination-auth")
+		destAuthType, ok := destConfigWithAuth["auth_type"].(string)
+		require.True(t, ok && destAuthType != "", "destination config must include auth_type when using --include-destination-auth")
+		assert.Equal(t, "CUSTOM_SIGNATURE", destAuthType, "HTTP destination with custom signature should have config.auth_type CUSTOM_SIGNATURE")
+
 		// Cleanup
 		t.Cleanup(func() {
 			deleteConnection(t, cli, connID)
@@ -901,6 +985,18 @@ func TestConnectionAuthenticationTypes(t *testing.T) {
 
 		// Hookdeck signature should be set as the auth type
 		assert.Equal(t, "HOOKDECK_SIGNATURE", destConfig["auth_type"], "Auth type should be HOOKDECK_SIGNATURE")
+
+		// Get with --include-destination-auth and verify destination config.auth_type is set
+		var getWithDestAuthResp map[string]interface{}
+		err = cli.RunJSON(&getWithDestAuthResp, "gateway", "connection", "get", connID, "--include-destination-auth", "--output", "json")
+		require.NoError(t, err, "connection get with --include-destination-auth should succeed")
+		getDestWithAuth, ok := getWithDestAuthResp["destination"].(map[string]interface{})
+		require.True(t, ok, "connection response must include destination")
+		destConfigWithAuth, ok := getDestWithAuth["config"].(map[string]interface{})
+		require.True(t, ok, "destination must include config when using --include-destination-auth")
+		destAuthType, ok := destConfigWithAuth["auth_type"].(string)
+		require.True(t, ok && destAuthType != "", "destination config must include auth_type when using --include-destination-auth")
+		assert.Equal(t, "HOOKDECK_SIGNATURE", destAuthType, "HTTP destination with Hookdeck signature should have config.auth_type HOOKDECK_SIGNATURE")
 
 		// Cleanup
 		t.Cleanup(func() {
