@@ -1470,7 +1470,7 @@ hookdeck transformation execution <transformation-id> <execution-id>
 # Event list command parameters
 --id string              # Filter by event IDs (comma-separated)
 --status string          # Filter by status (SUCCESSFUL, FAILED, PENDING)
---webhook-id string      # Filter by webhook ID (connection)
+--connection-id string   # Filter by connection ID
 --destination-id string  # Filter by destination ID
 --source-id string       # Filter by source ID
 --attempts integer       # Filter by number of attempts (minimum: 0)
@@ -1511,8 +1511,8 @@ hookdeck transformation execution <transformation-id> <execution-id>
 # List recent events
 hookdeck event list
 
-# Filter by webhook ID (connection)
-hookdeck event list --webhook-id <connection-id>
+# Filter by connection ID
+hookdeck event list --connection-id <connection-id>
 
 # Filter by source ID
 hookdeck event list --source-id <source-id>
@@ -1529,7 +1529,7 @@ hookdeck event list --status PENDING
 hookdeck event list --limit 100
 
 # Combined filtering
-hookdeck event list --webhook-id <connection-id> --status FAILED --limit 50
+hookdeck event list --connection-id <connection-id> --status FAILED --limit 50
 ```
 
 ### Get event details
@@ -1882,7 +1882,7 @@ hookdeck issue-trigger disable <trigger-id>
 ```bash
 # Bookmark list command parameters
 --name string         # Filter by name pattern (supports wildcards)
---webhook-id string   # Filter by webhook ID (connection)
+--connection-id string # Filter by connection ID
 --label string        # Filter by label
 --limit integer       # Limit number of results (default varies)
 
@@ -1894,7 +1894,7 @@ hookdeck issue-trigger disable <trigger-id>
 
 # Bookmark create command parameters
 --event-data-id string # Required: Event data ID to bookmark
---webhook-id string    # Required: Webhook ID (connection)
+--connection-id string  # Required: Connection ID
 --label string         # Required: Label for categorization
 --name string          # Optional: Bookmark name
 
@@ -1923,8 +1923,8 @@ hookdeck bookmark list
 # Filter by name pattern
 hookdeck bookmark list --name "*test*"
 
-# Filter by webhook ID (connection)
-hookdeck bookmark list --webhook-id <connection-id>
+# Filter by connection ID
+hookdeck bookmark list --connection-id <connection-id>
 
 # Filter by label
 hookdeck bookmark list --label test_data
@@ -1946,7 +1946,7 @@ hookdeck bookmark raw-body <bookmark-id>
 ```bash
 # Create bookmark from event
 hookdeck bookmark create --event-data-id <event-data-id> \
-  --webhook-id <connection-id> \
+  --connection-id <connection-id> \
   --label test_payload \
   --name "stripe-payment-test"
 ```
@@ -2092,7 +2092,7 @@ hookdeck request ignored-events <request-id> --limit 50
 <operation-id>        # Required positional argument for get/cancel operations
 ```
 
-**Query JSON Format Examples:**
+**Query JSON Format Examples:** (API uses `webhook_id` for connection ID)
 - Event retry: `'{"status": "FAILED", "webhook_id": "conn_123"}'`
 - Request retry: `'{"verified": false, "source_id": "src_123"}'`
 - Ignored event retry: `'{"webhook_id": "conn_123"}'`

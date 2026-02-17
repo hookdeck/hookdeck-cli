@@ -19,7 +19,7 @@ type transformationRunCmd struct {
 	transformationID  string
 	request           string
 	requestFile       string
-	webhookID         string
+	connectionID      string
 	env               string
 	output            string
 }
@@ -39,7 +39,7 @@ The --request or --request-file must be JSON with at least "headers" (can be {})
 Examples:
   hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{}}'
   hookdeck gateway transformation run --code "module.exports = async (r) => r;" --request-file ./sample.json
-  hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{},"body":{"foo":"bar"}}' --webhook-id web_xxx`,
+  hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{},"body":{"foo":"bar"}}' --connection-id web_xxx`,
 		PreRunE: tc.validateFlags,
 		RunE:    tc.runTransformationRunCmd,
 	}
@@ -49,7 +49,7 @@ Examples:
 	tc.cmd.Flags().StringVar(&tc.transformationID, "id", "", "Use existing transformation by ID")
 	tc.cmd.Flags().StringVar(&tc.request, "request", "", "Request JSON (must include headers, e.g. {\"headers\":{}})")
 	tc.cmd.Flags().StringVar(&tc.requestFile, "request-file", "", "Path to request JSON file")
-	tc.cmd.Flags().StringVar(&tc.webhookID, "webhook-id", "", "Connection (webhook) ID for execution context")
+	tc.cmd.Flags().StringVar(&tc.connectionID, "connection-id", "", "Connection ID for execution context")
 	tc.cmd.Flags().StringVar(&tc.env, "env", "", "Environment variables as KEY=value,KEY2=value2")
 	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
 
@@ -113,7 +113,7 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 	req := &hookdeck.TransformationRunRequest{
 		Request:     &requestInput,
 		Env:         envMap,
-		WebhookID:   tc.webhookID,
+		WebhookID:   tc.connectionID,
 	}
 	if code != "" {
 		req.Code = code

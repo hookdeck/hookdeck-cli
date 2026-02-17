@@ -29,7 +29,7 @@ type transformationExecutionsListCmd struct {
 	cmd        *cobra.Command
 	trnID      string
 	logLevel   string
-	webhookID  string
+	connectionID string
 	issueID    string
 	createdAt  string
 	orderBy    string
@@ -52,7 +52,7 @@ func newTransformationExecutionsListCmd() *transformationExecutionsListCmd {
 	}
 
 	tc.cmd.Flags().StringVar(&tc.logLevel, "log-level", "", "Filter by log level (debug, info, warn, error, fatal)")
-	tc.cmd.Flags().StringVar(&tc.webhookID, "webhook-id", "", "Filter by connection (webhook) ID")
+	tc.cmd.Flags().StringVar(&tc.connectionID, "connection-id", "", "Filter by connection ID")
 	tc.cmd.Flags().StringVar(&tc.issueID, "issue-id", "", "Filter by issue ID")
 	tc.cmd.Flags().StringVar(&tc.createdAt, "created-at", "", "Filter by created_at (ISO date or operator)")
 	tc.cmd.Flags().StringVar(&tc.orderBy, "order-by", "", "Sort key (created_at)")
@@ -83,8 +83,8 @@ func (tc *transformationExecutionsListCmd) run(cmd *cobra.Command, args []string
 	if tc.logLevel != "" {
 		params["log_level"] = tc.logLevel
 	}
-	if tc.webhookID != "" {
-		params["webhook_id"] = tc.webhookID
+	if tc.connectionID != "" {
+		params["webhook_id"] = tc.connectionID
 	}
 	if tc.issueID != "" {
 		params["issue_id"] = tc.issueID
