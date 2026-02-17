@@ -785,7 +785,7 @@ hookdeck destination count --name "*prod*" --disabled
 hookdeck destination get <destination-id>
 
 # Include authentication configuration
-hookdeck destination get <destination-id> --include config.auth
+hookdeck destination get <destination-id> --include-auth
 ```
 
 ### Create a destination
