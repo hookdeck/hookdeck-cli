@@ -37,6 +37,7 @@ Examples:
 	addConnectionCmdTo(g.cmd)
 	addSourceCmdTo(g.cmd)
 	addDestinationCmdTo(g.cmd)
+	addTransformationCmdTo(g.cmd)
 
 	return g
 }

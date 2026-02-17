@@ -2,9 +2,10 @@ package cmd
 
 // Resource names for shared help text (singular form for "a source", "a connection").
 const (
-	ResourceSource      = "source"
-	ResourceConnection  = "connection"
-	ResourceDestination = "destination"
+	ResourceSource         = "source"
+	ResourceConnection     = "connection"
+	ResourceDestination    = "destination"
+	ResourceTransformation = "transformation"
 )
 
 // Short help (one line) for common commands. Use when the only difference is the resource name.

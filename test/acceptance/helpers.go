@@ -379,6 +379,40 @@ func deleteDestination(t *testing.T, cli *CLIRunner, id string) {
 	t.Logf("Deleted destination: %s", id)
 }
 
+// createTestTransformation creates a transformation with minimal code and returns its ID
+func createTestTransformation(t *testing.T, cli *CLIRunner) string {
+	t.Helper()
+
+	timestamp := generateTimestamp()
+	name := fmt.Sprintf("test-trn-%s", timestamp)
+	code := "module.exports = async (req) => req;"
+
+	var trn Transformation
+	err := cli.RunJSON(&trn,
+		"gateway", "transformation", "create",
+		"--name", name,
+		"--code", code,
+	)
+	require.NoError(t, err, "Failed to create test transformation")
+	require.NotEmpty(t, trn.ID, "Transformation ID should not be empty")
+
+	t.Logf("Created test transformation: %s (ID: %s)", name, trn.ID)
+	return trn.ID
+}
+
+// deleteTransformation deletes a transformation by ID using the --force flag
+func deleteTransformation(t *testing.T, cli *CLIRunner, id string) {
+	t.Helper()
+
+	stdout, stderr, err := cli.Run("gateway", "transformation", "delete", id, "--force")
+	if err != nil {
+		t.Logf("Warning: Failed to delete transformation %s: %v\nstdout: %s\nstderr: %s",
+			id, err, stdout, stderr)
+		return
+	}
+	t.Logf("Deleted transformation: %s", id)
+}
+
 // assertContains checks if a string contains a substring
 func assertContains(t *testing.T, s, substr, msgAndArgs string) {
 	t.Helper()
