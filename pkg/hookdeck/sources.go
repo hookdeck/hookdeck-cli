@@ -23,6 +23,7 @@ type Source struct {
 
 // SourceCreateInput is the payload for a source when nested inside another request
 // (e.g. ConnectionCreateRequest.Source). Single responsibility: inline source definition.
+// Source has type and config.auth (same shape as standalone source create).
 type SourceCreateInput struct {
 	Name        string                 `json:"name"`
 	Type        string                 `json:"type"`
