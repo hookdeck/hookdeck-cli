@@ -14,6 +14,9 @@ The Hookdeck CLI provides comprehensive webhook infrastructure management includ
 - [Local Development](#local-development)
 - [CI/CD Integration](#cicd-integration)
 - [Utilities](#utilities)
+- [Events](#events)
+- [Attempts](#attempts)
+- [Requests](#requests)
 - [Current Limitations](#current-limitations)
 
 ### Planned Functionality 🚧
@@ -22,13 +25,10 @@ The Hookdeck CLI provides comprehensive webhook infrastructure management includ
 - [Destinations](#destinations)
 - [Connections](#connections)
 - [Transformations](#transformations)
-- [Events](#events)
 - [Issue Triggers](#issue-triggers)
-- [Attempts](#attempts)
 - [Bookmarks](#bookmarks)
 - [Integrations](#integrations)
 - [Issues](#issues)
-- [Requests](#requests)
 - [Bulk Operations](#bulk-operations)
 - [Notifications](#notifications)
 - [Implementation Status](#implementation-status)
@@ -281,12 +281,8 @@ hookdeck --version
 
 The Hookdeck CLI provides comprehensive connection management capabilities. The following limitations currently exist:
 
-- ❌ **No dedicated event querying commands** - No standalone commands for event/request queries (but events can be inspected and retried in `listen` interactive mode)
 - ❌ **Limited bulk operations** - Cannot perform batch operations on resources (e.g., bulk retry, bulk delete)
 - ❌ **No project creation** - Cannot create, update, or delete projects via CLI (only list and use existing projects)
-- ❌ **No source/destination management** - Sources and destinations must be created inline via connection create or via Hookdeck dashboard
-- ❌ **No transformation management** - Transformations must be created via Hookdeck dashboard or API
-- ❌ **No attempt management** - Cannot query or manage individual delivery attempts via dedicated commands
 - ❌ **No issue management** - Cannot view or manage issues from CLI
 
 ---
@@ -305,16 +301,17 @@ The Hookdeck CLI provides comprehensive connection management capabilities. The 
 | CI/CD | ✅ **Current** | `ci` |
 | Connection Management | ✅ **Current** | `connection create`, `connection list`, `connection get`, `connection upsert`, `connection delete`, `connection enable`, `connection disable`, `connection pause`, `connection unpause` |
 | Shell Completion | ✅ **Current** | `completion` (bash, zsh) |
-| Source Management | 🚧 **Planned** | *(Not implemented)* |
-| Destination Management | 🚧 **Planned** | *(Not implemented)* |
-| Transformation Management | 🚧 **Planned** | *(Not implemented)* |
+| Gateway (sources, destinations, connections, transformations, events, requests, attempts) | ✅ **Current** | `gateway source`, `gateway destination`, `gateway connection`, `gateway transformation`, `gateway event`, `gateway request`, `gateway attempt` |
+| Source Management | ✅ **Current** | `gateway source list`, `get`, `create`, `upsert`, `update`, `delete`, `enable`, `disable`, `count` |
+| Destination Management | ✅ **Current** | `gateway destination list`, `get`, `create`, `upsert`, `update`, `delete`, `enable`, `disable`, `count` |
+| Transformation Management | ✅ **Current** | `gateway transformation list`, `get`, `create`, `upsert`, `update`, `delete`, `count`, `run`, `executions` |
+| Event Querying | ✅ **Current** | `gateway event list`, `get`, `raw-body`, `retry`, `cancel`, `mute` |
+| Attempt Management | ✅ **Current** | `gateway attempt list`, `get` |
+| Request Management | ✅ **Current** | `gateway request list`, `get`, `raw-body`, `retry`, `events`, `ignored-events` |
 | Issue Trigger Management | 🚧 **Planned** | *(Not implemented)* |
-| Event Querying | 🚧 **Planned** | *(Not implemented)* |
-| Attempt Management | 🚧 **Planned** | *(Not implemented)* |
 | Bookmark Management | 🚧 **Planned** | *(Not implemented)* |
 | Integration Management | 🚧 **Planned** | *(Not implemented)* |
 | Issue Management | 🚧 **Planned** | *(Not implemented)* |
-| Request Management | 🚧 **Planned** | *(Not implemented)* |
 | Bulk Operations | 🚧 **Planned** | *(Not implemented)* |
 
 ## Advanced Project Management
@@ -1465,190 +1462,91 @@ hookdeck transformation execution <transformation-id> <execution-id>
 
 ## Events
 
+✅ **Current** — Under `hookdeck gateway event` (alias `events`).
+
 **All Parameters:**
 ```bash
 # Event list command parameters
---id string              # Filter by event IDs (comma-separated)
---status string          # Filter by status (SUCCESSFUL, FAILED, PENDING)
+--id string              # Filter by event ID(s) (comma-separated)
 --connection-id string   # Filter by connection ID
---destination-id string  # Filter by destination ID
 --source-id string       # Filter by source ID
---attempts integer       # Filter by number of attempts (minimum: 0)
---response-status integer # Filter by HTTP response status (200-600)
---successful-at string   # Filter by success date (ISO date-time)
---created-at string      # Filter by creation date (ISO date-time)
+--destination-id string  # Filter by destination ID
+--status string          # Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED)
+--attempts string        # Filter by number of attempts (integer or operators)
+--response-status string # Filter by HTTP response status (e.g. 200, 500)
 --error-code string      # Filter by error code
 --cli-id string          # Filter by CLI ID
---last-attempt-at string # Filter by last attempt date (ISO date-time)
---search-term string     # Search in body/headers/path (minimum 3 characters)
---headers string         # Header matching (JSON string)
---body string            # Body matching (JSON string)
---parsed-query string    # Query parameter matching (JSON string)
---path string            # Path matching
---order-by string        # Sort by: created_at
+--issue-id string        # Filter by issue ID
+--created-after string   # Filter events created after (ISO date-time)
+--created-before string  # Filter events created before (ISO date-time)
+--successful-at-after string   # Filter by successful_at after (ISO date-time)
+--successful-at-before string # Filter by successful_at before (ISO date-time)
+--last-attempt-at-after string  # Filter by last_attempt_at after (ISO date-time)
+--last-attempt-at-before string # Filter by last_attempt_at before (ISO date-time)
+--headers string         # Filter by headers (JSON string)
+--body string            # Filter by body (JSON string)
+--path string            # Filter by path
+--parsed-query string    # Filter by parsed query (JSON string)
+--order-by string        # Sort key (e.g. created_at)
 --dir string             # Sort direction: asc, desc
---limit integer          # Limit number of results (0-255)
---next string            # Next page token for pagination
---prev string            # Previous page token for pagination
+--limit integer          # Limit number of results (default 100)
+--next string            # Pagination cursor for next page
+--prev string            # Pagination cursor for previous page
+--output string          # Output format (json)
 
-# Event get command parameters
-<event-id>             # Required positional argument for event ID
-
-# Event raw-body command parameters
-<event-id>             # Required positional argument for event ID
-
-# Event retry command parameters
-<event-id>             # Required positional argument for event ID
-
-# Event mute command parameters
+# Event get / raw-body / retry / cancel / mute
 <event-id>             # Required positional argument for event ID
 ```
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
 ### List events
 ```bash
-# List recent events
-hookdeck event list
-
-# Filter by connection ID
-hookdeck event list --connection-id <connection-id>
-
-# Filter by source ID
-hookdeck event list --source-id <source-id>
-
-# Filter by destination ID
-hookdeck event list --destination-id <destination-id>
-
-# Filter by status
-hookdeck event list --status SUCCESSFUL
-hookdeck event list --status FAILED
-hookdeck event list --status PENDING
-
-# Limit results
-hookdeck event list --limit 100
-
-# Combined filtering
-hookdeck event list --connection-id <connection-id> --status FAILED --limit 50
+hookdeck gateway event list
+hookdeck gateway event list --connection-id <connection-id>
+hookdeck gateway event list --source-id <source-id> --status FAILED --limit 50
+hookdeck gateway event list --id evt_xxx --created-after 2024-01-01T00:00:00Z
 ```
 
 ### Get event details
 ```bash
-# Get event by ID
-hookdeck event get <event-id>
-
-# Get event raw body
-hookdeck event raw-body <event-id>
+hookdeck gateway event get <event-id>
+hookdeck gateway event raw-body <event-id>
 ```
 
-### Retry events
+### Retry, cancel, mute
 ```bash
-# Retry single event
-hookdeck event retry <event-id>
-```
-
-### Mute events
-```bash
-# Mute event (stop retries)
-hookdeck event mute <event-id>
+hookdeck gateway event retry <event-id>
+hookdeck gateway event cancel <event-id>
+hookdeck gateway event mute <event-id>
 ```
 
 ## Attempts
 
-**All Parameters:**
+✅ **Current** — Under `hookdeck gateway attempt` (alias `attempts`). List requires `--event-id`.
+
+**Parameters:**
 ```bash
-# Attempt list command parameters
---event-id string     # Filter by specific event ID
---destination-id string # Filter by destination ID
---status string       # Filter by attempt status (FAILED, SUCCESSFUL)
---trigger string      # Filter by trigger type (INITIAL, MANUAL, BULK_RETRY, UNPAUSE, AUTOMATIC)
---error-code string   # Filter by error code (TIMEOUT, CONNECTION_REFUSED, etc.)
---bulk-retry-id string # Filter by bulk retry operation ID
---successful-at string # Filter by success timestamp (ISO format or operators)
---delivered-at string  # Filter by delivery timestamp (ISO format or operators)
---responded-at string  # Filter by response timestamp (ISO format or operators)
---order-by string     # Sort by field (created_at, delivered_at, responded_at)
---dir string          # Sort direction (asc, desc)
---limit integer       # Limit number of results (0-255)
---next string         # Next page token for pagination
---prev string         # Previous page token for pagination
+# Attempt list (--event-id required)
+--event-id string     # Filter by event ID (required)
+--order-by string     # Sort key
+--dir string          # Sort direction: asc, desc
+--limit integer       # Limit number of results (default 100)
+--next string         # Pagination cursor for next page
+--prev string         # Pagination cursor for previous page
+--output string       # Output format (json)
 
-# Attempt get command parameters
+# Attempt get
 <attempt-id>          # Required positional argument for attempt ID
-
-# Attempt retry command parameters
-<attempt-id>          # Required positional argument for attempt ID to retry
---force              # Force retry without confirmation (boolean flag)
 ```
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Attempts represent individual delivery attempts for webhook events, including success/failure status, response details, and performance metrics.
 
 ### List attempts
 ```bash
-# List all attempts
-hookdeck attempt list
-
-# List attempts for a specific event
-hookdeck attempt list --event-id evt_123
-
-# List attempts for a destination
-hookdeck attempt list --destination-id des_456
-
-# Filter by status
-hookdeck attempt list --status FAILED
-hookdeck attempt list --status SUCCESSFUL
-
-# Filter by trigger type
-hookdeck attempt list --trigger MANUAL
-hookdeck attempt list --trigger BULK_RETRY
-
-# Filter by error code
-hookdeck attempt list --error-code TIMEOUT
-hookdeck attempt list --error-code CONNECTION_REFUSED
-
-# Filter by bulk retry operation
-hookdeck attempt list --bulk-retry-id retry_789
-
-# Filter by timestamp (various operators supported)
-hookdeck attempt list --delivered-at "2024-01-01T00:00:00Z"
-hookdeck attempt list --successful-at ">2024-01-01T00:00:00Z"
-
-# Sort and limit results
-hookdeck attempt list --order-by delivered_at --dir desc --limit 100
-
-# Pagination
-hookdeck attempt list --limit 50 --next <token>
-
-# Combined filtering
-hookdeck attempt list --event-id evt_123 --status FAILED --error-code TIMEOUT
+hookdeck gateway attempt list --event-id <event-id>
+hookdeck gateway attempt list --event-id evt_123 --limit 10 --order-by created_at --dir desc
 ```
 
 ### Get attempt details
 ```bash
-# Get attempt by ID
-hookdeck attempt get att_123
-
-# Example output includes:
-# - Attempt ID and number
-# - Event and destination IDs
-# - HTTP method and requested URL
-# - Response status and body
-# - Trigger type and error code
-# - Delivery and response latency
-# - Timestamps (delivered_at, responded_at, successful_at)
-```
-
-### Retry attempts
-```bash
-# Retry a specific attempt
-hookdeck attempt retry att_123
-
-# Force retry without confirmation
-hookdeck attempt retry att_123 --force
-
-# Note: This creates a new attempt for the same event
+hookdeck gateway attempt get <attempt-id>
 ```
 
 
@@ -2025,51 +1923,70 @@ hookdeck integration detach <integration-id> <source-id>
 
 ## Requests
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+✅ **Current** — Under `hookdeck gateway request` (alias `requests`).
 
-Requests represent raw incoming webhook requests before processing.
+**All Parameters:**
+```bash
+# Request list
+--id string              # Filter by request ID(s) (comma-separated)
+--source-id string       # Filter by source ID
+--status string          # Filter by status
+--verified string        # Filter by verified (true/false)
+--rejection-cause string # Filter by rejection cause
+--created-after string   # Filter requests created after (ISO date-time)
+--created-before string  # Filter requests created before (ISO date-time)
+--ingested-at-after string  # Filter by ingested_at after (ISO date-time)
+--ingested-at-before string # Filter by ingested_at before (ISO date-time)
+--headers string         # Filter by headers (JSON string)
+--body string            # Filter by body (JSON string)
+--path string            # Filter by path
+--parsed-query string    # Filter by parsed query (JSON string)
+--order-by string        # Sort key (e.g. created_at)
+--dir string             # Sort direction: asc, desc
+--limit integer          # Limit number of results (default 100)
+--next string            # Pagination cursor for next page
+--prev string            # Pagination cursor for previous page
+--output string          # Output format (json)
+
+# Request get / raw-body / retry
+<request-id>             # Required positional argument for request ID
+
+# Request retry
+--connection-ids string  # Comma-separated connection IDs to retry (omit to retry all)
+
+# Request events / ignored-events
+<request-id>             # Required positional argument for request ID
+--limit integer          # Limit number of results (default 100)
+--next string            # Pagination cursor for next page
+--prev string            # Pagination cursor for previous page
+--output string          # Output format (json)
+```
 
 ### List requests
 ```bash
-# List all requests
-hookdeck request list
-
-# Filter by source ID
-hookdeck request list --source-id <source-id>
-
-# Filter by verification status
-hookdeck request list --verified true
-hookdeck request list --verified false
-
-# Filter by rejection cause
-hookdeck request list --rejection-cause INVALID_SIGNATURE
-
-# Limit results
-hookdeck request list --limit 100
+hookdeck gateway request list
+hookdeck gateway request list --source-id <source-id>
+hookdeck gateway request list --verified true --rejection-cause INVALID_SIGNATURE
+hookdeck gateway request list --created-after 2024-01-01T00:00:00Z --limit 100
 ```
 
-### Get request details
+### Get request details and raw body
 ```bash
-# Get request by ID
-hookdeck request get <request-id>
-
-# Get request raw body
-hookdeck request raw-body <request-id>
+hookdeck gateway request get <request-id>
+hookdeck gateway request raw-body <request-id>
 ```
 
 ### Retry request
 ```bash
-# Retry request processing
-hookdeck request retry <request-id>
+hookdeck gateway request retry <request-id>
+hookdeck gateway request retry <request-id> --connection-ids web_1,web_2
 ```
 
-### List request events
+### List request events and ignored events
 ```bash
-# List events generated from request
-hookdeck request events <request-id> --limit 50
-
-# List ignored events from request
-hookdeck request ignored-events <request-id> --limit 50
+hookdeck gateway request events <request-id> --limit 50
+hookdeck gateway request events <request-id> --limit 50 --next <cursor>
+hookdeck gateway request ignored-events <request-id> --limit 50 --prev <cursor>
 ```
 
 ## Bulk Operations

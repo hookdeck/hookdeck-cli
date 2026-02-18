@@ -38,6 +38,9 @@ Examples:
 	addSourceCmdTo(g.cmd)
 	addDestinationCmdTo(g.cmd)
 	addTransformationCmdTo(g.cmd)
+	addEventCmdTo(g.cmd)
+	addRequestCmdTo(g.cmd)
+	addAttemptCmdTo(g.cmd)
 
 	return g
 }

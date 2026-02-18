@@ -265,7 +265,8 @@ go run cmd/hookdeck/main.go login --help
 ```
 
 ### Sandbox and command execution
-When running commands (build, test, acceptance tests), if you see **TLS/certificate errors** (e.g. `x509: certificate verify failed`, `tls: failed to verify certificate`), **permission errors** (e.g. `operation not permitted` when writing to the Go module cache), or similar failures that look environment-related, check whether the command is running inside a **sandbox**. If it is, prompt the user to re-run the command **outside the sandbox** (e.g. with full permissions) so the operation can succeed. Do not treat a build or test as passed if stderr shows these errors, even when the process exit code is 0.
+- **Always run tests** when changing code: unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`). Do not skip tests to avoid failures.
+- When running commands (build, test, acceptance tests), if you see **TLS/certificate errors** (e.g. `x509: certificate verify failed`, `tls: failed to verify certificate`), **permission errors** (e.g. `operation not permitted` when writing to the Go module cache), or similar failures that look environment-related, the command is likely running inside a **sandbox**. **Prompt the user** and **re-run the command with elevated permissions** (e.g. `required_permissions: ["network"]` for tests that need API access, or `["all"]` to disable the sandbox) so the operation can succeed. Do not treat a build or test as passed if stderr shows these errors, even when the process exit code is 0.
 
 ## 6. Documentation Standards
 
@@ -330,7 +331,7 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 
 ## 9. Testing Guidelines
 
-- **Always run tests** when changing code. Run unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`) outside the sandbox so network and API access work.
+- **Always run tests** when changing code. Run unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`). If tests fail due to TLS/network/sandbox (e.g. `x509`, `operation not permitted`), prompt the user and re-run with elevated permissions (e.g. `required_permissions: ["all"]`) so tests can pass.
 - **Create tests for new functionality.** Add unit tests for validation and business logic; add acceptance tests for flows that use the CLI as a user or agent would (success and failure paths). Acceptance tests must pass or fail—no skipping to avoid failures.
 
 ### Unit Testing

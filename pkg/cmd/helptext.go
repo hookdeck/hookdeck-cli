@@ -6,6 +6,9 @@ const (
 	ResourceConnection     = "connection"
 	ResourceDestination    = "destination"
 	ResourceTransformation = "transformation"
+	ResourceEvent          = "event"
+	ResourceRequest        = "request"
+	ResourceAttempt       = "attempt"
 )
 
 // Short help (one line) for common commands. Use when the only difference is the resource name.

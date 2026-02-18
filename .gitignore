@@ -17,3 +17,6 @@ __debug_bin
 node_modules/
 .env
 test-scripts/.install-test/
+
+# Temporary OpenAPI spec download (large; do not commit)
+.plans/openapi-2025-07-01.json
