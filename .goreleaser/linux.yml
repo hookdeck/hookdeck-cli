@@ -52,46 +52,24 @@ nfpms:
     formats:
       - deb
       - rpm
-dockers:
-  - goos: linux
-    goarch: amd64
-    ids:
+# dockers_v2 uses buildx to build multi-arch manifests in one step,
+# avoiding the "is a manifest list" error from the legacy dockers + docker_manifests flow
+dockers_v2:
+  - ids:
       - hookdeck-linux
-    image_templates:
-      - "hookdeck/hookdeck-cli:{{ .Tag }}-amd64"
-      - "{{ if not .Prerelease }}hookdeck/hookdeck-cli:latest-amd64{{ end }}"
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.name={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=repository=https://github.com/hookdeck/hookdeck-cli"
-      - "--label=homepage=https://hookdeck.com"
-      - "--platform=linux/amd64"
-  - goos: linux
-    goarch: arm64
-    ids:
       - hookdeck-linux-arm64
-    image_templates:
-      - "hookdeck/hookdeck-cli:{{ .Tag }}-arm64"
-      - "{{ if not .Prerelease }}hookdeck/hookdeck-cli:latest-arm64{{ end }}"
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.name={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=repository=https://github.com/hookdeck/hookdeck-cli"
-      - "--label=homepage=https://hookdeck.com"
-      - "--platform=linux/arm64/v8"
-docker_manifests:
-  - name_template: "hookdeck/hookdeck-cli:{{ .Tag }}"
-    image_templates:
-      - "hookdeck/hookdeck-cli:{{ .Tag }}-amd64"
-      - "hookdeck/hookdeck-cli:{{ .Tag }}-arm64"
-  - name_template: "hookdeck/hookdeck-cli:latest"
-    image_templates:
-      - "hookdeck/hookdeck-cli:latest-amd64"
-      - "hookdeck/hookdeck-cli:latest-arm64"
-    skip_push: auto
+    images:
+      - "hookdeck/hookdeck-cli"
+    tags:
+      - "{{ .Tag }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.name": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "repository": "https://github.com/hookdeck/hookdeck-cli"
+      "homepage": "https://hookdeck.com"
