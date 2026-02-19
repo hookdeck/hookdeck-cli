@@ -507,6 +507,23 @@ func pollForRequestsBySourceID(t *testing.T, cli *CLIRunner, sourceID string) []
 	return requests
 }
 
+// pollForAttemptsByEventID polls gateway attempt list by event ID until at least one attempt
+// appears or the timeout (10 attempts × 2s) is reached. Use after createConnectionAndTriggerEvent
+// when the test requires attempts; attempt creation may lag behind event creation.
+func pollForAttemptsByEventID(t *testing.T, cli *CLIRunner, eventID string) []Attempt {
+	t.Helper()
+	var attempts []Attempt
+	for i := 0; i < 10; i++ {
+		time.Sleep(2 * time.Second)
+		require.NoError(t, cli.RunJSON(&attempts, "gateway", "attempt", "list", "--event-id", eventID, "--limit", "5"))
+		if len(attempts) > 0 {
+			return attempts
+		}
+	}
+	require.NotEmpty(t, attempts, "expected at least one attempt after trigger (waited ~20s)")
+	return attempts
+}
+
 // assertContains checks if a string contains a substring
 func assertContains(t *testing.T, s, substr, msgAndArgs string) {
 	t.Helper()

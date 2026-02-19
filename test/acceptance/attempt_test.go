@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAttemptList(t *testing.T) {
@@ -29,9 +28,7 @@ func TestAttemptGet(t *testing.T) {
 	connID, eventID := createConnectionAndTriggerEvent(t, cli)
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
-	var attempts []Attempt
-	require.NoError(t, cli.RunJSON(&attempts, "gateway", "attempt", "list", "--event-id", eventID))
-	require.NotEmpty(t, attempts, "expected at least one attempt")
+	attempts := pollForAttemptsByEventID(t, cli, eventID)
 	attemptID := attempts[0].ID
 
 	stdout := cli.RunExpectSuccess("gateway", "attempt", "get", attemptID)
@@ -48,9 +45,7 @@ func TestAttemptListJSON(t *testing.T) {
 	connID, eventID := createConnectionAndTriggerEvent(t, cli)
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
-	var attempts []Attempt
-	require.NoError(t, cli.RunJSON(&attempts, "gateway", "attempt", "list", "--event-id", eventID))
-	assert.NotEmpty(t, attempts)
+	attempts := pollForAttemptsByEventID(t, cli, eventID)
 	assert.NotEmpty(t, attempts[0].ID)
 	assert.Equal(t, eventID, attempts[0].EventID)
 }
