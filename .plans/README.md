@@ -20,10 +20,32 @@ See [`connection-management-status.md`](./connection-management/connection-manag
 - Connection count command
 - Connection cloning
 
+## Documentation and Transformation Updates ✅
+
+**REFERENCE.md generation:**
+- `REFERENCE.md` is now generated from Cobra command metadata via `go run ./tools/generate-reference`
+- See `tools/generate-reference/main.go` and `REFERENCE.template.md`
+
+**Transformation examples:**
+- All transformation code examples updated from `module.exports = async (r) => r` to the correct Hookdeck format: `addHandler("transform", (request, context) => { return request; })`
+- Applied in: pkg/cmd (create, run, upsert), README.md, REFERENCE.md (via regen), test/acceptance (helpers, transformation_test.go)
+- Transformation run API response model aligned with OpenAPI `TransformationExecutorOutput` (uses `request` field for transformed payload)
+- CLI adds default `content-type: application/json` when request headers are empty so the transformation engine executes successfully
+
+**README rebalance:**
+- Added Sources and destinations subsection (within Manage connections) with examples and link to [REFERENCE.md#sources](REFERENCE.md#sources) and [REFERENCE.md#destinations](REFERENCE.md#destinations)
+- Added Transformations section with examples and link to [REFERENCE.md#transformations](REFERENCE.md#transformations)
+- Added Requests, events, and attempts section with examples and links to [REFERENCE.md#requests](REFERENCE.md#requests), [REFERENCE.md#events](REFERENCE.md#events), [REFERENCE.md#attempts](REFERENCE.md#attempts)
+
 ## Active Planning Documents
 
 - **[`connection-management-status.md`](./connection-management/connection-management-status.md)** - Current implementation status (98% complete)
 - **[`resource-management-implementation.md`](./resource-management-implementation.md)** - Overall resource management plan
+
+## Testing and sandbox
+
+- **Always run tests** when implementing or changing code (`go test ./pkg/...`, and for CLI changes `go test ./test/acceptance/...`). Do not skip tests to avoid failures.
+- If tests fail due to **TLS/certificate errors**, **network**, or **sandbox** (e.g. `x509`, `operation not permitted`), **prompt the user** and **re-run with elevated permissions** (e.g. `required_permissions: ["all"]`) so tests can pass.
 
 ## Development Guidelines
 

@@ -13,7 +13,7 @@ type Project struct {
 }
 
 func (c *Client) ListProjects() ([]Project, error) {
-	res, err := c.Get(context.Background(), "/2025-07-01/teams", "", nil)
+	res, err := c.Get(context.Background(), APIPathPrefix+"/teams", "", nil)
 	if err != nil {
 		return []Project{}, err
 	}

@@ -103,7 +103,7 @@ func newListenCmd() *listenCmd {
 	lc := &listenCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:   "listen",
+		Use:   "listen [port or forwarding URL] [source] [connection]",
 		Short: "Forward events for a source to your local server",
 		Long: `Forward events for a source to your local server.
 
@@ -147,6 +147,13 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 			return nil
 		},
 		RunE: lc.runListenCmd,
+	}
+	lc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[
+			{"name":"port or forwarding URL","type":"string","description":"Port (e.g. 3000) or full URL (e.g. http://localhost:3000) to forward events to. The forward URL will be http://localhost:$PORT/$DESTINATION_PATH or http://domain/$DESTINATION_PATH. Only one of port or domain is required.","required":true},
+			{"name":"source","type":"string","description":"The name of a source to listen to, a comma-separated list of source names, or '*' (with quotes) to listen to all. If empty, the CLI prompts you to choose.","required":false},
+			{"name":"connection","type":"string","description":"Filter connections by connection name or path.","required":false}
+		]`,
 	}
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 	lc.cmd.Flags().MarkHidden("no-wss")

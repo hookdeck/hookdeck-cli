@@ -19,10 +19,8 @@ func newConnectionDisableCmd() *connectionDisableCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "disable <connection-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Disable a connection",
-		Long: `Disable an active connection.
-
-The connection will stop processing events until re-enabled.`,
+		Short: ShortDisable(ResourceConnection),
+		Long:  LongDisableIntro(ResourceConnection),
 		RunE: cc.runConnectionDisableCmd,
 	}
 

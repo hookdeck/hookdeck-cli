@@ -21,7 +21,7 @@ func TestConnectionCreateWithNonExistentSourceID(t *testing.T) {
 	fakeSourceID := "src_nonexistent123"
 
 	// Try to create connection with non-existent source ID
-	stdout, stderr, err := cli.Run("connection", "create",
+	stdout, stderr, err := cli.Run("gateway", "connection", "create",
 		"--name", connName,
 		"--source-id", fakeSourceID,
 		"--destination-name", destName,
@@ -56,7 +56,7 @@ func TestConnectionCreateWithNonExistentDestinationID(t *testing.T) {
 	fakeDestinationID := "des_nonexistent123"
 
 	// Try to create connection with non-existent destination ID
-	stdout, stderr, err := cli.Run("connection", "create",
+	stdout, stderr, err := cli.Run("gateway", "connection", "create",
 		"--name", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -92,7 +92,7 @@ func TestConnectionCreateWithWrongIDType(t *testing.T) {
 	wrongIDType := "web_y0A7nz0tRxZy"
 
 	// Try to create connection with wrong ID type
-	stdout, stderr, err := cli.Run("connection", "create",
+	stdout, stderr, err := cli.Run("gateway", "connection", "create",
 		"--name", connName,
 		"--source-id", wrongIDType,
 		"--destination-name", destName,
@@ -128,7 +128,7 @@ func TestConnectionUpsertWithNonExistentSourceID(t *testing.T) {
 	fakeSourceID := "src_nonexistent456"
 
 	// Try to upsert connection with non-existent source ID
-	stdout, stderr, err := cli.Run("connection", "upsert", connName,
+	stdout, stderr, err := cli.Run("gateway", "connection", "upsert", connName,
 		"--source-id", fakeSourceID,
 		"--destination-name", destName,
 		"--destination-type", "CLI",
@@ -162,7 +162,7 @@ func TestConnectionUpsertWithNonExistentDestinationID(t *testing.T) {
 	fakeDestinationID := "des_nonexistent456"
 
 	// Try to upsert connection with non-existent destination ID
-	stdout, stderr, err := cli.Run("connection", "upsert", connName,
+	stdout, stderr, err := cli.Run("gateway", "connection", "upsert", connName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
 		"--destination-id", fakeDestinationID,
@@ -198,7 +198,7 @@ func TestConnectionCreateWithExistingSourceID(t *testing.T) {
 
 	var initialConn Connection
 	err := cli.RunJSON(&initialConn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", initialConnName,
 		"--source-name", sourceName,
 		"--source-type", "WEBHOOK",
@@ -211,7 +211,7 @@ func TestConnectionCreateWithExistingSourceID(t *testing.T) {
 
 	// Get the source ID from the created connection
 	var connDetails map[string]interface{}
-	err = cli.RunJSON(&connDetails, "connection", "get", initialConn.ID)
+	err = cli.RunJSON(&connDetails, "gateway", "connection", "get", initialConn.ID)
 	require.NoError(t, err, "Should get connection details")
 
 	source, ok := connDetails["source"].(map[string]interface{})
@@ -232,7 +232,7 @@ func TestConnectionCreateWithExistingSourceID(t *testing.T) {
 
 	var newConn Connection
 	err = cli.RunJSON(&newConn,
-		"connection", "create",
+		"gateway", "connection", "create",
 		"--name", newConnName,
 		"--source-id", sourceID,
 		"--destination-name", newDestName,

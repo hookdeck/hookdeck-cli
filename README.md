@@ -12,7 +12,7 @@ Although it uses a different approach and philosophy, it's a replacement for ngr
 
 Hookdeck for development is completely free, and we monetize the platform with our production offering.
 
-For a complete reference, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
+For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE.md).
 
 https://github.com/user-attachments/assets/7a333c5b-e4cb-45bb-8570-29fafd137bd2
 
@@ -456,24 +456,119 @@ Events • [↑↓] Navigate ─────────────────
 > ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
 
-### Manage connections
+### Event Gateway
 
-Create and manage webhook connections between sources and destinations with inline resource creation, authentication, processing rules, and lifecycle management. For detailed examples with authentication, filters, retry rules, and rate limiting, see the complete [connection management](#manage-connections) section below.
+The `hookdeck gateway` command provides full access to Hookdeck Event Gateway resources. Use these subcommands to manage infrastructure and inspect events:
+
+| Command group | Description |
+|---------------|-------------|
+| `hookdeck gateway connection` | Create and manage connections between sources and destinations |
+| `hookdeck gateway source` | Manage inbound webhook sources |
+| `hookdeck gateway destination` | Manage destinations (HTTP endpoints, CLI, etc.) |
+| `hookdeck gateway event` | List, get, retry, cancel, or mute events (processed deliveries) |
+| `hookdeck gateway request` | List, get, and retry requests (raw inbound webhooks) |
+| `hookdeck gateway attempt` | List and get delivery attempts |
+| `hookdeck gateway transformation` | Create and manage JavaScript transformations |
+
+**Examples:**
 
 ```sh
-hookdeck connection [command]
+# List sources and destinations
+hookdeck gateway source list
+hookdeck gateway destination list
+
+# List events (processed deliveries) and requests (raw inbound webhooks)
+hookdeck gateway event list --status FAILED
+hookdeck gateway request list --source-id src_abc123
+
+# List attempts for an event
+hookdeck gateway attempt list --event-id evt_abc123
+
+# Create a transformation and test-run it
+hookdeck gateway transformation create --name my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
+hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request '{"headers":{}}'
+```
+
+For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
+
+### Manage connections
+
+Create and manage webhook connections between sources and destinations with inline resource creation, authentication, processing rules, and lifecycle management. Use `hookdeck gateway connection` (or the backward-compatible alias `hookdeck connection`). For detailed examples with authentication, filters, retry rules, and rate limiting, see the complete [connection management](#manage-connections) section below.
+
+```sh
+hookdeck gateway connection [command]
 
 # Available commands
-hookdeck connection list      # List all connections
-hookdeck connection get       # Get connection details
-hookdeck connection create    # Create a new connection
-hookdeck connection upsert    # Create or update a connection (idempotent)
-hookdeck connection delete    # Delete a connection
-hookdeck connection enable    # Enable a connection
-hookdeck connection disable   # Disable a connection
-hookdeck connection pause     # Pause a connection
-hookdeck connection unpause   # Unpause a connection
+hookdeck gateway connection list      # List all connections
+hookdeck gateway connection get       # Get connection details
+hookdeck gateway connection create    # Create a new connection
+hookdeck gateway connection upsert    # Create or update a connection (idempotent)
+hookdeck gateway connection update    # Update a connection
+hookdeck gateway connection delete    # Delete a connection
+hookdeck gateway connection enable    # Enable a connection
+hookdeck gateway connection disable   # Disable a connection
+hookdeck gateway connection pause     # Pause a connection
+hookdeck gateway connection unpause   # Unpause a connection
 ```
+
+#### Sources and destinations
+
+You can manage sources and destinations independently, not only inline when creating connections. Create reusable sources (e.g. Stripe, GitHub) and destinations (HTTP endpoints) that multiple connections can reference.
+
+```sh
+# List and inspect sources and destinations
+hookdeck gateway source list
+hookdeck gateway source get src_abc123
+
+hookdeck gateway destination list
+hookdeck gateway destination get dst_abc123
+
+# Create a standalone destination
+hookdeck gateway destination create --name "my-api" --type HTTP --url "https://api.example.com/webhooks"
+```
+
+See [Sources](REFERENCE.md#sources) and [Destinations](REFERENCE.md#destinations) in REFERENCE.md.
+
+### Transformations
+
+Transformations are JavaScript modules that modify requests before delivery. They are attached to connections and can add headers, transform the body, or filter events. Create, test, and manage transformations with `hookdeck gateway transformation`:
+
+```sh
+# Create a transformation
+hookdeck gateway transformation create --name my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
+
+# Test run transformation code (see transformed output)
+hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request '{"headers":{}}'
+
+# List and use with connections (--transformation-name when creating connections)
+hookdeck gateway transformation list
+```
+
+See [Transformations](REFERENCE.md#transformations) in REFERENCE.md.
+
+### Requests, events, and attempts
+
+Webhooks flow through Hookdeck as **requests** (raw inbound), then **events** (processed, routed), then **attempts** (delivery tries). Use these commands to inspect, filter, and retry:
+
+```sh
+# List requests (raw inbound webhooks) and filter by source
+hookdeck gateway request list --source-id src_abc123
+hookdeck gateway request get req_abc123
+
+# List events (processed deliveries) by status
+hookdeck gateway event list --status FAILED
+hookdeck gateway event list --status PENDING
+hookdeck gateway event get evt_abc123
+
+# Retry a failed event or request
+hookdeck gateway event retry evt_abc123
+hookdeck gateway request retry req_abc123
+
+# List attempts (individual delivery tries) for an event
+hookdeck gateway attempt list --event-id evt_abc123
+```
+
+See [Requests](REFERENCE.md#requests), [Events](REFERENCE.md#events), and [Attempts](REFERENCE.md#attempts) in REFERENCE.md.
 
 ### Manage active project
 
@@ -642,7 +737,7 @@ Create a new connection between a source and destination. You can create the sou
 
 ```sh
 # Basic connection with inline source and destination
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "github-repo" \
   --source-type GITHUB \
   --destination-name "ci-system" \
@@ -656,9 +751,9 @@ Source URL: https://hkdk.events/src_xyz789
 Destination: ci-system (dst_def456)
 
 # Using existing source and destination
-$ hookdeck connection create \
-  --source "existing-source-name" \
-  --destination "existing-dest-name" \
+$ hookdeck gateway connection create \
+  --source-id src_existing123 \
+  --destination-id dst_existing456 \
   --name "new-connection" \
   --description "Connects existing resources"
 ```
@@ -669,7 +764,7 @@ Verify webhooks from providers like Stripe, GitHub, or Shopify by adding source 
 
 ```sh
 # Stripe webhook signature verification
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "stripe-prod" \
   --source-type STRIPE \
   --source-webhook-secret "whsec_abc123xyz" \
@@ -678,7 +773,7 @@ $ hookdeck connection create \
   --destination-url "https://api.example.com/webhooks/stripe"
 
 # GitHub webhook signature verification
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "github-webhooks" \
   --source-type GITHUB \
   --source-webhook-secret "ghp_secret123" \
@@ -693,7 +788,7 @@ Secure your destination endpoint with bearer tokens, API keys, or basic authenti
 
 ```sh
 # Destination with bearer token
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "webhook-source" \
   --source-type HTTP \
   --destination-name "secure-api" \
@@ -702,7 +797,7 @@ $ hookdeck connection create \
   --destination-bearer-token "bearer_token_xyz"
 
 # Destination with API key
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "webhook-source" \
   --source-type HTTP \
   --destination-name "api-endpoint" \
@@ -711,7 +806,7 @@ $ hookdeck connection create \
   --destination-api-key "your_api_key"
 
 # Destination with custom headers
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "webhook-source" \
   --source-type HTTP \
   --destination-name "custom-api" \
@@ -725,7 +820,7 @@ Add automatic retry logic with exponential or linear backoff:
 
 ```sh
 # Exponential backoff retry strategy
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "payment-webhooks" \
   --source-type STRIPE \
   --destination-name "payment-api" \
@@ -742,7 +837,7 @@ Filter events based on request body, headers, path, or query parameters:
 
 ```sh
 # Filter by event type in body
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "events" \
   --source-type HTTP \
   --destination-name "processor" \
@@ -751,7 +846,7 @@ $ hookdeck connection create \
   --rule-filter-body '{"event_type":"payment.succeeded"}'
 
 # Combined filtering
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "shopify-webhooks" \
   --source-type SHOPIFY \
   --destination-name "order-processor" \
@@ -768,7 +863,7 @@ Control the rate of event delivery to your destination:
 
 ```sh
 # Limit to 100 requests per minute
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "high-volume-source" \
   --source-type HTTP \
   --destination-name "rate-limited-api" \
@@ -784,7 +879,7 @@ Create or update connections idempotently based on connection name - perfect for
 
 ```sh
 # Create if doesn't exist, update if it does
-$ hookdeck connection upsert my-connection \
+$ hookdeck gateway connection upsert my-connection \
   --source-name "stripe-prod" \
   --source-type STRIPE \
   --destination-name "api-prod" \
@@ -792,12 +887,12 @@ $ hookdeck connection upsert my-connection \
   --destination-url "https://api.example.com"
 
 # Partial update of existing connection
-$ hookdeck connection upsert my-connection \
+$ hookdeck gateway connection upsert my-connection \
   --description "Updated description" \
   --rule-retry-count 5
 
 # Preview changes without applying (dry-run)
-$ hookdeck connection upsert my-connection \
+$ hookdeck gateway connection upsert my-connection \
   --description "New description" \
   --dry-run
 
@@ -812,20 +907,20 @@ View all connections with flexible filtering options:
 
 ```sh
 # List all connections
-$ hookdeck connection list
+$ hookdeck gateway connection list
 
 # Filter by source or destination
-$ hookdeck connection list --source src_abc123
-$ hookdeck connection list --destination des_xyz789
+$ hookdeck gateway connection list --source-id src_abc123
+$ hookdeck gateway connection list --destination-id dst_def456
 
 # Filter by name pattern
-$ hookdeck connection list --name "production-*"
+$ hookdeck gateway connection list --name "production-*"
 
 # Include disabled connections
-$ hookdeck connection list --disabled
+$ hookdeck gateway connection list --disabled
 
 # Output as JSON
-$ hookdeck connection list --output json
+$ hookdeck gateway connection list --output json
 ```
 
 #### Get connection details
@@ -834,16 +929,16 @@ View detailed information about a specific connection:
 
 ```sh
 # Get by ID
-$ hookdeck connection get conn_123abc
+$ hookdeck gateway connection get conn_123abc
 
 # Get by name
-$ hookdeck connection get "my-connection"
+$ hookdeck gateway connection get "my-connection"
 
 # Get as JSON
-$ hookdeck connection get conn_123abc --output json
+$ hookdeck gateway connection get conn_123abc --output json
 
 # Include destination authentication credentials
-$ hookdeck connection get conn_123abc --include-destination-auth --output json
+$ hookdeck gateway connection get conn_123abc --include-destination-auth --output json
 ```
 
 #### Connection lifecycle management
@@ -852,16 +947,16 @@ Control connection state and event processing behavior:
 
 ```sh
 # Disable a connection (stops receiving events entirely)
-$ hookdeck connection disable conn_123abc
+$ hookdeck gateway connection disable conn_123abc
 
 # Enable a disabled connection
-$ hookdeck connection enable conn_123abc
+$ hookdeck gateway connection enable conn_123abc
 
 # Pause a connection (queues events without forwarding)
-$ hookdeck connection pause conn_123abc
+$ hookdeck gateway connection pause conn_123abc
 
 # Resume a paused connection
-$ hookdeck connection unpause conn_123abc
+$ hookdeck gateway connection unpause conn_123abc
 ```
 
 **State differences:**
@@ -874,16 +969,16 @@ Delete a connection permanently:
 
 ```sh
 # Delete with confirmation prompt
-$ hookdeck connection delete conn_123abc
+$ hookdeck gateway connection delete conn_123abc
 
 # Delete by name
-$ hookdeck connection delete "my-connection"
+$ hookdeck gateway connection delete "my-connection"
 
 # Skip confirmation
-$ hookdeck connection delete conn_123abc --force
+$ hookdeck gateway connection delete conn_123abc --force
 ```
 
-For complete flag documentation and all examples, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
+For complete flag documentation and all examples, see [REFERENCE.md](REFERENCE.md).
 
 ## Configuration files
 
@@ -1008,6 +1103,20 @@ Running from source:
 
 ```sh
 go run main.go
+```
+
+### Generating REFERENCE.md
+
+The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it:
+
+```sh
+go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md
+```
+
+To validate that REFERENCE.md is up to date (useful in CI):
+
+```sh
+go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md --check
 ```
 
 Build from source by running:

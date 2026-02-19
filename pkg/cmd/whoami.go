@@ -18,10 +18,11 @@ func newWhoamiCmd() *whoamiCmd {
 	lc := &whoamiCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:   "whoami",
-		Args:  validators.NoArgs,
-		Short: "Show the logged-in user",
-		RunE:  lc.runWhoamiCmd,
+		Use:     "whoami",
+		Args:    validators.NoArgs,
+		Short:   "Show the logged-in user",
+		Example: "  $ hookdeck whoami",
+		RunE:    lc.runWhoamiCmd,
 	}
 
 	return lc

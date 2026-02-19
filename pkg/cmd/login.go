@@ -22,7 +22,9 @@ func newLoginCmd() *loginCmd {
 		Args:  validators.NoArgs,
 		Short: "Login to your Hookdeck account",
 		Long:  `Login to your Hookdeck account to setup the CLI`,
-		RunE:  lc.runLoginCmd,
+		Example: `  $ hookdeck login
+  $ hookdeck login -i  # interactive mode (no browser)`,
+		RunE: lc.runLoginCmd,
 	}
 	lc.cmd.Flags().BoolVarP(&lc.interactive, "interactive", "i", false, "Run interactive configuration mode if you cannot open a browser")
 

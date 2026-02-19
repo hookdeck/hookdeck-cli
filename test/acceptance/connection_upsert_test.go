@@ -32,7 +32,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Create initial connection
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -62,7 +62,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Update ONLY the destination URL (this is the bug scenario)
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--destination-url", updatedURL,
 		)
 		require.NoError(t, err, "Should upsert connection with only destination-url flag")
@@ -97,7 +97,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Create initial connection (default HTTP method is POST)
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -118,7 +118,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Update ONLY the HTTP method
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--destination-http-method", "PUT",
 		)
 		require.NoError(t, err, "Should upsert connection with only http-method flag")
@@ -148,7 +148,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Create initial connection without auth
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -169,7 +169,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Update ONLY the auth method
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--destination-auth-method", "bearer",
 			"--destination-bearer-token", "test_token_123",
 		)
@@ -201,7 +201,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Create initial connection
 		var createResp map[string]interface{}
 		err := cli.RunJSON(&createResp,
-			"connection", "create",
+			"gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -222,7 +222,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		// Update ONLY source config fields
 		var upsertResp map[string]interface{}
 		err = cli.RunJSON(&upsertResp,
-			"connection", "upsert", connName,
+			"gateway", "connection", "upsert", connName,
 			"--source-allowed-http-methods", "POST,PUT",
 			"--source-custom-response-content-type", "json",
 			"--source-custom-response-body", `{"status":"ok"}`,

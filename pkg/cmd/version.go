@@ -10,9 +10,11 @@ import (
 )
 
 var versionCmd = &cobra.Command{
-	Use:   "version",
-	Args:  validators.NoArgs,
-	Short: "Get the version of the Hookdeck CLI",
+	Use:     "version",
+	Args:    validators.NoArgs,
+	Short:   "Get the version of the Hookdeck CLI",
+	Long:    "Print the CLI version and check whether a new version is available.",
+	Example: "  $ hookdeck version",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Print(version.Template)
 

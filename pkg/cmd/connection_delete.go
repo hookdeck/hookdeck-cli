@@ -21,8 +21,8 @@ func newConnectionDeleteCmd() *connectionDeleteCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "delete <connection-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Delete a connection",
-		Long: `Delete a connection.
+		Short: ShortDelete(ResourceConnection),
+		Long: LongDeleteIntro(ResourceConnection) + `
 
 Examples:
   # Delete a connection (with confirmation)

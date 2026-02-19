@@ -24,7 +24,7 @@ func (c *Client) CreateGuestUser(input CreateGuestUserInput) (GuestUser, error) 
 	if err != nil {
 		return GuestUser{}, err
 	}
-	res, err := c.Post(context.Background(), "/2025-07-01/cli/guest", input_bytes, nil)
+	res, err := c.Post(context.Background(), APIPathPrefix+"/cli/guest", input_bytes, nil)
 	if err != nil {
 		return GuestUser{}, err
 	}

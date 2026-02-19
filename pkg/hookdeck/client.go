@@ -31,6 +31,11 @@ const DefaultWebsocektURL = "wss://ws.hookdeck.com"
 
 const DefaultProfileName = "default"
 
+// APIPathPrefix is the versioned path prefix for all REST API requests.
+// Used by connections, sources, destinations, events, auth, etc.
+// Change in one place when the API version is updated.
+const APIPathPrefix = "/2025-07-01"
+
 // Client is the API client used to sent requests to Hookdeck.
 type Client struct {
 	// The base URL (protocol + hostname) used for all requests sent by this

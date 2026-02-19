@@ -75,7 +75,7 @@ func (c *Client) StartLogin(deviceName string) (*LoginSession, error) {
 		return nil, err
 	}
 
-	res, err := c.Post(context.Background(), "/2025-07-01/cli-auth", jsonData, nil)
+	res, err := c.Post(context.Background(), APIPathPrefix+"/cli-auth", jsonData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -129,13 +129,13 @@ func (s *GuestSession) WaitForAPIKey(interval time.Duration, maxAttempts int) (*
 
 // PollForAPIKeyWithKey polls for login completion using a CLI API key (for interactive login)
 func (c *Client) PollForAPIKeyWithKey(apiKey string, interval time.Duration, maxAttempts int) (*PollAPIKeyResponse, error) {
-	pollURL := c.BaseURL.String() + "/2025-07-01/cli-auth/poll?key=" + apiKey
+	pollURL := c.BaseURL.String() + APIPathPrefix + "/cli-auth/poll?key=" + apiKey
 	return pollForAPIKey(pollURL, interval, maxAttempts)
 }
 
 // ValidateAPIKey validates an API key and returns user/project information
 func (c *Client) ValidateAPIKey() (*ValidateAPIKeyResponse, error) {
-	res, err := c.Get(context.Background(), "/2025-07-01/cli-auth/validate", "", nil)
+	res, err := c.Get(context.Background(), APIPathPrefix+"/cli-auth/validate", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +244,7 @@ func (c *Client) UpdateClient(clientID string, input UpdateClientInput) error {
 		return err
 	}
 
-	_, err = c.Put(context.Background(), "/2025-07-01/cli/"+clientID, jsonData, nil)
+	_, err = c.Put(context.Background(), APIPathPrefix+"/cli/"+clientID, jsonData, nil)
 	return err
 }
 
