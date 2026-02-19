@@ -67,7 +67,7 @@ func TestTransformationGetByName(t *testing.T) {
 	cli := NewCLIRunner(t)
 	timestamp := generateTimestamp()
 	name := "test-trn-get-" + timestamp
-	code := "module.exports = async (r) => r;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 
 	var trn Transformation
 	err := cli.RunJSON(&trn, "gateway", "transformation", "create", "--name", name, "--code", code)
@@ -87,7 +87,7 @@ func TestTransformationCreateWithEnv(t *testing.T) {
 	cli := NewCLIRunner(t)
 	timestamp := generateTimestamp()
 	name := "test-trn-env-" + timestamp
-	code := "module.exports = async (r) => r;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 
 	var trn Transformation
 	err := cli.RunJSON(&trn, "gateway", "transformation", "create", "--name", name, "--code", code, "--env", "FOO=bar,BAZ=qux")
@@ -105,7 +105,7 @@ func TestTransformationCreateWithCodeFile(t *testing.T) {
 
 	dir := t.TempDir()
 	codePath := filepath.Join(dir, "code.js")
-	require.NoError(t, os.WriteFile(codePath, []byte("module.exports = async (r) => r;"), 0644))
+	require.NoError(t, os.WriteFile(codePath, []byte(`addHandler("transform", (request, context) => { return request; });`), 0644))
 
 	cli := NewCLIRunner(t)
 	timestamp := generateTimestamp()
@@ -146,7 +146,7 @@ func TestTransformationUpdateWithCode(t *testing.T) {
 	trnID := createTestTransformation(t, cli)
 	t.Cleanup(func() { deleteTransformation(t, cli, trnID) })
 
-	newCode := "module.exports = async (r) => ({ ...r, patched: true });"
+	newCode := `addHandler("transform", (request, context) => { request.headers["x-patched"] = "true"; return request; });`
 	cli.RunExpectSuccess("gateway", "transformation", "update", trnID, "--code", newCode)
 
 	stdout := cli.RunExpectSuccess("gateway", "transformation", "get", trnID)
@@ -188,7 +188,7 @@ func TestTransformationUpsertCreate(t *testing.T) {
 
 	cli := NewCLIRunner(t)
 	name := "test-trn-upsert-create-" + generateTimestamp()
-	code := "module.exports = async (r) => r;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 
 	var trn Transformation
 	err := cli.RunJSON(&trn, "gateway", "transformation", "upsert", name, "--code", code)
@@ -205,14 +205,14 @@ func TestTransformationUpsertUpdate(t *testing.T) {
 
 	cli := NewCLIRunner(t)
 	name := "test-trn-upsert-upd-" + generateTimestamp()
-	code := "module.exports = async (r) => r;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 
 	var trn Transformation
 	err := cli.RunJSON(&trn, "gateway", "transformation", "upsert", name, "--code", code)
 	require.NoError(t, err)
 	t.Cleanup(func() { deleteTransformation(t, cli, trn.ID) })
 
-	newCode := "module.exports = async (r) => ({ ...r, updated: true });"
+	newCode := `addHandler("transform", (request, context) => { request.headers["x-updated"] = "true"; return request; });`
 	err = cli.RunJSON(&trn, "gateway", "transformation", "upsert", name, "--code", newCode)
 	require.NoError(t, err)
 
@@ -227,7 +227,7 @@ func TestTransformationUpsertDryRun(t *testing.T) {
 
 	cli := NewCLIRunner(t)
 	name := "test-trn-dryrun-" + generateTimestamp()
-	code := "module.exports = async (r) => r;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 
 	stdout := cli.RunExpectSuccess("gateway", "transformation", "upsert", name, "--code", code, "--dry-run")
 	assert.Contains(t, stdout, "Dry Run")
@@ -280,12 +280,27 @@ func TestTransformationRun(t *testing.T) {
 	}
 
 	cli := NewCLIRunner(t)
-	code := "module.exports = async (req) => req;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 	request := `{"headers":{}}`
 
 	stdout, stderr, err := cli.Run("gateway", "transformation", "run", "--code", code, "--request", request)
 	require.NoError(t, err, "stdout: %s, stderr: %s", stdout, stderr)
 	assert.Contains(t, stdout, "Transformation run completed")
+}
+
+func TestTransformationRunModifiesRequest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	code := `addHandler("transform", (request, context) => { request.headers["x-transformed"] = "true"; return request; });`
+	request := `{"headers":{},"body":{"foo":"bar"}}`
+
+	stdout, stderr, err := cli.Run("gateway", "transformation", "run", "--code", code, "--request", request)
+	require.NoError(t, err, "stdout: %s, stderr: %s", stdout, stderr)
+	assert.Contains(t, stdout, "Transformation run completed")
+	assert.Contains(t, stdout, "x-transformed", "transformation output should include the modified header")
 }
 
 func TestTransformationRunWithTransformationID(t *testing.T) {
@@ -309,7 +324,7 @@ func TestTransformationRunWithEnv(t *testing.T) {
 	}
 
 	cli := NewCLIRunner(t)
-	code := "module.exports = async (req) => req;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 	request := `{"headers":{}}`
 
 	stdout, stderr, err := cli.Run("gateway", "transformation", "run", "--code", code, "--request", request, "--env", "X=y")

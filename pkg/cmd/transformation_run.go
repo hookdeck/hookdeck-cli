@@ -38,7 +38,7 @@ The --request or --request-file must be JSON with at least "headers" (can be {})
 
 Examples:
   hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{}}'
-  hookdeck gateway transformation run --code "module.exports = async (r) => r;" --request-file ./sample.json
+  hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request-file ./sample.json
   hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{},"body":{"foo":"bar"}}' --connection-id web_xxx`,
 		PreRunE: tc.validateFlags,
 		RunE:    tc.runTransformationRunCmd,
@@ -104,6 +104,10 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 	if requestInput.Headers == nil {
 		requestInput.Headers = make(map[string]string)
 	}
+	// Ensure content-type when empty so transformation engine does not error
+	if requestInput.Headers["content-type"] == "" && requestInput.Headers["Content-Type"] == "" {
+		requestInput.Headers["content-type"] = "application/json"
+	}
 
 	envMap, err := parseEnvFlag(tc.env)
 	if err != nil {
@@ -137,8 +141,14 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 	}
 
 	fmt.Printf("✔ Transformation run completed\n\n")
-	if result.Result != nil {
-		fmt.Printf("Result: %v\n", result.Result)
+	if result.Request != nil {
+		// Pretty-print the transformed request as JSON
+		jsonBytes, err := json.MarshalIndent(result.Request, "", "  ")
+		if err != nil {
+			fmt.Printf("Result: %v\n", result.Request)
+		} else {
+			fmt.Printf("Result:\n%s\n", string(jsonBytes))
+		}
 	}
 	return nil
 }

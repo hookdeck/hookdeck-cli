@@ -34,7 +34,7 @@ func newTransformationCreateCmd() *transformationCreateCmd {
 Requires --name and --code (or --code-file). Use --env for key-value environment variables.
 
 Examples:
-  hookdeck gateway transformation create --name my-transform --code "module.exports = async (req) => req;"
+  hookdeck gateway transformation create --name my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
   hookdeck gateway transformation create --name my-transform --code-file ./transform.js --env FOO=bar,BAZ=qux`,
 		PreRunE: tc.validateFlags,
 		RunE:    tc.runTransformationCreateCmd,

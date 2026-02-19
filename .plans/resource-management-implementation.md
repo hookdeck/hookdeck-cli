@@ -32,13 +32,22 @@
   - [ ] `destination update` - Critical for URL changes
   - [ ] `destination delete` - Clean up unused
 
+### ✅ Recent (February 2026)
+- **Transformation examples** - All examples updated to `addHandler("transform", ...)` format (README, REFERENCE, pkg/cmd, tests)
+- **Transformation run** - API response model fixed to match OpenAPI; CLI displays transformed output; default content-type for empty headers
+
 ### 📋 Planned
-- **Transformation Management** (Priority 2 - Week 2)
+- **Transformation Management** (Priority 2 - Week 2) - CRUD already present; examples and run output now correct
 - **Project Management Extensions** (Priority 3 - Week 3)
 - **Advanced Features** (Future)
 
 
 ---
+
+## Testing and sandbox
+
+- **Always run tests** when implementing or changing code. Do not skip tests to avoid failures.
+- If tests fail due to **TLS/certificate errors**, **network**, or **sandbox** (e.g. `x509`, `operation not permitted`), **prompt the user** and **re-run with elevated permissions** (e.g. `required_permissions: ["all"]`) so tests can pass.
 
 ## Background
 
@@ -67,7 +76,7 @@ All CLI commands must follow these established patterns for consistency across t
 3. **Add source management** - Manage webhook sources with various provider types
 4. **Add destination management** - Manage HTTP, CLI, and Mock API destinations
 5. **Add transformation management** - Manage JavaScript code transformations
-6. **Create reference documentation** - Comprehensive `REFERENCE.md` with examples
+6. ~~**Create reference documentation**~~ - ✅ REFERENCE.md generated via `go run ./tools/generate-reference` from Cobra metadata
 7. **Maintain consistency** - Follow existing CLI patterns and architecture
 
 ## Success Criteria
@@ -399,9 +408,10 @@ func validateSourceType(sourceType string, flags *sourceCreateFlags) error {
 
 ### Phase 4: Documentation and Examples
 
-#### Task 4.1: Create Reference Documentation
-**Files to create:**
-- `REFERENCE.md` - Comprehensive CLI reference
+#### Task 4.1: Create Reference Documentation ✅
+**Files:** `REFERENCE.md` (generated), `tools/generate-reference/main.go`, `REFERENCE.template.md`
+
+REFERENCE.md is generated from Cobra command metadata. Run `go run ./tools/generate-reference` after changing commands/flags. README rebalanced with Sources/destinations, Transformations, and Requests/events/attempts sections, each linking to REFERENCE.md subsections.
 
 **Content Structure:**
 ```markdown

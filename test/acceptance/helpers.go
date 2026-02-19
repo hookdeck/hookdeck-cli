@@ -419,7 +419,7 @@ func createTestTransformation(t *testing.T, cli *CLIRunner) string {
 
 	timestamp := generateTimestamp()
 	name := fmt.Sprintf("test-trn-%s", timestamp)
-	code := "module.exports = async (req) => req;"
+	code := `addHandler("transform", (request, context) => { return request; });`
 
 	var trn Transformation
 	err := cli.RunJSON(&trn,

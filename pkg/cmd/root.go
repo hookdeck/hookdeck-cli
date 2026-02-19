@@ -38,6 +38,11 @@ var rootCmd = &cobra.Command{
 	Short:         "A CLI to forward events received on Hookdeck to your local server.",
 }
 
+// RootCmd returns the root command for use by tools (e.g. generate-reference).
+func RootCmd() *cobra.Command {
+	return rootCmd
+}
+
 // addConnectionCmdTo registers the connection command tree on a parent so that
 // "connection" (and alias "connections") is available there. Call twice to expose
 // the same subcommands under both gateway and root (backward compat).

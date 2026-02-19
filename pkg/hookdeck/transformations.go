@@ -64,9 +64,13 @@ type TransformationRunRequestInput struct {
 	ParsedQuery map[string]interface{} `json:"parsed_query,omitempty"`
 }
 
-// TransformationRunResponse is the response from PUT /transformations/run
+// TransformationRunResponse is the response from PUT /transformations/run.
+// Matches OpenAPI schema TransformationExecutorOutput.
 type TransformationRunResponse struct {
-	Result interface{} `json:"result,omitempty"`
+	RequestID        string                 `json:"request_id,omitempty"`
+	TransformationID string                 `json:"transformation_id,omitempty"`
+	ExecutionID      string                 `json:"execution_id,omitempty"`
+	Request          *TransformationRunRequestInput `json:"request,omitempty"`
 }
 
 // TransformationExecution represents a single transformation execution

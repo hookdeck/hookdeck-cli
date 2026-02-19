@@ -32,9 +32,9 @@ func newTransformationUpsertCmd() *transformationUpsertCmd {
 		Long: LongUpsertIntro(ResourceTransformation) + `
 
 Examples:
-  hookdeck gateway transformation upsert my-transform --code "module.exports = async (req) => req;"
+  hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
   hookdeck gateway transformation upsert my-transform --code-file ./transform.js --env FOO=bar
-  hookdeck gateway transformation upsert my-transform --code "module.exports = async (req) => req;" --dry-run`,
+  hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });" --dry-run`,
 		PreRunE: tc.validateFlags,
 		RunE:    tc.runTransformationUpsertCmd,
 	}

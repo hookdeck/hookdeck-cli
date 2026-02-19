@@ -20,10 +20,8 @@ func newGatewayCmd() *gatewayCmd {
 		Long: `Commands for managing Event Gateway sources, destinations, connections,
 transformations, events, requests, and metrics.
 
-The gateway command group provides full access to all Event Gateway resources.
-
-Examples:
-  # List connections
+The gateway command group provides full access to all Event Gateway resources.`,
+		Example: `  # List connections
   hookdeck gateway connection list
 
   # Create a source
