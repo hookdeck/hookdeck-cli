@@ -24,7 +24,10 @@ func newCompletionCmd() *completionCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "completion",
 		Short: "Generate bash and zsh completion scripts",
+		Long:  "Generate bash and zsh completion scripts. This command runs on install when using Homebrew or Scoop. You can optionally run it when using binaries directly or without a package manager.",
 		Args:  validators.NoArgs,
+		Example: `  $ hookdeck completion --shell zsh
+  $ hookdeck completion --shell bash`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return selectShell(cc.shell)
 		},

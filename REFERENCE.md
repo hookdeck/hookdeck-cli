@@ -20,7 +20,7 @@ The Hookdeck CLI provides comprehensive webhook infrastructure management includ
 - [Requests](#requests)
 - [Attempts](#attempts)
 - [Utilities](#utilities)
-<!-- GENERATE_TOC:END -->
+<!-- GENERATE_END -->
 ## Global Options
 
 All commands support these global options:
@@ -36,12 +36,10 @@ All commands support these global options:
 | `-p, --profile` | `string` | profile name (default "default") |
 | `-v, --version` | `bool` | Get the version of the Hookdeck CLI |
 
-<!-- GENERATE_GLOBAL_FLAGS:END -->
+<!-- GENERATE_END -->
 ## Authentication
 
 <!-- GENERATE:login|logout|whoami:START -->
-In this section:
-
 - [hookdeck login](#hookdeck-login)
 - [hookdeck logout](#hookdeck-logout)
 - [hookdeck whoami](#hookdeck-whoami)
@@ -61,14 +59,6 @@ hookdeck login [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `-i, --interactive` | `bool` | Run interactive configuration mode if you cannot open a browser |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck logout
 
 Logout of your Hookdeck account to setup the CLI
@@ -84,14 +74,6 @@ hookdeck logout [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `-a, --all` | `bool` | Clear credentials for all projects you are currently logged into. |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck whoami
 
 Show the logged-in user
@@ -101,23 +83,10 @@ Show the logged-in user
 ```bash
 hookdeck whoami
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:login|logout|whoami:END -->
+<!-- GENERATE_END -->
 ## Projects
 
 <!-- GENERATE:project list|project use:START -->
-In this section:
-
 - [hookdeck project list](#hookdeck-project-list)
 - [hookdeck project use](#hookdeck-project-use)
 
@@ -130,19 +99,6 @@ List and filter projects by organization and project name substrings
 ```bash
 hookdeck project list [<organization_substring>] [<project_substring>]
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck project use
 
 Set the active project for future commands
@@ -158,13 +114,7 @@ hookdeck project use [<organization_name> [<project_name>]] [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--local` | `bool` | Save project to current directory (.hookdeck/config.toml) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:project list|project use:END -->
+<!-- GENERATE_END -->
 ## Local Development
 
 <!-- GENERATE:listen:START -->
@@ -175,7 +125,7 @@ Forward events for a source to your local server.
 This command will create a new Hookdeck Source if it doesn't exist.
 
 By default the Hookdeck Destination will be named "{source}-cli", and the
-Destination CLI path will be "/". To set the CLI path, use the "--path" flag.
+Destination CLI path will be "/". To set the CLI path, use the "`--path`" flag.
 
 **Usage:**
 
@@ -195,13 +145,7 @@ hookdeck listen [flags]
 | `--no-healthcheck` | `bool` | Disable periodic health checks of the local server |
 | `--output` | `string` | Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only) (default "interactive") |
 | `--path` | `string` | Sets the path to which events are forwarded e.g., /webhooks or /api/stripe |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:listen:END -->
+<!-- GENERATE_END -->
 ## Gateway
 
 <!-- GENERATE:gateway:START -->
@@ -230,23 +174,10 @@ hookdeck gateway source create --name my-source --type WEBHOOK
 # Query event metrics
 hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway:END -->
+<!-- GENERATE_END -->
 ## Connections
 
 <!-- GENERATE:gateway connection list|gateway connection create|gateway connection get|gateway connection update|gateway connection delete|gateway connection upsert|gateway connection enable|gateway connection disable|gateway connection pause|gateway connection unpause:START -->
-In this section:
-
 - [hookdeck gateway connection list](#hookdeck-gateway-connection-list)
 - [hookdeck gateway connection create](#hookdeck-gateway-connection-create)
 - [hookdeck gateway connection get](#hookdeck-gateway-connection-get)
@@ -267,6 +198,17 @@ List all connections or filter by source/destination.
 ```bash
 hookdeck gateway connection list [flags]
 ```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--destination-id` | `string` | Filter by destination ID |
+| `--disabled` | `bool` | Include disabled connections |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--name` | `string` | Filter by connection name |
+| `--output` | `string` | Output format (json) |
+| `--source-id` | `string` | Filter by source ID |
 
 **Examples:**
 
@@ -289,25 +231,6 @@ hookdeck connection list --disabled
 # Limit results
 hookdeck connection list --limit 10
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--destination-id` | `string` | Filter by destination ID |
-| `--disabled` | `bool` | Include disabled connections |
-| `--limit` | `int` | Limit number of results (default "100") |
-| `--name` | `string` | Filter by connection name |
-| `--output` | `string` | Output format (json) |
-| `--source-id` | `string` | Filter by source ID |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway connection create
 
 Create a connection between a source and destination.
@@ -318,31 +241,6 @@ Create a connection between a source and destination.
 
 ```bash
 hookdeck gateway connection create [flags]
-```
-
-**Examples:**
-
-```bash
-# Create with inline source and destination
-hookdeck connection create \
---name "test-webhooks-to-local" \
---source-type WEBHOOK --source-name "test-webhooks" \
---destination-type CLI --destination-name "local-dev"
-
-# Create with existing resources
-hookdeck connection create \
---name "github-to-api" \
---source-id src_abc123 \
---destination-id dst_def456
-
-# Create with source configuration options
-hookdeck connection create \
---name "api-webhooks" \
---source-type WEBHOOK --source-name "api-source" \
---source-allowed-http-methods "POST,PUT,PATCH" \
---source-custom-response-content-type "json" \
---source-custom-response-body '{"status":"received"}' \
---destination-type CLI --destination-name "local-dev"
 ```
 
 **Flags:**
@@ -415,14 +313,31 @@ hookdeck connection create \
 | `--source-name` | `string` | Source name for inline creation |
 | `--source-type` | `string` | Source type (WEBHOOK, STRIPE, etc.) |
 | `--source-webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+# Create with inline source and destination
+hookdeck connection create \
+--name "test-webhooks-to-local" \
+--source-type WEBHOOK --source-name "test-webhooks" \
+--destination-type CLI --destination-name "local-dev"
+
+# Create with existing resources
+hookdeck connection create \
+--name "github-to-api" \
+--source-id src_abc123 \
+--destination-id dst_def456
+
+# Create with source configuration options
+hookdeck connection create \
+--name "api-webhooks" \
+--source-type WEBHOOK --source-name "api-source" \
+--source-allowed-http-methods "POST,PUT,PATCH" \
+--source-custom-response-content-type "json" \
+--source-custom-response-body '{"status":"received"}' \
+--destination-type CLI --destination-name "local-dev"
+```
 ### hookdeck gateway connection get
 
 Get detailed information about a specific connection.
@@ -435,6 +350,14 @@ You can specify either a connection ID or name.
 hookdeck gateway connection get <connection-id-or-name> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--include-destination-auth` | `bool` | Include destination authentication credentials in the response |
+| `--include-source-auth` | `bool` | Include source authentication credentials in the response |
+| `--output` | `string` | Output format (json) |
+
 **Examples:**
 
 ```bash
@@ -444,22 +367,6 @@ hookdeck connection get conn_abc123
 # Get connection by name
 hookdeck connection get my-connection
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--include-destination-auth` | `bool` | Include destination authentication credentials in the response |
-| `--include-source-auth` | `bool` | Include source authentication credentials in the response |
-| `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway connection update
 
 Update an existing connection by its ID.
@@ -471,26 +378,6 @@ and allows changing any field including the connection name.
 
 ```bash
 hookdeck gateway connection update <connection-id> [flags]
-```
-
-**Examples:**
-
-```bash
-# Rename a connection
-hookdeck gateway connection update web_abc123 --name "new-name"
-
-# Update description
-hookdeck gateway connection update web_abc123 --description "Updated description"
-
-# Change the source on a connection
-hookdeck gateway connection update web_abc123 --source-id src_def456
-
-# Update rules
-hookdeck gateway connection update web_abc123 \
---rule-retry-strategy linear --rule-retry-count 5
-
-# Update with JSON output
-hookdeck gateway connection update web_abc123 --name "new-name" --output json
 ```
 
 **Flags:**
@@ -519,14 +406,26 @@ hookdeck gateway connection update web_abc123 --name "new-name" --output json
 | `--rules` | `string` | JSON string representing the entire rules array |
 | `--rules-file` | `string` | Path to a JSON file containing the rules array |
 | `--source-id` | `string` | Update source by ID |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+# Rename a connection
+hookdeck gateway connection update web_abc123 --name "new-name"
+
+# Update description
+hookdeck gateway connection update web_abc123 --description "Updated description"
+
+# Change the source on a connection
+hookdeck gateway connection update web_abc123 --source-id src_def456
+
+# Update rules
+hookdeck gateway connection update web_abc123 \
+--rule-retry-strategy linear --rule-retry-count 5
+
+# Update with JSON output
+hookdeck gateway connection update web_abc123 --name "new-name" --output json
+```
 ### hookdeck gateway connection delete
 
 Delete a connection.
@@ -537,6 +436,12 @@ Delete a connection.
 hookdeck gateway connection delete <connection-id> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
 **Examples:**
 
 ```bash
@@ -546,20 +451,6 @@ hookdeck connection delete conn_abc123
 # Force delete without confirmation
 hookdeck connection delete conn_abc123 --force
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--force` | `bool` | Force delete without confirmation |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway connection upsert
 
 Create a new connection or update an existing one by name (idempotent).
@@ -575,36 +466,12 @@ Create a new connection or update an existing one by name (idempotent).
 		 - Only updates properties that are explicitly provided
 		 - Preserves existing properties that aren't specified
 	
-	Use --dry-run to preview changes without applying them.
+	Use `--dry-run` to preview changes without applying them.
 
 **Usage:**
 
 ```bash
 hookdeck gateway connection upsert <name> [flags]
-```
-
-**Examples:**
-
-```bash
-# Create or update a connection with inline source and destination
-hookdeck connection upsert "my-connection" \
---source-name "stripe-prod" --source-type STRIPE \
---destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
-
-# Update just the rate limit on an existing connection
-hookdeck connection upsert my-connection \
---destination-rate-limit 100 --destination-rate-limit-period minute
-
-# Update source configuration options
-hookdeck connection upsert my-connection \
---source-allowed-http-methods "POST,PUT,DELETE" \
---source-custom-response-content-type "json" \
---source-custom-response-body '{"status":"received"}'
-
-# Preview changes without applying them
-hookdeck connection upsert my-connection \
---destination-rate-limit 200 --destination-rate-limit-period hour \
---dry-run
 ```
 
 **Flags:**
@@ -677,14 +544,30 @@ hookdeck connection upsert my-connection \
 | `--source-name` | `string` | Source name for inline creation |
 | `--source-type` | `string` | Source type (WEBHOOK, STRIPE, etc.) |
 | `--source-webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+# Create or update a connection with inline source and destination
+hookdeck connection upsert "my-connection" \
+--source-name "stripe-prod" --source-type STRIPE \
+--destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
+
+# Update just the rate limit on an existing connection
+hookdeck connection upsert my-connection \
+--destination-rate-limit 100 --destination-rate-limit-period minute
+
+# Update source configuration options
+hookdeck connection upsert my-connection \
+--source-allowed-http-methods "POST,PUT,DELETE" \
+--source-custom-response-content-type "json" \
+--source-custom-response-body '{"status":"received"}'
+
+# Preview changes without applying them
+hookdeck connection upsert my-connection \
+--destination-rate-limit 200 --destination-rate-limit-period hour \
+--dry-run
+```
 ### hookdeck gateway connection enable
 
 Enable a disabled connection.
@@ -694,19 +577,6 @@ Enable a disabled connection.
 ```bash
 hookdeck gateway connection enable <connection-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway connection disable
 
 Disable an active connection. It will stop receiving new events until re-enabled.
@@ -716,19 +586,6 @@ Disable an active connection. It will stop receiving new events until re-enabled
 ```bash
 hookdeck gateway connection disable <connection-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway connection pause
 
 Pause a connection temporarily.
@@ -740,19 +597,6 @@ The connection will queue incoming events until unpaused.
 ```bash
 hookdeck gateway connection pause <connection-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway connection unpause
 
 Resume a paused connection.
@@ -764,23 +608,10 @@ The connection will start processing queued events.
 ```bash
 hookdeck gateway connection unpause <connection-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway connection list|gateway connection create|gateway connection get|gateway connection update|gateway connection delete|gateway connection upsert|gateway connection enable|gateway connection disable|gateway connection pause|gateway connection unpause:END -->
+<!-- GENERATE_END -->
 ## Sources
 
 <!-- GENERATE:gateway source list|gateway source create|gateway source get|gateway source update|gateway source delete|gateway source upsert|gateway source enable|gateway source disable|gateway source count:START -->
-In this section:
-
 - [hookdeck gateway source list](#hookdeck-gateway-source-list)
 - [hookdeck gateway source create](#hookdeck-gateway-source-create)
 - [hookdeck gateway source get](#hookdeck-gateway-source-get)
@@ -801,16 +632,6 @@ List all sources or filter by name or type.
 hookdeck gateway source list [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway source list
-hookdeck gateway source list --name my-source
-hookdeck gateway source list --type WEBHOOK
-hookdeck gateway source list --disabled
-hookdeck gateway source list --limit 10
-```
-
 **Flags:**
 
 | Flag | Type | Description |
@@ -820,19 +641,21 @@ hookdeck gateway source list --limit 10
 | `--name` | `string` | Filter by source name |
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Filter by source type (e.g. WEBHOOK, STRIPE) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway source list
+hookdeck gateway source list --name my-source
+hookdeck gateway source list --type WEBHOOK
+hookdeck gateway source list --disabled
+hookdeck gateway source list --limit 10
+```
 ### hookdeck gateway source create
 
 Create a new source.
 
-Requires --name and --type. Use --config or --config-file for authentication (e.g. webhook_secret, api_key).
+Requires `--name` and `--type`. Use `--config` or `--config-file` for authentication (e.g. webhook_secret, api_key).
 
 **Usage:**
 
@@ -840,22 +663,13 @@ Requires --name and --type. Use --config or --config-file for authentication (e.
 hookdeck gateway source create [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway source create --name my-webhook --type WEBHOOK
-hookdeck gateway source create --name stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
-| `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
-| `--config` | `string` | JSON object for source config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
 | `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
 | `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
@@ -866,13 +680,13 @@ hookdeck gateway source create --name stripe-prod --type STRIPE --config '{"webh
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) (required) |
 | `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway source create --name my-webhook --type WEBHOOK
+hookdeck gateway source create --name stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'
+```
 ### hookdeck gateway source get
 
 Get detailed information about a specific source.
@@ -885,27 +699,19 @@ You can specify either a source ID or name.
 hookdeck gateway source get <source-id-or-name> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway source get src_abc123
-hookdeck gateway source get my-source --include-auth
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--include-auth` | `bool` | Include source authentication credentials in the response |
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway source get src_abc123
+hookdeck gateway source get my-source --include-auth
+```
 ### hookdeck gateway source update
 
 Update an existing source by its ID.
@@ -916,23 +722,13 @@ Update an existing source by its ID.
 hookdeck gateway source update <source-id> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway source update src_abc123 --name new-name
-hookdeck gateway source update src_abc123 --description "Updated"
-hookdeck gateway source update src_abc123 --config '{"webhook_secret":"whsec_new"}'
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
-| `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
-| `--config` | `string` | JSON object for source config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
 | `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
 | `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
@@ -943,13 +739,14 @@ hookdeck gateway source update src_abc123 --config '{"webhook_secret":"whsec_new
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) |
 | `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway source update src_abc123 --name new-name
+hookdeck gateway source update src_abc123 --description "Updated"
+hookdeck gateway source update src_abc123 --config '{"webhook_secret":"whsec_new"}'
+```
 ### hookdeck gateway source delete
 
 Delete a source.
@@ -960,26 +757,18 @@ Delete a source.
 hookdeck gateway source delete <source-id> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
 **Examples:**
 
 ```bash
 hookdeck gateway source delete src_abc123
 hookdeck gateway source delete src_abc123 --force
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--force` | `bool` | Force delete without confirmation |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway source upsert
 
 Create a new source or update an existing one by name (idempotent).
@@ -990,23 +779,13 @@ Create a new source or update an existing one by name (idempotent).
 hookdeck gateway source upsert <name> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway source upsert my-webhook --type WEBHOOK
-hookdeck gateway source upsert stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'
-hookdeck gateway source upsert my-webhook --description "Updated" --dry-run
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
-| `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
-| `--config` | `string` | JSON object for source config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
 | `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
 | `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
@@ -1017,13 +796,14 @@ hookdeck gateway source upsert my-webhook --description "Updated" --dry-run
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) |
 | `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway source upsert my-webhook --type WEBHOOK
+hookdeck gateway source upsert stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'
+hookdeck gateway source upsert my-webhook --description "Updated" --dry-run
+```
 ### hookdeck gateway source enable
 
 Enable a disabled source.
@@ -1033,19 +813,6 @@ Enable a disabled source.
 ```bash
 hookdeck gateway source enable <source-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway source disable
 
 Disable an active source. It will stop receiving new events until re-enabled.
@@ -1055,19 +822,6 @@ Disable an active source. It will stop receiving new events until re-enabled.
 ```bash
 hookdeck gateway source disable <source-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway source count
 
 Count sources matching optional filters.
@@ -1078,14 +832,6 @@ Count sources matching optional filters.
 hookdeck gateway source count [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway source count
-hookdeck gateway source count --type WEBHOOK
-hookdeck gateway source count --disabled
-```
-
 **Flags:**
 
 | Flag | Type | Description |
@@ -1093,18 +839,18 @@ hookdeck gateway source count --disabled
 | `--disabled` | `bool` | Count disabled sources only (when set with other filters) |
 | `--name` | `string` | Filter by source name |
 | `--type` | `string` | Filter by source type |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway source list|gateway source create|gateway source get|gateway source update|gateway source delete|gateway source upsert|gateway source enable|gateway source disable|gateway source count:END -->
+
+**Examples:**
+
+```bash
+hookdeck gateway source count
+hookdeck gateway source count --type WEBHOOK
+hookdeck gateway source count --disabled
+```
+<!-- GENERATE_END -->
 ## Destinations
 
 <!-- GENERATE:gateway destination list|gateway destination create|gateway destination get|gateway destination update|gateway destination delete|gateway destination upsert|gateway destination count|gateway destination enable|gateway destination disable:START -->
-In this section:
-
 - [hookdeck gateway destination list](#hookdeck-gateway-destination-list)
 - [hookdeck gateway destination create](#hookdeck-gateway-destination-create)
 - [hookdeck gateway destination get](#hookdeck-gateway-destination-get)
@@ -1125,16 +871,6 @@ List all destinations or filter by name or type.
 hookdeck gateway destination list [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway destination list
-hookdeck gateway destination list --name my-destination
-hookdeck gateway destination list --type HTTP
-hookdeck gateway destination list --disabled
-hookdeck gateway destination list --limit 10
-```
-
 **Flags:**
 
 | Flag | Type | Description |
@@ -1144,19 +880,21 @@ hookdeck gateway destination list --limit 10
 | `--name` | `string` | Filter by destination name |
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Filter by destination type (HTTP, CLI, MOCK_API) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway destination list
+hookdeck gateway destination list --name my-destination
+hookdeck gateway destination list --type HTTP
+hookdeck gateway destination list --disabled
+hookdeck gateway destination list --limit 10
+```
 ### hookdeck gateway destination create
 
 Create a new destination.
 
-Requires --name and --type. For HTTP destinations, --url is required. Use --config or --config-file for auth and rate limiting.
+Requires `--name` and `--type`. For HTTP destinations, `--url` is required. Use `--config` or `--config-file` for auth and rate limiting.
 
 **Usage:**
 
@@ -1164,19 +902,10 @@ Requires --name and --type. For HTTP destinations, --url is required. Use --conf
 hookdeck gateway destination create [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway destination create --name my-api --type HTTP --url https://api.example.com/webhooks
-hookdeck gateway destination create --name local-cli --type CLI --cli-path /webhooks
-hookdeck gateway destination create --name my-api --type HTTP --url https://api.example.com --bearer-token token123
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--api-key` | `string` | API key for destination auth |
 | `--api-key-header` | `string` | Header/key name for API key |
 | `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
 | `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
@@ -1184,7 +913,6 @@ hookdeck gateway destination create --name my-api --type HTTP --url https://api.
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations (default "/") |
-| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
@@ -1196,13 +924,14 @@ hookdeck gateway destination create --name my-api --type HTTP --url https://api.
 | `--rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
 | `--type` | `string` | Destination type (HTTP, CLI, MOCK_API) (required) |
 | `--url` | `string` | URL for HTTP destinations (required for type HTTP) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway destination create --name my-api --type HTTP --url https://api.example.com/webhooks
+hookdeck gateway destination create --name local-cli --type CLI --cli-path /webhooks
+hookdeck gateway destination create --name my-api --type HTTP --url https://api.example.com --bearer-token token123
+```
 ### hookdeck gateway destination get
 
 Get detailed information about a specific destination.
@@ -1215,27 +944,19 @@ You can specify either a destination ID or name.
 hookdeck gateway destination get <destination-id-or-name> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway destination get des_abc123
-hookdeck gateway destination get my-destination --include-auth
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--include-auth` | `bool` | Include authentication credentials in the response |
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway destination get des_abc123
+hookdeck gateway destination get my-destination --include-auth
+```
 ### hookdeck gateway destination update
 
 Update an existing destination by its ID.
@@ -1246,19 +967,10 @@ Update an existing destination by its ID.
 hookdeck gateway destination update <destination-id> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway destination update des_abc123 --name new-name
-hookdeck gateway destination update des_abc123 --description "Updated"
-hookdeck gateway destination update des_abc123 --url https://api.example.com/new
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--api-key` | `string` | API key for destination auth |
 | `--api-key-header` | `string` | Header/key name for API key |
 | `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
 | `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
@@ -1266,7 +978,6 @@ hookdeck gateway destination update des_abc123 --url https://api.example.com/new
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
-| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
@@ -1278,13 +989,14 @@ hookdeck gateway destination update des_abc123 --url https://api.example.com/new
 | `--rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
 | `--type` | `string` | Destination type (HTTP, CLI, MOCK_API) |
 | `--url` | `string` | URL for HTTP destinations |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway destination update des_abc123 --name new-name
+hookdeck gateway destination update des_abc123 --description "Updated"
+hookdeck gateway destination update des_abc123 --url https://api.example.com/new
+```
 ### hookdeck gateway destination delete
 
 Delete a destination.
@@ -1295,26 +1007,18 @@ Delete a destination.
 hookdeck gateway destination delete <destination-id> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
 **Examples:**
 
 ```bash
 hookdeck gateway destination delete des_abc123
 hookdeck gateway destination delete des_abc123 --force
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--force` | `bool` | Force delete without confirmation |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway destination upsert
 
 Create a new destination or update an existing one by name (idempotent).
@@ -1325,19 +1029,10 @@ Create a new destination or update an existing one by name (idempotent).
 hookdeck gateway destination upsert <name> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway destination upsert my-api --type HTTP --url https://api.example.com/webhooks
-hookdeck gateway destination upsert local-cli --type CLI --cli-path /webhooks
-hookdeck gateway destination upsert my-api --description "Updated" --dry-run
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--api-key` | `string` | API key for destination auth |
 | `--api-key-header` | `string` | Header/key name for API key |
 | `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
 | `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
@@ -1345,7 +1040,6 @@ hookdeck gateway destination upsert my-api --description "Updated" --dry-run
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
-| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
@@ -1357,13 +1051,14 @@ hookdeck gateway destination upsert my-api --description "Updated" --dry-run
 | `--rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
 | `--type` | `string` | Destination type (HTTP, CLI, MOCK_API) |
 | `--url` | `string` | URL for HTTP destinations |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway destination upsert my-api --type HTTP --url https://api.example.com/webhooks
+hookdeck gateway destination upsert local-cli --type CLI --cli-path /webhooks
+hookdeck gateway destination upsert my-api --description "Updated" --dry-run
+```
 ### hookdeck gateway destination count
 
 Count destinations matching optional filters.
@@ -1374,14 +1069,6 @@ Count destinations matching optional filters.
 hookdeck gateway destination count [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway destination count
-hookdeck gateway destination count --type HTTP
-hookdeck gateway destination count --disabled
-```
-
 **Flags:**
 
 | Flag | Type | Description |
@@ -1389,14 +1076,14 @@ hookdeck gateway destination count --disabled
 | `--disabled` | `bool` | Count disabled destinations only (when set with other filters) |
 | `--name` | `string` | Filter by destination name |
 | `--type` | `string` | Filter by destination type (HTTP, CLI, MOCK_API) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway destination count
+hookdeck gateway destination count --type HTTP
+hookdeck gateway destination count --disabled
+```
 ### hookdeck gateway destination enable
 
 Enable a disabled destination.
@@ -1406,19 +1093,6 @@ Enable a disabled destination.
 ```bash
 hookdeck gateway destination enable <destination-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway destination disable
 
 Disable an active destination. It will stop receiving new events until re-enabled.
@@ -1428,23 +1102,10 @@ Disable an active destination. It will stop receiving new events until re-enable
 ```bash
 hookdeck gateway destination disable <destination-id>
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway destination list|gateway destination create|gateway destination get|gateway destination update|gateway destination delete|gateway destination upsert|gateway destination count|gateway destination enable|gateway destination disable:END -->
+<!-- GENERATE_END -->
 ## Transformations
 
 <!-- GENERATE:gateway transformation list|gateway transformation create|gateway transformation get|gateway transformation update|gateway transformation delete|gateway transformation upsert|gateway transformation run|gateway transformation count|gateway transformation executions|gateway transformation executions list|gateway transformation executions get:START -->
-In this section:
-
 - [hookdeck gateway transformation list](#hookdeck-gateway-transformation-list)
 - [hookdeck gateway transformation create](#hookdeck-gateway-transformation-create)
 - [hookdeck gateway transformation get](#hookdeck-gateway-transformation-get)
@@ -1466,15 +1127,6 @@ List all transformations or filter by name or id.
 hookdeck gateway transformation list [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway transformation list
-hookdeck gateway transformation list --name my-transform
-hookdeck gateway transformation list --order-by created_at --dir desc
-hookdeck gateway transformation list --limit 10
-```
-
 **Flags:**
 
 | Flag | Type | Description |
@@ -1487,19 +1139,20 @@ hookdeck gateway transformation list --limit 10
 | `--order-by` | `string` | Sort key (name, created_at, updated_at) |
 | `--output` | `string` | Output format (json) |
 | `--prev` | `string` | Pagination cursor for previous page |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway transformation list
+hookdeck gateway transformation list --name my-transform
+hookdeck gateway transformation list --order-by created_at --dir desc
+hookdeck gateway transformation list --limit 10
+```
 ### hookdeck gateway transformation create
 
 Create a new transformation.
 
-Requires --name and --code (or --code-file). Use --env for key-value environment variables.
+Requires `--name` and `--code` (or `--code-file`). Use `--env` for key-value environment variables.
 
 **Usage:**
 
@@ -1507,30 +1160,22 @@ Requires --name and --code (or --code-file). Use --env for key-value environment
 hookdeck gateway transformation create [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--code` | `string` | JavaScript code string (required if `--code-file` not set) |
+| `--code-file` | `string` | Path to JavaScript file (required if `--code` not set) |
+| `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
+| `--name` | `string` | Transformation name (required) |
+| `--output` | `string` | Output format (json) |
+
 **Examples:**
 
 ```bash
 hookdeck gateway transformation create --name my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
 hookdeck gateway transformation create --name my-transform --code-file ./transform.js --env FOO=bar,BAZ=qux
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--code` | `string` | JavaScript code string (required if --code-file not set) |
-| `--code-file` | `string` | Path to JavaScript file (required if --code not set) |
-| `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
-| `--name` | `string` | Transformation name (required) |
-| `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway transformation get
 
 Get detailed information about a specific transformation.
@@ -1543,26 +1188,18 @@ You can specify either a transformation ID or name.
 hookdeck gateway transformation get <transformation-id-or-name> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--output` | `string` | Output format (json) |
+
 **Examples:**
 
 ```bash
 hookdeck gateway transformation get trn_abc123
 hookdeck gateway transformation get my-transform
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway transformation update
 
 Update an existing transformation by its ID.
@@ -1571,14 +1208,6 @@ Update an existing transformation by its ID.
 
 ```bash
 hookdeck gateway transformation update <transformation-id-or-name> [flags]
-```
-
-**Examples:**
-
-```bash
-hookdeck gateway transformation update trn_abc123 --name new-name
-hookdeck gateway transformation update my-transform --code-file ./transform.js
-hookdeck gateway transformation update trn_abc123 --env FOO=bar
 ```
 
 **Flags:**
@@ -1590,14 +1219,14 @@ hookdeck gateway transformation update trn_abc123 --env FOO=bar
 | `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
 | `--name` | `string` | New transformation name |
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway transformation update trn_abc123 --name new-name
+hookdeck gateway transformation update my-transform --code-file ./transform.js
+hookdeck gateway transformation update trn_abc123 --env FOO=bar
+```
 ### hookdeck gateway transformation delete
 
 Delete a transformation.
@@ -1608,26 +1237,18 @@ Delete a transformation.
 hookdeck gateway transformation delete <transformation-id-or-name> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
 **Examples:**
 
 ```bash
 hookdeck gateway transformation delete trn_abc123
 hookdeck gateway transformation delete trn_abc123 --force
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--force` | `bool` | Force delete without confirmation |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway transformation upsert
 
 Create a new transformation or update an existing one by name (idempotent).
@@ -1636,14 +1257,6 @@ Create a new transformation or update an existing one by name (idempotent).
 
 ```bash
 hookdeck gateway transformation upsert <name> [flags]
-```
-
-**Examples:**
-
-```bash
-hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
-hookdeck gateway transformation upsert my-transform --code-file ./transform.js --env FOO=bar
-hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });" --dry-run
 ```
 
 **Flags:**
@@ -1655,33 +1268,25 @@ hookdeck gateway transformation upsert my-transform --code "addHandler(\"transfo
 | `--dry-run` | `bool` | Preview changes without applying |
 | `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
+hookdeck gateway transformation upsert my-transform --code-file ./transform.js --env FOO=bar
+hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });" --dry-run
+```
 ### hookdeck gateway transformation run
 
 Test run transformation code against a sample request.
 
-Provide either inline --code/--code-file or --id to use an existing transformation.
-The --request or --request-file must be JSON with at least "headers" (can be {}). Optional: body, path, query.
+Provide either inline `--code`/`--code-file` or `--id` to use an existing transformation.
+The `--request` or `--request-file` must be JSON with at least "headers" (can be {}). Optional: body, path, query.
 
 **Usage:**
 
 ```bash
 hookdeck gateway transformation run [flags]
-```
-
-**Examples:**
-
-```bash
-hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{}}'
-hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request-file ./sample.json
-hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{},"body":{"foo":"bar"}}' --connection-id web_xxx
 ```
 
 **Flags:**
@@ -1696,14 +1301,14 @@ hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{},"bo
 | `--output` | `string` | Output format (json) |
 | `--request` | `string` | Request JSON (must include headers, e.g. {"headers":{}}) |
 | `--request-file` | `string` | Path to request JSON file |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{}}'
+hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request-file ./sample.json
+hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{},"body":{"foo":"bar"}}' --connection-id web_xxx
+```
 ### hookdeck gateway transformation count
 
 Count transformations matching optional filters.
@@ -1714,27 +1319,19 @@ Count transformations matching optional filters.
 hookdeck gateway transformation count [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway transformation count
-hookdeck gateway transformation count --name my-transform
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--name` | `string` | Filter by transformation name |
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway transformation count
+hookdeck gateway transformation count --name my-transform
+```
 ### hookdeck gateway transformation executions list
 
 List executions for a transformation.
@@ -1754,18 +1351,10 @@ hookdeck gateway transformation executions list <transformation-id-or-name> [fla
 | `--dir` | `string` | Sort direction (asc, desc) |
 | `--issue-id` | `string` | Filter by issue ID |
 | `--limit` | `int` | Limit number of results (default "100") |
-| `--log-level` | `string` | Filter by log level (debug, info, warn, error, fatal) |
 | `--next` | `string` | Pagination cursor for next page |
 | `--order-by` | `string` | Sort key (created_at) |
 | `--output` | `string` | Output format (json) |
 | `--prev` | `string` | Pagination cursor for previous page |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway transformation executions get
 
 Get a single execution by transformation ID and execution ID.
@@ -1781,18 +1370,10 @@ hookdeck gateway transformation executions get <transformation-id-or-name> <exec
 | Flag | Type | Description |
 |------|------|-------------|
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway transformation list|gateway transformation create|gateway transformation get|gateway transformation update|gateway transformation delete|gateway transformation upsert|gateway transformation run|gateway transformation count|gateway transformation executions|gateway transformation executions list|gateway transformation executions get:END -->
+<!-- GENERATE_END -->
 ## Events
 
 <!-- GENERATE:gateway event list|gateway event get|gateway event retry|gateway event cancel|gateway event mute|gateway event raw-body:START -->
-In this section:
-
 - [hookdeck gateway event list](#hookdeck-gateway-event-list)
 - [hookdeck gateway event get](#hookdeck-gateway-event-get)
 - [hookdeck gateway event retry](#hookdeck-gateway-event-retry)
@@ -1808,14 +1389,6 @@ List events (processed webhook deliveries). Filter by connection ID, source, des
 
 ```bash
 hookdeck gateway event list [flags]
-```
-
-**Examples:**
-
-```bash
-hookdeck gateway event list
-hookdeck gateway event list --connection-id web_abc123
-hookdeck gateway event list --status FAILED --limit 20
 ```
 
 **Flags:**
@@ -1848,14 +1421,14 @@ hookdeck gateway event list --status FAILED --limit 20
 | `--status` | `string` | Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED) |
 | `--successful-at-after` | `string` | Filter by successful_at after (ISO date-time) |
 | `--successful-at-before` | `string` | Filter by successful_at before (ISO date-time) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway event list
+hookdeck gateway event list --connection-id web_abc123
+hookdeck gateway event list --status FAILED --limit 20
+```
 ### hookdeck gateway event get
 
 Get detailed information about an event by ID.
@@ -1866,25 +1439,17 @@ Get detailed information about an event by ID.
 hookdeck gateway event get <event-id> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway event get evt_abc123
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway event get evt_abc123
+```
 ### hookdeck gateway event retry
 
 Retry delivery for an event by ID.
@@ -1900,19 +1465,6 @@ hookdeck gateway event retry <event-id>
 ```bash
 hookdeck gateway event retry evt_abc123
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway event cancel
 
 Cancel an event by ID. Cancelled events will not be retried.
@@ -1928,19 +1480,6 @@ hookdeck gateway event cancel <event-id>
 ```bash
 hookdeck gateway event cancel evt_abc123
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway event mute
 
 Mute an event by ID. Muted events will not trigger alerts or retries.
@@ -1956,19 +1495,6 @@ hookdeck gateway event mute <event-id>
 ```bash
 hookdeck gateway event mute evt_abc123
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway event raw-body
 
 Output the raw request body of an event by ID.
@@ -1984,23 +1510,10 @@ hookdeck gateway event raw-body <event-id>
 ```bash
 hookdeck gateway event raw-body evt_abc123
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway event list|gateway event get|gateway event retry|gateway event cancel|gateway event mute|gateway event raw-body:END -->
+<!-- GENERATE_END -->
 ## Requests
 
 <!-- GENERATE:gateway request list|gateway request get|gateway request retry|gateway request events|gateway request ignored-events|gateway request raw-body:START -->
-In this section:
-
 - [hookdeck gateway request list](#hookdeck-gateway-request-list)
 - [hookdeck gateway request get](#hookdeck-gateway-request-get)
 - [hookdeck gateway request retry](#hookdeck-gateway-request-retry)
@@ -2016,13 +1529,6 @@ List requests (raw inbound webhooks). Filter by source ID.
 
 ```bash
 hookdeck gateway request list [flags]
-```
-
-**Examples:**
-
-```bash
-hookdeck gateway request list
-hookdeck gateway request list --source-id src_abc123 --limit 20
 ```
 
 **Flags:**
@@ -2048,14 +1554,13 @@ hookdeck gateway request list --source-id src_abc123 --limit 20
 | `--source-id` | `string` | Filter by source ID |
 | `--status` | `string` | Filter by status |
 | `--verified` | `string` | Filter by verified (true/false) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway request list
+hookdeck gateway request list --source-id src_abc123 --limit 20
+```
 ### hookdeck gateway request get
 
 Get detailed information about a request by ID.
@@ -2066,28 +1571,20 @@ Get detailed information about a request by ID.
 hookdeck gateway request get <request-id> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway request get req_abc123
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway request get req_abc123
+```
 ### hookdeck gateway request retry
 
-Retry a request by ID. By default retries on all connections. Use --connection-ids to retry only for specific connections.
+Retry a request by ID. By default retries on all connections. Use `--connection-ids` to retry only for specific connections.
 
 **Usage:**
 
@@ -2095,26 +1592,18 @@ Retry a request by ID. By default retries on all connections. Use --connection-i
 hookdeck gateway request retry <request-id> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--connection-ids` | `string` | Comma-separated connection IDs to retry (omit to retry all) |
+
 **Examples:**
 
 ```bash
 hookdeck gateway request retry req_abc123
 hookdeck gateway request retry req_abc123 --connection-ids web_1,web_2
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--connection-ids` | `string` | Comma-separated connection IDs to retry (omit to retry all) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck gateway request events
 
 List events (deliveries) created from a request.
@@ -2125,12 +1614,6 @@ List events (deliveries) created from a request.
 hookdeck gateway request events <request-id> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway request events req_abc123
-```
-
 **Flags:**
 
 | Flag | Type | Description |
@@ -2139,14 +1622,12 @@ hookdeck gateway request events req_abc123
 | `--next` | `string` | Pagination cursor for next page |
 | `--output` | `string` | Output format (json) |
 | `--prev` | `string` | Pagination cursor for previous page |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway request events req_abc123
+```
 ### hookdeck gateway request ignored-events
 
 List ignored events for a request (e.g. filtered out or deduplicated).
@@ -2157,12 +1638,6 @@ List ignored events for a request (e.g. filtered out or deduplicated).
 hookdeck gateway request ignored-events <request-id> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway request ignored-events req_abc123
-```
-
 **Flags:**
 
 | Flag | Type | Description |
@@ -2171,14 +1646,12 @@ hookdeck gateway request ignored-events req_abc123
 | `--next` | `string` | Pagination cursor for next page |
 | `--output` | `string` | Output format (json) |
 | `--prev` | `string` | Pagination cursor for previous page |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway request ignored-events req_abc123
+```
 ### hookdeck gateway request raw-body
 
 Output the raw request body of a request by ID.
@@ -2194,40 +1667,21 @@ hookdeck gateway request raw-body <request-id>
 ```bash
 hookdeck gateway request raw-body req_abc123
 ```
-
-**Flags:**
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway request list|gateway request get|gateway request retry|gateway request events|gateway request ignored-events|gateway request raw-body:END -->
+<!-- GENERATE_END -->
 ## Attempts
 
 <!-- GENERATE:gateway attempt list|gateway attempt get:START -->
-In this section:
-
 - [hookdeck gateway attempt list](#hookdeck-gateway-attempt-list)
 - [hookdeck gateway attempt get](#hookdeck-gateway-attempt-get)
 
 ### hookdeck gateway attempt list
 
-List attempts for an event. Requires --event-id.
+List attempts for an event. Requires `--event-id`.
 
 **Usage:**
 
 ```bash
 hookdeck gateway attempt list [flags]
-```
-
-**Examples:**
-
-```bash
-hookdeck gateway attempt list --event-id evt_abc123
 ```
 
 **Flags:**
@@ -2241,14 +1695,12 @@ hookdeck gateway attempt list --event-id evt_abc123
 | `--order-by` | `string` | Sort key |
 | `--output` | `string` | Output format (json) |
 | `--prev` | `string` | Pagination cursor for previous page |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
 
+**Examples:**
 
+```bash
+hookdeck gateway attempt list --event-id evt_abc123
+```
 ### hookdeck gateway attempt get
 
 Get detailed information about an attempt by ID.
@@ -2259,29 +1711,21 @@ Get detailed information about an attempt by ID.
 hookdeck gateway attempt get <attempt-id> [flags]
 ```
 
-**Examples:**
-
-```bash
-hookdeck gateway attempt get atm_abc123
-```
-
 **Flags:**
 
 | Flag | Type | Description |
 |------|------|-------------|
 | `--output` | `string` | Output format (json) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:gateway attempt list|gateway attempt get:END -->
+
+**Examples:**
+
+```bash
+hookdeck gateway attempt get atm_abc123
+```
+<!-- GENERATE_END -->
 ## Utilities
 
 <!-- GENERATE:completion|ci:START -->
-In this section:
-
 - [hookdeck completion](#hookdeck-completion)
 - [hookdeck ci](#hookdeck-ci)
 
@@ -2300,14 +1744,6 @@ hookdeck completion [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--shell` | `string` | The shell to generate completion commands for. Supports "bash" or "zsh" |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-
-
 ### hookdeck ci
 
 Login to your Hookdeck project to forward events in CI
@@ -2322,12 +1758,5 @@ hookdeck ci [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--api-key` | `string` | Your API key to use for the command (default "2pa5f5oeqbcgj91tipwlob0n5h7bg1ptd1nxodx5wgw05b51s8") |
 | `--name` | `string` | Your CI name (ex: $GITHUB_REF) |
-| `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
-| `--device-name` | `string` | device name |
-| `--insecure` | `bool` | Allow invalid TLS certificates |
-| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
-| `-p, --profile` | `string` | profile name (default "default") |
-<!-- GENERATE:completion|ci:END -->
+<!-- GENERATE_END -->

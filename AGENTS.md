@@ -243,6 +243,12 @@ go test ./pkg/cmd/
 go test -race ./...
 ```
 
+### Sandbox and permissions
+
+Commands that need network (e.g. `git push`, `gh pr create`, `npm install`) or full system access often fail in the sandbox with **TLS/certificate errors** (e.g. `x509: OSStatus -26276`) or auth prompts. These are sandbox restrictions, not broken tooling.
+
+**Prefer requesting elevated permissions** (e.g. `required_permissions: ["all"]` or `["network"]`) and asking the user to approve so the agent can retry the command. Do not default to prompting the user to run commands themselves when elevation is available. Only fall back to copy-pasteable commands when elevated permissions are not an option.
+
 ### Linting and Formatting
 ```bash
 # Format code
@@ -279,6 +285,17 @@ Use the shared helpers in **`pkg/cmd/helptext.go`** for resource commands so Sho
 - **Long (intro paragraph):** Use `LongGetIntro(resource)`, `LongUpdateIntro(resource)`, `LongDeleteIntro(resource)`, `LongDisableIntro(resource)`, `LongEnableIntro(resource)`, `LongUpsertIntro(resource)` for the first sentence/paragraph, then append command-specific content (e.g. Examples, extra paragraphs) in the command file.
 
 When adding a **new resource** that follows the same CRUD/get/list/delete/disable/enable/create/upsert pattern, add a new constant (e.g. `ResourceDestination`) and use the same Short/Long intro helpers; extend `helptext.go` only when you need a new *pattern* (e.g. a new verb), not for each resource. Keep command-specific wording (e.g. "Create a connection between a source and destination", list filter descriptions) in the command file.
+
+### Cobra Example and output for website docs
+
+CLI content is generated for the website via `tools/generate-reference`. The generator emits usage, **arguments** (if `Annotations["cli.arguments"]` is set), flags, and the command's `Example` field. Human-injected content in the website (output examples, scenario walkthroughs, behavioral notes) is **required**—it improves docs beyond what generation provides.
+
+- **Arguments:** For commands with positional args, set `c.Annotations["cli.arguments"]` to a JSON array of `{name, type, description, required}`. The generator emits an Arguments table before Flags. See `pkg/cmd/listen.go` for an example.
+- **Example (simple output):** Add to Cobra `Example` when the output is short, generic, and helps users verify success (e.g. create, list, get). Keep it representative of actual CLI output; truncate long TUI with `...` if needed.
+- **Example (complex output):** For long or scenario-specific output (e.g. dry-run, multi-step flows), add it in the website mdoc as human content immediately after the command's generated section. Split GENERATE blocks so the human section sits next to that command (see website AGENTS.md).
+- **Heading level for human sections:** Use `####` (h4) for human-injected sections (e.g. dry-run output, scenario addenda) so they do not appear in the sidebar TOC. Use `###` (h3) or higher only for sections that should appear in the TOC.
+- **Behavioral notes:** Add short clarifications to `Long` when they apply everywhere (e.g. "Use `--dry-run` to preview changes"; "`--disabled` shows all connections, not just disabled ones"). Longer narrative goes in the website.
+- **Keep in sync:** When CLI output (success messages, TUI, error text) changes, update the website examples (CI, listen, etc.) or Cobra Example so generated docs stay accurate.
 
 ### CLI Documentation
 - **REFERENCE.md**: Must include all commands with examples

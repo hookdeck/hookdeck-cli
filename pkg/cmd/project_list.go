@@ -21,10 +21,14 @@ func newProjectListCmd() *projectListCmd {
 	lc := &projectListCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:   "list [<organization_substring>] [<project_substring>]",
-		Args:  validators.MaximumNArgs(2),
-		Short: "List and filter projects by organization and project name substrings",
-		RunE:  lc.runProjectListCmd,
+		Use:     "list [<organization_substring>] [<project_substring>]",
+		Args:    validators.MaximumNArgs(2),
+		Short:   "List and filter projects by organization and project name substrings",
+		RunE:    lc.runProjectListCmd,
+		Example: `$ hookdeck project list
+[Acme] Ecommerce Production (current)
+[Acme] Ecommerce Staging
+[Acme] Ecommerce Development`,
 	}
 
 	return lc
