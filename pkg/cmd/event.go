@@ -14,12 +14,12 @@ func newEventCmd() *eventCmd {
 	ec := &eventCmd{}
 
 	ec.cmd = &cobra.Command{
-		Use:   "event",
+		Use:     "event",
 		Aliases: []string{"events"},
-		Args:  validators.NoArgs,
-		Short: "Inspect and manage events",
-		Long: `List, get, retry, cancel, or mute events (processed webhook deliveries).
-Filter by connection ID (--connection-id), status, source, or destination.`,
+		Args:    validators.NoArgs,
+		Short:   ShortBeta("Inspect and manage events"),
+		Long: LongBeta(`List, get, retry, cancel, or mute events (processed webhook deliveries).
+Filter by connection ID (--connection-id), status, source, or destination.`),
 	}
 
 	ec.cmd.AddCommand(newEventListCmd().cmd)

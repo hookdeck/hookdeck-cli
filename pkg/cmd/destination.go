@@ -17,11 +17,11 @@ func newDestinationCmd() *destinationCmd {
 		Use:     "destination",
 		Aliases: []string{"destinations"},
 		Args:    validators.NoArgs,
-		Short:   "Manage your destinations",
-		Long: `Manage webhook and event destinations.
+		Short:   ShortBeta("Manage your destinations"),
+		Long: LongBeta(`Manage webhook and event destinations.
 
 Destinations define where Hookdeck forwards events. Create destinations with a type (HTTP, CLI, MOCK_API),
-optional URL and authentication, then connect them to sources via connections.`,
+optional URL and authentication, then connect them to sources via connections.`),
 	}
 
 	dc.cmd.AddCommand(newDestinationListCmd().cmd)

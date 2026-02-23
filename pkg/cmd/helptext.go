@@ -51,3 +51,19 @@ func LongEnableIntro(resource string) string {
 func LongUpsertIntro(resource string) string {
 	return "Create a new " + resource + " or update an existing one by name (idempotent)."
 }
+
+// Beta help text for gateway/connection commands. Centralised so the feedback URL and wording stay consistent.
+const BetaFeedbackSuffix = `
+
+[BETA] This feature is in beta. Please share bugs and feedback via:
+https://github.com/hookdeck/hookdeck-cli/issues`
+
+// ShortBeta appends [BETA] to a short description for use in Cobra Short.
+func ShortBeta(short string) string {
+	return short + " [BETA]"
+}
+
+// LongBeta appends the beta feedback paragraph to a long description for use in Cobra Long.
+func LongBeta(long string) string {
+	return long + BetaFeedbackSuffix
+}

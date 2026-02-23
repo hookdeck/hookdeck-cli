@@ -17,8 +17,8 @@ func newAttemptCmd() *attemptCmd {
 		Use:     "attempt",
 		Aliases: []string{"attempts"},
 		Args:    validators.NoArgs,
-		Short:   "Inspect delivery attempts",
-		Long: `List or get attempts (single delivery tries for an event). Use --event-id to list attempts for an event.`,
+		Short:   ShortBeta("Inspect delivery attempts"),
+		Long:    LongBeta(`List or get attempts (single delivery tries for an event). Use --event-id to list attempts for an event.`),
 	}
 
 	ac.cmd.AddCommand(newAttemptListCmd().cmd)

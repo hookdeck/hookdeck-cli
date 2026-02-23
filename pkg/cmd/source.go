@@ -17,11 +17,11 @@ func newSourceCmd() *sourceCmd {
 		Use:     "source",
 		Aliases: []string{"sources"},
 		Args:    validators.NoArgs,
-		Short:   "Manage your sources",
-		Long: `Manage webhook and event sources.
+		Short:   ShortBeta("Manage your sources"),
+		Long: LongBeta(`Manage webhook and event sources.
 
 Sources receive incoming webhooks and events. Create sources with a type (e.g. WEBHOOK, STRIPE)
-and optional authentication config, then connect them to destinations via connections.`,
+and optional authentication config, then connect them to destinations via connections.`),
 	}
 
 	sc.cmd.AddCommand(newSourceListCmd().cmd)

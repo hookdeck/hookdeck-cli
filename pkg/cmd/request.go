@@ -17,8 +17,8 @@ func newRequestCmd() *requestCmd {
 		Use:     "request",
 		Aliases: []string{"requests"},
 		Args:    validators.NoArgs,
-		Short:   "Inspect and manage requests",
-		Long: `List, get, and retry requests (raw inbound webhooks). View events or ignored events for a request.`,
+		Short:   ShortBeta("Inspect and manage requests"),
+		Long:    LongBeta(`List, get, and retry requests (raw inbound webhooks). View events or ignored events for a request.`),
 	}
 
 	rc.cmd.AddCommand(newRequestListCmd().cmd)

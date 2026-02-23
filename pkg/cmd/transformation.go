@@ -17,11 +17,11 @@ func newTransformationCmd() *transformationCmd {
 		Use:     "transformation",
 		Aliases: []string{"transformations"},
 		Args:    validators.NoArgs,
-		Short:   "Manage your transformations",
-		Long: `Manage JavaScript transformations for request/response processing.
+		Short:   ShortBeta("Manage your transformations"),
+		Long: LongBeta(`Manage JavaScript transformations for request/response processing.
 
 Transformations run custom code to modify event payloads. Create with --name and --code (or --code-file),
-then attach to connections via rules. Use 'transformation run' to test code locally.`,
+then attach to connections via rules. Use 'transformation run' to test code locally.`),
 	}
 
 	tc.cmd.AddCommand(newTransformationListCmd().cmd)

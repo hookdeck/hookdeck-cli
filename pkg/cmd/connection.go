@@ -22,15 +22,12 @@ func newConnectionCmd() *connectionCmd {
 		Use:     "connection",
 		Aliases: []string{"connections"},
 		Args:    validators.NoArgs,
-		Short:   "Manage your connections [BETA]",
-		Long: `Manage connections between sources and destinations.
+		Short:   ShortBeta("Manage your connections"),
+		Long: LongBeta(`Manage connections between sources and destinations.
 
 A connection links a source to a destination and defines how webhooks are routed.
 You can create connections with inline source and destination creation, or reference
-existing resources.
-
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues`,
+existing resources.`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if shouldShowConnectionDeprecation() {
 				fmt.Fprint(os.Stderr, connectionDeprecationNotice)
