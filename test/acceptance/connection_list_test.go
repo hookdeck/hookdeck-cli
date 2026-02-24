@@ -9,6 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// ConnectionListResponse wraps the list response with pagination
+type ConnectionListResponse struct {
+	Models     []Connection           `json:"models"`
+	Pagination map[string]interface{} `json:"pagination"`
+}
+
 // TestConnectionListFilters tests the various filtering flags for connection list
 func TestConnectionListFilters(t *testing.T) {
 	if testing.Short() {
@@ -50,9 +56,6 @@ func TestConnectionListFilters(t *testing.T) {
 		stdout, stderr, err := cli.Run("gateway", "connection", "list", "--disabled", "--output", "json")
 		require.NoError(t, err, "Should list disabled connections: stderr=%s", stderr)
 
-		type ConnectionListResponse struct {
-			Models []Connection `json:"models"`
-		}
 		var disabledConnsResp ConnectionListResponse
 		err = json.Unmarshal([]byte(stdout), &disabledConnsResp)
 		require.NoError(t, err, "Should parse JSON response")
