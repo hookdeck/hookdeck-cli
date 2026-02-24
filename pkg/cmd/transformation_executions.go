@@ -112,11 +112,7 @@ func (tc *transformationExecutionsListCmd) run(cmd *cobra.Command, args []string
 	}
 
 	if tc.output == "json" {
-		if len(resp.Models) == 0 {
-			fmt.Println("[]")
-			return nil
-		}
-		jsonBytes, err := json.MarshalIndent(resp.Models, "", "  ")
+		jsonBytes, err := marshalListResponseWithPagination(resp.Models, resp.Pagination)
 		if err != nil {
 			return fmt.Errorf("failed to marshal executions to json: %w", err)
 		}
@@ -133,6 +129,11 @@ func (tc *transformationExecutionsListCmd) run(cmd *cobra.Command, args []string
 	for _, e := range resp.Models {
 		fmt.Printf("%s %s\n", color.Green(e.ID), e.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
+
+	// Display pagination info
+	commandExample := "hookdeck gateway transformation executions list"
+	printPaginationInfo(resp.Pagination, commandExample)
+
 	return nil
 }
 
