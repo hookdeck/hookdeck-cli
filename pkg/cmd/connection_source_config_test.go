@@ -19,8 +19,13 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				if config["webhook_secret"] != "whsec_test123" {
-					t.Errorf("expected webhook_secret whsec_test123, got %v", config["webhook_secret"])
+				auth, ok := config["auth"].(map[string]interface{})
+				if !ok {
+					t.Errorf("expected auth map, got %T", config["auth"])
+					return
+				}
+				if auth["webhook_secret_key"] != "whsec_test123" {
+					t.Errorf("expected auth.webhook_secret_key whsec_test123, got %v", auth["webhook_secret_key"])
 				}
 			},
 		},
@@ -31,8 +36,13 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				if config["api_key"] != "sk_test_abc123" {
-					t.Errorf("expected api_key sk_test_abc123, got %v", config["api_key"])
+				auth, ok := config["auth"].(map[string]interface{})
+				if !ok {
+					t.Errorf("expected auth map, got %T", config["auth"])
+					return
+				}
+				if auth["api_key"] != "sk_test_abc123" {
+					t.Errorf("expected auth.api_key sk_test_abc123, got %v", auth["api_key"])
 				}
 			},
 		},
@@ -44,16 +54,16 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				basicAuth, ok := config["basic_auth"].(map[string]string)
+				auth, ok := config["auth"].(map[string]interface{})
 				if !ok {
-					t.Errorf("expected basic_auth map, got %T", config["basic_auth"])
+					t.Errorf("expected auth map, got %T", config["auth"])
 					return
 				}
-				if basicAuth["username"] != "testuser" {
-					t.Errorf("expected username testuser, got %v", basicAuth["username"])
+				if auth["username"] != "testuser" {
+					t.Errorf("expected auth.username testuser, got %v", auth["username"])
 				}
-				if basicAuth["password"] != "testpass" {
-					t.Errorf("expected password testpass, got %v", basicAuth["password"])
+				if auth["password"] != "testpass" {
+					t.Errorf("expected auth.password testpass, got %v", auth["password"])
 				}
 			},
 		},
@@ -65,16 +75,16 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				hmac, ok := config["hmac"].(map[string]string)
+				auth, ok := config["auth"].(map[string]interface{})
 				if !ok {
-					t.Errorf("expected hmac map, got %T", config["hmac"])
+					t.Errorf("expected auth map, got %T", config["auth"])
 					return
 				}
-				if hmac["secret"] != "secret123" {
-					t.Errorf("expected secret secret123, got %v", hmac["secret"])
+				if auth["webhook_secret_key"] != "secret123" {
+					t.Errorf("expected auth.webhook_secret_key secret123, got %v", auth["webhook_secret_key"])
 				}
-				if hmac["algorithm"] != "SHA256" {
-					t.Errorf("expected algorithm SHA256, got %v", hmac["algorithm"])
+				if auth["algorithm"] != "sha256" {
+					t.Errorf("expected auth.algorithm sha256, got %v", auth["algorithm"])
 				}
 			},
 		},
@@ -85,16 +95,16 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				hmac, ok := config["hmac"].(map[string]string)
+				auth, ok := config["auth"].(map[string]interface{})
 				if !ok {
-					t.Errorf("expected hmac map, got %T", config["hmac"])
+					t.Errorf("expected auth map, got %T", config["auth"])
 					return
 				}
-				if hmac["secret"] != "secret123" {
-					t.Errorf("expected secret secret123, got %v", hmac["secret"])
+				if auth["webhook_secret_key"] != "secret123" {
+					t.Errorf("expected auth.webhook_secret_key secret123, got %v", auth["webhook_secret_key"])
 				}
-				if _, hasAlgo := hmac["algorithm"]; hasAlgo {
-					t.Errorf("expected no algorithm, got %v", hmac["algorithm"])
+				if auth["algorithm"] != "sha256" {
+					t.Errorf("expected default auth.algorithm sha256, got %v", auth["algorithm"])
 				}
 			},
 		},
@@ -178,7 +188,7 @@ func TestBuildSourceConfig(t *testing.T) {
 				cc.SourceAllowedHTTPMethods = "POST,INVALID"
 			},
 			wantErr:     true,
-			errContains: "invalid HTTP method 'INVALID'",
+			errContains: "invalid HTTP method",
 		},
 		{
 			name: "custom response - json content type",
@@ -281,7 +291,7 @@ func TestBuildSourceConfig(t *testing.T) {
 				cc.SourceCustomResponseBody = "<html></html>"
 			},
 			wantErr:     true,
-			errContains: "invalid content type 'html'",
+			errContains: "invalid content type",
 		},
 		{
 			name: "custom response - body exceeds 1000 chars",
@@ -333,8 +343,9 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				if config["webhook_secret"] != "whsec_123" {
-					t.Errorf("expected webhook_secret, got %v", config["webhook_secret"])
+				auth, _ := config["auth"].(map[string]interface{})
+				if auth == nil || auth["webhook_secret_key"] != "whsec_123" {
+					t.Errorf("expected auth.webhook_secret_key whsec_123, got %v", config["auth"])
 				}
 				methods, ok := config["allowed_http_methods"].([]string)
 				if !ok || len(methods) != 2 {
@@ -351,8 +362,9 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				if config["api_key"] != "sk_test_123" {
-					t.Errorf("expected api_key, got %v", config["api_key"])
+				auth, _ := config["auth"].(map[string]interface{})
+				if auth == nil || auth["api_key"] != "sk_test_123" {
+					t.Errorf("expected auth.api_key sk_test_123, got %v", config["auth"])
 				}
 				if config["custom_response"] == nil {
 					t.Errorf("expected custom_response to be set")
@@ -369,8 +381,9 @@ func TestBuildSourceConfig(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, config map[string]interface{}) {
-				if config["webhook_secret"] != "whsec_123" {
-					t.Errorf("expected webhook_secret")
+				auth, _ := config["auth"].(map[string]interface{})
+				if auth == nil || auth["webhook_secret_key"] != "whsec_123" {
+					t.Errorf("expected auth.webhook_secret_key whsec_123")
 				}
 				if config["allowed_http_methods"] == nil {
 					t.Errorf("expected allowed_http_methods")

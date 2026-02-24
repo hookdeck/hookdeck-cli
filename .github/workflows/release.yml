@@ -20,7 +20,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release -f .goreleaser/mac.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -51,7 +51,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release -f .goreleaser/linux.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release -f .goreleaser/windows.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -143,7 +143,7 @@ jobs:
       - name: Build npm binaries with GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: build -f .goreleaser/npm.yml --clean --skip validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

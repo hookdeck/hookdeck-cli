@@ -24,7 +24,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		destURL := "https://api.hookdeck.com/dev/null"
 
 		// Create connection with HTTP destination (OAuth2 Client Credentials)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -58,7 +58,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		assert.Equal(t, "OAUTH2_CLIENT_CREDENTIALS", authType, "Auth type should be OAUTH2_CLIENT_CREDENTIALS")
 
 		// Fetch connection with --include-destination-auth to verify credentials were stored
-		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+		getStdout, getStderr, getErr := cli.Run("gateway", "connection", "get", connID,
 			"--include-destination-auth",
 			"--output", "json")
 		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)
@@ -104,7 +104,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		destURL := "https://api.hookdeck.com/dev/null"
 
 		// Create connection with HTTP destination (OAuth2 Authorization Code)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -139,7 +139,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		assert.Equal(t, "OAUTH2_AUTHORIZATION_CODE", authType, "Auth type should be OAUTH2_AUTHORIZATION_CODE")
 
 		// Fetch connection with --include-destination-auth to verify credentials were stored
-		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+		getStdout, getStderr, getErr := cli.Run("gateway", "connection", "get", connID,
 			"--include-destination-auth",
 			"--output", "json")
 		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)
@@ -185,7 +185,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		destURL := "https://api.hookdeck.com/dev/null"
 
 		// Create connection with HTTP destination (AWS Signature)
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -219,7 +219,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		assert.Equal(t, "AWS_SIGNATURE", authType, "Auth type should be AWS_SIGNATURE")
 
 		// Fetch connection with --include-destination-auth to verify credentials were stored
-		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+		getStdout, getStderr, getErr := cli.Run("gateway", "connection", "get", connID,
 			"--include-destination-auth",
 			"--output", "json")
 		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)
@@ -269,7 +269,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		// Using a minimal but valid JSON structure for service account key
 		serviceAccountKey := `{"type":"service_account","project_id":"test-project","private_key_id":"test-key-id","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC\n-----END PRIVATE KEY-----\n","client_email":"test@test-project.iam.gserviceaccount.com","client_id":"123456789","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}`
 
-		stdout, stderr, err := cli.Run("connection", "create",
+		stdout, stderr, err := cli.Run("gateway", "connection", "create",
 			"--name", connName,
 			"--source-type", "WEBHOOK",
 			"--source-name", sourceName,
@@ -301,7 +301,7 @@ func TestConnectionOAuth2AWSAuthentication(t *testing.T) {
 		assert.Equal(t, "GCP_SERVICE_ACCOUNT", authType, "Auth type should be GCP_SERVICE_ACCOUNT")
 
 		// Fetch connection with --include-destination-auth to verify credentials were stored
-		getStdout, getStderr, getErr := cli.Run("connection", "get", connID,
+		getStdout, getStderr, getErr := cli.Run("gateway", "connection", "get", connID,
 			"--include-destination-auth",
 			"--output", "json")
 		require.NoError(t, getErr, "Failed to get connection: stderr=%s", getStderr)

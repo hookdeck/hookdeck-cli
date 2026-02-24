@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/cmd/sources"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -92,34 +91,8 @@ type connectionCreateCmd struct {
 	DestinationRateLimit       int
 	DestinationRateLimitPeriod string
 
-	// Rule flags - Retry
-	RuleRetryStrategy           string
-	RuleRetryCount              int
-	RuleRetryInterval           int
-	RuleRetryResponseStatusCode string
-
-	// Rule flags - Filter
-	RuleFilterBody    string
-	RuleFilterHeaders string
-	RuleFilterQuery   string
-	RuleFilterPath    string
-
-	// Rule flags - Transform
-	RuleTransformName string
-	RuleTransformCode string
-	RuleTransformEnv  string
-
-	// Rule flags - Delay
-	RuleDelay int
-
-	// Rule flags - Deduplicate
-	RuleDeduplicateWindow        int
-	RuleDeduplicateIncludeFields string
-	RuleDeduplicateExcludeFields string
-
-	// Rules JSON fallback
-	Rules     string
-	RulesFile string
+	// Rule flags shared with update/upsert
+	connectionRuleFlags
 
 	// Reference existing resources
 	sourceID      string
@@ -132,7 +105,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "create",
 		Args:  validators.NoArgs,
-		Short: "Create a new connection",
+		Short: ShortCreate(ResourceConnection),
 		Long: `Create a connection between a source and destination.
 	
 	You can either reference existing resources by ID or create them inline.
@@ -253,34 +226,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd.Flags().IntVar(&cc.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
 	cc.cmd.Flags().StringVar(&cc.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
 
-	// Rule flags - Retry
-	cc.cmd.Flags().StringVar(&cc.RuleRetryStrategy, "rule-retry-strategy", "", "Retry strategy (linear, exponential)")
-	cc.cmd.Flags().IntVar(&cc.RuleRetryCount, "rule-retry-count", 0, "Number of retry attempts")
-	cc.cmd.Flags().IntVar(&cc.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
-	cc.cmd.Flags().StringVar(&cc.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on (e.g., '429,500,502')")
-
-	// Rule flags - Filter
-	cc.cmd.Flags().StringVar(&cc.RuleFilterBody, "rule-filter-body", "", "JQ expression to filter on request body")
-	cc.cmd.Flags().StringVar(&cc.RuleFilterHeaders, "rule-filter-headers", "", "JQ expression to filter on request headers")
-	cc.cmd.Flags().StringVar(&cc.RuleFilterQuery, "rule-filter-query", "", "JQ expression to filter on request query parameters")
-	cc.cmd.Flags().StringVar(&cc.RuleFilterPath, "rule-filter-path", "", "JQ expression to filter on request path")
-
-	// Rule flags - Transform
-	cc.cmd.Flags().StringVar(&cc.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
-	cc.cmd.Flags().StringVar(&cc.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
-	cc.cmd.Flags().StringVar(&cc.RuleTransformEnv, "rule-transform-env", "", "JSON string representing environment variables for transformation")
-
-	// Rule flags - Delay
-	cc.cmd.Flags().IntVar(&cc.RuleDelay, "rule-delay", 0, "Delay in milliseconds")
-
-	// Rule flags - Deduplicate
-	cc.cmd.Flags().IntVar(&cc.RuleDeduplicateWindow, "rule-deduplicate-window", 0, "Time window in seconds for deduplication")
-	cc.cmd.Flags().StringVar(&cc.RuleDeduplicateIncludeFields, "rule-deduplicate-include-fields", "", "Comma-separated list of fields to include for deduplication")
-	cc.cmd.Flags().StringVar(&cc.RuleDeduplicateExcludeFields, "rule-deduplicate-exclude-fields", "", "Comma-separated list of fields to exclude for deduplication")
-
-	// Rules JSON fallback
-	cc.cmd.Flags().StringVar(&cc.Rules, "rules", "", "JSON string representing the entire rules array")
-	cc.cmd.Flags().StringVar(&cc.RulesFile, "rules-file", "", "Path to a JSON file containing the rules array")
+	addConnectionRuleFlags(cc.cmd, &cc.connectionRuleFlags)
 
 	// Reference existing resources
 	cc.cmd.Flags().StringVar(&cc.sourceID, "source-id", "", "Use existing source by ID")
@@ -339,38 +285,17 @@ func (cc *connectionCreateCmd) validateFlags(cmd *cobra.Command, args []string) 
 		}
 	}
 
-	// Validate source authentication flags based on source type
-	if hasInlineSource && cc.SourceConfig == "" && cc.SourceConfigFile == "" {
-		sourceTypes, err := sources.FetchSourceTypes()
-		if err != nil {
-			// We can't validate, so we'll just warn and let the API handle it
-			fmt.Printf("Warning: could not fetch source types for validation: %v\n", err)
-			return nil
+	// Validate source authentication flags based on source type (cached OpenAPI spec)
+	if hasInlineSource {
+		auth := sourceAuthFlags{
+			WebhookSecret: cc.SourceWebhookSecret,
+			APIKey:        cc.SourceAPIKey,
+			BasicAuthUser: cc.SourceBasicAuthUser,
+			BasicAuthPass: cc.SourceBasicAuthPass,
+			HMACSecret:    cc.SourceHMACSecret,
 		}
-
-		sourceType, ok := sourceTypes[strings.ToUpper(cc.sourceType)]
-		if !ok {
-			// This is an unknown source type, let the API validate it
-			return nil
-		}
-
-		switch sourceType.AuthScheme {
-		case "webhook_secret":
-			if cc.SourceWebhookSecret == "" {
-				return fmt.Errorf("error: --source-webhook-secret is required for source type %s", cc.sourceType)
-			}
-		case "api_key":
-			if cc.SourceAPIKey == "" {
-				return fmt.Errorf("error: --source-api-key is required for source type %s", cc.sourceType)
-			}
-		case "basic_auth":
-			if cc.SourceBasicAuthUser == "" || cc.SourceBasicAuthPass == "" {
-				return fmt.Errorf("error: --source-basic-auth-user and --source-basic-auth-pass are required for source type %s", cc.sourceType)
-			}
-		case "hmac":
-			if cc.SourceHMACSecret == "" {
-				return fmt.Errorf("error: --source-hmac-secret is required for source type %s", cc.sourceType)
-			}
+		if err := validateSourceAuthFromSpec(cc.sourceType, cc.SourceConfig != "" || cc.SourceConfigFile != "", auth, "source-"); err != nil {
+			return err
 		}
 	}
 
@@ -511,7 +436,7 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 	}
 
 	// Handle Rules
-	rules, err := cc.buildRulesArray(cmd)
+	rules, err := buildConnectionRules(&cc.connectionRuleFlags)
 	if err != nil {
 		return err
 	}
@@ -825,12 +750,14 @@ func (cc *connectionCreateCmd) buildAuthConfig() (map[string]interface{}, error)
 }
 
 func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, error) {
-	// Handle JSON config first, as it overrides individual flags
+	// Handle JSON config first (same precedence as source commands)
 	if cc.SourceConfig != "" {
 		var config map[string]interface{}
 		if err := json.Unmarshal([]byte(cc.SourceConfig), &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config: %w", err)
 		}
+		normalizeSourceConfigAuth(config, cc.sourceType)
+		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 		return config, nil
 	}
 	if cc.SourceConfigFile != "" {
@@ -842,219 +769,33 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 		if err := json.Unmarshal(data, &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config-file: %w", err)
 		}
+		normalizeSourceConfigAuth(config, cc.sourceType)
+		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 		return config, nil
 	}
-
-	// Build config from individual flags
-	config := make(map[string]interface{})
-	if cc.SourceWebhookSecret != "" {
-		config["webhook_secret"] = cc.SourceWebhookSecret
+	// Build from individual --source-* flags using shared logic
+	f := &sourceConfigFlags{
+		WebhookSecret:        cc.SourceWebhookSecret,
+		APIKey:               cc.SourceAPIKey,
+		BasicAuthUser:        cc.SourceBasicAuthUser,
+		BasicAuthPass:        cc.SourceBasicAuthPass,
+		HMACSecret:           cc.SourceHMACSecret,
+		HMACAlgo:             cc.SourceHMACAlgo,
+		AllowedHTTPMethods:   cc.SourceAllowedHTTPMethods,
+		CustomResponseBody:   cc.SourceCustomResponseBody,
+		CustomResponseType:   cc.SourceCustomResponseType,
 	}
-	if cc.SourceAPIKey != "" {
-		config["api_key"] = cc.SourceAPIKey
+	config, err := buildSourceConfigFromIndividualFlags(f, "source-", cc.sourceType)
+	if err != nil {
+		return nil, err
 	}
-	if cc.SourceBasicAuthUser != "" || cc.SourceBasicAuthPass != "" {
-		config["basic_auth"] = map[string]string{
-			"username": cc.SourceBasicAuthUser,
-			"password": cc.SourceBasicAuthPass,
-		}
+	if config != nil {
+		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 	}
-	if cc.SourceHMACSecret != "" {
-		hmacConfig := map[string]string{"secret": cc.SourceHMACSecret}
-		if cc.SourceHMACAlgo != "" {
-			hmacConfig["algorithm"] = cc.SourceHMACAlgo
-		}
-		config["hmac"] = hmacConfig
-	}
-
-	// Add allowed HTTP methods
-	if cc.SourceAllowedHTTPMethods != "" {
-		methods := strings.Split(cc.SourceAllowedHTTPMethods, ",")
-		// Trim whitespace and validate
-		validMethods := []string{}
-		allowedMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true}
-		for _, method := range methods {
-			method = strings.TrimSpace(strings.ToUpper(method))
-			if !allowedMethods[method] {
-				return nil, fmt.Errorf("invalid HTTP method '%s' in --source-allowed-http-methods (allowed: GET, POST, PUT, PATCH, DELETE)", method)
-			}
-			validMethods = append(validMethods, method)
-		}
-		config["allowed_http_methods"] = validMethods
-	}
-
-	// Add custom response configuration
-	if cc.SourceCustomResponseType != "" || cc.SourceCustomResponseBody != "" {
-		if cc.SourceCustomResponseType == "" {
-			return nil, fmt.Errorf("--source-custom-response-content-type is required when using --source-custom-response-body")
-		}
-		if cc.SourceCustomResponseBody == "" {
-			return nil, fmt.Errorf("--source-custom-response-body is required when using --source-custom-response-content-type")
-		}
-
-		// Validate content type
-		validContentTypes := map[string]bool{"json": true, "text": true, "xml": true}
-		contentType := strings.ToLower(cc.SourceCustomResponseType)
-		if !validContentTypes[contentType] {
-			return nil, fmt.Errorf("invalid content type '%s' in --source-custom-response-content-type (allowed: json, text, xml)", cc.SourceCustomResponseType)
-		}
-
-		// Validate body length (max 1000 chars per API spec)
-		if len(cc.SourceCustomResponseBody) > 1000 {
-			return nil, fmt.Errorf("--source-custom-response-body exceeds maximum length of 1000 characters (got %d)", len(cc.SourceCustomResponseBody))
-		}
-
-		config["custom_response"] = map[string]interface{}{
-			"content_type": contentType,
-			"body":         cc.SourceCustomResponseBody,
-		}
-	}
-
 	if len(config) == 0 {
 		return make(map[string]interface{}), nil
 	}
-
 	return config, nil
-}
-
-// buildRulesArray constructs the rules array from flags in logical execution order
-// Order: filter -> transform -> deduplicate -> delay -> retry
-// Note: This is the default order for individual flags. For custom order, use --rules or --rules-file
-func (cc *connectionCreateCmd) buildRulesArray(cmd *cobra.Command) ([]hookdeck.Rule, error) {
-	// Handle JSON fallback first
-	if cc.Rules != "" {
-		var rules []hookdeck.Rule
-		if err := json.Unmarshal([]byte(cc.Rules), &rules); err != nil {
-			return nil, fmt.Errorf("invalid JSON in --rules: %w", err)
-		}
-		return rules, nil
-	}
-	if cc.RulesFile != "" {
-		data, err := os.ReadFile(cc.RulesFile)
-		if err != nil {
-			return nil, fmt.Errorf("could not read --rules-file: %w", err)
-		}
-		var rules []hookdeck.Rule
-		if err := json.Unmarshal(data, &rules); err != nil {
-			return nil, fmt.Errorf("invalid JSON in --rules-file: %w", err)
-		}
-		return rules, nil
-	}
-
-	// Track which rule types have been encountered
-	ruleMap := make(map[string]hookdeck.Rule)
-
-	// Determine which rule types are present by checking flags
-	// Note: We don't track order from flags because pflag.Visit() processes flags alphabetically
-	hasRetryFlags := cc.RuleRetryStrategy != "" || cc.RuleRetryCount > 0 || cc.RuleRetryInterval > 0 || cc.RuleRetryResponseStatusCode != ""
-	hasFilterFlags := cc.RuleFilterBody != "" || cc.RuleFilterHeaders != "" || cc.RuleFilterQuery != "" || cc.RuleFilterPath != ""
-	hasTransformFlags := cc.RuleTransformName != "" || cc.RuleTransformCode != "" || cc.RuleTransformEnv != ""
-	hasDelayFlags := cc.RuleDelay > 0
-	hasDeduplicateFlags := cc.RuleDeduplicateWindow > 0 || cc.RuleDeduplicateIncludeFields != "" || cc.RuleDeduplicateExcludeFields != ""
-
-	// Initialize rule entries for each type that has flags set
-	if hasRetryFlags {
-		ruleMap["retry"] = make(hookdeck.Rule)
-	}
-	if hasFilterFlags {
-		ruleMap["filter"] = make(hookdeck.Rule)
-	}
-	if hasTransformFlags {
-		ruleMap["transform"] = make(hookdeck.Rule)
-	}
-	if hasDelayFlags {
-		ruleMap["delay"] = make(hookdeck.Rule)
-	}
-	if hasDeduplicateFlags {
-		ruleMap["deduplicate"] = make(hookdeck.Rule)
-	}
-
-	// Build each rule based on the flags set
-	if rule, ok := ruleMap["retry"]; ok {
-		rule["type"] = "retry"
-		if cc.RuleRetryStrategy != "" {
-			rule["strategy"] = cc.RuleRetryStrategy
-		}
-		if cc.RuleRetryCount > 0 {
-			rule["count"] = cc.RuleRetryCount
-		}
-		if cc.RuleRetryInterval > 0 {
-			rule["interval"] = cc.RuleRetryInterval
-		}
-		if cc.RuleRetryResponseStatusCode != "" {
-			rule["response_status_codes"] = cc.RuleRetryResponseStatusCode
-		}
-	}
-
-	if rule, ok := ruleMap["filter"]; ok {
-		rule["type"] = "filter"
-		if cc.RuleFilterBody != "" {
-			rule["body"] = cc.RuleFilterBody
-		}
-		if cc.RuleFilterHeaders != "" {
-			rule["headers"] = cc.RuleFilterHeaders
-		}
-		if cc.RuleFilterQuery != "" {
-			rule["query"] = cc.RuleFilterQuery
-		}
-		if cc.RuleFilterPath != "" {
-			rule["path"] = cc.RuleFilterPath
-		}
-	}
-
-	if rule, ok := ruleMap["transform"]; ok {
-		rule["type"] = "transform"
-		transformConfig := make(map[string]interface{})
-		if cc.RuleTransformName != "" {
-			transformConfig["name"] = cc.RuleTransformName
-		}
-		if cc.RuleTransformCode != "" {
-			transformConfig["code"] = cc.RuleTransformCode
-		}
-		if cc.RuleTransformEnv != "" {
-			var env map[string]interface{}
-			if err := json.Unmarshal([]byte(cc.RuleTransformEnv), &env); err != nil {
-				return nil, fmt.Errorf("invalid JSON in --rule-transform-env: %w", err)
-			}
-			transformConfig["env"] = env
-		}
-		rule["transformation"] = transformConfig
-	}
-
-	if rule, ok := ruleMap["delay"]; ok {
-		rule["type"] = "delay"
-		if cc.RuleDelay > 0 {
-			rule["delay"] = cc.RuleDelay
-		}
-	}
-
-	if rule, ok := ruleMap["deduplicate"]; ok {
-		rule["type"] = "deduplicate"
-		if cc.RuleDeduplicateWindow > 0 {
-			rule["window"] = cc.RuleDeduplicateWindow
-		}
-		if cc.RuleDeduplicateIncludeFields != "" {
-			fields := strings.Split(cc.RuleDeduplicateIncludeFields, ",")
-			rule["include_fields"] = fields
-		}
-		if cc.RuleDeduplicateExcludeFields != "" {
-			fields := strings.Split(cc.RuleDeduplicateExcludeFields, ",")
-			rule["exclude_fields"] = fields
-		}
-	}
-
-	// Build rules array in logical execution order
-	// Order: deduplicate -> transform -> filter -> delay -> retry
-	// This order matches the API's default ordering for proper data flow through the pipeline
-	rules := make([]hookdeck.Rule, 0, len(ruleMap))
-	ruleTypes := []string{"deduplicate", "transform", "filter", "delay", "retry"}
-	for _, ruleType := range ruleTypes {
-		if rule, ok := ruleMap[ruleType]; ok {
-			rules = append(rules, rule)
-		}
-	}
-
-	return rules, nil
 }
 
 // enhanceCreateError adds helpful hints to API errors based on the flags used

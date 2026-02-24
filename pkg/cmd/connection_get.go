@@ -17,7 +17,8 @@ import (
 type connectionGetCmd struct {
 	cmd *cobra.Command
 
-	output      string
+	output                 string
+	includeSourceAuth      bool
 	includeDestinationAuth bool
 }
 
@@ -27,10 +28,8 @@ func newConnectionGetCmd() *connectionGetCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "get <connection-id-or-name>",
 		Args:  validators.ExactArgs(1),
-		Short: "Get connection details",
-		Long: `Get detailed information about a specific connection.
-
-You can specify either a connection ID or name.
+		Short: ShortGet(ResourceConnection),
+		Long: LongGetIntro(ResourceConnection) + `
 
 Examples:
 	 # Get connection by ID
@@ -42,6 +41,7 @@ Examples:
 	}
 
 	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	addIncludeSourceAuthFlagForConnection(cc.cmd, &cc.includeSourceAuth)
 	addIncludeDestinationAuthFlag(cc.cmd, &cc.includeDestinationAuth)
 
 	return cc
@@ -69,9 +69,14 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 	}
 
 	// The connections API does not support include=config.auth, so when
-	// --include-destination-auth is requested we fetch the destination directly
-	// from GET /destinations/{id}?include=config.auth and merge the enriched
-	// config back into the connection response.
+	// --include-source-auth or --include-destination-auth is requested we fetch
+	// the source or destination directly with ?include=config.auth and merge.
+	if cc.includeSourceAuth && conn.Source != nil {
+		src, err := apiClient.GetSource(ctx, conn.Source.ID, includeAuthParams(true))
+		if err == nil {
+			conn.Source = src
+		}
+	}
 	if cc.includeDestinationAuth && conn.Destination != nil {
 		dest, err := apiClient.GetDestination(ctx, conn.Destination.ID, includeAuthParams(true))
 		if err == nil {

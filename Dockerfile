@@ -1,5 +1,6 @@
 FROM alpine
 RUN apk update && apk upgrade && \
   apk add --no-cache ca-certificates
-COPY hookdeck /bin/hookdeck
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/hookdeck /bin/hookdeck
 ENTRYPOINT ["/bin/hookdeck"]

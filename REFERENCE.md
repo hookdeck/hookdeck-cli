@@ -1,2206 +1,1855 @@
 # Hookdeck CLI Reference
 
-> [!IMPORTANT]
-> This document is a work in progress and is not 100% accurate.
+<!-- generated at 2026-02-19 -->
 
 The Hookdeck CLI provides comprehensive webhook infrastructure management including authentication, project management, resource management, event and attempt querying, and local development tools. This reference covers all available commands and their usage.
 
 ## Table of Contents
 
-### Current Functionality ✅
+<!-- GENERATE_TOC:START -->
 - [Global Options](#global-options)
 - [Authentication](#authentication)
-- [Projects](#projects) (list and use only)
+- [Projects](#projects)
 - [Local Development](#local-development)
-- [CI/CD Integration](#cicd-integration)
-- [Utilities](#utilities)
-- [Current Limitations](#current-limitations)
-
-### Planned Functionality 🚧
-- [Advanced Project Management](#advanced-project-management)
+- [Gateway](#gateway)
+- [Connections](#connections)
 - [Sources](#sources)
 - [Destinations](#destinations)
-- [Connections](#connections)
 - [Transformations](#transformations)
 - [Events](#events)
-- [Issue Triggers](#issue-triggers)
-- [Attempts](#attempts)
-- [Bookmarks](#bookmarks)
-- [Integrations](#integrations)
-- [Issues](#issues)
 - [Requests](#requests)
-- [Bulk Operations](#bulk-operations)
-- [Notifications](#notifications)
-- [Implementation Status](#implementation-status)
-
+- [Attempts](#attempts)
+- [Utilities](#utilities)
+<!-- GENERATE_END -->
 ## Global Options
 
 All commands support these global options:
 
-### ✅ Current Global Options
-```bash
---profile, -p string     Profile name (default "default")
---api-key string         Your API key to use for the command (hidden)
---cli-key string         CLI key for legacy auth (deprecated, hidden)
---color string           Turn on/off color output (on, off, auto)
---config string          Config file (default is $HOME/.config/hookdeck/config.toml)
---device-name string     Device name for this CLI instance
---log-level string       Log level: debug, info, warn, error (default "info")
---insecure              Allow invalid TLS certificates
---version, -v           Show version information
---help, -h              Show help information
-```
+<!-- GENERATE_GLOBAL_FLAGS:START -->
+| Flag | Type | Description |
+|------|------|-------------|
+| `--color` | `string` | turn on/off color output (on, off, auto) |
+| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
+| `--device-name` | `string` | device name |
+| `--insecure` | `bool` | Allow invalid TLS certificates |
+| `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
+| `-p, --profile` | `string` | profile name (default "default") |
+| `-v, --version` | `bool` | Get the version of the Hookdeck CLI |
 
-### 🔄 Partially Implemented Options
-```bash
---output json           Output in JSON format (available on: connection create/list/get/upsert)
-                        Default: human-readable format
-```
-
-### � Planned Global Options
-```bash
---project string         Project ID to use (overrides profile)
---output string          Additional output formats: table, yaml (currently only json supported)
-```
-
+<!-- GENERATE_END -->
 ## Authentication
 
-**All Parameters:**
+<!-- GENERATE:login|logout|whoami:START -->
+- [Login](#login)
+- [Logout](#logout)
+- [Whoami](#whoami)
+
+## Login
+
+Login to your Hookdeck account to setup the CLI
+
+**Usage:**
+
 ```bash
-# Login command parameters
---api-key string       API key for direct authentication
---interactive, -i      Interactive login with prompts (boolean flag)
---profile string       Profile name to use for login
-
-# Logout command parameters  
---all, -a             Logout all profiles (boolean flag)
---profile string      Profile name to logout
-
-# Whoami command parameters
-# (No additional parameters - uses global options only)
+hookdeck login [flags]
 ```
 
-### ✅ Login
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `-i, --interactive` | `bool` | Run interactive configuration mode if you cannot open a browser |
+
+**Examples:**
+
 ```bash
-# Interactive login with prompts
-hookdeck login
-hookdeck login --interactive
-hookdeck login -i
+$ hookdeck login
+$ hookdeck login -i  # interactive mode (no browser)
+```
+## Logout
 
-# Login with API key directly
-hookdeck login --api-key your_api_key
+Logout of your Hookdeck account to setup the CLI
 
-# Use different profile
-hookdeck login --profile production
+**Usage:**
+
+```bash
+hookdeck logout [flags]
 ```
 
-### ✅ Logout
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `-a, --all` | `bool` | Clear credentials for all projects you are currently logged into. |
+
+**Examples:**
+
 ```bash
-# Logout current profile
-hookdeck logout
-
-# Logout specific profile
-hookdeck logout --profile production
-
-# Logout all profiles
-hookdeck logout --all
-hookdeck logout -a
+$ hookdeck logout
+$ hookdeck logout -a  # clear all projects
 ```
+## Whoami
 
-### ✅ Check authentication status
+Show the logged-in user
+
+**Usage:**
+
 ```bash
 hookdeck whoami
-
-# Example output:
-# Using profile default (use -p flag to use a different config profile)
-# 
-# Logged in as john@example.com (John Doe) on project Production in organization Acme Corp
 ```
 
+**Examples:**
+
+```bash
+$ hookdeck whoami
+```
+<!-- GENERATE_END -->
 ## Projects
 
-**All Parameters:**
+<!-- GENERATE:project list|project use:START -->
+- [hookdeck project list](#hookdeck-project-list)
+- [hookdeck project use](#hookdeck-project-use)
+
+### hookdeck project list
+
+List and filter projects by organization and project name substrings
+
+**Usage:**
+
 ```bash
-# Project list command parameters
-[organization_substring] [project_substring]    # Positional arguments for filtering
-# (No additional flag parameters)
-
-# Project use command parameters
-[project-id]           # Positional argument for specific project ID
---profile string       # Profile name to use
-
-# Project create command parameters (planned)
---name string          # Required: Project name
---description string   # Optional: Project description
-
-# Project get command parameters (planned)
-[project-id]           # Positional argument for specific project ID
-
-# Project update command parameters (planned)
-<project-id>          # Required positional argument for project ID
---name string         # Update project name
---description string  # Update project description
-
-# Project delete command parameters (planned)
-<project-id>          # Required positional argument for project ID
---force              # Force delete without confirmation (boolean flag)
+hookdeck project list [<organization_substring>] [<project_substring>]
 ```
 
-Projects are top-level containers for your webhook infrastructure.
+**Examples:**
 
-### ✅ List projects
 ```bash
-# List all projects you have access to
-hookdeck project list
+$ hookdeck project list
+[Acme] Ecommerce Production (current)
+[Acme] Ecommerce Staging
+[Acme] Ecommerce Development
+```
+### hookdeck project use
 
-# Filter by organization substring
-hookdeck project list acme
+Set the active project for future commands
 
-# Filter by organization and project substrings  
-hookdeck project list acme production
+**Usage:**
 
-# Example output:
-# [Acme Corp] Production
-# [Acme Corp] Staging (current)
-# [Test Org] Development
+```bash
+hookdeck project use [<organization_name> [<project_name>]] [flags]
 ```
 
-### ✅ Use project (set as current)
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--local` | `bool` | Save project to current directory (.hookdeck/config.toml) |
+
+**Examples:**
+
 ```bash
-# Interactive selection from available projects
-hookdeck project use
+$ hookdeck project use
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select Project:
+▸ [Acme] Ecommerce Production
+[Acme] Ecommerce Staging
+[Acme] Ecommerce Development
 
-# Use specific project by ID
-hookdeck project use proj_123
+Selecting project [Acme] Ecommerce Staging
 
-# Use with different profile
-hookdeck project use --profile production
+$ hookdeck project use --local
+Pinning project [Acme] Ecommerce Staging to current directory
 ```
-
+<!-- GENERATE_END -->
 ## Local Development
 
-**All Parameters:**
+<!-- GENERATE:listen:START -->
+## Listen
+
+Forward events for a source to your local server.
+
+This command will create a new Hookdeck Source if it doesn't exist.
+
+By default the Hookdeck Destination will be named "{source}-cli", and the
+Destination CLI path will be "/". To set the CLI path, use the "`--path`" flag.
+
+**Usage:**
+
 ```bash
-# Listen command parameters
-[port or URL]         # Required positional argument (e.g., "3000" or "http://localhost:3000")
-[source]              # Optional positional argument for source name
-[connection]          # Optional positional argument for connection name
---path string         # Specific path to forward to (e.g., "/webhooks")
---no-healthcheck      # Disable periodic health checks of the local server
---no-wss             # Force unencrypted WebSocket connection (hidden flag)
+hookdeck listen [port or forwarding URL] [source] [connection] [flags]
 ```
 
-### ✅ Listen for webhooks
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `port or forwarding URL` | `string` | **Required.** Port (e.g. 3000) or full URL (e.g. http://localhost:3000) to forward events to. The forward URL will be http://localhost:$PORT/$DESTINATION_PATH or http://domain/$DESTINATION_PATH. Only one of port or domain is required. |
+| `source` | `string` | **Optional.** The name of a source to listen to, a comma-separated list of source names, or '*' (with quotes) to listen to all. If empty, the CLI prompts you to choose. |
+| `connection` | `string` | **Optional.** Filter connections by connection name or path. |
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--filter-body` | `string` | Filter events by request body using Hookdeck filter syntax (JSON) |
+| `--filter-headers` | `string` | Filter events by request headers using Hookdeck filter syntax (JSON) |
+| `--filter-path` | `string` | Filter events by request path using Hookdeck filter syntax (JSON) |
+| `--filter-query` | `string` | Filter events by query parameters using Hookdeck filter syntax (JSON) |
+| `--max-connections` | `int` | Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing) (default "50") |
+| `--no-healthcheck` | `bool` | Disable periodic health checks of the local server |
+| `--output` | `string` | Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only) (default "interactive") |
+| `--path` | `string` | Sets the path to which events are forwarded e.g., /webhooks or /api/stripe |
+<!-- GENERATE_END -->
+## Gateway
+
+<!-- GENERATE:gateway:START -->
+## Gateway
+
+Commands for managing Event Gateway sources, destinations, connections,
+transformations, events, requests, and metrics.
+
+The gateway command group provides full access to all Event Gateway resources.
+
+**Usage:**
+
 ```bash
-# Start webhook forwarding to localhost (with interactive prompts)
-hookdeck listen
-
-# Forward to specific port
-hookdeck listen 3000
-
-# Forward to specific URL
-hookdeck listen http://localhost:3000
-
-# Forward with source and connection specified
-hookdeck listen 3000 stripe-webhooks payment-connection
-
-# Forward to specific path
-hookdeck listen --path /webhooks
-
-# Disable periodic health checks of the local server
-hookdeck listen --no-healthcheck 3000
-
-# Force unencrypted WebSocket connection (hidden flag)
-hookdeck listen --no-wss
-
-# Arguments:
-# - port or URL: Required (e.g., "3000" or "http://localhost:3000")
-# - source: Optional source name to forward from
-# - connection: Optional connection name
+hookdeck gateway
 ```
 
-The `listen` command forwards webhooks from Hookdeck to your local development server, allowing you to test webhook integrations locally.
+**Examples:**
 
-## CI/CD Integration
-
-**All Parameters:**
 ```bash
-# CI command parameters
---api-key string      # API key (defaults to HOOKDECK_API_KEY env var)
---name string         # CI name (e.g., $GITHUB_REF for GitHub Actions)
+# List connections
+hookdeck gateway connection list
+
+# Create a source
+hookdeck gateway source create --name my-source --type WEBHOOK
+
+# Query event metrics
+hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z
 ```
-
-### ✅ CI command
-```bash
-# Run in CI/CD environments
-hookdeck ci
-
-# Specify API key explicitly (defaults to HOOKDECK_API_KEY env var)
-hookdeck ci --api-key <key>
-
-# Specify CI name (e.g., for GitHub Actions)
-hookdeck ci --name $GITHUB_REF
-```
-
-This command provides CI/CD specific functionality for automated deployments and testing.
-
-## Utilities
-
-**All Parameters:**
-```bash
-# Completion command parameters
-[shell]               # Positional argument for shell type (bash, zsh, fish, powershell)
---shell string        # Explicit shell selection flag
-
-# Version command parameters
-# (No additional parameters - uses global options only)
-```
-
-### ✅ Shell completion
-```bash
-# Generate completion (auto-detects bash or zsh from $SHELL)
-hookdeck completion
-
-# Specify shell explicitly
-hookdeck completion --shell bash
-hookdeck completion --shell zsh
-
-# Note: Only bash and zsh are currently supported
-# The CLI auto-detects your shell from the SHELL environment variable
-```
-
-### ✅ Version information
-```bash
-hookdeck version
-
-# Short version
-hookdeck --version
-```
-
-## Current Limitations
-
-The Hookdeck CLI provides comprehensive connection management capabilities. The following limitations currently exist:
-
-- ❌ **No dedicated event querying commands** - No standalone commands for event/request queries (but events can be inspected and retried in `listen` interactive mode)
-- ❌ **Limited bulk operations** - Cannot perform batch operations on resources (e.g., bulk retry, bulk delete)
-- ❌ **No project creation** - Cannot create, update, or delete projects via CLI (only list and use existing projects)
-- ❌ **No source/destination management** - Sources and destinations must be created inline via connection create or via Hookdeck dashboard
-- ❌ **No transformation management** - Transformations must be created via Hookdeck dashboard or API
-- ❌ **No attempt management** - Cannot query or manage individual delivery attempts via dedicated commands
-- ❌ **No issue management** - Cannot view or manage issues from CLI
-
----
-
-# 🚧 Planned Functionality
-
-*The following sections document planned functionality that is not yet implemented. This serves as a specification for future development.*
-
-## Implementation Status
-
-| Command Category | Status | Available Commands |
-|------------------|--------|-------------------|
-| Authentication | ✅ **Current** | `login`, `logout`, `whoami` |
-| Project Management | 🔄 **Partial** | `project list`, `project use` |
-| Local Development | ✅ **Current** | `listen` |
-| CI/CD | ✅ **Current** | `ci` |
-| Connection Management | ✅ **Current** | `connection create`, `connection list`, `connection get`, `connection upsert`, `connection delete`, `connection enable`, `connection disable`, `connection pause`, `connection unpause` |
-| Shell Completion | ✅ **Current** | `completion` (bash, zsh) |
-| Source Management | 🚧 **Planned** | *(Not implemented)* |
-| Destination Management | 🚧 **Planned** | *(Not implemented)* |
-| Transformation Management | 🚧 **Planned** | *(Not implemented)* |
-| Issue Trigger Management | 🚧 **Planned** | *(Not implemented)* |
-| Event Querying | 🚧 **Planned** | *(Not implemented)* |
-| Attempt Management | 🚧 **Planned** | *(Not implemented)* |
-| Bookmark Management | 🚧 **Planned** | *(Not implemented)* |
-| Integration Management | 🚧 **Planned** | *(Not implemented)* |
-| Issue Management | 🚧 **Planned** | *(Not implemented)* |
-| Request Management | 🚧 **Planned** | *(Not implemented)* |
-| Bulk Operations | 🚧 **Planned** | *(Not implemented)* |
-
-## Advanced Project Management
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-*Note: These project management commands are planned for implementation as documented in `.plans/resource-management-implementation.md` and are being developed in the `feat/project-create` branch.*
-
-### Create a project
-```bash
-# Create with interactive prompts
-hookdeck project create
-
-# Create with flags
-hookdeck project create --name "My Project" --description "Production webhooks"
-```
-
-### Get project details
-```bash
-# Get current project
-hookdeck project get
-
-# Get specific project
-hookdeck project get proj_123
-
-# Get with full details
-hookdeck project get proj_123 --log-level debug
-```
-
-### Update project
-```bash
-# Update interactively
-hookdeck project update
-
-# Update specific project
-hookdeck project update proj_123 --name "Updated Name"
-
-# Update description
-hookdeck project update proj_123 --description "New description"
-```
-
-### Delete project
-```bash
-# Delete with confirmation
-hookdeck project delete proj_123
-
-# Force delete without confirmation
-hookdeck project delete proj_123 --force
-```
-
-## Sources
-
-**All Parameters:**
-```bash
-# Source list command parameters
---name string         # Filter by name pattern (supports wildcards)
---type string         # Filter by source type (96+ types supported)
---disabled           # Include disabled sources (boolean flag)
---order-by string    # Sort by: name, created_at, updated_at
---dir string         # Sort direction: asc, desc
---limit integer      # Limit number of results (0-255)
---next string        # Next page token for pagination
---prev string        # Previous page token for pagination
-
-# Source count command parameters
---name string         # Filter by name pattern
---disabled           # Include disabled sources (boolean flag)
-
-# Source get command parameters
-<source-id>          # Required positional argument for source ID
---include string     # Include additional data (e.g., "config.auth")
-
-# Source create command parameters
---name string         # Required: Source name
---type string         # Required: Source type (see type-specific parameters below)
---description string  # Optional: Source description
-
-# Type-specific parameters for source create/update/upsert:
-# When --type=STRIPE, GITHUB, SHOPIFY, SLACK, TWILIO, etc.:
---webhook-secret string     # Webhook secret for signature verification
-
-# When --type=PAYPAL:
---webhook-id string         # PayPal webhook ID (not webhook_secret)
-
-# When --type=GITLAB, OKTA, MERAKI, etc.:
---api-key string           # API key for authentication
-
-# When --type=BRIDGE, FIREBLOCKS, DISCORD, TELNYX, etc.:
---public-key string        # Public key for signature verification
-
-# When --type=POSTMARK, PIPEDRIVE, etc.:
---username string          # Username for basic authentication
---password string          # Password for basic authentication
-
-# When --type=RING_CENTRAL, etc.:
---token string             # Authentication token
-
-# When --type=EBAY (complex multi-field authentication):
---environment string       # PRODUCTION or SANDBOX
---dev-id string           # Developer ID
---client-id string        # Client ID
---client-secret string    # Client secret
---verification-token string # Verification token
-
-# When --type=TIKTOK_SHOP (multi-key authentication):
---webhook-secret string    # Webhook secret
---app-key string          # Application key
-
-# When --type=FISERV:
---webhook-secret string    # Webhook secret
---store-name string       # Optional: Store name
-
-# When --type=VERCEL_LOG_DRAINS:
---webhook-secret string       # Webhook secret
---log-drains-secret string   # Optional: Log drains secret
-
-# When --type=HTTP (custom HTTP source):
---auth-type string        # Authentication type (HMAC, API_KEY, BASIC, etc.)
---algorithm string        # HMAC algorithm (sha256, sha1, etc.)
---encoding string         # HMAC encoding (hex, base64, etc.)
---header-key string       # Header name for signature/API key
---webhook-secret string   # Secret for HMAC verification
---auth-key string         # API key for API_KEY auth type
---auth-username string    # Username for BASIC auth type
---auth-password string    # Password for BASIC auth type
---allowed-methods string  # Comma-separated HTTP methods (GET,POST,PUT,DELETE)
---custom-response-status integer   # Custom response status code
---custom-response-body string      # Custom response body
---custom-response-headers string   # Custom response headers (key=value,key2=value2)
-
-# Source update command parameters
-<source-id>          # Required positional argument for source ID
---name string         # Update source name
---description string  # Update source description
-# Plus any type-specific parameters listed above
-
-# Source upsert command parameters (create or update by name)
---name string         # Required: Source name (used for matching existing)
---type string         # Required: Source type
-# Plus any type-specific parameters listed above
-
-# Source delete command parameters
-<source-id>          # Required positional argument for source ID
---force              # Force delete without confirmation (boolean flag)
-
-# Source enable/disable command parameters
-<source-id>          # Required positional argument for source ID
-```
-
-**Type Validation Rules:**
-- **webhook_secret_key types**: STRIPE, GITHUB, SHOPIFY, SLACK, TWILIO, SQUARE, WOOCOMMERCE, TEBEX, MAILCHIMP, PADDLE, TREEZOR, PRAXIS, CUSTOMERIO, EXACT_ONLINE, FACEBOOK, WHATSAPP, REPLICATE, TIKTOK, FISERV, VERCEL_LOG_DRAINS, etc.
-- **webhook_id types**: PAYPAL (uses webhook_id instead of webhook_secret)
-- **api_key types**: GITLAB, OKTA, MERAKI, CLOUDSIGNAL, etc.
-- **public_key types**: BRIDGE, FIREBLOCKS, DISCORD, TELNYX, etc.
-- **basic_auth types**: POSTMARK, PIPEDRIVE, etc.
-- **token types**: RING_CENTRAL, etc.
-- **complex_auth types**: EBAY (5 fields), TIKTOK_SHOP (2 fields)
-- **minimal_config types**: AWS_SNS (no additional auth required)
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Sources represent the webhook providers that send webhooks to Hookdeck. The API supports 96+ provider types with specific authentication requirements.
-
-### List sources
-```bash
-# List all sources
-hookdeck source list
-
-# Filter by name pattern
-hookdeck source list --name "stripe*"
-
-# Filter by type (supports 80+ types)
-hookdeck source list --type STRIPE
-
-# Include disabled sources
-hookdeck source list --disabled
-
-# Limit results
-hookdeck source list --limit 50
-
-# Combined filtering
-hookdeck source list --name "*prod*" --type GITHUB --limit 25
-```
-
-### Count sources
-```bash
-# Count all sources
-hookdeck source count
-
-# Count with filters
-hookdeck source count --name "*stripe*" --disabled
-```
-
-### Get source details
-```bash
-# Get source by ID
-hookdeck source get <source-id>
-
-# Include authentication configuration
-hookdeck source get <source-id> --include config.auth
-```
-
-### Create a source
-
-#### Interactive creation
-```bash
-# Create with interactive prompts
-hookdeck source create
-```
-
-#### Platform-specific sources (80+ supported types)
-
-##### Payment Platforms
-```bash
-# Stripe - Payment webhooks
-hookdeck source create --name "stripe-prod" --type STRIPE --webhook-secret "whsec_1a2b3c..."
-
-# PayPal - Payment events (uses webhook_id not webhook_secret)
-hookdeck source create --name "paypal-prod" --type PAYPAL --webhook-id "webhook_id_value"
-
-# Square - POS and payment events
-hookdeck source create --name "square-webhooks" --type SQUARE --webhook-secret "webhook_secret"
-```
-
-##### Repository and CI/CD
-```bash
-# GitHub - Repository webhooks
-hookdeck source create --name "github-repo" --type GITHUB --webhook-secret "github_secret"
-
-# GitLab - Repository and CI webhooks
-hookdeck source create --name "gitlab-project" --type GITLAB --api-key "gitlab_token"
-
-# Bitbucket - Repository events
-hookdeck source create --name "bitbucket-repo" --type BITBUCKET --webhook-secret "webhook_secret"
-```
-
-##### E-commerce Platforms
-```bash
-# Shopify - Store webhooks
-hookdeck source create --name "shopify-store" --type SHOPIFY --webhook-secret "shopify_secret"
-
-# WooCommerce - WordPress e-commerce
-hookdeck source create --name "woocommerce-store" --type WOOCOMMERCE --webhook-secret "webhook_secret"
-
-# Magento - Enterprise e-commerce
-hookdeck source create --name "magento-store" --type MAGENTO --webhook-secret "webhook_secret"
-```
-
-##### Communication Platforms
-```bash
-# Slack - Workspace events
-hookdeck source create --name "slack-workspace" --type SLACK --webhook-secret "slack_signing_secret"
-
-# Twilio - SMS and voice webhooks
-hookdeck source create --name "twilio-sms" --type TWILIO --webhook-secret "twilio_auth_token"
-
-# Discord - Bot interactions
-hookdeck source create --name "discord-bot" --type DISCORD --public-key "discord_public_key"
-
-# Teams - Microsoft Teams webhooks
-hookdeck source create --name "teams-notifications" --type TEAMS --webhook-secret "teams_secret"
-```
-
-##### Cloud Services
-```bash
-# AWS SNS - Cloud notifications
-hookdeck source create --name "aws-sns" --type AWS_SNS
-
-# Azure Event Grid - Azure events
-hookdeck source create --name "azure-events" --type AZURE_EVENT_GRID --webhook-secret "webhook_secret"
-
-# Google Cloud Pub/Sub - GCP events
-hookdeck source create --name "gcp-pubsub" --type GOOGLE_CLOUD_PUBSUB --webhook-secret "webhook_secret"
-```
-
-##### CRM and Marketing
-```bash
-# Salesforce - CRM events
-hookdeck source create --name "salesforce-crm" --type SALESFORCE --webhook-secret "salesforce_secret"
-
-# HubSpot - Marketing automation
-hookdeck source create --name "hubspot-marketing" --type HUBSPOT --webhook-secret "hubspot_secret"
-
-# Mailchimp - Email marketing
-hookdeck source create --name "mailchimp-campaigns" --type MAILCHIMP --webhook-secret "mailchimp_secret"
-```
-
-##### Authentication and Identity
-```bash
-# Auth0 - Identity events
-hookdeck source create --name "auth0-identity" --type AUTH0 --webhook-secret "auth0_secret"
-
-# Okta - Identity management
-hookdeck source create --name "okta-identity" --type OKTA --api-key "okta_api_key"
-
-# Firebase Auth - Authentication events
-hookdeck source create --name "firebase-auth" --type FIREBASE_AUTH --webhook-secret "firebase_secret"
-```
-
-##### Complex Authentication Examples
-```bash
-# eBay - Multi-field authentication
-hookdeck source create --name "ebay-marketplace" --type EBAY \
-  --environment PRODUCTION \
-  --dev-id "dev_id" \
-  --client-id "client_id" \
-  --client-secret "client_secret" \
-  --verification-token "verification_token"
-
-# TikTok Shop - Multi-key authentication
-hookdeck source create --name "tiktok-shop" --type TIKTOK_SHOP \
-  --webhook-secret "webhook_secret" \
-  --app-key "app_key"
-
-# Custom HTTP with HMAC authentication
-hookdeck source create --name "custom-api" --type HTTP \
-  --auth-type HMAC \
-  --algorithm sha256 \
-  --encoding hex \
-  --header-key "X-Signature" \
-  --webhook-secret "hmac_secret"
-```
-
-### Update a source
-```bash
-# Update name and description
-hookdeck source update <source-id> --name "new-name" --description "Updated description"
-
-# Update webhook secret
-hookdeck source update <source-id> --webhook-secret "new_secret"
-
-# Update type-specific configuration
-hookdeck source update <source-id> --api-key "new_api_key"
-```
-
-### Upsert a source (create or update by name)
-```bash
-# Create or update source by name
-hookdeck source upsert --name "stripe-prod" --type STRIPE --webhook-secret "new_secret"
-```
-
-### Delete a source
-```bash
-# Delete source (with confirmation)
-hookdeck source delete <source-id>
-
-# Force delete without confirmation
-hookdeck source delete <source-id> --force
-```
-
-### Enable/Disable sources
-```bash
-# Enable source
-hookdeck source enable <source-id>
-
-# Disable source
-hookdeck source disable <source-id>
-```
-
-## Destinations
-
-**All Parameters:**
-```bash
-# Destination list command parameters
---name string         # Filter by name pattern (supports wildcards)
---type string         # Filter by destination type (HTTP, CLI, MOCK_API)
---disabled           # Include disabled destinations (boolean flag)
---limit integer      # Limit number of results (default varies)
-
-# Destination count command parameters
---name string         # Filter by name pattern
---disabled           # Include disabled destinations (boolean flag)
-
-# Destination get command parameters
-<destination-id>     # Required positional argument for destination ID
---include string     # Include additional data (e.g., "config.auth")
-
-# Destination create command parameters
---name string         # Required: Destination name
---type string         # Optional: Destination type (HTTP, CLI, MOCK_API) - defaults to HTTP
---description string  # Optional: Destination description
-
-# Type-specific parameters for destination create/update/upsert:
-# When --type=HTTP (default):
---url string              # Required: Destination URL
---auth-type string        # Authentication type (BEARER_TOKEN, BASIC_AUTH, API_KEY, OAUTH2_CLIENT_CREDENTIALS)
---auth-token string       # Bearer token for BEARER_TOKEN auth
---auth-username string    # Username for BASIC_AUTH
---auth-password string    # Password for BASIC_AUTH
---auth-key string         # API key for API_KEY auth
---auth-header string      # Header name for API_KEY auth (e.g., "X-API-Key")
---auth-server string      # OAuth2 token server URL for OAUTH2_CLIENT_CREDENTIALS
---client-id string        # OAuth2 client ID
---client-secret string    # OAuth2 client secret
---headers string          # Custom headers (key=value,key2=value2)
-
-# When --type=CLI:
---path string             # Optional: Path for CLI destination
-
-# When --type=MOCK_API:
-# (No additional type-specific parameters required)
-
-# Destination update command parameters
-<destination-id>     # Required positional argument for destination ID
---name string         # Update destination name
---description string  # Update destination description
---url string          # Update destination URL (for HTTP type)
-# Plus any type-specific auth parameters listed above
-
-# Destination upsert command parameters (create or update by name)
---name string         # Required: Destination name (used for matching existing)
---type string         # Optional: Destination type
-# Plus any type-specific parameters listed above
-
-# Destination delete command parameters
-<destination-id>     # Required positional argument for destination ID
---force              # Force delete without confirmation (boolean flag)
-
-# Destination enable/disable command parameters
-<destination-id>     # Required positional argument for destination ID
-```
-
-**Type Validation Rules:**
-- **HTTP destinations**: Require `--url`, support all authentication types
-- **CLI destinations**: No URL required, optional `--path` parameter
-- **MOCK_API destinations**: No additional parameters required, used for testing
-
-**Authentication Type Combinations:**
-- **BEARER_TOKEN**: Requires `--auth-token`
-- **BASIC_AUTH**: Requires `--auth-username` and `--auth-password`
-- **API_KEY**: Requires `--auth-key` and `--auth-header`
-- **OAUTH2_CLIENT_CREDENTIALS**: Requires `--auth-server`, `--client-id`, and `--client-secret`
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Destinations are the endpoints where webhooks are delivered.
-
-### List destinations
-```bash
-# List all destinations
-hookdeck destination list
-
-# Filter by name pattern
-hookdeck destination list --name "api*"
-
-# Filter by type
-hookdeck destination list --type HTTP
-
-# Include disabled destinations
-hookdeck destination list --disabled
-
-# Limit results
-hookdeck destination list --limit 50
-```
-
-### Count destinations
-```bash
-# Count all destinations
-hookdeck destination count
-
-# Count with filters
-hookdeck destination count --name "*prod*" --disabled
-```
-
-### Get destination details
-```bash
-# Get destination by ID
-hookdeck destination get <destination-id>
-
-# Include authentication configuration
-hookdeck destination get <destination-id> --include config.auth
-```
-
-### Create a destination
-```bash
-# Create with interactive prompts
-hookdeck destination create
-
-# HTTP destination with URL
-hookdeck destination create --name "my-api" --type HTTP --url "https://api.example.com/webhooks"
-
-# CLI destination for local development
-hookdeck destination create --name "local-dev" --type CLI
-
-# Mock API destination for testing
-hookdeck destination create --name "test-mock" --type MOCK_API
-
-# HTTP with bearer token authentication
-hookdeck destination create --name "secure-api" --type HTTP \
-  --url "https://api.example.com/webhooks" \
-  --auth-type BEARER_TOKEN \
-  --auth-token "your_token"
-
-# HTTP with basic authentication
-hookdeck destination create --name "basic-auth-api" --type HTTP \
-  --url "https://api.example.com/webhooks" \
-  --auth-type BASIC_AUTH \
-  --auth-username "api_user" \
-  --auth-password "secure_password"
-
-# HTTP with API key authentication
-hookdeck destination create --name "api-key-endpoint" --type HTTP \
-  --url "https://api.example.com/webhooks" \
-  --auth-type API_KEY \
-  --auth-key "your_api_key" \
-  --auth-header "X-API-Key"
-
-# HTTP with custom headers
-hookdeck destination create --name "custom-headers-api" --type HTTP \
-  --url "https://api.example.com/webhooks" \
-  --headers "Content-Type=application/json,X-Custom-Header=value"
-
-# HTTP with OAuth2 client credentials
-hookdeck destination create --name "oauth2-api" --type HTTP \
-  --url "https://api.example.com/webhooks" \
-  --auth-type OAUTH2_CLIENT_CREDENTIALS \
-  --auth-server "https://auth.example.com/token" \
-  --client-id "your_client_id" \
-  --client-secret "your_client_secret"
-```
-
-### Update a destination
-```bash
-# Update name and URL
-hookdeck destination update <destination-id> --name "new-name" --url "https://new-api.example.com"
-
-# Update authentication
-hookdeck destination update <destination-id> --auth-token "new_token"
-```
-
-### Upsert a destination (create or update by name)
-```bash
-# Create or update destination by name
-hookdeck destination upsert --name "my-api" --type HTTP --url "https://api.example.com"
-```
-
-### Delete a destination
-```bash
-# Delete destination (with confirmation)
-hookdeck destination delete <destination-id>
-
-# Force delete without confirmation  
-hookdeck destination delete <destination-id> --force
-```
-
-### Enable/Disable destinations
-```bash
-# Enable destination
-hookdeck destination enable <destination-id>
-
-# Disable destination
-hookdeck destination disable <destination-id>
-```
-
+<!-- GENERATE_END -->
 ## Connections
 
-✅ **Fully Implemented** - Connection management provides comprehensive CRUD operations, lifecycle management, authentication, and rule configuration.
+<!-- GENERATE:gateway connection list|gateway connection create|gateway connection get|gateway connection update|gateway connection delete|gateway connection upsert|gateway connection enable|gateway connection disable|gateway connection pause|gateway connection unpause:START -->
+- [hookdeck gateway connection list](#hookdeck-gateway-connection-list)
+- [hookdeck gateway connection create](#hookdeck-gateway-connection-create)
+- [hookdeck gateway connection get](#hookdeck-gateway-connection-get)
+- [hookdeck gateway connection update](#hookdeck-gateway-connection-update)
+- [hookdeck gateway connection delete](#hookdeck-gateway-connection-delete)
+- [hookdeck gateway connection upsert](#hookdeck-gateway-connection-upsert)
+- [hookdeck gateway connection enable](#hookdeck-gateway-connection-enable)
+- [hookdeck gateway connection disable](#hookdeck-gateway-connection-disable)
+- [hookdeck gateway connection pause](#hookdeck-gateway-connection-pause)
+- [hookdeck gateway connection unpause](#hookdeck-gateway-connection-unpause)
 
-**Available Commands:**
-- `connection create` - Create connections with inline source/destination creation
-- `connection list` - List connections with filtering options
-- `connection get` - Get detailed connection information
-- `connection upsert` - Idempotent create or update operations
-- `connection delete` - Delete connections with confirmation
-- `connection enable/disable` - Control connection state
-- `connection pause/unpause` - Pause/resume event processing
+### hookdeck gateway connection list
 
-**Implementation Status:**
-- ✅ Full CRUD operations
-- ✅ Inline resource creation with authentication
-- ✅ All 5 rule types (retry, filter, transform, delay, deduplicate)
-- ✅ Rate limiting configuration
-- ✅ Lifecycle management
-- ✅ Idempotent upsert with dry-run
-- ✅ `--output json` flag for JSON output (create, list, get, upsert commands)
-- ❌ Bulk operations (planned)
-- ❌ Count command (planned)
+List all connections or filter by source/destination.
 
-### List Connections
+**Usage:**
+
+```bash
+hookdeck gateway connection list [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--destination-id` | `string` | Filter by destination ID |
+| `--disabled` | `bool` | Include disabled connections |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--name` | `string` | Filter by connection name |
+| `--output` | `string` | Output format (json) |
+| `--source-id` | `string` | Filter by source ID |
+
+**Examples:**
 
 ```bash
 # List all connections
 hookdeck connection list
 
+# Filter by connection name
+hookdeck connection list --name my-connection
+
 # Filter by source ID
 hookdeck connection list --source-id src_abc123
 
 # Filter by destination ID
-hookdeck connection list --destination-id des_xyz789
-
-# Filter by connection name
-hookdeck connection list --name "production-connection"
+hookdeck connection list --destination-id dst_def456
 
 # Include disabled connections
 hookdeck connection list --disabled
 
-# Combine filters
-hookdeck connection list --source-id src_abc123 --disabled
-
 # Limit results
-hookdeck connection list --limit 50
-
-# Output as JSON
-hookdeck connection list --output json
+hookdeck connection list --limit 10
 ```
+### hookdeck gateway connection create
 
-**Available Flags:**
-- `--name <string>` - Filter by connection name
-- `--source-id <string>` - Filter by source ID
-- `--destination-id <string>` - Filter by destination ID
-- `--disabled` - Include disabled connections
-- `--limit <int>` - Limit number of results (default: 100)
-- `--output json` - Output in JSON format
+Create a connection between a source and destination.
+	
+	You can either reference existing resources by ID or create them inline.
 
-### Get Connection
+**Usage:**
 
 ```bash
-# Get by ID
-hookdeck connection get conn_abc123
-
-# Get by name
-hookdeck connection get "my-connection"
-
-# Get as JSON
-hookdeck connection get conn_abc123 --output json
-
-# Include destination authentication credentials
-hookdeck connection get conn_abc123 --include-destination-auth --output json
+hookdeck gateway connection create [flags]
 ```
 
 **Flags:**
 
-- `--output json` - Output in JSON format
-- `--include-destination-auth` - Include destination authentication credentials in the response (fetches via GET /destinations/{id}?include=config.auth)
+| Flag | Type | Description |
+|------|------|-------------|
+| `--description` | `string` | Connection description |
+| `--destination-api-key` | `string` | API key for destination authentication |
+| `--destination-api-key-header` | `string` | Key/header name for API key authentication |
+| `--destination-api-key-to` | `string` | Where to send API key: 'header' or 'query' (default "header") |
+| `--destination-auth-method` | `string` | Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws, gcp) |
+| `--destination-aws-access-key-id` | `string` | AWS access key ID |
+| `--destination-aws-region` | `string` | AWS region |
+| `--destination-aws-secret-access-key` | `string` | AWS secret access key |
+| `--destination-aws-service` | `string` | AWS service name |
+| `--destination-basic-auth-pass` | `string` | Password for destination Basic authentication |
+| `--destination-basic-auth-user` | `string` | Username for destination Basic authentication |
+| `--destination-bearer-token` | `string` | Bearer token for destination authentication |
+| `--destination-cli-path` | `string` | CLI path for CLI destinations (default: /) (default "/") |
+| `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
+| `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-description` | `string` | Destination description |
+| `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
+| `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
+| `--destination-http-method` | `string` | HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE) |
+| `--destination-id` | `string` | Use existing destination by ID |
+| `--destination-name` | `string` | Destination name for inline creation |
+| `--destination-oauth2-auth-server` | `string` | OAuth2 authorization server URL |
+| `--destination-oauth2-auth-type` | `string` | OAuth2 Client Credentials authentication type: 'basic', 'bearer', or 'x-www-form-urlencoded' (default "basic") |
+| `--destination-oauth2-client-id` | `string` | OAuth2 client ID |
+| `--destination-oauth2-client-secret` | `string` | OAuth2 client secret |
+| `--destination-oauth2-refresh-token` | `string` | OAuth2 refresh token (required for Authorization Code flow) |
+| `--destination-oauth2-scopes` | `string` | OAuth2 scopes (comma-separated) |
+| `--destination-path-forwarding-disabled` | `string` | Disable path forwarding for HTTP destinations (true/false) |
+| `--destination-rate-limit` | `int` | Rate limit for destination (requests per period) (default "0") |
+| `--destination-rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
+| `--destination-type` | `string` | Destination type (CLI, HTTP, MOCK) |
+| `--destination-url` | `string` | URL for HTTP destinations |
+| `--name` | `string` | Connection name (required) |
+| `--output` | `string` | Output format (json) |
+| `--rule-deduplicate-exclude-fields` | `string` | Comma-separated list of fields to exclude for deduplication |
+| `--rule-deduplicate-include-fields` | `string` | Comma-separated list of fields to include for deduplication |
+| `--rule-deduplicate-window` | `int` | Time window in seconds for deduplication (default "0") |
+| `--rule-delay` | `int` | Delay in milliseconds (default "0") |
+| `--rule-filter-body` | `string` | JQ expression to filter on request body |
+| `--rule-filter-headers` | `string` | JQ expression to filter on request headers |
+| `--rule-filter-path` | `string` | JQ expression to filter on request path |
+| `--rule-filter-query` | `string` | JQ expression to filter on request query parameters |
+| `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
+| `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
+| `--rule-transform-code` | `string` | Transformation code (if creating inline) |
+| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation |
+| `--rule-transform-name` | `string` | Name or ID of the transformation to apply |
+| `--rules` | `string` | JSON string representing the entire rules array |
+| `--rules-file` | `string` | Path to a JSON file containing the rules array |
+| `--source-allowed-http-methods` | `string` | Comma-separated list of allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--source-api-key` | `string` | API key for source authentication |
+| `--source-basic-auth-pass` | `string` | Password for Basic authentication |
+| `--source-basic-auth-user` | `string` | Username for Basic authentication |
+| `--source-config` | `string` | JSON string for source authentication config |
+| `--source-config-file` | `string` | Path to a JSON file for source authentication config |
+| `--source-custom-response-body` | `string` | Custom response body (max 1000 chars) |
+| `--source-custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
+| `--source-description` | `string` | Source description |
+| `--source-hmac-algo` | `string` | HMAC algorithm (SHA256, etc.) |
+| `--source-hmac-secret` | `string` | HMAC secret for signature verification |
+| `--source-id` | `string` | Use existing source by ID |
+| `--source-name` | `string` | Source name for inline creation |
+| `--source-type` | `string` | Source type (WEBHOOK, STRIPE, etc.) |
+| `--source-webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
 
-### Create Connection
+**Examples:**
 
-Create a new connection with inline source/destination creation or by referencing existing resources.
-
-#### Basic Examples
-
-**1. Basic HTTP Connection**
 ```bash
+# Create with inline source and destination
 hookdeck connection create \
-  --source-name "webhook-receiver" \
-  --source-type HTTP \
-  --destination-name "api-endpoint" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/webhooks"
-```
+--name "test-webhooks-to-local" \
+--source-type WEBHOOK --source-name "test-webhooks" \
+--destination-type CLI --destination-name "local-dev"
 
-**2. Using Existing Resources**
-```bash
+# Create with existing resources
 hookdeck connection create \
-  --source "existing-source-name" \
-  --destination "existing-dest-name" \
-  --name "new-connection" \
-  --description "Connects existing resources"
-```
+--name "github-to-api" \
+--source-id src_abc123 \
+--destination-id dst_def456
 
-#### Authentication Examples
-
-**3. Stripe with Webhook Secret**
-```bash
+# Create with source configuration options
 hookdeck connection create \
-  --source-name "stripe-prod" \
-  --source-type STRIPE \
-  --source-webhook-secret "whsec_abc123xyz" \
-  --destination-name "payment-processor" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/stripe"
+--name "api-webhooks" \
+--source-type WEBHOOK --source-name "api-source" \
+--source-allowed-http-methods "POST,PUT,PATCH" \
+--source-custom-response-content-type "json" \
+--source-custom-response-body '{"status":"received"}' \
+--destination-type CLI --destination-name "local-dev"
 ```
+### hookdeck gateway connection get
 
-**4. Destination with Hookdeck Signature (Default)**
-```bash
-# Hookdeck automatically signs outgoing webhooks - no configuration needed
-hookdeck connection create \
-  --source-name "stripe-webhooks" \
-  --source-type STRIPE \
-  --source-webhook-secret "whsec_stripe_secret" \
-  --destination-name "api-with-verification" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/webhook" \
-  --destination-auth-method hookdeck
-```
-*Note: Hookdeck Signature authentication is the default. Hookdeck automatically signs all outgoing webhooks with a signature that can be verified using Hookdeck's verification libraries. No webhook secret needs to be configured.*
+Get detailed information about a specific connection.
 
-**5. Destination with Bearer Token**
-```bash
-hookdeck connection create \
-  --source-name "github-webhooks" \
-  --source-type GITHUB \
-  --source-webhook-secret "ghp_secret123" \
-  --destination-name "ci-system" \
-  --destination-type HTTP \
-  --destination-url "https://ci.example.com/webhook" \
-  --destination-auth-method bearer \
-  --destination-bearer-token "bearer_token_xyz"
-```
+You can specify either a connection ID or name.
 
-**6. Source with Custom Response and Allowed HTTP Methods**
-```bash
-hookdeck connection create \
-  --source-name "api-webhooks" \
-  --source-type WEBHOOK \
-  --source-allowed-http-methods "POST,PUT,PATCH" \
-  --source-custom-response-content-type "json" \
-  --source-custom-response-body '{"status":"received","timestamp":"2024-01-01T00:00:00Z"}' \
-  --destination-name "webhook-handler" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/webhooks"
-```
-
-#### Rule Configuration Examples
-
-**7. Retry Rules**
-```bash
-hookdeck connection create \
-  --source-name "payment-webhooks" \
-  --source-type STRIPE \
-  --destination-name "payment-api" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/payments" \
-  --rule-retry-strategy exponential \
-  --rule-retry-count 5 \
-  --rule-retry-interval 60000
-```
-
-**8. Filter Rules**
-```bash
-hookdeck connection create \
-  --source-name "events" \
-  --source-type HTTP \
-  --destination-name "processor" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/process" \
-  --rule-filter-body '{"event_type":"payment.succeeded"}'
-```
-
-**9. All Rule Types Combined**
-```bash
-hookdeck connection create \
-  --source-name "shopify-webhooks" \
-  --source-type SHOPIFY \
-  --destination-name "order-processor" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/orders" \
-  --rule-filter-body '{"type":"order"}' \
-  --rule-retry-strategy exponential \
-  --rule-retry-count 3 \
-  --rule-retry-interval 30000 \
-  --rule-transform-name "order-transformer" \
-  --rule-delay 5000
-```
-
-**10. Rate Limiting**
-```bash
-hookdeck connection create \
-  --source-name "high-volume-source" \
-  --source-type HTTP \
-  --destination-name "rate-limited-api" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com/endpoint" \
-  --destination-rate-limit 100 \
-  --destination-rate-limit-period minute
-```
-
-**11. GCP Service Account Authentication**
-```bash
-hookdeck connection create \
-  --source-name "webhooks" \
-  --source-type HTTP \
-  --destination-name "gcp-cloud-function" \
-  --destination-type HTTP \
-  --destination-url "https://us-central1-project-id.cloudfunctions.net/function" \
-  --destination-auth-method gcp \
-  --destination-gcp-service-account-key '{"type":"service_account","project_id":"project-id","private_key_id":"key-id","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"service-account@project-id.iam.gserviceaccount.com"}' \
-  --destination-gcp-scope "https://www.googleapis.com/auth/cloud-platform"
-```
-
-#### Available Flags
-
-**Connection Configuration:**
-- `--name <string>` - Connection name (optional, auto-generated if not provided)
-- `--description <string>` - Connection description
-
-**Source (Inline Creation):**
-- `--source-name <string>` - Source name (required for inline)
-- `--source-type <type>` - Source type: `STRIPE`, `GITHUB`, `SHOPIFY`, `HTTP`, etc.
-- `--source-description <string>` - Source description
-- `--source-webhook-secret <secret>` - Webhook verification secret
-- `--source-api-key <key>` - API key authentication
-- `--source-basic-auth-user <user>` - Basic auth username
-- `--source-basic-auth-pass <pass>` - Basic auth password
-- `--source-hmac-secret <secret>` - HMAC secret
-- `--source-hmac-algo <algo>` - HMAC algorithm
-- `--source-allowed-http-methods <methods>` - Comma-separated list of allowed HTTP methods: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`
-- `--source-custom-response-content-type <type>` - Custom response content type: `json`, `text`, `xml`
-- `--source-custom-response-body <body>` - Custom response body (max 1000 chars)
-- `--source-config <json>` - JSON authentication config
-- `--source-config-file <path>` - Path to JSON config file
-
-**Destination (Inline Creation):**
-- `--destination-name <string>` - Destination name (required for inline)
-- `--destination-type <type>` - Destination type: `HTTP`, `MOCK`, etc.
-- `--destination-description <string>` - Destination description
-- `--destination-url <url>` - Destination URL (required for HTTP)
-- `--destination-cli-path <path>` - CLI path (default: `/`)
-- `--destination-path-forwarding-disabled <true|false>` - Disable path forwarding for HTTP destinations (default: false)
-- `--destination-http-method <method>` - HTTP method for HTTP destinations: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`
-- `--destination-auth-method <method>` - Authentication method: `hookdeck`, `bearer`, `basic`, `api_key`, `custom_signature`, `oauth2_client_credentials`, `oauth2_authorization_code`, `aws`, `gcp`
-- `--destination-rate-limit <number>` - Rate limit (requests per period)
-- `--destination-rate-limit-period <period>` - Period: `second`, `minute`, `hour`, `day`, `month`, `year`
-
-**Destination Authentication Options:**
-
-*Hookdeck Signature (default):*
-- `--destination-auth-method hookdeck` - Use Hookdeck signature authentication
-
-*Bearer Token:*
-- `--destination-auth-method bearer`
-- `--destination-bearer-token <token>` - Bearer token
-
-*Basic Authentication:*
-- `--destination-auth-method basic`
-- `--destination-basic-auth-user <user>` - Username
-- `--destination-basic-auth-pass <pass>` - Password
-
-*API Key:*
-- `--destination-auth-method api_key`
-- `--destination-api-key <key>` - API key
-- `--destination-api-key-header <name>` - Key/header name
-- `--destination-api-key-to <location>` - Location: `header` or `query` (default: `header`)
-
-*Custom Signature (HMAC):*
-- `--destination-auth-method custom_signature`
-- `--destination-custom-signature-key <name>` - Key/header name
-- `--destination-custom-signature-secret <secret>` - Signing secret
-
-*OAuth2 Client Credentials:*
-- `--destination-auth-method oauth2_client_credentials`
-- `--destination-oauth2-auth-server <url>` - Authorization server URL
-- `--destination-oauth2-client-id <id>` - Client ID
-- `--destination-oauth2-client-secret <secret>` - Client secret
-- `--destination-oauth2-scopes <scopes>` - Scopes (comma-separated, optional)
-- `--destination-oauth2-auth-type <type>` - Auth type: `basic`, `bearer`, or `x-www-form-urlencoded` (default: `basic`)
-
-*OAuth2 Authorization Code:*
-- `--destination-auth-method oauth2_authorization_code`
-- `--destination-oauth2-auth-server <url>` - Authorization server URL
-- `--destination-oauth2-client-id <id>` - Client ID
-- `--destination-oauth2-client-secret <secret>` - Client secret
-- `--destination-oauth2-refresh-token <token>` - Refresh token
-- `--destination-oauth2-scopes <scopes>` - Scopes (comma-separated, optional)
-
-*AWS Signature:*
-- `--destination-auth-method aws`
-- `--destination-aws-access-key-id <id>` - AWS access key ID
-- `--destination-aws-secret-access-key <key>` - AWS secret access key
-- `--destination-aws-region <region>` - AWS region
-- `--destination-aws-service <service>` - AWS service name
-
-*GCP Service Account:*
-- `--destination-auth-method gcp`
-- `--destination-gcp-service-account-key <json>` - GCP service account key JSON
-- `--destination-gcp-scope <scope>` - GCP scope (optional)
-
-**Rules - Retry:**
-- `--rule-retry-strategy <strategy>` - Strategy: `linear`, `exponential`
-- `--rule-retry-count <number>` - Number of retry attempts (1-20)
-- `--rule-retry-interval <ms>` - Interval in milliseconds
-- `--rule-retry-response-status-codes <codes>` - Comma-separated status codes
-
-**Rules - Filter:**
-- `--rule-filter-body <json>` - Body filter (JSON format)
-- `--rule-filter-headers <json>` - Header filter (JSON format)
-- `--rule-filter-path <json>` - Path filter (JSON format)
-- `--rule-filter-query <json>` - Query parameter filter (JSON format)
-
-**Rules - Transform:**
-- `--rule-transform-name <name>` - Name or ID of transformation
-
-**Rules - Delay:**
-- `--rule-delay <ms>` - Delay in milliseconds
-
-**Rules - Deduplicate:**
-- `--rule-deduplicate-window <seconds>` - Deduplication window
-- `--rule-deduplicate-include-fields <fields>` - Comma-separated fields to include
-- `--rule-deduplicate-exclude-fields <fields>` - Comma-separated fields to exclude
-
-**Reference Existing Resources:**
-- `--source <id-or-name>` - Use existing source
-- `--destination <id-or-name>` - Use existing destination
-
-**JSON Fallbacks:**
-- `--rules <json>` - Complete rules array (JSON string)
-- `--rules-file <path>` - Path to JSON file with rules
-
-### Upsert Connection
-
-Create or update a connection idempotently based on the connection name. Perfect for CI/CD and infrastructure-as-code workflows.
+**Usage:**
 
 ```bash
-# Create if doesn't exist
-hookdeck connection upsert my-connection \
-  --source-name "stripe-prod" \
-  --source-type STRIPE \
-  --destination-name "api-prod" \
-  --destination-type HTTP \
-  --destination-url "https://api.example.com"
-
-# Update existing (partial update)
-hookdeck connection upsert my-connection \
-  --description "Updated description" \
-  --rule-retry-count 5
-
-# Preview changes without applying
-hookdeck connection upsert my-connection \
-  --description "New description" \
-  --dry-run
+hookdeck gateway connection get <connection-id-or-name> [flags]
 ```
 
-**Behavior:**
-- If connection doesn't exist → Creates it (source/destination required)
-- If connection exists → Updates it (all flags optional, partial updates)
-- Supports all same flags as `connection create`
-- Add `--dry-run` to preview CREATE or UPDATE operation
+**Flags:**
 
-**Use Cases:**
-- CI/CD pipelines
-- Infrastructure-as-code
-- Idempotent configuration management
+| Flag | Type | Description |
+|------|------|-------------|
+| `--include-destination-auth` | `bool` | Include destination authentication credentials in the response |
+| `--include-source-auth` | `bool` | Include source authentication credentials in the response |
+| `--output` | `string` | Output format (json) |
 
-### Delete Connection
+**Examples:**
 
 ```bash
-# Delete with confirmation prompt
+# Get connection by ID
+hookdeck connection get conn_abc123
+
+# Get connection by name
+hookdeck connection get my-connection
+```
+### hookdeck gateway connection update
+
+Update an existing connection by its ID.
+
+Unlike upsert (which uses name as identifier), update takes a connection ID
+and allows changing any field including the connection name.
+
+**Usage:**
+
+```bash
+hookdeck gateway connection update <connection-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--description` | `string` | Connection description |
+| `--destination-id` | `string` | Update destination by ID |
+| `--name` | `string` | New connection name |
+| `--output` | `string` | Output format (json) |
+| `--rule-deduplicate-exclude-fields` | `string` | Comma-separated list of fields to exclude for deduplication |
+| `--rule-deduplicate-include-fields` | `string` | Comma-separated list of fields to include for deduplication |
+| `--rule-deduplicate-window` | `int` | Time window in seconds for deduplication (default "0") |
+| `--rule-delay` | `int` | Delay in milliseconds (default "0") |
+| `--rule-filter-body` | `string` | JQ expression to filter on request body |
+| `--rule-filter-headers` | `string` | JQ expression to filter on request headers |
+| `--rule-filter-path` | `string` | JQ expression to filter on request path |
+| `--rule-filter-query` | `string` | JQ expression to filter on request query parameters |
+| `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
+| `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
+| `--rule-transform-code` | `string` | Transformation code (if creating inline) |
+| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation |
+| `--rule-transform-name` | `string` | Name or ID of the transformation to apply |
+| `--rules` | `string` | JSON string representing the entire rules array |
+| `--rules-file` | `string` | Path to a JSON file containing the rules array |
+| `--source-id` | `string` | Update source by ID |
+
+**Examples:**
+
+```bash
+# Rename a connection
+hookdeck gateway connection update web_abc123 --name "new-name"
+
+# Update description
+hookdeck gateway connection update web_abc123 --description "Updated description"
+
+# Change the source on a connection
+hookdeck gateway connection update web_abc123 --source-id src_def456
+
+# Update rules
+hookdeck gateway connection update web_abc123 \
+--rule-retry-strategy linear --rule-retry-count 5
+
+# Update with JSON output
+hookdeck gateway connection update web_abc123 --name "new-name" --output json
+```
+### hookdeck gateway connection delete
+
+Delete a connection.
+
+**Usage:**
+
+```bash
+hookdeck gateway connection delete <connection-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
+**Examples:**
+
+```bash
+# Delete a connection (with confirmation)
 hookdeck connection delete conn_abc123
 
-# Delete by name
-hookdeck connection delete "my-connection"
-
-# Skip confirmation
+# Force delete without confirmation
 hookdeck connection delete conn_abc123 --force
 ```
+### hookdeck gateway connection upsert
 
-### Lifecycle Management
+Create a new connection or update an existing one by name (idempotent).
 
-Control connection state and processing behavior.
+	This command is idempotent - it can be safely run multiple times with the same arguments.
+	
+	When the connection doesn't exist:
+		 - Creates a new connection with the provided properties
+		 - Requires source and destination to be specified
+	
+	When the connection exists:
+		 - Updates the connection with the provided properties
+		 - Only updates properties that are explicitly provided
+		 - Preserves existing properties that aren't specified
+	
+	Use `--dry-run` to preview changes without applying them.
+
+**Usage:**
 
 ```bash
-# Enable/Disable (stop receiving events)
-hookdeck connection disable conn_abc123
-hookdeck connection enable conn_abc123
-
-# Pause/Unpause (queue events without forwarding)
-hookdeck connection pause conn_abc123
-hookdeck connection unpause conn_abc123
+hookdeck gateway connection upsert <name> [flags]
 ```
 
-**State Differences:**
-- **Disabled**: Connection stops receiving events entirely
-- **Paused**: Connection queues events but doesn't forward them
+**Flags:**
 
-### Implementation Notes
+| Flag | Type | Description |
+|------|------|-------------|
+| `--description` | `string` | Connection description |
+| `--destination-api-key` | `string` | API key for destination authentication |
+| `--destination-api-key-header` | `string` | Key/header name for API key authentication |
+| `--destination-api-key-to` | `string` | Where to send API key: 'header' or 'query' (default "header") |
+| `--destination-auth-method` | `string` | Authentication method for HTTP destinations (hookdeck, bearer, basic, api_key, custom_signature, oauth2_client_credentials, oauth2_authorization_code, aws, gcp) |
+| `--destination-aws-access-key-id` | `string` | AWS access key ID |
+| `--destination-aws-region` | `string` | AWS region |
+| `--destination-aws-secret-access-key` | `string` | AWS secret access key |
+| `--destination-aws-service` | `string` | AWS service name |
+| `--destination-basic-auth-pass` | `string` | Password for destination Basic authentication |
+| `--destination-basic-auth-user` | `string` | Username for destination Basic authentication |
+| `--destination-bearer-token` | `string` | Bearer token for destination authentication |
+| `--destination-cli-path` | `string` | CLI path for CLI destinations (default: /) (default "/") |
+| `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
+| `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-description` | `string` | Destination description |
+| `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
+| `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
+| `--destination-http-method` | `string` | HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE) |
+| `--destination-id` | `string` | Use existing destination by ID |
+| `--destination-name` | `string` | Destination name for inline creation |
+| `--destination-oauth2-auth-server` | `string` | OAuth2 authorization server URL |
+| `--destination-oauth2-auth-type` | `string` | OAuth2 Client Credentials authentication type: 'basic', 'bearer', or 'x-www-form-urlencoded' (default "basic") |
+| `--destination-oauth2-client-id` | `string` | OAuth2 client ID |
+| `--destination-oauth2-client-secret` | `string` | OAuth2 client secret |
+| `--destination-oauth2-refresh-token` | `string` | OAuth2 refresh token (required for Authorization Code flow) |
+| `--destination-oauth2-scopes` | `string` | OAuth2 scopes (comma-separated) |
+| `--destination-path-forwarding-disabled` | `string` | Disable path forwarding for HTTP destinations (true/false) |
+| `--destination-rate-limit` | `int` | Rate limit for destination (requests per period) (default "0") |
+| `--destination-rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
+| `--destination-type` | `string` | Destination type (CLI, HTTP, MOCK) |
+| `--destination-url` | `string` | URL for HTTP destinations |
+| `--dry-run` | `bool` | Preview changes without applying them |
+| `--output` | `string` | Output format (json) |
+| `--rule-deduplicate-exclude-fields` | `string` | Comma-separated list of fields to exclude for deduplication |
+| `--rule-deduplicate-include-fields` | `string` | Comma-separated list of fields to include for deduplication |
+| `--rule-deduplicate-window` | `int` | Time window in seconds for deduplication (default "0") |
+| `--rule-delay` | `int` | Delay in milliseconds (default "0") |
+| `--rule-filter-body` | `string` | JQ expression to filter on request body |
+| `--rule-filter-headers` | `string` | JQ expression to filter on request headers |
+| `--rule-filter-path` | `string` | JQ expression to filter on request path |
+| `--rule-filter-query` | `string` | JQ expression to filter on request query parameters |
+| `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
+| `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
+| `--rule-transform-code` | `string` | Transformation code (if creating inline) |
+| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation |
+| `--rule-transform-name` | `string` | Name or ID of the transformation to apply |
+| `--rules` | `string` | JSON string representing the entire rules array |
+| `--rules-file` | `string` | Path to a JSON file containing the rules array |
+| `--source-allowed-http-methods` | `string` | Comma-separated list of allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--source-api-key` | `string` | API key for source authentication |
+| `--source-basic-auth-pass` | `string` | Password for Basic authentication |
+| `--source-basic-auth-user` | `string` | Username for Basic authentication |
+| `--source-config` | `string` | JSON string for source authentication config |
+| `--source-config-file` | `string` | Path to a JSON file for source authentication config |
+| `--source-custom-response-body` | `string` | Custom response body (max 1000 chars) |
+| `--source-custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
+| `--source-description` | `string` | Source description |
+| `--source-hmac-algo` | `string` | HMAC algorithm (SHA256, etc.) |
+| `--source-hmac-secret` | `string` | HMAC secret for signature verification |
+| `--source-id` | `string` | Use existing source by ID |
+| `--source-name` | `string` | Source name for inline creation |
+| `--source-type` | `string` | Source type (WEBHOOK, STRIPE, etc.) |
+| `--source-webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
 
-**Fully Implemented (✅):**
-- Full CRUD operations (create, list, get, upsert, delete)
-- Inline resource creation with authentication
-- All 5 rule types (retry, filter, transform, delay, deduplicate)
-- Rate limiting configuration
-- Lifecycle management (enable, disable, pause, unpause)
-- Idempotent upsert with dry-run support
-- 21 acceptance tests, all passing
+**Examples:**
 
-**Not Implemented (❌):**
-- `connection count` command (optional)
-- Bulk operations (planned)
-- Connection cloning (optional)
+```bash
+# Create or update a connection with inline source and destination
+hookdeck connection upsert "my-connection" \
+--source-name "stripe-prod" --source-type STRIPE \
+--destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
 
-**See Also:**
-- [Connection Management Status](.plans/connection-management-status.md)
+# Update just the rate limit on an existing connection
+hookdeck connection upsert my-connection \
+--destination-rate-limit 100 --destination-rate-limit-period minute
 
+# Update source configuration options
+hookdeck connection upsert my-connection \
+--source-allowed-http-methods "POST,PUT,DELETE" \
+--source-custom-response-content-type "json" \
+--source-custom-response-body '{"status":"received"}'
+
+# Preview changes without applying them
+hookdeck connection upsert my-connection \
+--destination-rate-limit 200 --destination-rate-limit-period hour \
+--dry-run
+```
+### hookdeck gateway connection enable
+
+Enable a disabled connection.
+
+**Usage:**
+
+```bash
+hookdeck gateway connection enable <connection-id>
+```
+### hookdeck gateway connection disable
+
+Disable an active connection. It will stop receiving new events until re-enabled.
+
+**Usage:**
+
+```bash
+hookdeck gateway connection disable <connection-id>
+```
+### hookdeck gateway connection pause
+
+Pause a connection temporarily.
+
+The connection will queue incoming events until unpaused.
+
+**Usage:**
+
+```bash
+hookdeck gateway connection pause <connection-id>
+```
+### hookdeck gateway connection unpause
+
+Resume a paused connection.
+
+The connection will start processing queued events.
+
+**Usage:**
+
+```bash
+hookdeck gateway connection unpause <connection-id>
+```
+<!-- GENERATE_END -->
+## Sources
+
+<!-- GENERATE:gateway source list|gateway source create|gateway source get|gateway source update|gateway source delete|gateway source upsert|gateway source enable|gateway source disable|gateway source count:START -->
+- [hookdeck gateway source list](#hookdeck-gateway-source-list)
+- [hookdeck gateway source create](#hookdeck-gateway-source-create)
+- [hookdeck gateway source get](#hookdeck-gateway-source-get)
+- [hookdeck gateway source update](#hookdeck-gateway-source-update)
+- [hookdeck gateway source delete](#hookdeck-gateway-source-delete)
+- [hookdeck gateway source upsert](#hookdeck-gateway-source-upsert)
+- [hookdeck gateway source enable](#hookdeck-gateway-source-enable)
+- [hookdeck gateway source disable](#hookdeck-gateway-source-disable)
+- [hookdeck gateway source count](#hookdeck-gateway-source-count)
+
+### hookdeck gateway source list
+
+List all sources or filter by name or type.
+
+**Usage:**
+
+```bash
+hookdeck gateway source list [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--disabled` | `bool` | Include disabled sources |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--name` | `string` | Filter by source name |
+| `--output` | `string` | Output format (json) |
+| `--type` | `string` | Filter by source type (e.g. WEBHOOK, STRIPE) |
+
+**Examples:**
+
+```bash
+hookdeck gateway source list
+hookdeck gateway source list --name my-source
+hookdeck gateway source list --type WEBHOOK
+hookdeck gateway source list --disabled
+hookdeck gateway source list --limit 10
+```
+### hookdeck gateway source create
+
+Create a new source.
+
+Requires `--name` and `--type`. Use `--config` or `--config-file` for authentication (e.g. webhook_secret, api_key).
+
+**Usage:**
+
+```bash
+hookdeck gateway source create [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--api-key` | `string` | API key for source authentication |
+| `--basic-auth-pass` | `string` | Password for Basic authentication |
+| `--basic-auth-user` | `string` | Username for Basic authentication |
+| `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
+| `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
+| `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
+| `--description` | `string` | Source description |
+| `--hmac-algo` | `string` | HMAC algorithm (SHA256, etc.) |
+| `--hmac-secret` | `string` | HMAC secret for signature verification |
+| `--name` | `string` | Source name (required) |
+| `--output` | `string` | Output format (json) |
+| `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) (required) |
+| `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+
+**Examples:**
+
+```bash
+hookdeck gateway source create --name my-webhook --type WEBHOOK
+hookdeck gateway source create --name stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'
+```
+### hookdeck gateway source get
+
+Get detailed information about a specific source.
+
+You can specify either a source ID or name.
+
+**Usage:**
+
+```bash
+hookdeck gateway source get <source-id-or-name> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--include-auth` | `bool` | Include source authentication credentials in the response |
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
+```bash
+hookdeck gateway source get src_abc123
+hookdeck gateway source get my-source --include-auth
+```
+### hookdeck gateway source update
+
+Update an existing source by its ID.
+
+**Usage:**
+
+```bash
+hookdeck gateway source update <source-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--api-key` | `string` | API key for source authentication |
+| `--basic-auth-pass` | `string` | Password for Basic authentication |
+| `--basic-auth-user` | `string` | Username for Basic authentication |
+| `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
+| `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
+| `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
+| `--description` | `string` | New source description |
+| `--hmac-algo` | `string` | HMAC algorithm (SHA256, etc.) |
+| `--hmac-secret` | `string` | HMAC secret for signature verification |
+| `--name` | `string` | New source name |
+| `--output` | `string` | Output format (json) |
+| `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) |
+| `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+
+**Examples:**
+
+```bash
+hookdeck gateway source update src_abc123 --name new-name
+hookdeck gateway source update src_abc123 --description "Updated"
+hookdeck gateway source update src_abc123 --config '{"webhook_secret":"whsec_new"}'
+```
+### hookdeck gateway source delete
+
+Delete a source.
+
+**Usage:**
+
+```bash
+hookdeck gateway source delete <source-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
+**Examples:**
+
+```bash
+hookdeck gateway source delete src_abc123
+hookdeck gateway source delete src_abc123 --force
+```
+### hookdeck gateway source upsert
+
+Create a new source or update an existing one by name (idempotent).
+
+**Usage:**
+
+```bash
+hookdeck gateway source upsert <name> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--api-key` | `string` | API key for source authentication |
+| `--basic-auth-pass` | `string` | Password for Basic authentication |
+| `--basic-auth-user` | `string` | Username for Basic authentication |
+| `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
+| `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
+| `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
+| `--description` | `string` | Source description |
+| `--dry-run` | `bool` | Preview changes without applying |
+| `--hmac-algo` | `string` | HMAC algorithm (SHA256, etc.) |
+| `--hmac-secret` | `string` | HMAC secret for signature verification |
+| `--output` | `string` | Output format (json) |
+| `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) |
+| `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+
+**Examples:**
+
+```bash
+hookdeck gateway source upsert my-webhook --type WEBHOOK
+hookdeck gateway source upsert stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'
+hookdeck gateway source upsert my-webhook --description "Updated" --dry-run
+```
+### hookdeck gateway source enable
+
+Enable a disabled source.
+
+**Usage:**
+
+```bash
+hookdeck gateway source enable <source-id>
+```
+### hookdeck gateway source disable
+
+Disable an active source. It will stop receiving new events until re-enabled.
+
+**Usage:**
+
+```bash
+hookdeck gateway source disable <source-id>
+```
+### hookdeck gateway source count
+
+Count sources matching optional filters.
+
+**Usage:**
+
+```bash
+hookdeck gateway source count [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--disabled` | `bool` | Count disabled sources only (when set with other filters) |
+| `--name` | `string` | Filter by source name |
+| `--type` | `string` | Filter by source type |
+
+**Examples:**
+
+```bash
+hookdeck gateway source count
+hookdeck gateway source count --type WEBHOOK
+hookdeck gateway source count --disabled
+```
+<!-- GENERATE_END -->
+## Destinations
+
+<!-- GENERATE:gateway destination list|gateway destination create|gateway destination get|gateway destination update|gateway destination delete|gateway destination upsert|gateway destination count|gateway destination enable|gateway destination disable:START -->
+- [hookdeck gateway destination list](#hookdeck-gateway-destination-list)
+- [hookdeck gateway destination create](#hookdeck-gateway-destination-create)
+- [hookdeck gateway destination get](#hookdeck-gateway-destination-get)
+- [hookdeck gateway destination update](#hookdeck-gateway-destination-update)
+- [hookdeck gateway destination delete](#hookdeck-gateway-destination-delete)
+- [hookdeck gateway destination upsert](#hookdeck-gateway-destination-upsert)
+- [hookdeck gateway destination count](#hookdeck-gateway-destination-count)
+- [hookdeck gateway destination enable](#hookdeck-gateway-destination-enable)
+- [hookdeck gateway destination disable](#hookdeck-gateway-destination-disable)
+
+### hookdeck gateway destination list
+
+List all destinations or filter by name or type.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination list [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--disabled` | `bool` | Include disabled destinations |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--name` | `string` | Filter by destination name |
+| `--output` | `string` | Output format (json) |
+| `--type` | `string` | Filter by destination type (HTTP, CLI, MOCK_API) |
+
+**Examples:**
+
+```bash
+hookdeck gateway destination list
+hookdeck gateway destination list --name my-destination
+hookdeck gateway destination list --type HTTP
+hookdeck gateway destination list --disabled
+hookdeck gateway destination list --limit 10
+```
+### hookdeck gateway destination create
+
+Create a new destination.
+
+Requires `--name` and `--type`. For HTTP destinations, `--url` is required. Use `--config` or `--config-file` for auth and rate limiting.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination create [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--api-key` | `string` | API key for destination auth |
+| `--api-key-header` | `string` | Header/key name for API key |
+| `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
+| `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
+| `--basic-auth-pass` | `string` | Password for Basic auth |
+| `--basic-auth-user` | `string` | Username for Basic auth |
+| `--bearer-token` | `string` | Bearer token for destination auth |
+| `--cli-path` | `string` | Path for CLI destinations (default "/") |
+| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
+| `--custom-signature-key` | `string` | Key/header name for custom signature |
+| `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--description` | `string` | Destination description |
+| `--http-method` | `string` | HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE) |
+| `--name` | `string` | Destination name (required) |
+| `--output` | `string` | Output format (json) |
+| `--rate-limit` | `int` | Rate limit (requests per period) (default "0") |
+| `--rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
+| `--type` | `string` | Destination type (HTTP, CLI, MOCK_API) (required) |
+| `--url` | `string` | URL for HTTP destinations (required for type HTTP) |
+
+**Examples:**
+
+```bash
+hookdeck gateway destination create --name my-api --type HTTP --url https://api.example.com/webhooks
+hookdeck gateway destination create --name local-cli --type CLI --cli-path /webhooks
+hookdeck gateway destination create --name my-api --type HTTP --url https://api.example.com --bearer-token token123
+```
+### hookdeck gateway destination get
+
+Get detailed information about a specific destination.
+
+You can specify either a destination ID or name.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination get <destination-id-or-name> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--include-auth` | `bool` | Include authentication credentials in the response |
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
+```bash
+hookdeck gateway destination get des_abc123
+hookdeck gateway destination get my-destination --include-auth
+```
+### hookdeck gateway destination update
+
+Update an existing destination by its ID.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination update <destination-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--api-key` | `string` | API key for destination auth |
+| `--api-key-header` | `string` | Header/key name for API key |
+| `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
+| `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
+| `--basic-auth-pass` | `string` | Password for Basic auth |
+| `--basic-auth-user` | `string` | Username for Basic auth |
+| `--bearer-token` | `string` | Bearer token for destination auth |
+| `--cli-path` | `string` | Path for CLI destinations |
+| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
+| `--custom-signature-key` | `string` | Key/header name for custom signature |
+| `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--description` | `string` | New destination description |
+| `--http-method` | `string` | HTTP method for HTTP destinations |
+| `--name` | `string` | New destination name |
+| `--output` | `string` | Output format (json) |
+| `--rate-limit` | `int` | Rate limit (requests per period) (default "0") |
+| `--rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
+| `--type` | `string` | Destination type (HTTP, CLI, MOCK_API) |
+| `--url` | `string` | URL for HTTP destinations |
+
+**Examples:**
+
+```bash
+hookdeck gateway destination update des_abc123 --name new-name
+hookdeck gateway destination update des_abc123 --description "Updated"
+hookdeck gateway destination update des_abc123 --url https://api.example.com/new
+```
+### hookdeck gateway destination delete
+
+Delete a destination.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination delete <destination-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
+**Examples:**
+
+```bash
+hookdeck gateway destination delete des_abc123
+hookdeck gateway destination delete des_abc123 --force
+```
+### hookdeck gateway destination upsert
+
+Create a new destination or update an existing one by name (idempotent).
+
+**Usage:**
+
+```bash
+hookdeck gateway destination upsert <name> [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--api-key` | `string` | API key for destination auth |
+| `--api-key-header` | `string` | Header/key name for API key |
+| `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
+| `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
+| `--basic-auth-pass` | `string` | Password for Basic auth |
+| `--basic-auth-user` | `string` | Username for Basic auth |
+| `--bearer-token` | `string` | Bearer token for destination auth |
+| `--cli-path` | `string` | Path for CLI destinations |
+| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
+| `--custom-signature-key` | `string` | Key/header name for custom signature |
+| `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--description` | `string` | Destination description |
+| `--dry-run` | `bool` | Preview changes without applying |
+| `--http-method` | `string` | HTTP method for HTTP destinations |
+| `--output` | `string` | Output format (json) |
+| `--rate-limit` | `int` | Rate limit (requests per period) (default "0") |
+| `--rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
+| `--type` | `string` | Destination type (HTTP, CLI, MOCK_API) |
+| `--url` | `string` | URL for HTTP destinations |
+
+**Examples:**
+
+```bash
+hookdeck gateway destination upsert my-api --type HTTP --url https://api.example.com/webhooks
+hookdeck gateway destination upsert local-cli --type CLI --cli-path /webhooks
+hookdeck gateway destination upsert my-api --description "Updated" --dry-run
+```
+### hookdeck gateway destination count
+
+Count destinations matching optional filters.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination count [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--disabled` | `bool` | Count disabled destinations only (when set with other filters) |
+| `--name` | `string` | Filter by destination name |
+| `--type` | `string` | Filter by destination type (HTTP, CLI, MOCK_API) |
+
+**Examples:**
+
+```bash
+hookdeck gateway destination count
+hookdeck gateway destination count --type HTTP
+hookdeck gateway destination count --disabled
+```
+### hookdeck gateway destination enable
+
+Enable a disabled destination.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination enable <destination-id>
+```
+### hookdeck gateway destination disable
+
+Disable an active destination. It will stop receiving new events until re-enabled.
+
+**Usage:**
+
+```bash
+hookdeck gateway destination disable <destination-id>
+```
+<!-- GENERATE_END -->
 ## Transformations
 
-**All Parameters:**
+<!-- GENERATE:gateway transformation list|gateway transformation create|gateway transformation get|gateway transformation update|gateway transformation delete|gateway transformation upsert|gateway transformation run|gateway transformation count|gateway transformation executions|gateway transformation executions list|gateway transformation executions get:START -->
+- [hookdeck gateway transformation list](#hookdeck-gateway-transformation-list)
+- [hookdeck gateway transformation create](#hookdeck-gateway-transformation-create)
+- [hookdeck gateway transformation get](#hookdeck-gateway-transformation-get)
+- [hookdeck gateway transformation update](#hookdeck-gateway-transformation-update)
+- [hookdeck gateway transformation delete](#hookdeck-gateway-transformation-delete)
+- [hookdeck gateway transformation upsert](#hookdeck-gateway-transformation-upsert)
+- [hookdeck gateway transformation run](#hookdeck-gateway-transformation-run)
+- [hookdeck gateway transformation count](#hookdeck-gateway-transformation-count)
+- [hookdeck gateway transformation executions list](#hookdeck-gateway-transformation-executions-list)
+- [hookdeck gateway transformation executions get](#hookdeck-gateway-transformation-executions-get)
+
+### hookdeck gateway transformation list
+
+List all transformations or filter by name or id.
+
+**Usage:**
+
 ```bash
-# Transformation list command parameters
---name string         # Filter by name pattern (supports wildcards)
---limit integer      # Limit number of results (default varies)
-
-# Transformation count command parameters
---name string         # Filter by name pattern
-
-# Transformation get command parameters
-<transformation-id>  # Required positional argument for transformation ID
-
-# Transformation create command parameters
---name string         # Required: Transformation name
---code string         # Required: JavaScript code for the transformation
---description string  # Optional: Transformation description
---env string          # Optional: Environment variables (KEY=value,KEY2=value2)
-
-# Transformation update command parameters
-<transformation-id>  # Required positional argument for transformation ID
---name string         # Update transformation name
---code string         # Update JavaScript code
---description string  # Update transformation description
---env string          # Update environment variables (KEY=value,KEY2=value2)
-
-# Transformation upsert command parameters (create or update by name)
---name string         # Required: Transformation name (used for matching existing)
---code string         # Required: JavaScript code
---description string  # Optional: Transformation description
---env string          # Optional: Environment variables
-
-# Transformation delete command parameters
-<transformation-id>  # Required positional argument for transformation ID
---force              # Force delete without confirmation (boolean flag)
-
-# Transformation run command parameters (testing)
---code string         # Required: JavaScript code to test
---request string      # Required: Request JSON for testing
-
-# Transformation executions command parameters
-<transformation-id>  # Required positional argument for transformation ID
---limit integer      # Limit number of execution results
-
-# Transformation execution command parameters (get single execution)
-<transformation-id>  # Required positional argument for transformation ID
-<execution-id>       # Required positional argument for execution ID
+hookdeck gateway transformation list [flags]
 ```
 
-**Environment Variables Format:**
-- Use comma-separated key=value pairs: `KEY1=value1,KEY2=value2`
-- Supports debugging flags: `DEBUG=true,LOG_LEVEL=info`
-- Can reference external services: `API_URL=https://api.example.com,API_KEY=secret`
+**Flags:**
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+| Flag | Type | Description |
+|------|------|-------------|
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--id` | `string` | Filter by transformation ID(s) |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--name` | `string` | Filter by transformation name |
+| `--next` | `string` | Pagination cursor for next page |
+| `--order-by` | `string` | Sort key (name, created_at, updated_at) |
+| `--output` | `string` | Output format (json) |
+| `--prev` | `string` | Pagination cursor for previous page |
 
-Transformations allow you to modify webhook payloads using JavaScript.
+**Examples:**
 
-### List transformations
 ```bash
-# List all transformations
-hookdeck transformation list
+hookdeck gateway transformation list
+hookdeck gateway transformation list --name my-transform
+hookdeck gateway transformation list --order-by created_at --dir desc
+hookdeck gateway transformation list --limit 10
+```
+### hookdeck gateway transformation create
 
-# Filter by name pattern
-hookdeck transformation list --name "*stripe*"
+Create a new transformation.
 
-# Limit results
-hookdeck transformation list --limit 50
+Requires `--name` and `--code` (or `--code-file`). Use `--env` for key-value environment variables.
+
+**Usage:**
+
+```bash
+hookdeck gateway transformation create [flags]
 ```
 
-### Count transformations
-```bash
-# Count all transformations
-hookdeck transformation count
+**Flags:**
 
-# Count with filters
-hookdeck transformation count --name "*formatter*"
+| Flag | Type | Description |
+|------|------|-------------|
+| `--code` | `string` | JavaScript code string (required if `--code-file` not set) |
+| `--code-file` | `string` | Path to JavaScript file (required if `--code` not set) |
+| `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
+| `--name` | `string` | Transformation name (required) |
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
+```bash
+hookdeck gateway transformation create --name my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
+hookdeck gateway transformation create --name my-transform --code-file ./transform.js --env FOO=bar,BAZ=qux
+```
+### hookdeck gateway transformation get
+
+Get detailed information about a specific transformation.
+
+You can specify either a transformation ID or name.
+
+**Usage:**
+
+```bash
+hookdeck gateway transformation get <transformation-id-or-name> [flags]
 ```
 
-### Get transformation details
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
 ```bash
-# Get transformation by ID
-hookdeck transformation get <transformation-id>
+hookdeck gateway transformation get trn_abc123
+hookdeck gateway transformation get my-transform
+```
+### hookdeck gateway transformation update
+
+Update an existing transformation by its ID.
+
+**Usage:**
+
+```bash
+hookdeck gateway transformation update <transformation-id-or-name> [flags]
 ```
 
-### Create a transformation
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--code` | `string` | New JavaScript code string |
+| `--code-file` | `string` | Path to JavaScript file |
+| `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
+| `--name` | `string` | New transformation name |
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
 ```bash
-# Create with interactive prompts
-hookdeck transformation create
+hookdeck gateway transformation update trn_abc123 --name new-name
+hookdeck gateway transformation update my-transform --code-file ./transform.js
+hookdeck gateway transformation update trn_abc123 --env FOO=bar
+```
+### hookdeck gateway transformation delete
 
-# Create with inline code
-hookdeck transformation create --name "stripe-formatter" \
-  --code 'export default function(request) {
-    request.body.processed_at = new Date().toISOString();
-    request.body.webhook_source = "stripe";
-    return request;
-  }'
+Delete a transformation.
 
-# Create with environment variables
-hookdeck transformation create --name "api-enricher" \
-  --code 'export default function(request) {
-    const { API_KEY } = process.env;
-    request.headers["X-API-Key"] = API_KEY;
-    return request;
-  }' \
-  --env "API_KEY=your_key,DEBUG=true"
+**Usage:**
 
-# Create with description
-hookdeck transformation create --name "payment-processor" \
-  --description "Processes payment webhooks and adds metadata" \
-  --code 'export default function(request) {
-    if (request.body.type?.includes("payment")) {
-      request.body.category = "payment";
-      request.body.priority = "high";
-    }
-    return request;
-  }'
+```bash
+hookdeck gateway transformation delete <transformation-id-or-name> [flags]
 ```
 
-### Update a transformation
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--force` | `bool` | Force delete without confirmation |
+
+**Examples:**
+
 ```bash
-# Update transformation code
-hookdeck transformation update <transformation-id> \
-  --code 'export default function(request) { /* updated code */ return request; }'
+hookdeck gateway transformation delete trn_abc123
+hookdeck gateway transformation delete trn_abc123 --force
+```
+### hookdeck gateway transformation upsert
 
-# Update name and description
-hookdeck transformation update <transformation-id> --name "new-name" --description "Updated description"
+Create a new transformation or update an existing one by name (idempotent).
 
-# Update environment variables
-hookdeck transformation update <transformation-id> --env "API_KEY=new_key,DEBUG=false"
+**Usage:**
+
+```bash
+hookdeck gateway transformation upsert <name> [flags]
 ```
 
-### Upsert a transformation (create or update by name)
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--code` | `string` | JavaScript code string |
+| `--code-file` | `string` | Path to JavaScript file |
+| `--dry-run` | `bool` | Preview changes without applying |
+| `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
 ```bash
-# Create or update transformation by name
-hookdeck transformation upsert --name "stripe-formatter" \
-  --code 'export default function(request) { return request; }'
+hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
+hookdeck gateway transformation upsert my-transform --code-file ./transform.js --env FOO=bar
+hookdeck gateway transformation upsert my-transform --code "addHandler(\"transform\", (request, context) => { return request; });" --dry-run
+```
+### hookdeck gateway transformation run
+
+Test run transformation code against a sample request.
+
+Provide either inline `--code`/`--code-file` or `--id` to use an existing transformation.
+The `--request` or `--request-file` must be JSON with at least "headers" (can be {}). Optional: body, path, query.
+
+**Usage:**
+
+```bash
+hookdeck gateway transformation run [flags]
 ```
 
-### Delete a transformation
-```bash
-# Delete transformation (with confirmation)
-hookdeck transformation delete <transformation-id>
+**Flags:**
 
-# Force delete without confirmation
-hookdeck transformation delete <transformation-id> --force
+| Flag | Type | Description |
+|------|------|-------------|
+| `--code` | `string` | JavaScript code string to run |
+| `--code-file` | `string` | Path to JavaScript file |
+| `--connection-id` | `string` | Connection ID for execution context |
+| `--env` | `string` | Environment variables as KEY=value,KEY2=value2 |
+| `--id` | `string` | Use existing transformation by ID |
+| `--output` | `string` | Output format (json) |
+| `--request` | `string` | Request JSON (must include headers, e.g. {"headers":{}}) |
+| `--request-file` | `string` | Path to request JSON file |
+
+**Examples:**
+
+```bash
+hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{}}'
+hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request-file ./sample.json
+hookdeck gateway transformation run --id trs_abc123 --request '{"headers":{},"body":{"foo":"bar"}}' --connection-id web_xxx
+```
+### hookdeck gateway transformation count
+
+Count transformations matching optional filters.
+
+**Usage:**
+
+```bash
+hookdeck gateway transformation count [flags]
 ```
 
-### Test a transformation
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--name` | `string` | Filter by transformation name |
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
 ```bash
-# Test with sample request JSON
-hookdeck transformation run --code 'export default function(request) { return request; }' \
-  --request '{"headers": {"content-type": "application/json"}, "body": {"test": true}}'
+hookdeck gateway transformation count
+hookdeck gateway transformation count --name my-transform
+```
+### hookdeck gateway transformation executions list
+
+List executions for a transformation.
+
+**Usage:**
+
+```bash
+hookdeck gateway transformation executions list <transformation-id-or-name> [flags]
 ```
 
-### Get transformation executions
-```bash
-# List executions for a transformation
-hookdeck transformation executions <transformation-id> --limit 50
+**Flags:**
 
-# Get specific execution details
-hookdeck transformation execution <transformation-id> <execution-id>
+| Flag | Type | Description |
+|------|------|-------------|
+| `--connection-id` | `string` | Filter by connection ID |
+| `--created-at` | `string` | Filter by created_at (ISO date or operator) |
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--issue-id` | `string` | Filter by issue ID |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--next` | `string` | Pagination cursor for next page |
+| `--order-by` | `string` | Sort key (created_at) |
+| `--output` | `string` | Output format (json) |
+| `--prev` | `string` | Pagination cursor for previous page |
+### hookdeck gateway transformation executions get
+
+Get a single execution by transformation ID and execution ID.
+
+**Usage:**
+
+```bash
+hookdeck gateway transformation executions get <transformation-id-or-name> <execution-id> [flags]
 ```
 
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--output` | `string` | Output format (json) |
+<!-- GENERATE_END -->
 ## Events
 
-**All Parameters:**
+<!-- GENERATE:gateway event list|gateway event get|gateway event retry|gateway event cancel|gateway event mute|gateway event raw-body:START -->
+- [hookdeck gateway event list](#hookdeck-gateway-event-list)
+- [hookdeck gateway event get](#hookdeck-gateway-event-get)
+- [hookdeck gateway event retry](#hookdeck-gateway-event-retry)
+- [hookdeck gateway event cancel](#hookdeck-gateway-event-cancel)
+- [hookdeck gateway event mute](#hookdeck-gateway-event-mute)
+- [hookdeck gateway event raw-body](#hookdeck-gateway-event-raw-body)
+
+### hookdeck gateway event list
+
+List events (processed webhook deliveries). Filter by connection ID, source, destination, or status.
+
+**Usage:**
+
 ```bash
-# Event list command parameters
---id string              # Filter by event IDs (comma-separated)
---status string          # Filter by status (SUCCESSFUL, FAILED, PENDING)
---webhook-id string      # Filter by webhook ID (connection)
---destination-id string  # Filter by destination ID
---source-id string       # Filter by source ID
---attempts integer       # Filter by number of attempts (minimum: 0)
---response-status integer # Filter by HTTP response status (200-600)
---successful-at string   # Filter by success date (ISO date-time)
---created-at string      # Filter by creation date (ISO date-time)
---error-code string      # Filter by error code
---cli-id string          # Filter by CLI ID
---last-attempt-at string # Filter by last attempt date (ISO date-time)
---search-term string     # Search in body/headers/path (minimum 3 characters)
---headers string         # Header matching (JSON string)
---body string            # Body matching (JSON string)
---parsed-query string    # Query parameter matching (JSON string)
---path string            # Path matching
---order-by string        # Sort by: created_at
---dir string             # Sort direction: asc, desc
---limit integer          # Limit number of results (0-255)
---next string            # Next page token for pagination
---prev string            # Previous page token for pagination
-
-# Event get command parameters
-<event-id>             # Required positional argument for event ID
-
-# Event raw-body command parameters
-<event-id>             # Required positional argument for event ID
-
-# Event retry command parameters
-<event-id>             # Required positional argument for event ID
-
-# Event mute command parameters
-<event-id>             # Required positional argument for event ID
+hookdeck gateway event list [flags]
 ```
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+**Flags:**
 
-### List events
+| Flag | Type | Description |
+|------|------|-------------|
+| `--attempts` | `string` | Filter by number of attempts (integer or operators) |
+| `--body` | `string` | Filter by body (JSON string) |
+| `--cli-id` | `string` | Filter by CLI ID |
+| `--connection-id` | `string` | Filter by connection ID |
+| `--created-after` | `string` | Filter events created after (ISO date-time) |
+| `--created-before` | `string` | Filter events created before (ISO date-time) |
+| `--destination-id` | `string` | Filter by destination ID |
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--error-code` | `string` | Filter by error code |
+| `--headers` | `string` | Filter by headers (JSON string) |
+| `--id` | `string` | Filter by event ID(s) (comma-separated) |
+| `--issue-id` | `string` | Filter by issue ID |
+| `--last-attempt-at-after` | `string` | Filter by last_attempt_at after (ISO date-time) |
+| `--last-attempt-at-before` | `string` | Filter by last_attempt_at before (ISO date-time) |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--next` | `string` | Pagination cursor for next page |
+| `--order-by` | `string` | Sort key (e.g. created_at) |
+| `--output` | `string` | Output format (json) |
+| `--parsed-query` | `string` | Filter by parsed query (JSON string) |
+| `--path` | `string` | Filter by path |
+| `--prev` | `string` | Pagination cursor for previous page |
+| `--response-status` | `string` | Filter by HTTP response status (e.g. 200, 500) |
+| `--source-id` | `string` | Filter by source ID |
+| `--status` | `string` | Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED) |
+| `--successful-at-after` | `string` | Filter by successful_at after (ISO date-time) |
+| `--successful-at-before` | `string` | Filter by successful_at before (ISO date-time) |
+
+**Examples:**
+
 ```bash
-# List recent events
-hookdeck event list
+hookdeck gateway event list
+hookdeck gateway event list --connection-id web_abc123
+hookdeck gateway event list --status FAILED --limit 20
+```
+### hookdeck gateway event get
 
-# Filter by webhook ID (connection)
-hookdeck event list --webhook-id <connection-id>
+Get detailed information about an event by ID.
 
-# Filter by source ID
-hookdeck event list --source-id <source-id>
+**Usage:**
 
-# Filter by destination ID
-hookdeck event list --destination-id <destination-id>
-
-# Filter by status
-hookdeck event list --status SUCCESSFUL
-hookdeck event list --status FAILED
-hookdeck event list --status PENDING
-
-# Limit results
-hookdeck event list --limit 100
-
-# Combined filtering
-hookdeck event list --webhook-id <connection-id> --status FAILED --limit 50
+```bash
+hookdeck gateway event get <event-id> [flags]
 ```
 
-### Get event details
-```bash
-# Get event by ID
-hookdeck event get <event-id>
+**Flags:**
 
-# Get event raw body
-hookdeck event raw-body <event-id>
+| Flag | Type | Description |
+|------|------|-------------|
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
+```bash
+hookdeck gateway event get evt_abc123
+```
+### hookdeck gateway event retry
+
+Retry delivery for an event by ID.
+
+**Usage:**
+
+```bash
+hookdeck gateway event retry <event-id>
 ```
 
-### Retry events
+**Examples:**
+
 ```bash
-# Retry single event
-hookdeck event retry <event-id>
+hookdeck gateway event retry evt_abc123
+```
+### hookdeck gateway event cancel
+
+Cancel an event by ID. Cancelled events will not be retried.
+
+**Usage:**
+
+```bash
+hookdeck gateway event cancel <event-id>
 ```
 
-### Mute events
+**Examples:**
+
 ```bash
-# Mute event (stop retries)
-hookdeck event mute <event-id>
+hookdeck gateway event cancel evt_abc123
+```
+### hookdeck gateway event mute
+
+Mute an event by ID. Muted events will not trigger alerts or retries.
+
+**Usage:**
+
+```bash
+hookdeck gateway event mute <event-id>
 ```
 
-## Attempts
+**Examples:**
 
-**All Parameters:**
 ```bash
-# Attempt list command parameters
---event-id string     # Filter by specific event ID
---destination-id string # Filter by destination ID
---status string       # Filter by attempt status (FAILED, SUCCESSFUL)
---trigger string      # Filter by trigger type (INITIAL, MANUAL, BULK_RETRY, UNPAUSE, AUTOMATIC)
---error-code string   # Filter by error code (TIMEOUT, CONNECTION_REFUSED, etc.)
---bulk-retry-id string # Filter by bulk retry operation ID
---successful-at string # Filter by success timestamp (ISO format or operators)
---delivered-at string  # Filter by delivery timestamp (ISO format or operators)
---responded-at string  # Filter by response timestamp (ISO format or operators)
---order-by string     # Sort by field (created_at, delivered_at, responded_at)
---dir string          # Sort direction (asc, desc)
---limit integer       # Limit number of results (0-255)
---next string         # Next page token for pagination
---prev string         # Previous page token for pagination
+hookdeck gateway event mute evt_abc123
+```
+### hookdeck gateway event raw-body
 
-# Attempt get command parameters
-<attempt-id>          # Required positional argument for attempt ID
+Output the raw request body of an event by ID.
 
-# Attempt retry command parameters
-<attempt-id>          # Required positional argument for attempt ID to retry
---force              # Force retry without confirmation (boolean flag)
+**Usage:**
+
+```bash
+hookdeck gateway event raw-body <event-id>
 ```
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+**Examples:**
 
-Attempts represent individual delivery attempts for webhook events, including success/failure status, response details, and performance metrics.
-
-### List attempts
 ```bash
-# List all attempts
-hookdeck attempt list
-
-# List attempts for a specific event
-hookdeck attempt list --event-id evt_123
-
-# List attempts for a destination
-hookdeck attempt list --destination-id des_456
-
-# Filter by status
-hookdeck attempt list --status FAILED
-hookdeck attempt list --status SUCCESSFUL
-
-# Filter by trigger type
-hookdeck attempt list --trigger MANUAL
-hookdeck attempt list --trigger BULK_RETRY
-
-# Filter by error code
-hookdeck attempt list --error-code TIMEOUT
-hookdeck attempt list --error-code CONNECTION_REFUSED
-
-# Filter by bulk retry operation
-hookdeck attempt list --bulk-retry-id retry_789
-
-# Filter by timestamp (various operators supported)
-hookdeck attempt list --delivered-at "2024-01-01T00:00:00Z"
-hookdeck attempt list --successful-at ">2024-01-01T00:00:00Z"
-
-# Sort and limit results
-hookdeck attempt list --order-by delivered_at --dir desc --limit 100
-
-# Pagination
-hookdeck attempt list --limit 50 --next <token>
-
-# Combined filtering
-hookdeck attempt list --event-id evt_123 --status FAILED --error-code TIMEOUT
+hookdeck gateway event raw-body evt_abc123
 ```
-
-### Get attempt details
-```bash
-# Get attempt by ID
-hookdeck attempt get att_123
-
-# Example output includes:
-# - Attempt ID and number
-# - Event and destination IDs
-# - HTTP method and requested URL
-# - Response status and body
-# - Trigger type and error code
-# - Delivery and response latency
-# - Timestamps (delivered_at, responded_at, successful_at)
-```
-
-### Retry attempts
-```bash
-# Retry a specific attempt
-hookdeck attempt retry att_123
-
-# Force retry without confirmation
-hookdeck attempt retry att_123 --force
-
-# Note: This creates a new attempt for the same event
-```
-
-
-## Issues
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-### List issues
-```bash
-# List all issues
-hookdeck issue list
-
-# Filter by status
-hookdeck issue list --status ACTIVE
-hookdeck issue list --status DISMISSED
-
-# Filter by type
-hookdeck issue list --type DELIVERY_ISSUE
-hookdeck issue list --type TRANSFORMATION_ISSUE
-
-# Limit results
-hookdeck issue list --limit 100
-```
-
-### Count issues
-```bash
-# Count all issues
-hookdeck issue count
-
-# Count with filters
-hookdeck issue count --status ACTIVE --type DELIVERY_ISSUE
-```
-
-### Get issue details
-```bash
-# Get issue by ID
-hookdeck issue get <issue-id>
-```
-
-## Issue Triggers
-
-**All Parameters:**
-```bash
-# Issue trigger list command parameters
---name string         # Filter by name pattern (supports wildcards)
---type string         # Filter by trigger type (delivery, transformation, backpressure)
---disabled           # Include disabled triggers (boolean flag)
---limit integer      # Limit number of results (default varies)
-
-# Issue trigger get command parameters
-<trigger-id>         # Required positional argument for trigger ID
-
-# Issue trigger create command parameters
---name string         # Optional: Unique name for the trigger
---type string         # Required: Trigger type (delivery, transformation, backpressure)
---description string  # Optional: Trigger description
-
-# Type-specific configuration parameters:
-# When --type=delivery:
---strategy string     # Required: Strategy (first_attempt, final_attempt)
---connections string  # Required: Connection patterns or IDs (comma-separated or "*")
-
-# When --type=transformation:
---log-level string    # Required: Log level (debug, info, warn, error, fatal)
---transformations string # Required: Transformation patterns or IDs (comma-separated or "*")
-
-# When --type=backpressure:
---delay integer       # Required: Minimum delay in milliseconds (60000-86400000)
---destinations string # Required: Destination patterns or IDs (comma-separated or "*")
-
-# Notification channel parameters (at least one required):
---email              # Enable email notifications (boolean flag)
---slack-channel string    # Slack channel name (e.g., "#alerts")
---pagerduty          # Enable PagerDuty notifications (boolean flag)
---opsgenie           # Enable Opsgenie notifications (boolean flag)
-
-# Issue trigger update command parameters
-<trigger-id>         # Required positional argument for trigger ID
---name string         # Update trigger name
---description string  # Update trigger description
-# Plus any type-specific and notification parameters listed above
-
-# Issue trigger upsert command parameters (create or update by name)
---name string         # Required: Trigger name (used for matching existing)
---type string         # Required: Trigger type
-# Plus any type-specific and notification parameters listed above
-
-# Issue trigger delete command parameters
-<trigger-id>         # Required positional argument for trigger ID
---force              # Force delete without confirmation (boolean flag)
-
-# Issue trigger enable/disable command parameters
-<trigger-id>         # Required positional argument for trigger ID
-```
-
-**Type Validation Rules:**
-- **delivery type**: Requires `--strategy` and `--connections`
-  - `--strategy` values: `first_attempt`, `final_attempt`
-  - `--connections` accepts: connection IDs, connection name patterns, or `"*"` for all
-- **transformation type**: Requires `--log-level` and `--transformations`
-  - `--log-level` values: `debug`, `info`, `warn`, `error`, `fatal`
-  - `--transformations` accepts: transformation IDs, transformation name patterns, or `"*"` for all
-- **backpressure type**: Requires `--delay` and `--destinations`
-  - `--delay` range: 60000-86400000 milliseconds (1 minute to 1 day)
-  - `--destinations` accepts: destination IDs, destination name patterns, or `"*"` for all
-
-**Notification Channel Combinations:**
-- Multiple notification channels can be enabled simultaneously
-- `--email` is a boolean flag (no additional configuration)
-- `--slack-channel` requires a channel name (e.g., "#alerts", "#monitoring")
-- `--pagerduty` and `--opsgenie` are boolean flags requiring pre-configured integrations
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Issue triggers automatically detect and create issues when specific conditions are met.
-
-### List issue triggers
-```bash
-# List all issue triggers
-hookdeck issue-trigger list
-
-# Filter by name pattern
-hookdeck issue-trigger list --name "*delivery*"
-
-# Filter by type
-hookdeck issue-trigger list --type delivery
-hookdeck issue-trigger list --type transformation
-hookdeck issue-trigger list --type backpressure
-
-# Include disabled triggers
-hookdeck issue-trigger list --disabled
-
-# Limit results
-hookdeck issue-trigger list --limit 50
-```
-
-### Get issue trigger details
-```bash
-# Get issue trigger by ID
-hookdeck issue-trigger get <trigger-id>
-```
-
-### Create issue triggers
-
-#### Delivery failure trigger
-```bash
-# Trigger on final delivery attempt failure
-hookdeck issue-trigger create --type delivery \
-  --name "delivery-failures" \
-  --strategy final_attempt \
-  --connections "conn1,conn2" \
-  --email \
-  --slack-channel "#alerts"
-
-# Trigger on first delivery attempt failure
-hookdeck issue-trigger create --type delivery \
-  --name "immediate-delivery-alerts" \
-  --strategy first_attempt \
-  --connections "*" \
-  --pagerduty
-```
-
-#### Transformation error trigger
-```bash
-# Trigger on transformation errors
-hookdeck issue-trigger create --type transformation \
-  --name "transformation-errors" \
-  --log-level error \
-  --transformations "*" \
-  --email \
-  --opsgenie
-
-# Trigger on specific transformation debug logs
-hookdeck issue-trigger create --type transformation \
-  --name "debug-logs" \
-  --log-level debug \
-  --transformations "trans1,trans2" \
-  --slack-channel "#debug"
-```
-
-#### Backpressure trigger
-```bash
-# Trigger on destination backpressure
-hookdeck issue-trigger create --type backpressure \
-  --name "backpressure-alert" \
-  --delay 300000 \
-  --destinations "*" \
-  --email \
-  --pagerduty
-```
-
-### Update issue trigger
-```bash
-# Update trigger name and description
-hookdeck issue-trigger update <trigger-id> --name "new-name" --description "Updated description"
-
-# Update notification channels
-hookdeck issue-trigger update <trigger-id> --email --slack-channel "#new-alerts"
-
-# Update type-specific configuration
-hookdeck issue-trigger update <trigger-id> --strategy first_attempt --connections "new_conn"
-```
-
-### Upsert issue trigger (create or update by name)
-```bash
-# Create or update issue trigger by name
-hookdeck issue-trigger upsert --name "delivery-failures" --type delivery --strategy final_attempt
-```
-
-### Delete issue trigger
-```bash
-# Delete issue trigger (with confirmation)
-hookdeck issue-trigger delete <trigger-id>
-
-# Force delete without confirmation
-hookdeck issue-trigger delete <trigger-id> --force
-```
-
-### Enable/Disable issue triggers
-```bash
-# Enable issue trigger
-hookdeck issue-trigger enable <trigger-id>
-
-# Disable issue trigger
-hookdeck issue-trigger disable <trigger-id>
-```
-
-## Bookmarks
-
-**All Parameters:**
-```bash
-# Bookmark list command parameters
---name string         # Filter by name pattern (supports wildcards)
---webhook-id string   # Filter by webhook ID (connection)
---label string        # Filter by label
---limit integer       # Limit number of results (default varies)
-
-# Bookmark get command parameters
-<bookmark-id>         # Required positional argument for bookmark ID
-
-# Bookmark raw-body command parameters
-<bookmark-id>         # Required positional argument for bookmark ID
-
-# Bookmark create command parameters
---event-data-id string # Required: Event data ID to bookmark
---webhook-id string    # Required: Webhook ID (connection)
---label string         # Required: Label for categorization
---name string          # Optional: Bookmark name
-
-# Bookmark update command parameters
-<bookmark-id>         # Required positional argument for bookmark ID
---name string          # Update bookmark name
---label string         # Update bookmark label
-
-# Bookmark delete command parameters
-<bookmark-id>         # Required positional argument for bookmark ID
---force               # Force delete without confirmation (boolean flag)
-
-# Bookmark trigger command parameters (replay)
-<bookmark-id>         # Required positional argument for bookmark ID
-```
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Bookmarks allow you to save webhook payloads for testing and replay.
-
-### List bookmarks
-```bash
-# List all bookmarks
-hookdeck bookmark list
-
-# Filter by name pattern
-hookdeck bookmark list --name "*test*"
-
-# Filter by webhook ID (connection)
-hookdeck bookmark list --webhook-id <connection-id>
-
-# Filter by label
-hookdeck bookmark list --label test_data
-
-# Limit results
-hookdeck bookmark list --limit 50
-```
-
-### Get bookmark details
-```bash
-# Get bookmark by ID
-hookdeck bookmark get <bookmark-id>
-
-# Get bookmark raw body
-hookdeck bookmark raw-body <bookmark-id>
-```
-
-### Create a bookmark
-```bash
-# Create bookmark from event
-hookdeck bookmark create --event-data-id <event-data-id> \
-  --webhook-id <connection-id> \
-  --label test_payload \
-  --name "stripe-payment-test"
-```
-
-### Update a bookmark
-```bash
-# Update bookmark properties
-hookdeck bookmark update <bookmark-id> --name "new-name" --label new_label
-```
-
-### Delete a bookmark
-```bash
-# Delete bookmark (with confirmation)
-hookdeck bookmark delete <bookmark-id>
-
-# Force delete without confirmation
-hookdeck bookmark delete <bookmark-id> --force
-```
-
-### Trigger bookmark (replay)
-```bash
-# Trigger bookmark to replay webhook
-hookdeck bookmark trigger <bookmark-id>
-```
-
-## Integrations
-
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
-
-Integrations connect third-party services to your Hookdeck workspace.
-
-### List integrations
-```bash
-# List all integrations
-hookdeck integration list
-
-# Limit results
-hookdeck integration list --limit 50
-```
-
-### Get integration details
-```bash
-# Get integration by ID
-hookdeck integration get <integration-id>
-```
-
-### Create an integration
-```bash
-# Create integration (provider-specific configuration required)
-hookdeck integration create --provider PROVIDER_NAME
-```
-
-### Update an integration
-```bash
-# Update integration (provider-specific configuration)
-hookdeck integration update <integration-id>
-```
-
-### Delete an integration
-```bash
-# Delete integration (with confirmation)
-hookdeck integration delete <integration-id>
-
-# Force delete without confirmation
-hookdeck integration delete <integration-id> --force
-```
-
-### Attach/Detach sources
-```bash
-# Attach source to integration
-hookdeck integration attach <integration-id> <source-id>
-
-# Detach source from integration
-hookdeck integration detach <integration-id> <source-id>
-```
-
+<!-- GENERATE_END -->
 ## Requests
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+<!-- GENERATE:gateway request list|gateway request get|gateway request retry|gateway request events|gateway request ignored-events|gateway request raw-body:START -->
+- [hookdeck gateway request list](#hookdeck-gateway-request-list)
+- [hookdeck gateway request get](#hookdeck-gateway-request-get)
+- [hookdeck gateway request retry](#hookdeck-gateway-request-retry)
+- [hookdeck gateway request events](#hookdeck-gateway-request-events)
+- [hookdeck gateway request ignored-events](#hookdeck-gateway-request-ignored-events)
+- [hookdeck gateway request raw-body](#hookdeck-gateway-request-raw-body)
 
-Requests represent raw incoming webhook requests before processing.
+### hookdeck gateway request list
 
-### List requests
+List requests (raw inbound webhooks). Filter by source ID.
+
+**Usage:**
+
 ```bash
-# List all requests
-hookdeck request list
-
-# Filter by source ID
-hookdeck request list --source-id <source-id>
-
-# Filter by verification status
-hookdeck request list --verified true
-hookdeck request list --verified false
-
-# Filter by rejection cause
-hookdeck request list --rejection-cause INVALID_SIGNATURE
-
-# Limit results
-hookdeck request list --limit 100
+hookdeck gateway request list [flags]
 ```
 
-### Get request details
-```bash
-# Get request by ID
-hookdeck request get <request-id>
+**Flags:**
 
-# Get request raw body
-hookdeck request raw-body <request-id>
+| Flag | Type | Description |
+|------|------|-------------|
+| `--body` | `string` | Filter by body (JSON string) |
+| `--created-after` | `string` | Filter requests created after (ISO date-time) |
+| `--created-before` | `string` | Filter requests created before (ISO date-time) |
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--headers` | `string` | Filter by headers (JSON string) |
+| `--id` | `string` | Filter by request ID(s) (comma-separated) |
+| `--ingested-at-after` | `string` | Filter by ingested_at after (ISO date-time) |
+| `--ingested-at-before` | `string` | Filter by ingested_at before (ISO date-time) |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--next` | `string` | Pagination cursor for next page |
+| `--order-by` | `string` | Sort key (e.g. created_at) |
+| `--output` | `string` | Output format (json) |
+| `--parsed-query` | `string` | Filter by parsed query (JSON string) |
+| `--path` | `string` | Filter by path |
+| `--prev` | `string` | Pagination cursor for previous page |
+| `--rejection-cause` | `string` | Filter by rejection cause |
+| `--source-id` | `string` | Filter by source ID |
+| `--status` | `string` | Filter by status |
+| `--verified` | `string` | Filter by verified (true/false) |
+
+**Examples:**
+
+```bash
+hookdeck gateway request list
+hookdeck gateway request list --source-id src_abc123 --limit 20
+```
+### hookdeck gateway request get
+
+Get detailed information about a request by ID.
+
+**Usage:**
+
+```bash
+hookdeck gateway request get <request-id> [flags]
 ```
 
-### Retry request
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--output` | `string` | Output format (json) |
+
+**Examples:**
+
 ```bash
-# Retry request processing
-hookdeck request retry <request-id>
+hookdeck gateway request get req_abc123
+```
+### hookdeck gateway request retry
+
+Retry a request by ID. By default retries on all connections. Use `--connection-ids` to retry only for specific connections.
+
+**Usage:**
+
+```bash
+hookdeck gateway request retry <request-id> [flags]
 ```
 
-### List request events
-```bash
-# List events generated from request
-hookdeck request events <request-id> --limit 50
+**Flags:**
 
-# List ignored events from request
-hookdeck request ignored-events <request-id> --limit 50
+| Flag | Type | Description |
+|------|------|-------------|
+| `--connection-ids` | `string` | Comma-separated connection IDs to retry (omit to retry all) |
+
+**Examples:**
+
+```bash
+hookdeck gateway request retry req_abc123
+hookdeck gateway request retry req_abc123 --connection-ids web_1,web_2
+```
+### hookdeck gateway request events
+
+List events (deliveries) created from a request.
+
+**Usage:**
+
+```bash
+hookdeck gateway request events <request-id> [flags]
 ```
 
-## Bulk Operations
+**Flags:**
 
-**All Parameters:**
+| Flag | Type | Description |
+|------|------|-------------|
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--next` | `string` | Pagination cursor for next page |
+| `--output` | `string` | Output format (json) |
+| `--prev` | `string` | Pagination cursor for previous page |
+
+**Examples:**
+
 ```bash
-# Bulk event-retry command parameters
---limit integer       # Limit number of results for list operations
---query string        # JSON query for filtering resources to retry
-<operation-id>        # Required positional argument for get/cancel operations
+hookdeck gateway request events req_abc123
+```
+### hookdeck gateway request ignored-events
 
-# Bulk request-retry command parameters
---limit integer       # Limit number of results for list operations
---query string        # JSON query for filtering resources to retry
-<operation-id>        # Required positional argument for get/cancel operations
+List ignored events for a request (e.g. filtered out or deduplicated).
 
-# Bulk ignored-event-retry command parameters
---limit integer       # Limit number of results for list operations
---query string        # JSON query for filtering resources to retry
-<operation-id>        # Required positional argument for get/cancel operations
+**Usage:**
+
+```bash
+hookdeck gateway request ignored-events <request-id> [flags]
 ```
 
-**Query JSON Format Examples:**
-- Event retry: `'{"status": "FAILED", "webhook_id": "conn_123"}'`
-- Request retry: `'{"verified": false, "source_id": "src_123"}'`
-- Ignored event retry: `'{"webhook_id": "conn_123"}'`
+**Flags:**
 
-**Operations Available:**
-- `list` - List bulk operations
-- `create` - Create new bulk operation
-- `plan` - Dry run to see what would be affected
-- `get` - Get operation details
-- `cancel` - Cancel running operation
+| Flag | Type | Description |
+|------|------|-------------|
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--next` | `string` | Pagination cursor for next page |
+| `--output` | `string` | Output format (json) |
+| `--prev` | `string` | Pagination cursor for previous page |
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+**Examples:**
 
-Bulk operations allow you to perform actions on multiple resources at once.
-
-### Event Bulk Retry
 ```bash
-# List bulk event retry operations
-hookdeck bulk event-retry list --limit 50
+hookdeck gateway request ignored-events req_abc123
+```
+### hookdeck gateway request raw-body
 
-# Create bulk event retry operation
-hookdeck bulk event-retry create --query '{"status": "FAILED", "webhook_id": "conn_123"}'
+Output the raw request body of a request by ID.
 
-# Plan bulk event retry (dry run)
-hookdeck bulk event-retry plan --query '{"status": "FAILED"}'
+**Usage:**
 
-# Get bulk operation details
-hookdeck bulk event-retry get <operation-id>
-
-# Cancel bulk operation
-hookdeck bulk event-retry cancel <operation-id>
+```bash
+hookdeck gateway request raw-body <request-id>
 ```
 
-### Request Bulk Retry
+**Examples:**
+
 ```bash
-# List bulk request retry operations
-hookdeck bulk request-retry list --limit 50
+hookdeck gateway request raw-body req_abc123
+```
+<!-- GENERATE_END -->
+## Attempts
 
-# Create bulk request retry operation
-hookdeck bulk request-retry create --query '{"verified": false, "source_id": "src_123"}'
+<!-- GENERATE:gateway attempt list|gateway attempt get:START -->
+- [hookdeck gateway attempt list](#hookdeck-gateway-attempt-list)
+- [hookdeck gateway attempt get](#hookdeck-gateway-attempt-get)
 
-# Plan bulk request retry (dry run)
-hookdeck bulk request-retry plan --query '{"verified": false}'
+### hookdeck gateway attempt list
 
-# Get bulk operation details
-hookdeck bulk request-retry get <operation-id>
+List attempts for an event. Requires `--event-id`.
 
-# Cancel bulk operation
-hookdeck bulk request-retry cancel <operation-id>
+**Usage:**
+
+```bash
+hookdeck gateway attempt list [flags]
 ```
 
-### Ignored Events Bulk Retry
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--event-id` | `string` | Filter by event ID (required) |
+| `--limit` | `int` | Limit number of results (default "100") |
+| `--next` | `string` | Pagination cursor for next page |
+| `--order-by` | `string` | Sort key |
+| `--output` | `string` | Output format (json) |
+| `--prev` | `string` | Pagination cursor for previous page |
+
+**Examples:**
+
 ```bash
-# List bulk ignored event retry operations
-hookdeck bulk ignored-event-retry list --limit 50
+hookdeck gateway attempt list --event-id evt_abc123
+```
+### hookdeck gateway attempt get
 
-# Create bulk ignored event retry operation
-hookdeck bulk ignored-event-retry create --query '{"webhook_id": "conn_123"}'
+Get detailed information about an attempt by ID.
 
-# Plan bulk ignored event retry (dry run)
-hookdeck bulk ignored-event-retry plan --query '{"webhook_id": "conn_123"}'
+**Usage:**
 
-# Get bulk operation details
-hookdeck bulk ignored-event-retry get <operation-id>
-
-# Cancel bulk operation
-hookdeck bulk ignored-event-retry cancel <operation-id>
+```bash
+hookdeck gateway attempt get <attempt-id> [flags]
 ```
 
-## Notifications
+**Flags:**
 
-🚧 **PLANNED FUNCTIONALITY** - Not yet implemented
+| Flag | Type | Description |
+|------|------|-------------|
+| `--output` | `string` | Output format (json) |
 
-### Send webhook notification
+**Examples:**
+
 ```bash
-# Send webhook notification
-hookdeck notification webhook --url "https://example.com/webhook" \
-  --payload '{"message": "Test notification", "timestamp": "2023-12-01T10:00:00Z"}'
+hookdeck gateway attempt get atm_abc123
+```
+<!-- GENERATE_END -->
+## Utilities
+
+<!-- GENERATE:completion|ci:START -->
+- [Completion](#completion)
+- [CI](#ci)
+
+## Completion
+
+Generate bash and zsh completion scripts. This command runs on install when using Homebrew or Scoop. You can optionally run it when using binaries directly or without a package manager.
+
+**Usage:**
+
+```bash
+hookdeck completion [flags]
 ```
 
----
+**Flags:**
 
-## Command Parameter Patterns
+| Flag | Type | Description |
+|------|------|-------------|
+| `--shell` | `string` | The shell to generate completion commands for. Supports "bash" or "zsh" |
 
-### Type-Driven Validation
-Many commands use type-driven validation where the `--type` parameter determines which additional flags are required or valid:
+**Examples:**
 
-- **Source creation**: `--type STRIPE` requires `--webhook-secret`, while `--type GITLAB` requires `--api-key`
-- **Issue trigger creation**: `--type delivery` requires `--strategy` and `--connections`, while `--type transformation` requires `--log-level` and `--transformations`
+```bash
+$ hookdeck completion --shell zsh
+$ hookdeck completion --shell bash
+```
+## CI
 
-### Collision Resolution
-The `hookdeck connection create` command uses prefixed flags to avoid parameter collision when creating inline resources:
+If you want to use Hookdeck in CI for tests or any other purposes, you can use your HOOKDECK_API_KEY to authenticate and start forwarding events.
 
-- **Individual resource commands**: Use `--type` (clear context)
-- **Connection creation with inline resources**: Use `--source-type` and `--destination-type` (disambiguation)
+**Usage:**
 
-### Parameter Conversion Patterns
-- **Nested JSON → Flat flags**: `{"configs": {"strategy": "final_attempt"}}` becomes `--strategy final_attempt`
-- **Arrays → Comma-separated**: `{"connections": ["conn1", "conn2"]}` becomes `--connections "conn1,conn2"`
-- **Boolean presence → Presence flags**: `{"channels": {"email": {}}}` becomes `--email`
-- **Complex objects → Value flags**: `{"channels": {"slack": {"channel_name": "#alerts"}}}` becomes `--slack-channel "#alerts"`
+```bash
+hookdeck ci [flags]
+```
 
-### Global Conventions
-- **Resource IDs**: Use `<resource-id>` format in documentation
-- **Optional parameters**: Enclosed in square brackets `[--optional-flag]`
-- **Required vs optional**: Indicated by command syntax and parameter descriptions
-- **Filtering**: Most list commands support filtering by name patterns, IDs, and status
-- **Pagination**: All list commands support `--limit` for result limiting
-- **Force operations**: Destructive operations support `--force` to skip confirmations
+**Flags:**
 
-This comprehensive reference provides complete coverage of all Hookdeck CLI commands, including current functionality and planned features with their full parameter specifications.
+| Flag | Type | Description |
+|------|------|-------------|
+| `--api-key` | `string` | Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided. |
+| `--name` | `string` | Name of the CI run (ex: GITHUB_REF) for identification in the dashboard |
+
+**Examples:**
+
+```bash
+$ hookdeck ci --api-key $HOOKDECK_API_KEY
+Done! The Hookdeck CLI is configured in project MyProject
+
+$ hookdeck listen 3000 shopify orders
+
+●── HOOKDECK CLI ──●
+
+Listening on 1 source • 1 connection • [i] Collapse
+
+Shopify Source
+│  Requests to → https://hkdk.events/src_DAjaFWyyZXsFdZrTOKpuHnOH
+└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
+
+💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+
+Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
+
+> 2025-10-12 14:42:55 [200] POST http://localhost:3000/webhooks/shopify/orders (34ms) → https://dashboard.hookdeck.com/events/evt_...
+
+───────────────────────────────────────────────────────────────────────────────
+> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
+```
+<!-- GENERATE_END -->

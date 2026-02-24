@@ -1,5 +1,10 @@
 # Connection Management Implementation Status
 
+## Tests and sandbox
+
+- **Always run tests** when implementing or changing code. Do not skip tests to avoid failures.
+- If tests fail due to **TLS/certificate errors**, **network**, or **sandbox** (e.g. `x509`, `operation not permitted`), **prompt the user** and **re-run with elevated permissions** (e.g. `required_permissions: ["all"]`) so tests can pass.
+
 ## Executive Summary
 
 Connection management for the Hookdeck CLI is **98% complete and production-ready**. All core CRUD operations, lifecycle management, comprehensive authentication, rule configuration, and rate limiting have been fully implemented. The remaining 2% consists of optional enhancements (bulk operations, connection count, cloning) that are low priority.

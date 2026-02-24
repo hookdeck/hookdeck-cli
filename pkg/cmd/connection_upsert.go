@@ -24,9 +24,9 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd = &cobra.Command{
 		Use:   "upsert <name>",
 		Args:  cobra.ExactArgs(1),
-		Short: "Create or update a connection by name",
-		Long: `Create a new connection or update an existing one using name as the unique identifier.
-	
+		Short: ShortUpsert(ResourceConnection),
+		Long: LongUpsertIntro(ResourceConnection) + `
+
 	This command is idempotent - it can be safely run multiple times with the same arguments.
 	
 	When the connection doesn't exist:
@@ -158,34 +158,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().IntVar(&cu.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
 	cu.cmd.Flags().StringVar(&cu.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
 
-	// Rule flags - Retry
-	cu.cmd.Flags().StringVar(&cu.RuleRetryStrategy, "rule-retry-strategy", "", "Retry strategy (linear, exponential)")
-	cu.cmd.Flags().IntVar(&cu.RuleRetryCount, "rule-retry-count", 0, "Number of retry attempts")
-	cu.cmd.Flags().IntVar(&cu.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
-	cu.cmd.Flags().StringVar(&cu.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on (e.g., '429,500,502')")
-
-	// Rule flags - Filter
-	cu.cmd.Flags().StringVar(&cu.RuleFilterBody, "rule-filter-body", "", "JQ expression to filter on request body")
-	cu.cmd.Flags().StringVar(&cu.RuleFilterHeaders, "rule-filter-headers", "", "JQ expression to filter on request headers")
-	cu.cmd.Flags().StringVar(&cu.RuleFilterQuery, "rule-filter-query", "", "JQ expression to filter on request query parameters")
-	cu.cmd.Flags().StringVar(&cu.RuleFilterPath, "rule-filter-path", "", "JQ expression to filter on request path")
-
-	// Rule flags - Transform
-	cu.cmd.Flags().StringVar(&cu.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
-	cu.cmd.Flags().StringVar(&cu.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
-	cu.cmd.Flags().StringVar(&cu.RuleTransformEnv, "rule-transform-env", "", "JSON string representing environment variables for transformation")
-
-	// Rule flags - Delay
-	cu.cmd.Flags().IntVar(&cu.RuleDelay, "rule-delay", 0, "Delay in milliseconds")
-
-	// Rule flags - Deduplicate
-	cu.cmd.Flags().IntVar(&cu.RuleDeduplicateWindow, "rule-deduplicate-window", 0, "Time window in seconds for deduplication")
-	cu.cmd.Flags().StringVar(&cu.RuleDeduplicateIncludeFields, "rule-deduplicate-include-fields", "", "Comma-separated list of fields to include for deduplication")
-	cu.cmd.Flags().StringVar(&cu.RuleDeduplicateExcludeFields, "rule-deduplicate-exclude-fields", "", "Comma-separated list of fields to exclude for deduplication")
-
-	// Rules JSON fallback
-	cu.cmd.Flags().StringVar(&cu.Rules, "rules", "", "JSON string representing the entire rules array")
-	cu.cmd.Flags().StringVar(&cu.RulesFile, "rules-file", "", "Path to a JSON file containing the rules array")
+	addConnectionRuleFlags(cu.cmd, &cu.connectionCreateCmd.connectionRuleFlags)
 
 	// Reference existing resources
 	cu.cmd.Flags().StringVar(&cu.sourceID, "source-id", "", "Use existing source by ID")
@@ -502,7 +475,7 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	}
 
 	// Handle Rules
-	rules, err := cu.buildRulesArray(nil)
+	rules, err := buildConnectionRules(&cu.connectionCreateCmd.connectionRuleFlags)
 	if err != nil {
 		return nil, err
 	}

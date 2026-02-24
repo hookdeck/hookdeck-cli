@@ -30,7 +30,7 @@ func newConnectionListCmd() *connectionListCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "list",
 		Args:  validators.NoArgs,
-		Short: "List connections",
+		Short: ShortList(ResourceConnection),
 		Long: `List all connections or filter by source/destination.
 
 Examples:
