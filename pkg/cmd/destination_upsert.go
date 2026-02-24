@@ -162,7 +162,7 @@ func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args
 		return nil
 	}
 
-	fmt.Printf("✔ Destination upserted successfully\n\n")
+	fmt.Printf(SuccessCheck + " Destination upserted successfully\n\n")
 	fmt.Printf("Destination: %s (%s)\n", dst.Name, dst.ID)
 	fmt.Printf("Type: %s\n", dst.Type)
 	if u := dst.GetHTTPURL(); u != nil {

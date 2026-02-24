@@ -126,12 +126,12 @@ func TestRootConnectionAliasWorks(t *testing.T) {
 	stdout, _, err := cli.Run("connection", "list", "--output", "json")
 	require.NoError(t, err, "Should list via root alias")
 
-	var conns []Connection
-	err = json.Unmarshal([]byte(stdout), &conns)
+	var connsResp ConnectionListResponse
+	err = json.Unmarshal([]byte(stdout), &connsResp)
 	require.NoError(t, err, "Should parse JSON list from root alias")
 
 	found := false
-	for _, c := range conns {
+	for _, c := range connsResp.Models {
 		if c.ID == conn.ID {
 			found = true
 			break

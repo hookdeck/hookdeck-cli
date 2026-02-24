@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -65,6 +66,28 @@ type Client struct {
 type ErrorResponse struct {
 	Handled bool   `json:"Handled"`
 	Message string `json:"message"`
+}
+
+// APIError is a structured error returned by the Hookdeck API.
+// It preserves the HTTP status code so callers can distinguish
+// between different error types (e.g. 404 Not Found vs 500 Server Error)
+// without resorting to string matching.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("error: %s", e.Message)
+	}
+	return fmt.Sprintf("unexpected http status code: %d", e.StatusCode)
+}
+
+// IsNotFoundError reports whether the error is an API 404 Not Found response.
+func IsNotFoundError(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
 // PerformRequest sends a request to Hookdeck and returns the response.
@@ -230,13 +253,22 @@ func checkAndPrintError(res *http.Response) error {
 		response := &ErrorResponse{}
 		err = json.Unmarshal(body, &response)
 		if err != nil {
-			// Not a valid JSON response, just use body
-			return fmt.Errorf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body)
+			// Not a valid JSON response, return structured error with raw body
+			return &APIError{
+				StatusCode: res.StatusCode,
+				Message:    fmt.Sprintf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body),
+			}
 		}
 		if response.Message != "" {
-			return fmt.Errorf("error: %s", response.Message)
+			return &APIError{
+				StatusCode: res.StatusCode,
+				Message:    response.Message,
+			}
 		}
-		return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, body)
+		return &APIError{
+			StatusCode: res.StatusCode,
+			Message:    fmt.Sprintf("unexpected http status code: %d %s", res.StatusCode, body),
+		}
 	}
 	return nil
 }

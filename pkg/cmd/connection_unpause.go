@@ -30,6 +30,10 @@ The connection will start processing queued events.`,
 }
 
 func (cc *connectionUnpauseCmd) runConnectionUnpauseCmd(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
@@ -43,6 +47,6 @@ func (cc *connectionUnpauseCmd) runConnectionUnpauseCmd(cmd *cobra.Command, args
 		name = *conn.Name
 	}
 
-	fmt.Printf("✓ Connection unpaused: %s (%s)\n", name, conn.ID)
+	fmt.Printf(SuccessCheck+" Connection unpaused: %s (%s)\n", name, conn.ID)
 	return nil
 }

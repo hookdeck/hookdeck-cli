@@ -119,7 +119,7 @@ func (sc *sourceCreateCmd) runSourceCreateCmd(cmd *cobra.Command, args []string)
 		return nil
 	}
 
-	fmt.Printf("✔ Source created successfully\n\n")
+	fmt.Printf(SuccessCheck + " Source created successfully\n\n")
 	fmt.Printf("Source: %s (%s)\n", src.Name, src.ID)
 	fmt.Printf("Type:  %s\n", src.Type)
 	fmt.Printf("URL:   %s\n", src.URL)

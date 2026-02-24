@@ -151,7 +151,7 @@ func (cu *connectionUpdateCmd) displayConnection(conn *hookdeck.Connection, upda
 	}
 
 	if updated {
-		fmt.Println("✔ Connection updated successfully")
+		fmt.Println(SuccessCheck + " Connection updated successfully")
 	} else {
 		fmt.Println("No changes specified. Current connection state:")
 	}

@@ -63,6 +63,6 @@ func (sc *sourceDeleteCmd) runSourceDeleteCmd(cmd *cobra.Command, args []string)
 		return fmt.Errorf("failed to delete source: %w", err)
 	}
 
-	fmt.Printf("✔ Source deleted: %s (%s)\n", src.Name, sourceID)
+	fmt.Printf(SuccessCheck+" Source deleted: %s (%s)\n", src.Name, sourceID)
 	return nil
 }

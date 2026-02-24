@@ -40,6 +40,6 @@ func (dc *destinationDisableCmd) runDestinationDisableCmd(cmd *cobra.Command, ar
 		return fmt.Errorf("failed to disable destination: %w", err)
 	}
 
-	fmt.Printf("✓ Destination disabled: %s (%s)\n", dst.Name, dst.ID)
+	fmt.Printf(SuccessCheck+" Destination disabled: %s (%s)\n", dst.Name, dst.ID)
 	return nil
 }
