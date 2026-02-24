@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -81,11 +80,7 @@ func (ac *attemptListCmd) runAttemptListCmd(cmd *cobra.Command, args []string) e
 	}
 
 	if ac.output == "json" {
-		if len(resp.Models) == 0 {
-			fmt.Println("[]")
-			return nil
-		}
-		jsonBytes, err := json.MarshalIndent(resp.Models, "", "  ")
+		jsonBytes, err := marshalListResponseWithPagination(resp.Models, resp.Pagination)
 		if err != nil {
 			return fmt.Errorf("failed to marshal attempts to json: %w", err)
 		}
@@ -106,5 +101,10 @@ func (ac *attemptListCmd) runAttemptListCmd(cmd *cobra.Command, args []string) e
 		}
 		fmt.Printf("%s #%d%s %s\n", color.Green(a.ID), a.AttemptNumber, status, a.Status)
 	}
+
+	// Display pagination info
+	commandExample := "hookdeck gateway attempt list"
+	printPaginationInfo(resp.Pagination, commandExample)
+
 	return nil
 }

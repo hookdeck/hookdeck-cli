@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -113,12 +112,7 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 	}
 
 	if cc.output == "json" {
-		if len(response.Models) == 0 {
-			// Print an empty JSON array
-			fmt.Println("[]")
-			return nil
-		}
-		jsonBytes, err := json.MarshalIndent(response.Models, "", "  ")
+		jsonBytes, err := marshalListResponseWithPagination(response.Models, response.Pagination)
 		if err != nil {
 			return fmt.Errorf("failed to marshal connections to json: %w", err)
 		}
@@ -174,6 +168,10 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 
 		fmt.Println()
 	}
+
+	// Display pagination info
+	commandExample := "hookdeck gateway connection list"
+	printPaginationInfo(response.Pagination, commandExample)
 
 	return nil
 }
