@@ -104,8 +104,7 @@ func resolveDestinationID(ctx context.Context, client *hookdeck.Client, nameOrID
 		if err == nil {
 			return nameOrID, nil
 		}
-		errMsg := strings.ToLower(err.Error())
-		if !strings.Contains(errMsg, "404") && !strings.Contains(errMsg, "not found") {
+		if !hookdeck.IsNotFoundError(err) {
 			return "", err
 		}
 	}

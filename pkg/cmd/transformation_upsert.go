@@ -129,7 +129,7 @@ func (tc *transformationUpsertCmd) runTransformationUpsertCmd(cmd *cobra.Command
 		return nil
 	}
 
-	fmt.Printf("✔ Transformation upserted successfully\n\n")
+	fmt.Printf(SuccessCheck + " Transformation upserted successfully\n\n")
 	fmt.Printf("Transformation: %s (%s)\n", t.Name, t.ID)
 	return nil
 }

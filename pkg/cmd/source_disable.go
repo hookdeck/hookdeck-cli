@@ -40,6 +40,6 @@ func (sc *sourceDisableCmd) runSourceDisableCmd(cmd *cobra.Command, args []strin
 		return fmt.Errorf("failed to disable source: %w", err)
 	}
 
-	fmt.Printf("✓ Source disabled: %s (%s)\n", src.Name, src.ID)
+	fmt.Printf(SuccessCheck+" Source disabled: %s (%s)\n", src.Name, src.ID)
 	return nil
 }

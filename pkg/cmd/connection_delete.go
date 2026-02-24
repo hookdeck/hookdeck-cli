@@ -80,7 +80,7 @@ func (cc *connectionDeleteCmd) runConnectionDeleteCmd(cmd *cobra.Command, args [
 		return fmt.Errorf("failed to delete connection: %w", err)
 	}
 
-	fmt.Printf("\n✓ Connection '%s' (%s) deleted successfully\n", connectionName, connectionID)
+	fmt.Printf("\n"+SuccessCheck+" Connection '%s' (%s) deleted successfully\n", connectionName, connectionID)
 
 	return nil
 }

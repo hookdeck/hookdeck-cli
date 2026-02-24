@@ -1,5 +1,8 @@
 package cmd
 
+// SuccessCheck is the checkmark character used in success messages across all commands.
+const SuccessCheck = "✔"
+
 // Resource names for shared help text (singular form for "a source", "a connection").
 const (
 	ResourceSource         = "source"

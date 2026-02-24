@@ -63,6 +63,6 @@ func (dc *destinationDeleteCmd) runDestinationDeleteCmd(cmd *cobra.Command, args
 		return fmt.Errorf("failed to delete destination: %w", err)
 	}
 
-	fmt.Printf("✔ Destination deleted: %s (%s)\n", dst.Name, destID)
+	fmt.Printf(SuccessCheck+" Destination deleted: %s (%s)\n", dst.Name, destID)
 	return nil
 }

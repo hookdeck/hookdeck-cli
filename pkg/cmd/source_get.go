@@ -98,8 +98,7 @@ func resolveSourceID(ctx context.Context, client *hookdeck.Client, nameOrID stri
 		if err == nil {
 			return nameOrID, nil
 		}
-		errMsg := strings.ToLower(err.Error())
-		if !strings.Contains(errMsg, "404") && !strings.Contains(errMsg, "not found") {
+		if !hookdeck.IsNotFoundError(err) {
 			return "", err
 		}
 	}
@@ -109,7 +108,7 @@ func resolveSourceID(ctx context.Context, client *hookdeck.Client, nameOrID stri
 	if err != nil {
 		return "", fmt.Errorf("failed to lookup source by name '%s': %w", nameOrID, err)
 	}
-	if result.Models == nil || len(result.Models) == 0 {
+	if len(result.Models) == 0 {
 		return "", fmt.Errorf("no source found with name or ID '%s'", nameOrID)
 	}
 	return result.Models[0].ID, nil

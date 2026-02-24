@@ -40,6 +40,6 @@ func (sc *sourceEnableCmd) runSourceEnableCmd(cmd *cobra.Command, args []string)
 		return fmt.Errorf("failed to enable source: %w", err)
 	}
 
-	fmt.Printf("✓ Source enabled: %s (%s)\n", src.Name, src.ID)
+	fmt.Printf(SuccessCheck+" Source enabled: %s (%s)\n", src.Name, src.ID)
 	return nil
 }

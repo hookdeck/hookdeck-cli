@@ -40,6 +40,6 @@ func (dc *destinationEnableCmd) runDestinationEnableCmd(cmd *cobra.Command, args
 		return fmt.Errorf("failed to enable destination: %w", err)
 	}
 
-	fmt.Printf("✓ Destination enabled: %s (%s)\n", dst.Name, dst.ID)
+	fmt.Printf(SuccessCheck+" Destination enabled: %s (%s)\n", dst.Name, dst.ID)
 	return nil
 }

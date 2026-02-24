@@ -30,6 +30,10 @@ The connection will queue incoming events until unpaused.`,
 }
 
 func (cc *connectionPauseCmd) runConnectionPauseCmd(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
@@ -43,6 +47,6 @@ func (cc *connectionPauseCmd) runConnectionPauseCmd(cmd *cobra.Command, args []s
 		name = *conn.Name
 	}
 
-	fmt.Printf("✓ Connection paused: %s (%s)\n", name, conn.ID)
+	fmt.Printf(SuccessCheck+" Connection paused: %s (%s)\n", name, conn.ID)
 	return nil
 }

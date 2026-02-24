@@ -354,9 +354,9 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	} else {
 		// Determine if this was a create or update based on whether connection existed
 		if isUpdate {
-			fmt.Println("✔ Connection updated successfully")
+			fmt.Println(SuccessCheck + " Connection updated successfully")
 		} else {
-			fmt.Println("✔ Connection created successfully")
+			fmt.Println(SuccessCheck + " Connection created successfully")
 		}
 		fmt.Println()
 
