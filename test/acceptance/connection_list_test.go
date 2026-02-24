@@ -50,14 +50,17 @@ func TestConnectionListFilters(t *testing.T) {
 		stdout, stderr, err := cli.Run("gateway", "connection", "list", "--disabled", "--output", "json")
 		require.NoError(t, err, "Should list disabled connections: stderr=%s", stderr)
 
-		var disabledConns []Connection
-		err = json.Unmarshal([]byte(stdout), &disabledConns)
+		type ConnectionListResponse struct {
+			Models []Connection `json:"models"`
+		}
+		var disabledConnsResp ConnectionListResponse
+		err = json.Unmarshal([]byte(stdout), &disabledConnsResp)
 		require.NoError(t, err, "Should parse JSON response")
 
 		// Check that our connection IS in the disabled list (inclusive filtering)
 		// When --disabled is used, it shows ALL connections (both active and disabled)
 		found := false
-		for _, c := range disabledConns {
+		for _, c := range disabledConnsResp.Models {
 			if c.ID == conn.ID {
 				found = true
 				break
@@ -73,12 +76,12 @@ func TestConnectionListFilters(t *testing.T) {
 		stdout, stderr, err = cli.Run("gateway", "connection", "list", "--disabled", "--output", "json")
 		require.NoError(t, err, "Should list disabled connections: stderr=%s", stderr)
 
-		err = json.Unmarshal([]byte(stdout), &disabledConns)
+		err = json.Unmarshal([]byte(stdout), &disabledConnsResp)
 		require.NoError(t, err, "Should parse JSON response")
 
 		// Check that our connection IS now in the disabled list
 		found = false
-		for _, c := range disabledConns {
+		for _, c := range disabledConnsResp.Models {
 			if c.ID == conn.ID {
 				found = true
 				break
@@ -90,13 +93,13 @@ func TestConnectionListFilters(t *testing.T) {
 		stdout, stderr, err = cli.Run("gateway", "connection", "list", "--output", "json")
 		require.NoError(t, err, "Should list connections: stderr=%s", stderr)
 
-		var activeConns []Connection
-		err = json.Unmarshal([]byte(stdout), &activeConns)
+		var activeConnsResp ConnectionListResponse
+		err = json.Unmarshal([]byte(stdout), &activeConnsResp)
 		require.NoError(t, err, "Should parse JSON response")
 
 		// Check that our disabled connection is NOT in the default list
 		found = false
-		for _, c := range activeConns {
+		for _, c := range activeConnsResp.Models {
 			if c.ID == conn.ID {
 				found = true
 				break
@@ -142,13 +145,13 @@ func TestConnectionListFilters(t *testing.T) {
 		stdout, stderr, err := cli.Run("gateway", "connection", "list", "--name", connName, "--output", "json")
 		require.NoError(t, err, "Should filter by name: stderr=%s", stderr)
 
-		var filteredConns []Connection
-		err = json.Unmarshal([]byte(stdout), &filteredConns)
+		var filteredConnsResp ConnectionListResponse
+		err = json.Unmarshal([]byte(stdout), &filteredConnsResp)
 		require.NoError(t, err, "Should parse JSON response")
 
 		// Should find exactly our connection
 		found := false
-		for _, c := range filteredConns {
+		for _, c := range filteredConnsResp.Models {
 			if c.ID == conn.ID {
 				found = true
 				assert.Equal(t, connName, c.Name, "Connection name should match")
@@ -205,13 +208,13 @@ func TestConnectionListFilters(t *testing.T) {
 		stdout, stderr, err := cli.Run("gateway", "connection", "list", "--source-id", sourceID, "--output", "json")
 		require.NoError(t, err, "Should filter by source ID: stderr=%s", stderr)
 
-		var filteredConns []Connection
-		err = json.Unmarshal([]byte(stdout), &filteredConns)
+		var filteredConnsResp ConnectionListResponse
+		err = json.Unmarshal([]byte(stdout), &filteredConnsResp)
 		require.NoError(t, err, "Should parse JSON response")
 
 		// Should find our connection
 		found := false
-		for _, c := range filteredConns {
+		for _, c := range filteredConnsResp.Models {
 			if c.ID == conn.ID {
 				found = true
 				break
@@ -233,14 +236,14 @@ func TestConnectionListFilters(t *testing.T) {
 		stdout, stderr, err := cli.Run("gateway", "connection", "list", "--limit", "5", "--output", "json")
 		require.NoError(t, err, "Should list with limit: stderr=%s", stderr)
 
-		var conns []Connection
-		err = json.Unmarshal([]byte(stdout), &conns)
+		var connsResp ConnectionListResponse
+		err = json.Unmarshal([]byte(stdout), &connsResp)
 		require.NoError(t, err, "Should parse JSON response")
 
 		// Should have at most 5 connections
-		assert.LessOrEqual(t, len(conns), 5, "Should respect limit parameter")
+		assert.LessOrEqual(t, len(connsResp.Models), 5, "Should respect limit parameter")
 
-		t.Logf("Successfully tested --limit flag: returned %d connections (max 5)", len(conns))
+		t.Logf("Successfully tested --limit flag: returned %d connections (max 5)", len(connsResp.Models))
 	})
 
 	t.Run("HumanReadableOutput", func(t *testing.T) {
