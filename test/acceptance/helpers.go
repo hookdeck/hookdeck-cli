@@ -478,16 +478,19 @@ func createConnectionAndTriggerEvent(t *testing.T, cli *CLIRunner) (connID, even
 	triggerTestEvent(t, src.URL)
 
 	// Poll for event to appear (API may take a few seconds)
-	var events []Event
+	type EventListResponse struct {
+		Models []Event `json:"models"`
+	}
 	for i := 0; i < 10; i++ {
 		time.Sleep(2 * time.Second)
-		require.NoError(t, cli.RunJSON(&events, "gateway", "event", "list", "--connection-id", connID, "--limit", "1"))
-		if len(events) > 0 {
-			return connID, events[0].ID
+		var resp EventListResponse
+		require.NoError(t, cli.RunJSON(&resp, "gateway", "event", "list", "--connection-id", connID, "--limit", "1"))
+		if len(resp.Models) > 0 {
+			return connID, resp.Models[0].ID
 		}
 	}
-	require.NotEmpty(t, events, "expected at least one event after trigger (waited ~20s)")
-	return connID, events[0].ID
+	require.Fail(t, "expected at least one event after trigger (waited ~20s)")
+	return "", ""
 }
 
 // pollForRequestsBySourceID polls gateway request list by source ID until at least one request
@@ -495,16 +498,19 @@ func createConnectionAndTriggerEvent(t *testing.T, cli *CLIRunner) (connID, even
 // requires at least one request; fails the test if none appear (no skip).
 func pollForRequestsBySourceID(t *testing.T, cli *CLIRunner, sourceID string) []Request {
 	t.Helper()
-	var requests []Request
+	type RequestListResponse struct {
+		Models []Request `json:"models"`
+	}
 	for i := 0; i < 10; i++ {
 		time.Sleep(2 * time.Second)
-		require.NoError(t, cli.RunJSON(&requests, "gateway", "request", "list", "--source-id", sourceID, "--limit", "5"))
-		if len(requests) > 0 {
-			return requests
+		var resp RequestListResponse
+		require.NoError(t, cli.RunJSON(&resp, "gateway", "request", "list", "--source-id", sourceID, "--limit", "5"))
+		if len(resp.Models) > 0 {
+			return resp.Models
 		}
 	}
-	require.NotEmpty(t, requests, "expected at least one request after trigger (waited ~20s)")
-	return requests
+	require.Fail(t, "expected at least one request after trigger (waited ~20s)")
+	return nil
 }
 
 // pollForAttemptsByEventID polls gateway attempt list by event ID until at least one attempt
@@ -512,16 +518,19 @@ func pollForRequestsBySourceID(t *testing.T, cli *CLIRunner, sourceID string) []
 // when the test requires attempts; attempt creation may lag behind event creation.
 func pollForAttemptsByEventID(t *testing.T, cli *CLIRunner, eventID string) []Attempt {
 	t.Helper()
-	var attempts []Attempt
+	type AttemptListResponse struct {
+		Models []Attempt `json:"models"`
+	}
 	for i := 0; i < 10; i++ {
 		time.Sleep(2 * time.Second)
-		require.NoError(t, cli.RunJSON(&attempts, "gateway", "attempt", "list", "--event-id", eventID, "--limit", "5"))
-		if len(attempts) > 0 {
-			return attempts
+		var resp AttemptListResponse
+		require.NoError(t, cli.RunJSON(&resp, "gateway", "attempt", "list", "--event-id", eventID, "--limit", "5"))
+		if len(resp.Models) > 0 {
+			return resp.Models
 		}
 	}
-	require.NotEmpty(t, attempts, "expected at least one attempt after trigger (waited ~20s)")
-	return attempts
+	require.Fail(t, "expected at least one attempt after trigger (waited ~20s)")
+	return nil
 }
 
 // assertContains checks if a string contains a substring

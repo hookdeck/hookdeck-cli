@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -77,11 +76,7 @@ func (dc *destinationListCmd) runDestinationListCmd(cmd *cobra.Command, args []s
 	}
 
 	if dc.output == "json" {
-		if len(resp.Models) == 0 {
-			fmt.Println("[]")
-			return nil
-		}
-		jsonBytes, err := json.MarshalIndent(resp.Models, "", "  ")
+		jsonBytes, err := marshalListResponseWithPagination(resp.Models, resp.Pagination)
 		if err != nil {
 			return fmt.Errorf("failed to marshal destinations to json: %w", err)
 		}
@@ -110,6 +105,10 @@ func (dc *destinationListCmd) runDestinationListCmd(cmd *cobra.Command, args []s
 		}
 		fmt.Println()
 	}
+
+	// Display pagination info
+	commandExample := "hookdeck gateway destination list"
+	printPaginationInfo(resp.Pagination, commandExample)
 
 	return nil
 }

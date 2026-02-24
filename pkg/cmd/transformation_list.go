@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -88,11 +87,7 @@ func (tc *transformationListCmd) runTransformationListCmd(cmd *cobra.Command, ar
 	}
 
 	if tc.output == "json" {
-		if len(resp.Models) == 0 {
-			fmt.Println("[]")
-			return nil
-		}
-		jsonBytes, err := json.MarshalIndent(resp.Models, "", "  ")
+		jsonBytes, err := marshalListResponseWithPagination(resp.Models, resp.Pagination)
 		if err != nil {
 			return fmt.Errorf("failed to marshal transformations to json: %w", err)
 		}
@@ -109,5 +104,10 @@ func (tc *transformationListCmd) runTransformationListCmd(cmd *cobra.Command, ar
 	for _, t := range resp.Models {
 		fmt.Printf("%s %s\n", color.Green(t.Name), t.ID)
 	}
+
+	// Display pagination info
+	commandExample := "hookdeck gateway transformation list"
+	printPaginationInfo(resp.Pagination, commandExample)
+
 	return nil
 }

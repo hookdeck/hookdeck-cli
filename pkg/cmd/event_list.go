@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -177,11 +176,7 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	}
 
 	if ec.output == "json" {
-		if len(resp.Models) == 0 {
-			fmt.Println("[]")
-			return nil
-		}
-		jsonBytes, err := json.MarshalIndent(resp.Models, "", "  ")
+		jsonBytes, err := marshalListResponseWithPagination(resp.Models, resp.Pagination)
 		if err != nil {
 			return fmt.Errorf("failed to marshal events to json: %w", err)
 		}
@@ -198,5 +193,10 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	for _, e := range resp.Models {
 		fmt.Printf("%s  Status: %s  Connection: %s\n", color.Green(e.ID), e.Status, e.WebhookID)
 	}
+
+	// Display pagination info
+	commandExample := "hookdeck gateway event list"
+	printPaginationInfo(resp.Pagination, commandExample)
+
 	return nil
 }

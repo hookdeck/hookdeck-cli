@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,11 +94,16 @@ func TestEventListJSON(t *testing.T) {
 	connID, _ := createConnectionAndTriggerEvent(t, cli)
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
-	var events []Event
-	require.NoError(t, cli.RunJSON(&events, "gateway", "event", "list", "--connection-id", connID, "--limit", "5"))
-	assert.NotEmpty(t, events)
-	assert.NotEmpty(t, events[0].ID)
-	assert.NotEmpty(t, events[0].Status)
+	type EventListResponse struct {
+		Models     []Event                `json:"models"`
+		Pagination map[string]interface{} `json:"pagination"`
+	}
+	var resp EventListResponse
+	require.NoError(t, cli.RunJSON(&resp, "gateway", "event", "list", "--connection-id", connID, "--limit", "5"))
+	assert.NotEmpty(t, resp.Models)
+	assert.NotEmpty(t, resp.Models[0].ID)
+	assert.NotEmpty(t, resp.Models[0].Status)
+	assert.NotNil(t, resp.Pagination)
 }
 
 func TestEventRawBody(t *testing.T) {
@@ -312,4 +318,70 @@ func TestEventListWithPrev(t *testing.T) {
 	if err != nil {
 		assert.Contains(t, err.Error(), "exit status")
 	}
+}
+
+func TestEventListPaginationWorkflow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	connID, _ := createConnectionAndTriggerEvent(t, cli)
+	t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+	// Trigger multiple events to ensure we have enough for pagination
+	triggerEvent(t, cli, connID)
+	triggerEvent(t, cli, connID)
+	triggerEvent(t, cli, connID)
+	time.Sleep(2 * time.Second) // Wait for events to be processed
+
+	// Test 1: JSON output includes pagination metadata
+	type EventListResponse struct {
+		Models     []Event                `json:"models"`
+		Pagination map[string]interface{} `json:"pagination"`
+	}
+	var firstPageResp EventListResponse
+	require.NoError(t, cli.RunJSON(&firstPageResp, "gateway", "event", "list", "--connection-id", connID, "--limit", "2"))
+	assert.NotEmpty(t, firstPageResp.Models, "First page should have events")
+	assert.NotNil(t, firstPageResp.Pagination, "JSON response should include pagination metadata")
+	assert.Contains(t, firstPageResp.Pagination, "limit")
+	assert.Equal(t, float64(2), firstPageResp.Pagination["limit"])
+
+	// Test 2: Text output includes pagination info when next cursor exists
+	if len(firstPageResp.Models) == 2 && firstPageResp.Pagination["next"] != nil {
+		stdout := cli.RunExpectSuccess("gateway", "event", "list", "--connection-id", connID, "--limit", "2")
+		assert.Contains(t, stdout, "Pagination:")
+		assert.Contains(t, stdout, "Next:")
+		assert.Contains(t, stdout, "To get the next page:")
+		assert.Contains(t, stdout, "--next")
+
+		// Test 3: Use next cursor to get second page
+		nextCursor := firstPageResp.Pagination["next"].(string)
+		var secondPageResp EventListResponse
+		require.NoError(t, cli.RunJSON(&secondPageResp, "gateway", "event", "list", "--connection-id", connID, "--limit", "2", "--next", nextCursor))
+		assert.NotEmpty(t, secondPageResp.Models, "Second page should have events")
+
+		// Verify pages contain different events
+		firstPageIDs := make(map[string]bool)
+		for _, e := range firstPageResp.Models {
+			firstPageIDs[e.ID] = true
+		}
+		for _, e := range secondPageResp.Models {
+			assert.False(t, firstPageIDs[e.ID], "Second page should not contain events from first page")
+		}
+	}
+}
+
+// triggerEvent is a helper function to trigger an additional event on an existing connection
+func triggerEvent(t *testing.T, cli *CLIRunner, connID string) {
+	t.Helper()
+	var conn Connection
+	require.NoError(t, cli.RunJSON(&conn, "gateway", "connection", "get", connID))
+	require.NotEmpty(t, conn.Source.ID, "connection source ID")
+
+	var src Source
+	require.NoError(t, cli.RunJSON(&src, "gateway", "source", "get", conn.Source.ID))
+	require.NotEmpty(t, src.URL, "source URL")
+
+	triggerTestEvent(t, src.URL)
 }

@@ -377,6 +377,12 @@ func TestTransformationListOutputJSON(t *testing.T) {
 	}
 
 	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess("gateway", "transformation", "list", "--output", "json")
-	assert.True(t, stdout == "[]" || (len(stdout) > 0 && stdout[0] == '['))
+	type TransformationListResponse struct {
+		Models     []interface{}          `json:"models"`
+		Pagination map[string]interface{} `json:"pagination"`
+	}
+	var resp TransformationListResponse
+	require.NoError(t, cli.RunJSON(&resp, "gateway", "transformation", "list"))
+	assert.NotNil(t, resp.Models)
+	assert.NotNil(t, resp.Pagination)
 }

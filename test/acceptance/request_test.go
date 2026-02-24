@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -332,5 +333,62 @@ func TestRequestIgnoredEventsWithPrev(t *testing.T) {
 	_, _, err := cli.Run("gateway", "request", "ignored-events", requests[0].ID, "--limit", "1", "--prev", "dummy")
 	if err != nil {
 		assert.Contains(t, err.Error(), "exit status")
+	}
+}
+
+func TestRequestListPaginationWorkflow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	connID, _ := createConnectionAndTriggerEvent(t, cli)
+	t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+	// Get connection to find source ID
+	var conn Connection
+	require.NoError(t, cli.RunJSON(&conn, "gateway", "connection", "get", connID))
+	require.NotEmpty(t, conn.Source.ID, "connection source ID")
+
+	// Trigger multiple requests to ensure we have enough for pagination
+	triggerEvent(t, cli, connID)
+	triggerEvent(t, cli, connID)
+	triggerEvent(t, cli, connID)
+	time.Sleep(2 * time.Second) // Wait for requests to be processed
+
+	// Test 1: JSON output includes pagination metadata
+	type RequestListResponse struct {
+		Models     []Request              `json:"models"`
+		Pagination map[string]interface{} `json:"pagination"`
+	}
+	var firstPageResp RequestListResponse
+	require.NoError(t, cli.RunJSON(&firstPageResp, "gateway", "request", "list", "--source-id", conn.Source.ID, "--limit", "2"))
+	assert.NotEmpty(t, firstPageResp.Models, "First page should have requests")
+	assert.NotNil(t, firstPageResp.Pagination, "JSON response should include pagination metadata")
+	assert.Contains(t, firstPageResp.Pagination, "limit")
+	assert.Equal(t, float64(2), firstPageResp.Pagination["limit"])
+
+	// Test 2: Text output includes pagination info when next cursor exists
+	if len(firstPageResp.Models) == 2 && firstPageResp.Pagination["next"] != nil {
+		stdout := cli.RunExpectSuccess("gateway", "request", "list", "--source-id", conn.Source.ID, "--limit", "2")
+		assert.Contains(t, stdout, "Pagination:")
+		assert.Contains(t, stdout, "Next:")
+		assert.Contains(t, stdout, "To get the next page:")
+		assert.Contains(t, stdout, "--next")
+
+		// Test 3: Use next cursor to get second page
+		nextCursor := firstPageResp.Pagination["next"].(string)
+		var secondPageResp RequestListResponse
+		require.NoError(t, cli.RunJSON(&secondPageResp, "gateway", "request", "list", "--source-id", conn.Source.ID, "--limit", "2", "--next", nextCursor))
+		assert.NotEmpty(t, secondPageResp.Models, "Second page should have requests")
+
+		// Verify pages contain different requests
+		firstPageIDs := make(map[string]bool)
+		for _, r := range firstPageResp.Models {
+			firstPageIDs[r.ID] = true
+		}
+		for _, r := range secondPageResp.Models {
+			assert.False(t, firstPageIDs[r.ID], "Second page should not contain requests from first page")
+		}
 	}
 }
