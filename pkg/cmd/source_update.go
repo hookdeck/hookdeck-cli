@@ -122,7 +122,7 @@ func (sc *sourceUpdateCmd) runSourceUpdateCmd(cmd *cobra.Command, args []string)
 		return nil
 	}
 
-	fmt.Printf("✔ Source updated successfully\n\n")
+	fmt.Printf(SuccessCheck + " Source updated successfully\n\n")
 	fmt.Printf("Source: %s (%s)\n", src.Name, src.ID)
 	fmt.Printf("Type:  %s\n", src.Type)
 	fmt.Printf("URL:   %s\n", src.URL)

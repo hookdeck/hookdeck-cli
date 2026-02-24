@@ -458,7 +458,7 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 		}
 		fmt.Println(string(jsonBytes))
 	} else {
-		fmt.Println("✔ Connection created successfully")
+		fmt.Println(SuccessCheck + " Connection created successfully")
 		fmt.Println()
 
 		// Connection name

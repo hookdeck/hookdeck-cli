@@ -28,6 +28,10 @@ func newConnectionEnableCmd() *connectionEnableCmd {
 }
 
 func (cc *connectionEnableCmd) runConnectionEnableCmd(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
@@ -41,6 +45,6 @@ func (cc *connectionEnableCmd) runConnectionEnableCmd(cmd *cobra.Command, args [
 		name = *conn.Name
 	}
 
-	fmt.Printf("✓ Connection enabled: %s (%s)\n", name, conn.ID)
+	fmt.Printf(SuccessCheck+" Connection enabled: %s (%s)\n", name, conn.ID)
 	return nil
 }

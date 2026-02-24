@@ -68,6 +68,6 @@ func (tc *transformationDeleteCmd) runTransformationDeleteCmd(cmd *cobra.Command
 		return fmt.Errorf("failed to delete transformation: %w", err)
 	}
 
-	fmt.Printf("✔ Transformation deleted: %s (%s)\n", t.Name, trnID)
+	fmt.Printf(SuccessCheck+" Transformation deleted: %s (%s)\n", t.Name, trnID)
 	return nil
 }

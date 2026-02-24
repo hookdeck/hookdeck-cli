@@ -110,7 +110,7 @@ func (tc *transformationUpdateCmd) runTransformationUpdateCmd(cmd *cobra.Command
 		return nil
 	}
 
-	fmt.Printf("✔ Transformation updated successfully\n\n")
+	fmt.Printf(SuccessCheck + " Transformation updated successfully\n\n")
 	fmt.Printf("Transformation: %s (%s)\n", t.Name, t.ID)
 	return nil
 }

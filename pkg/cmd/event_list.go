@@ -196,7 +196,7 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 
 	color := ansi.Color(os.Stdout)
 	for _, e := range resp.Models {
-		fmt.Printf("%s %s %s\n", color.Green(e.ID), e.Status, e.WebhookID)
+		fmt.Printf("%s  Status: %s  Connection: %s\n", color.Green(e.ID), e.Status, e.WebhookID)
 	}
 	return nil
 }

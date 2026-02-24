@@ -184,12 +184,10 @@ func resolveConnectionID(ctx context.Context, client *hookdeck.Client, nameOrID 
 			return nameOrID, nil
 		}
 		// If we get a 404, fall through to name lookup
-		// For other errors, format and return the error
-		errMsg := strings.ToLower(err.Error())
-		if !strings.Contains(errMsg, "404") && !strings.Contains(errMsg, "not found") {
+		// For other errors, return the error directly
+		if !hookdeck.IsNotFoundError(err) {
 			return "", err
 		}
-		// 404 on ID lookup - fall through to try name lookup
 	}
 
 	// Try to find by name
@@ -215,13 +213,11 @@ func resolveConnectionID(ctx context.Context, client *hookdeck.Client, nameOrID 
 
 // formatConnectionError provides user-friendly error messages for connection get failures
 func formatConnectionError(err error, identifier string) error {
-	errMsg := err.Error()
-
-	// Check for 404/not found errors (case-insensitive)
-	errMsgLower := strings.ToLower(errMsg)
-	if strings.Contains(errMsgLower, "404") || strings.Contains(errMsgLower, "not found") {
+	if hookdeck.IsNotFoundError(err) {
 		return fmt.Errorf("connection not found: '%s'\n\nPlease check the connection name or ID and try again", identifier)
 	}
+
+	errMsg := err.Error()
 
 	// Check for network/timeout errors
 	if strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "connection refused") {

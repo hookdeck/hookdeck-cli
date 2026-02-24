@@ -28,6 +28,10 @@ func newConnectionDisableCmd() *connectionDisableCmd {
 }
 
 func (cc *connectionDisableCmd) runConnectionDisableCmd(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
@@ -41,6 +45,6 @@ func (cc *connectionDisableCmd) runConnectionDisableCmd(cmd *cobra.Command, args
 		name = *conn.Name
 	}
 
-	fmt.Printf("✓ Connection disabled: %s (%s)\n", name, conn.ID)
+	fmt.Printf(SuccessCheck+" Connection disabled: %s (%s)\n", name, conn.ID)
 	return nil
 }

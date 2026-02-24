@@ -140,7 +140,7 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 		return nil
 	}
 
-	fmt.Printf("✔ Transformation run completed\n\n")
+	fmt.Printf(SuccessCheck + " Transformation run completed\n\n")
 	if result.Request != nil {
 		// Pretty-print the transformed request as JSON
 		jsonBytes, err := json.MarshalIndent(result.Request, "", "  ")
