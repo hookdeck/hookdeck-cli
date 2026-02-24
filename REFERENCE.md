@@ -40,11 +40,11 @@ All commands support these global options:
 ## Authentication
 
 <!-- GENERATE:login|logout|whoami:START -->
-- [hookdeck login](#hookdeck-login)
-- [hookdeck logout](#hookdeck-logout)
-- [hookdeck whoami](#hookdeck-whoami)
+- [Login](#login)
+- [Logout](#logout)
+- [Whoami](#whoami)
 
-### hookdeck login
+## Login
 
 Login to your Hookdeck account to setup the CLI
 
@@ -59,7 +59,14 @@ hookdeck login [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `-i, --interactive` | `bool` | Run interactive configuration mode if you cannot open a browser |
-### hookdeck logout
+
+**Examples:**
+
+```bash
+$ hookdeck login
+$ hookdeck login -i  # interactive mode (no browser)
+```
+## Logout
 
 Logout of your Hookdeck account to setup the CLI
 
@@ -74,7 +81,14 @@ hookdeck logout [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `-a, --all` | `bool` | Clear credentials for all projects you are currently logged into. |
-### hookdeck whoami
+
+**Examples:**
+
+```bash
+$ hookdeck logout
+$ hookdeck logout -a  # clear all projects
+```
+## Whoami
 
 Show the logged-in user
 
@@ -82,6 +96,12 @@ Show the logged-in user
 
 ```bash
 hookdeck whoami
+```
+
+**Examples:**
+
+```bash
+$ hookdeck whoami
 ```
 <!-- GENERATE_END -->
 ## Projects
@@ -99,6 +119,15 @@ List and filter projects by organization and project name substrings
 ```bash
 hookdeck project list [<organization_substring>] [<project_substring>]
 ```
+
+**Examples:**
+
+```bash
+$ hookdeck project list
+[Acme] Ecommerce Production (current)
+[Acme] Ecommerce Staging
+[Acme] Ecommerce Development
+```
 ### hookdeck project use
 
 Set the active project for future commands
@@ -114,11 +143,27 @@ hookdeck project use [<organization_name> [<project_name>]] [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--local` | `bool` | Save project to current directory (.hookdeck/config.toml) |
+
+**Examples:**
+
+```bash
+$ hookdeck project use
+Use the arrow keys to navigate: ↓ ↑ → ←
+? Select Project:
+▸ [Acme] Ecommerce Production
+[Acme] Ecommerce Staging
+[Acme] Ecommerce Development
+
+Selecting project [Acme] Ecommerce Staging
+
+$ hookdeck project use --local
+Pinning project [Acme] Ecommerce Staging to current directory
+```
 <!-- GENERATE_END -->
 ## Local Development
 
 <!-- GENERATE:listen:START -->
-### hookdeck listen
+## Listen
 
 Forward events for a source to your local server.
 
@@ -130,8 +175,16 @@ Destination CLI path will be "/". To set the CLI path, use the "`--path`" flag.
 **Usage:**
 
 ```bash
-hookdeck listen [flags]
+hookdeck listen [port or forwarding URL] [source] [connection] [flags]
 ```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `port or forwarding URL` | `string` | **Required.** Port (e.g. 3000) or full URL (e.g. http://localhost:3000) to forward events to. The forward URL will be http://localhost:$PORT/$DESTINATION_PATH or http://domain/$DESTINATION_PATH. Only one of port or domain is required. |
+| `source` | `string` | **Optional.** The name of a source to listen to, a comma-separated list of source names, or '*' (with quotes) to listen to all. If empty, the CLI prompts you to choose. |
+| `connection` | `string` | **Optional.** Filter connections by connection name or path. |
 
 **Flags:**
 
@@ -149,7 +202,7 @@ hookdeck listen [flags]
 ## Gateway
 
 <!-- GENERATE:gateway:START -->
-### hookdeck gateway
+## Gateway
 
 Commands for managing Event Gateway sources, destinations, connections,
 transformations, events, requests, and metrics.
@@ -668,6 +721,7 @@ hookdeck gateway source create [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
@@ -727,6 +781,7 @@ hookdeck gateway source update <source-id> [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
@@ -784,6 +839,7 @@ hookdeck gateway source upsert <name> [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--allowed-http-methods` | `string` | Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
+| `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
@@ -906,6 +962,7 @@ hookdeck gateway destination create [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--api-key` | `string` | API key for destination auth |
 | `--api-key-header` | `string` | Header/key name for API key |
 | `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
 | `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
@@ -971,6 +1028,7 @@ hookdeck gateway destination update <destination-id> [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--api-key` | `string` | API key for destination auth |
 | `--api-key-header` | `string` | Header/key name for API key |
 | `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
 | `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
@@ -1033,6 +1091,7 @@ hookdeck gateway destination upsert <name> [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--api-key` | `string` | API key for destination auth |
 | `--api-key-header` | `string` | Header/key name for API key |
 | `--api-key-to` | `string` | Where to send API key (header or query) (default "header") |
 | `--auth-method` | `string` | Auth method (hookdeck, bearer, basic, api_key, custom_signature) |
@@ -1726,12 +1785,12 @@ hookdeck gateway attempt get atm_abc123
 ## Utilities
 
 <!-- GENERATE:completion|ci:START -->
-- [hookdeck completion](#hookdeck-completion)
-- [hookdeck ci](#hookdeck-ci)
+- [Completion](#completion)
+- [CI](#ci)
 
-### hookdeck completion
+## Completion
 
-Generate bash and zsh completion scripts
+Generate bash and zsh completion scripts. This command runs on install when using Homebrew or Scoop. You can optionally run it when using binaries directly or without a package manager.
 
 **Usage:**
 
@@ -1744,9 +1803,16 @@ hookdeck completion [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--shell` | `string` | The shell to generate completion commands for. Supports "bash" or "zsh" |
-### hookdeck ci
 
-Login to your Hookdeck project to forward events in CI
+**Examples:**
+
+```bash
+$ hookdeck completion --shell zsh
+$ hookdeck completion --shell bash
+```
+## CI
+
+If you want to use Hookdeck in CI for tests or any other purposes, you can use your HOOKDECK_API_KEY to authenticate and start forwarding events.
 
 **Usage:**
 
@@ -1758,5 +1824,32 @@ hookdeck ci [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--name` | `string` | Your CI name (ex: $GITHUB_REF) |
+| `--api-key` | `string` | Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided. |
+| `--name` | `string` | Name of the CI run (ex: GITHUB_REF) for identification in the dashboard |
+
+**Examples:**
+
+```bash
+$ hookdeck ci --api-key $HOOKDECK_API_KEY
+Done! The Hookdeck CLI is configured in project MyProject
+
+$ hookdeck listen 3000 shopify orders
+
+●── HOOKDECK CLI ──●
+
+Listening on 1 source • 1 connection • [i] Collapse
+
+Shopify Source
+│  Requests to → https://hkdk.events/src_DAjaFWyyZXsFdZrTOKpuHnOH
+└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
+
+💡 View dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
+
+Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
+
+> 2025-10-12 14:42:55 [200] POST http://localhost:3000/webhooks/shopify/orders (34ms) → https://dashboard.hookdeck.com/events/evt_...
+
+───────────────────────────────────────────────────────────────────────────────
+> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
+```
 <!-- GENERATE_END -->
