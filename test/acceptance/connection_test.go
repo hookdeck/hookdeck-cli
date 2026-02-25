@@ -2195,6 +2195,60 @@ func TestConnectionCreateOutputStructure(t *testing.T) {
 	t.Logf("Successfully verified connection create output structure")
 }
 
+// TestConnectionCreateRetryResponseStatusCodes verifies that creating a connection
+// with --rule-retry-response-status-codes sends the codes as an array to the API.
+// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/209 Bug 3.
+func TestConnectionCreateRetryResponseStatusCodes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-create-statuscodes-" + timestamp
+	sourceName := "test-src-sc-" + timestamp
+	destName := "test-dst-sc-" + timestamp
+
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"gateway", "connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "HTTP",
+		"--destination-url", "https://api.example.com/webhook",
+		"--rule-retry-strategy", "linear",
+		"--rule-retry-count", "3",
+		"--rule-retry-interval", "5000",
+		"--rule-retry-response-status-codes", "500,502,503,504",
+	)
+	require.NoError(t, err, "Should create connection with retry response status codes")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	require.NotEmpty(t, conn.Rules, "Connection should have rules")
+
+	foundRetry := false
+	for _, rule := range conn.Rules {
+		if rule["type"] == "retry" {
+			foundRetry = true
+
+			statusCodes, ok := rule["response_status_codes"].([]interface{})
+			require.True(t, ok, "response_status_codes should be an array, got: %T (%v)", rule["response_status_codes"], rule["response_status_codes"])
+			assert.Len(t, statusCodes, 4, "Should have 4 status codes")
+			break
+		}
+	}
+	assert.True(t, foundRetry, "Should have a retry rule")
+
+	t.Logf("Successfully created connection %s with retry status codes as array", conn.ID)
+}
+
 // TestConnectionWithDestinationPathForwarding tests path_forwarding_disabled and http_method fields
 func TestConnectionWithDestinationPathForwarding(t *testing.T) {
 	if testing.Short() {
