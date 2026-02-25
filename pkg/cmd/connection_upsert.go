@@ -94,7 +94,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.destinationType, "destination-type", "", "Destination type (CLI, HTTP, MOCK)")
 	cu.cmd.Flags().StringVar(&cu.destinationDescription, "destination-description", "", "Destination description")
 	cu.cmd.Flags().StringVar(&cu.destinationURL, "destination-url", "", "URL for HTTP destinations")
-	cu.cmd.Flags().StringVar(&cu.destinationCliPath, "destination-cli-path", "/", "CLI path for CLI destinations (default: /)")
+	cu.cmd.Flags().StringVar(&cu.destinationCliPath, "destination-cli-path", "", "CLI path for CLI destinations (default: / for new connections)")
 
 	// Use a string flag to allow explicit true/false values
 	var pathForwardingDisabledStr string
@@ -257,10 +257,10 @@ func (cu *connectionUpsertCmd) validateSourceFlags() error {
 		return fmt.Errorf("cannot use --source-id with --source-name or --source-type")
 	}
 
-	// If creating inline, require both name and type
-	if (cu.sourceName != "" || cu.sourceType != "") && (cu.sourceName == "" || cu.sourceType == "") {
-		return fmt.Errorf("both --source-name and --source-type are required for inline source creation")
-	}
+	// For upsert, we don't require both --source-name and --source-type.
+	// If the connection already exists, providing just --source-name is valid
+	// (the existing source type will be preserved). The API will reject
+	// incomplete data if this is actually a create.
 
 	return nil
 }
@@ -272,10 +272,10 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 		return fmt.Errorf("cannot use --destination-id with --destination-name or --destination-type")
 	}
 
-	// If creating inline, require both name and type
-	if (cu.destinationName != "" || cu.destinationType != "") && (cu.destinationName == "" || cu.destinationType == "") {
-		return fmt.Errorf("both --destination-name and --destination-type are required for inline destination creation")
-	}
+	// For upsert, we don't require both --destination-name and --destination-type.
+	// If the connection already exists, providing just --destination-name is valid
+	// (the existing destination type will be preserved). The API will reject
+	// incomplete data if this is actually a create.
 
 	return nil
 }
@@ -304,7 +304,11 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 		cu.DestinationRateLimit != 0 || cu.DestinationAuthMethod != "") &&
 		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
 
-	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasSourceConfigOnly || hasDestinationConfigOnly
+	// Also need to fetch existing when name is provided without type (to fill in the type)
+	hasPartialSourceInline := (cu.sourceName != "" && cu.sourceType == "" && cu.sourceID == "")
+	hasPartialDestinationInline := (cu.destinationName != "" && cu.destinationType == "" && cu.destinationID == "")
+
+	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasSourceConfigOnly || hasDestinationConfigOnly || hasPartialSourceInline || hasPartialDestinationInline
 
 	var existing *hookdeck.Connection
 	var isUpdate bool
@@ -411,6 +415,10 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	if cu.sourceID != "" {
 		req.SourceID = &cu.sourceID
 	} else if cu.sourceName != "" || cu.sourceType != "" {
+		// For upsert updates, fill in missing source type from existing connection
+		if cu.sourceType == "" && isUpdate && existing != nil && existing.Source != nil {
+			cu.sourceType = existing.Source.Type
+		}
 		sourceInput, err := cu.buildSourceInput()
 		if err != nil {
 			return nil, err
@@ -442,6 +450,14 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	if cu.destinationID != "" {
 		req.DestinationID = &cu.destinationID
 	} else if cu.destinationName != "" || cu.destinationType != "" {
+		// For upsert updates, fill in missing destination type from existing connection
+		if cu.destinationType == "" && isUpdate && existing != nil && existing.Destination != nil {
+			cu.destinationType = existing.Destination.Type
+		}
+		// Default CLI path to "/" for new CLI destinations when not explicitly set
+		if strings.ToUpper(cu.destinationType) == "CLI" && cu.destinationCliPath == "" {
+			cu.destinationCliPath = "/"
+		}
 		destinationInput, err := cu.buildDestinationInput()
 		if err != nil {
 			return nil, err
@@ -469,9 +485,12 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		}
 	}
 
-	// Also preserve source if not specified
+	// Preserve existing source/destination if not specified
 	if req.SourceID == nil && req.Source == nil && isUpdate && existing != nil && existing.Source != nil {
 		req.SourceID = &existing.Source.ID
+	}
+	if req.DestinationID == nil && req.Destination == nil && isUpdate && existing != nil && existing.Destination != nil {
+		req.DestinationID = &existing.Destination.ID
 	}
 
 	// Handle Rules

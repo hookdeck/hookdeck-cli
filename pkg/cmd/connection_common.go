@@ -191,7 +191,11 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 			rule["interval"] = f.RuleRetryInterval
 		}
 		if f.RuleRetryResponseStatusCode != "" {
-			rule["response_status_codes"] = f.RuleRetryResponseStatusCode
+			codes := strings.Split(f.RuleRetryResponseStatusCode, ",")
+			for i := range codes {
+				codes[i] = strings.TrimSpace(codes[i])
+			}
+			rule["response_status_codes"] = codes
 		}
 		rules = append(rules, rule)
 	}
