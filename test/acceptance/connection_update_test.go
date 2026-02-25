@@ -316,6 +316,52 @@ func TestConnectionUpdateDelayRule(t *testing.T) {
 	t.Logf("Connection update with delay rule verified: %s", connID)
 }
 
+// TestConnectionUpdateRetryResponseStatusCodes verifies that
+// --rule-retry-response-status-codes is sent as an array to the API.
+// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/209 Bug 3.
+func TestConnectionUpdateRetryResponseStatusCodes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	connID := createTestConnection(t, cli)
+	require.NotEmpty(t, connID, "Connection ID should not be empty")
+
+	t.Cleanup(func() {
+		deleteConnection(t, cli, connID)
+	})
+
+	// Update with retry rule including response status codes
+	var updated Connection
+	err := cli.RunJSON(&updated,
+		"gateway", "connection", "update", connID,
+		"--rule-retry-strategy", "linear",
+		"--rule-retry-count", "3",
+		"--rule-retry-interval", "5000",
+		"--rule-retry-response-status-codes", "500,502,503",
+	)
+	require.NoError(t, err, "Should update connection with retry response status codes")
+	require.NotEmpty(t, updated.Rules, "Connection should have rules")
+
+	// Find the retry rule and verify status codes are an array
+	foundRetry := false
+	for _, rule := range updated.Rules {
+		if rule["type"] == "retry" {
+			foundRetry = true
+
+			statusCodes, ok := rule["response_status_codes"].([]interface{})
+			require.True(t, ok, "response_status_codes should be an array, got: %T (%v)", rule["response_status_codes"], rule["response_status_codes"])
+			assert.Len(t, statusCodes, 3, "Should have 3 status codes")
+			break
+		}
+	}
+	assert.True(t, foundRetry, "Should have a retry rule")
+
+	t.Logf("Successfully verified retry status codes are sent as array via update: %s", connID)
+}
+
 // TestConnectionUpdateWithRulesJSON verifies update with --rules JSON string
 func TestConnectionUpdateWithRulesJSON(t *testing.T) {
 	if testing.Short() {
