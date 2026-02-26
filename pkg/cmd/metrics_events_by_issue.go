@@ -19,8 +19,8 @@ func newMetricsEventsByIssueCmd() *metricsEventsByIssueCmd {
 	c.cmd = &cobra.Command{
 		Use:   "events-by-issue <issue-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Query events grouped by issue",
-		Long:  `Query metrics for events grouped by issue (for debugging). Requires issue ID as argument.`,
+		Short: ShortBeta("Query events grouped by issue"),
+		Long:  LongBeta(`Query metrics for events grouped by issue (for debugging). Requires issue ID as argument.`),
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlagsEx(c.cmd, &c.flags, true)

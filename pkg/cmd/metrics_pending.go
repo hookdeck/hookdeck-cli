@@ -17,8 +17,8 @@ func newMetricsPendingCmd() *metricsPendingCmd {
 	c.cmd = &cobra.Command{
 		Use:   "pending",
 		Args:  cobra.NoArgs,
-		Short: "Query events pending timeseries",
-		Long:  `Query events pending over time (timeseries). Measures: count.`,
+		Short: ShortBeta("Query events pending timeseries"),
+		Long:  LongBeta(`Query events pending over time (timeseries). Measures: count.`),
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags)

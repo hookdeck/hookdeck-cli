@@ -19,8 +19,8 @@ func newMetricsEventsCmd() *metricsEventsCmd {
 	c.cmd = &cobra.Command{
 		Use:   "events",
 		Args:  cobra.NoArgs,
-		Short: "Query event metrics",
-		Long:  `Query metrics for events (volume, success/failure counts, error rate, etc.). Measures: ` + metricsEventsMeasures + `.`,
+		Short: ShortBeta("Query event metrics"),
+		Long:  LongBeta(`Query metrics for events (volume, success/failure counts, error rate, etc.). Measures: ` + metricsEventsMeasures + `.`),
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags)

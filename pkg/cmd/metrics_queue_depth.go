@@ -20,8 +20,8 @@ func newMetricsQueueDepthCmd() *metricsQueueDepthCmd {
 	c.cmd = &cobra.Command{
 		Use:   "queue-depth",
 		Args:  cobra.NoArgs,
-		Short: "Query queue depth metrics",
-		Long:  `Query queue depth metrics. Measures: ` + metricsQueueDepthMeasures + `. Dimensions: ` + metricsQueueDepthDimensions + `.`,
+		Short: ShortBeta("Query queue depth metrics"),
+		Long:  LongBeta(`Query queue depth metrics. Measures: ` + metricsQueueDepthMeasures + `. Dimensions: ` + metricsQueueDepthDimensions + `.`),
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags)

@@ -19,8 +19,8 @@ func newMetricsRequestsCmd() *metricsRequestsCmd {
 	c.cmd = &cobra.Command{
 		Use:   "requests",
 		Args:  cobra.NoArgs,
-		Short: "Query request metrics",
-		Long:  `Query metrics for requests (acceptance, rejection, etc.). Measures: ` + metricsRequestsMeasures + `.`,
+		Short: ShortBeta("Query request metrics"),
+		Long:  LongBeta(`Query metrics for requests (acceptance, rejection, etc.). Measures: ` + metricsRequestsMeasures + `.`),
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags)
