@@ -39,6 +39,7 @@ The gateway command group provides full access to all Event Gateway resources.`,
 	addEventCmdTo(g.cmd)
 	addRequestCmdTo(g.cmd)
 	addAttemptCmdTo(g.cmd)
+	addMetricsCmdTo(g.cmd)
 
 	return g
 }

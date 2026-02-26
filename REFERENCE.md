@@ -19,6 +19,7 @@ The Hookdeck CLI provides comprehensive webhook infrastructure management includ
 - [Events](#events)
 - [Requests](#requests)
 - [Attempts](#attempts)
+- [Metrics](#metrics)
 - [Utilities](#utilities)
 <!-- GENERATE_END -->
 ## Global Options
@@ -1782,6 +1783,24 @@ hookdeck gateway attempt get <attempt-id> [flags]
 hookdeck gateway attempt get atm_abc123
 ```
 <!-- GENERATE_END -->
+## Metrics
+
+Query Event Gateway metrics (events, requests, attempts, queue depth, pending events, events by issue, transformations). All metrics commands require `--start` and `--end` (ISO 8601 date-time).
+
+**Use cases and examples:**
+
+| Use case | Example command |
+|----------|-----------------|
+| Event volume and failure rate over time | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1d --measures count,failed_count,error_rate` |
+| Request acceptance vs rejection | `hookdeck gateway metrics requests --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,accepted_count,rejected_count` |
+| Delivery latency (attempts) | `hookdeck gateway metrics attempts --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures response_latency_avg,response_latency_p95` |
+| Queue backlog per destination | `hookdeck gateway metrics queue-depth --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures max_depth,max_age --destination-id dest_xxx` |
+| Pending events over time | `hookdeck gateway metrics pending --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1h --measures count` |
+| Events grouped by issue (debugging) | `hookdeck gateway metrics events-by-issue iss_xxx --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count` |
+| Transformation errors | `hookdeck gateway metrics transformations --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,failed_count,error_rate` |
+
+**Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--source-id`, `--destination-id`, `--connection-id`, `--status`, `--output` (json).
+
 ## Utilities
 
 <!-- GENERATE:completion|ci:START -->

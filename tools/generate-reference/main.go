@@ -361,7 +361,8 @@ func globalFlagsTable(root *cobra.Command) string {
 		} else {
 			flag = fmt.Sprintf("`--%s`", f.name)
 		}
-		usage := strings.ReplaceAll(f.usage, "|", "\\|")
+		usage := normalizeUsageForTable(f.usage)
+		usage = strings.ReplaceAll(usage, "|", "\\|")
 		b.WriteString(fmt.Sprintf("| %s | `%s` | %s |\n", flag, f.ftype, usage))
 	}
 	return b.String()
@@ -412,7 +413,8 @@ func generateGlobalFlags(root *cobra.Command) string {
 		} else {
 			flag = fmt.Sprintf("`--%s`", f.name)
 		}
-		usage := strings.ReplaceAll(f.usage, "|", "\\|")
+		usage := normalizeUsageForTable(f.usage)
+		usage = strings.ReplaceAll(usage, "|", "\\|")
 		b.WriteString(fmt.Sprintf("| %s | `%s` | %s |\n", flag, f.ftype, usage))
 	}
 	return b.String()
@@ -569,7 +571,8 @@ func commandSection(root *cobra.Command, c *cobra.Command, wrap wrapConfig, glob
 		mainBuf.WriteString("| Flag | Type | Description |\n")
 		mainBuf.WriteString("|------|------|-------------|\n")
 		for _, r := range flagRows {
-			usage := wrapFlagsInBackticks(r.usage)
+			usage := normalizeUsageForTable(r.usage)
+			usage = wrapFlagsInBackticks(usage)
 			usage = strings.ReplaceAll(usage, "|", "\\|")
 			mainBuf.WriteString(fmt.Sprintf("| %s | %s | %s |\n", r.flag, r.ftype, usage))
 		}
@@ -686,6 +689,27 @@ func extractExamplesFromLong(long string) (prose, examplesBlock string) {
 	block := strings.ReplaceAll(afterLabel, "\t", "  ")
 	examplesBlock = strings.TrimSpace(normalizeIndent(block))
 	return prose, examplesBlock
+}
+
+// escapeAngleBracketsForMarkdown replaces < and > with HTML entities so Markdoc and
+// other parsers do not treat placeholders like <issue-id> or <number> as HTML tags.
+// Use for any generator output that is embedded in markdown (usage lines, table cells).
+func escapeAngleBracketsForMarkdown(s string) string {
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
+}
+
+// normalizeUsageForTable collapses newlines and extra spaces in flag usage so markdown
+// table rows stay on one line. Escapes angle brackets so Markdoc does not treat them
+// as HTML tags (e.g. "<number><unit>" in granularity help). Use for any flag description
+// emitted into a markdown table.
+func normalizeUsageForTable(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
+	s = escapeAngleBracketsForMarkdown(s)
+	return strings.TrimSpace(s)
 }
 
 // wrapFlagsInBackticks wraps flag references (--flag-name) in backticks for markdown.
