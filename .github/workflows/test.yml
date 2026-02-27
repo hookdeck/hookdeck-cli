@@ -10,6 +10,18 @@ on:
       - main
 
 jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.9
+      - name: Run unit tests
+        run: go test -short ./pkg/...
+
   build-mac:
     runs-on: macos-latest
     steps:

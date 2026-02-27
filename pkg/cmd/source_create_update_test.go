@@ -1,21 +1,31 @@
 package cmd
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-// TestSourceCreateRequiresName asserts that create without --name fails (Cobra required-flag validation).
-func TestSourceCreateRequiresName(t *testing.T) {
-	rootCmd.SetArgs([]string{"gateway", "source", "create", "--type", "WEBHOOK"})
-	err := rootCmd.Execute()
-	require.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "name") || strings.Contains(err.Error(), "required"),
-		"error should mention name or required, got: %s", err.Error())
+// TestSourceCreateRequiresNameAndType verifies that the source create command
+// marks --name and --type as required flags via cobra's MarkFlagRequired.
+func TestSourceCreateRequiresNameAndType(t *testing.T) {
+	sc := newSourceCreateCmd()
+
+	nameFlag := sc.cmd.Flags().Lookup("name")
+	assert.NotNil(t, nameFlag, "--name flag should exist")
+
+	typeFlag := sc.cmd.Flags().Lookup("type")
+	assert.NotNil(t, typeFlag, "--type flag should exist")
+
+	// Cobra marks required flags with the "required" annotation
+	nameAnnotations := nameFlag.Annotations
+	assert.Contains(t, nameAnnotations, "cobra_annotation_bash_completion_one_required_flag",
+		"--name should be marked as required")
+
+	typeAnnotations := typeFlag.Annotations
+	assert.Contains(t, typeAnnotations, "cobra_annotation_bash_completion_one_required_flag",
+		"--type should be marked as required")
 }
 
 // TestSourceUpdateRequestEmpty asserts the "no updates specified" logic for update.
