@@ -79,7 +79,7 @@ func addMetricsCommonFlagsEx(cmd *cobra.Command, f *metricsCommonFlags, skipIssu
 	cmd.Flags().StringVar(&f.end, "end", "", "End of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.granularity, "granularity", "", granularityHelp)
 	cmd.Flags().StringVar(&f.measures, "measures", "", "Comma-separated list of measures to return")
-	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated list of dimensions")
+	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (e.g. connection_id, source_id, destination_id, status)")
 	cmd.Flags().StringVar(&f.sourceID, "source-id", "", "Filter by source ID")
 	cmd.Flags().StringVar(&f.destinationID, "destination-id", "", "Filter by destination ID")
 	cmd.Flags().StringVar(&f.connectionID, "connection-id", "", "Filter by connection ID")
@@ -106,6 +106,10 @@ func metricsParamsFromFlags(f *metricsCommonFlags) hookdeck.MetricsQueryParams {
 	if f.dimensions != "" {
 		for _, s := range strings.Split(f.dimensions, ",") {
 			if t := strings.TrimSpace(s); t != "" {
+				// API expects webhook_id for connection dimension; CLI accepts connection_id/connection-id for consistency.
+				if t == "connection_id" || t == "connection-id" {
+					t = "webhook_id"
+				}
 				dimensions = append(dimensions, t)
 			}
 		}
