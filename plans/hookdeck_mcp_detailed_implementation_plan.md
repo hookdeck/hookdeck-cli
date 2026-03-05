@@ -12,6 +12,62 @@ This document maps the high-level MCP build-out plan against the existing hookde
 
 ---
 
+## Phase 1 Progress
+
+### Part 1: Issues CLI Backfill (prerequisite)
+
+- [ ] `pkg/hookdeck/issues.go` — Issue types and API client methods (ListIssues, GetIssue, UpdateIssue, DismissIssue, CountIssues)
+- [ ] `pkg/cmd/helptext.go` — Add `ResourceIssue = "issue"`
+- [ ] `pkg/cmd/issue.go` — Issue group command (`issue` / `issues`)
+- [ ] `pkg/cmd/issue_list.go` — `hookdeck gateway issue list`
+- [ ] `pkg/cmd/issue_get.go` — `hookdeck gateway issue get <id>`
+- [ ] `pkg/cmd/issue_update.go` — `hookdeck gateway issue update <id> --status <status>`
+- [ ] `pkg/cmd/issue_dismiss.go` — `hookdeck gateway issue dismiss <id>`
+- [ ] `pkg/cmd/issue_count.go` — `hookdeck gateway issue count`
+- [ ] `pkg/cmd/gateway.go` — Register issue commands via `addIssueCmdTo(g.cmd)`
+- [ ] Build and verify compilation
+
+### Part 2: Metrics CLI Consolidation (prerequisite)
+
+- [ ] Expand `pkg/cmd/metrics_events.go` to handle queue-depth, pending, and events-by-issue routing
+- [ ] Remove `pkg/cmd/metrics_pending.go` (folded into metrics_events)
+- [ ] Remove `pkg/cmd/metrics_queue_depth.go` (folded into metrics_events)
+- [ ] Remove `pkg/cmd/metrics_events_by_issue.go` (folded into metrics_events)
+- [ ] Update `pkg/cmd/metrics.go` — remove deprecated subcommand registrations
+
+### Part 3: MCP Server Skeleton
+
+- [ ] Add `github.com/modelcontextprotocol/go-sdk` dependency
+- [ ] `pkg/gateway/mcp/server.go` — MCP server init, tool registration, stdio transport
+- [ ] `pkg/gateway/mcp/tools.go` — Tool handler dispatch (action routing)
+- [ ] `pkg/gateway/mcp/errors.go` — API error → MCP error translation
+- [ ] `pkg/gateway/mcp/response.go` — Response formatting helpers
+- [ ] `pkg/cmd/mcp.go` — Cobra command: `hookdeck gateway mcp`
+- [ ] `pkg/cmd/gateway.go` — Register MCP command via `addMCPCmdTo(g.cmd)`
+
+### Part 4: MCP Tool Implementations
+
+- [ ] `pkg/gateway/mcp/tool_projects.go` — projects (list, use)
+- [ ] `pkg/gateway/mcp/tool_connections.go` — connections (list, get, create, update, delete, upsert)
+- [ ] `pkg/gateway/mcp/tool_sources.go` — sources (list, get, create, update, delete, upsert)
+- [ ] `pkg/gateway/mcp/tool_destinations.go` — destinations (list, get, create, update, delete, upsert)
+- [ ] `pkg/gateway/mcp/tool_transformations.go` — transformations (list, get, create, update, upsert)
+- [ ] `pkg/gateway/mcp/tool_requests.go` — requests (list, get, get_body, retry)
+- [ ] `pkg/gateway/mcp/tool_events.go` — events (list, get, get_body, retry, mute)
+- [ ] `pkg/gateway/mcp/tool_attempts.go` — attempts (list, get, get_body)
+- [ ] `pkg/gateway/mcp/tool_issues.go` — issues (list, get, update, dismiss, count)
+- [ ] `pkg/gateway/mcp/tool_metrics.go` — metrics (requests, events, attempts, transformations)
+- [ ] `pkg/gateway/mcp/tool_help.go` — help (list_tools, tool_detail)
+
+### Part 5: Integration Testing & Polish
+
+- [ ] End-to-end test: start MCP server, send tool calls, verify responses
+- [ ] Verify all 11 tools return well-formed JSON
+- [ ] Test error scenarios (auth failure, 404, 422, rate limiting)
+- [ ] Test project switching within an MCP session
+
+---
+
 ## Section 1: Fleshed-Out Implementation Plan
 
 ### 1.1 MCP Server Skeleton
