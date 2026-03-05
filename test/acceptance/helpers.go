@@ -533,6 +533,81 @@ func pollForAttemptsByEventID(t *testing.T, cli *CLIRunner, eventID string) []At
 	return nil
 }
 
+// Issue is a minimal issue model for acceptance tests.
+type Issue struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Type   string `json:"type"`
+}
+
+// createConnectionWithFailingTransformationAndIssue creates a connection with a
+// transformation that throws, triggers an event, and polls until a transformation
+// issue appears. Returns connID and issueID. Caller must cleanup with
+// deleteConnection(t, cli, connID). Fails the test if no issue appears within ~40s.
+func createConnectionWithFailingTransformationAndIssue(t *testing.T, cli *CLIRunner) (connID, issueID string) {
+	t.Helper()
+
+	timestamp := generateTimestamp()
+	connName := fmt.Sprintf("test-issue-conn-%s", timestamp)
+	sourceName := fmt.Sprintf("test-issue-src-%s", timestamp)
+	destName := fmt.Sprintf("test-issue-dst-%s", timestamp)
+	// Transformation that throws with a unique message so each run produces a distinct issue
+	// (avoids backend deduplication when multiple tests run in sequence).
+	transformCode := fmt.Sprintf(`addHandler("transform", (request, context) => { throw new Error("acceptance test %s"); });`, timestamp)
+
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"gateway", "connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "MOCK_API",
+		"--rule-transform-name", "fail-transform",
+		"--rule-transform-code", transformCode,
+	)
+	require.NoError(t, err, "Failed to create connection with failing transformation")
+	require.NotEmpty(t, conn.ID, "Connection ID should not be empty")
+
+	var getConn Connection
+	require.NoError(t, cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID))
+	require.NotEmpty(t, getConn.Source.ID, "connection source ID")
+
+	var src Source
+	require.NoError(t, cli.RunJSON(&src, "gateway", "source", "get", getConn.Source.ID))
+	require.NotEmpty(t, src.URL, "source URL")
+
+	triggerTestEvent(t, src.URL)
+
+	type issueListResp struct {
+		Models []Issue `json:"models"`
+	}
+	// After a previous issue is dismissed/resolved, the backend creates a new issue for
+	// a new occurrence; allow enough time for that when running as second test in suite.
+	for i := 0; i < 45; i++ {
+		time.Sleep(2 * time.Second)
+		var resp issueListResp
+		require.NoError(t, cli.RunJSON(&resp, "gateway", "issue", "list", "--type", "transformation", "--status", "OPENED", "--limit", "5", "--order-by", "last_seen_at", "--dir", "desc"))
+		if len(resp.Models) > 0 {
+			return conn.ID, resp.Models[0].ID
+		}
+	}
+	require.Fail(t, "expected at least one transformation issue after trigger (waited ~90s)")
+	return "", ""
+}
+
+// dismissIssue dismisses (deletes) an issue so the slot is freed for the next test.
+// Use in test cleanup after every test that creates an issue.
+func dismissIssue(t *testing.T, cli *CLIRunner, issueID string) {
+	t.Helper()
+	stdout, stderr, err := cli.Run("gateway", "issue", "dismiss", issueID, "--force")
+	if err != nil {
+		t.Logf("Warning: Failed to dismiss issue %s: %v\nstdout: %s\nstderr: %s", issueID, err, stdout, stderr)
+		return
+	}
+	t.Logf("Dismissed issue: %s", issueID)
+}
+
 // assertContains checks if a string contains a substring
 func assertContains(t *testing.T, s, substr, msgAndArgs string) {
 	t.Helper()
