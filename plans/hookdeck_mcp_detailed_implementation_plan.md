@@ -14,18 +14,18 @@ This document maps the high-level MCP build-out plan against the existing hookde
 
 ## Phase 1 Progress
 
-### Part 1: Issues CLI Backfill (prerequisite)
+### Part 1: Issues CLI Backfill (prerequisite) -- COMPLETE
 
-- [ ] `pkg/hookdeck/issues.go` — Issue types and API client methods (ListIssues, GetIssue, UpdateIssue, DismissIssue, CountIssues)
-- [ ] `pkg/cmd/helptext.go` — Add `ResourceIssue = "issue"`
-- [ ] `pkg/cmd/issue.go` — Issue group command (`issue` / `issues`)
-- [ ] `pkg/cmd/issue_list.go` — `hookdeck gateway issue list`
-- [ ] `pkg/cmd/issue_get.go` — `hookdeck gateway issue get <id>`
-- [ ] `pkg/cmd/issue_update.go` — `hookdeck gateway issue update <id> --status <status>`
-- [ ] `pkg/cmd/issue_dismiss.go` — `hookdeck gateway issue dismiss <id>`
-- [ ] `pkg/cmd/issue_count.go` — `hookdeck gateway issue count`
-- [ ] `pkg/cmd/gateway.go` — Register issue commands via `addIssueCmdTo(g.cmd)`
-- [ ] Build and verify compilation
+- [x] `pkg/hookdeck/issues.go` — Issue types and API client methods (ListIssues, GetIssue, UpdateIssue, DismissIssue, CountIssues)
+- [x] `pkg/cmd/helptext.go` — Add `ResourceIssue = "issue"`
+- [x] `pkg/cmd/issue.go` — Issue group command (`issue` / `issues`)
+- [x] `pkg/cmd/issue_list.go` — `hookdeck gateway issue list`
+- [x] `pkg/cmd/issue_get.go` — `hookdeck gateway issue get <id>`
+- [x] `pkg/cmd/issue_update.go` — `hookdeck gateway issue update <id> --status <status>`
+- [x] `pkg/cmd/issue_dismiss.go` — `hookdeck gateway issue dismiss <id>`
+- [x] `pkg/cmd/issue_count.go` — `hookdeck gateway issue count`
+- [x] `pkg/cmd/gateway.go` — Register issue commands via `addIssueCmdTo(g.cmd)`
+- [x] Build and verify compilation
 
 ### Part 2: Metrics CLI Consolidation (prerequisite)
 
