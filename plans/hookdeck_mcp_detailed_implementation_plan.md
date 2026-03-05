@@ -575,65 +575,322 @@ get action:
 
 #### 1.2.9 Tool: `issues`
 
-**Actions:** `list`, `get`
+**Actions:** `list`, `get`, `update`, `dismiss`
 
 **Existing CLI implementations:** NONE. There are no issue-specific commands in `pkg/cmd/`. The only reference to issues is as a filter parameter on events (`--issue-id` in `pkg/cmd/event_list.go:71`) and the `metrics events-by-issue` command.
 
-**API client methods:** NONE. There is no `ListIssues()` or `GetIssue()` method in `pkg/hookdeck/`. The API likely has `GET /issues` and `GET /issues/{id}` endpoints, but no client methods exist.
+**API client methods:** NONE. No `issues.go` file exists in `pkg/hookdeck/`.
 
-**Gap: Both API client methods and CLI commands must be created.**
+**Gap: API client methods, CLI commands, AND MCP tool all must be created.**
 
-**New file required:** `pkg/hookdeck/issues.go`
+This is a Phase 1 prerequisite: backfill CLI commands for issues following the same conventions as other resources, then wire them into the MCP tool.
 
-Based on the Hookdeck API patterns, the implementation should follow the same structure as other resources:
+##### 1.2.9.1 API Endpoints (from OpenAPI spec at `plans/openapi_2025-07-01.json`)
 
-```go
-// pkg/hookdeck/issues.go
+| Method | Path | Operation | Description |
+|--------|------|-----------|-------------|
+| GET | `/issues` | `getIssues` | List issues with filters and pagination |
+| GET | `/issues/count` | `getIssueCount` | Count issues matching filters |
+| GET | `/issues/{id}` | `getIssue` | Get a single issue by ID |
+| PUT | `/issues/{id}` | `updateIssue` | Update issue status |
+| DELETE | `/issues/{id}` | `dismissIssue` | Dismiss an issue |
 
-type Issue struct {
-    ID             string    `json:"id"`
-    TeamID         string    `json:"team_id"`
-    Title          string    `json:"title"`
-    Status         string    `json:"status"`
-    Type           string    `json:"type"`
-    // Reference fields linking to connections/sources/destinations
-    Reference      interface{} `json:"reference,omitempty"`
-    AggregationKeys interface{} `json:"aggregation_keys,omitempty"`
-    FirstSeenAt    time.Time `json:"first_seen_at"`
-    LastSeenAt     time.Time `json:"last_seen_at"`
-    DismissedAt    *time.Time `json:"dismissed_at,omitempty"`
-    OpenedAt       *time.Time `json:"opened_at,omitempty"`
-    CreatedAt      time.Time `json:"created_at"`
-    UpdatedAt      time.Time `json:"updated_at"`
-}
+##### 1.2.9.2 Issue Object Schema (from OpenAPI)
 
-type IssueListResponse struct {
-    Models     []Issue            `json:"models"`
-    Pagination PaginationResponse `json:"pagination"`
-}
+The `Issue` type is a union (`anyOf`) of `DeliveryIssue` and `TransformationIssue`. Both share the same base fields but differ in `type`, `aggregation_keys`, and `reference`.
 
-func (c *Client) ListIssues(ctx context.Context, params map[string]string) (*IssueListResponse, error) {
-    // GET /2025-07-01/issues?{params}
-}
+**Shared fields (both delivery and transformation issues):**
 
-func (c *Client) GetIssue(ctx context.Context, id string) (*Issue, error) {
-    // GET /2025-07-01/issues/{id}
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Issue ID (e.g., `iss_YXKv5OdJXCiVwkPhGy`) |
+| `team_id` | string | yes | Project ID |
+| `status` | IssueStatus enum | yes | `OPENED`, `IGNORED`, `ACKNOWLEDGED`, `RESOLVED` |
+| `type` | string enum | yes | `delivery` or `transformation` |
+| `opened_at` | datetime | yes | When issue was last opened |
+| `first_seen_at` | datetime | yes | When issue was first opened |
+| `last_seen_at` | datetime | yes | When issue last occurred |
+| `dismissed_at` | datetime, nullable | no | When dismissed |
+| `auto_resolved_at` | datetime, nullable | no | When auto-resolved (hidden in docs) |
+| `merged_with` | string, nullable | no | Merged issue ID (hidden in docs) |
+| `updated_at` | string | yes | Last updated |
+| `created_at` | string | yes | Created |
+| `last_updated_by` | string, nullable | no | Deprecated, always null |
+| `aggregation_keys` | object | yes | Type-specific (see below) |
+| `reference` | object | yes | Type-specific (see below) |
+
+**DeliveryIssue-specific:**
+- `aggregation_keys`: `{webhook_id: string[], response_status: number[], error_code: AttemptErrorCodes[]}`
+- `reference`: `{event_id: string, attempt_id: string}`
+
+**TransformationIssue-specific:**
+- `aggregation_keys`: `{transformation_id: string[], log_level: TransformationExecutionLogLevel[]}`
+- `reference`: `{transformation_execution_id: string, trigger_event_request_transformation_id: string|null}`
+
+**IssueWithData** extends Issue with a `data` field:
+- Delivery: `data: {trigger_event: Event, trigger_attempt: EventAttempt}`
+- Transformation: `data: {transformation_execution: TransformationExecution, trigger_attempt?: EventAttempt}`
+
+**GET /issues list response:** `IssueWithDataPaginatedResult` — `{pagination, count, models: IssueWithData[]}`
+
+##### 1.2.9.3 GET /issues Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string or string[] | Filter by Issue IDs |
+| `issue_trigger_id` | string or string[] | Filter by Issue trigger IDs |
+| `type` | IssueType or IssueType[] | `delivery`, `transformation`, `backpressure` |
+| `status` | IssueStatus or IssueStatus[] | `OPENED`, `IGNORED`, `ACKNOWLEDGED`, `RESOLVED` |
+| `merged_with` | string or string[] | Filter by merged issue IDs |
+| `aggregation_keys` | JSON object | Filter by aggregation keys (webhook_id, response_status, error_code) |
+| `created_at` | datetime or Operators | Filter by created date |
+| `first_seen_at` | datetime or Operators | Filter by first seen date |
+| `last_seen_at` | datetime or Operators | Filter by last seen date |
+| `dismissed_at` | datetime or Operators | Filter by dismissed date |
+| `order_by` | enum | `created_at`, `first_seen_at`, `last_seen_at`, `opened_at`, `status` |
+| `dir` | enum | `asc`, `desc` |
+| `limit` | integer (0-255) | Result set size |
+| `next` | string | Pagination cursor |
+| `prev` | string | Pagination cursor |
+
+##### 1.2.9.4 PUT /issues/{id} Request Body
+
+```json
+{
+  "status": "OPENED" | "IGNORED" | "ACKNOWLEDGED" | "RESOLVED"  // required
 }
 ```
 
-**MCP tool schema:**
+Returns the updated `Issue` object.
+
+##### 1.2.9.5 New API Client Implementation
+
+**New file:** `pkg/hookdeck/issues.go`
+
+```go
+package hookdeck
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/url"
+    "time"
+)
+
+// Issue represents a Hookdeck issue (union of DeliveryIssue and TransformationIssue).
+// Uses interface{} for type-specific fields (aggregation_keys, reference, data)
+// since the shape varies by issue type.
+type Issue struct {
+    ID              string                 `json:"id"`
+    TeamID          string                 `json:"team_id"`
+    Status          string                 `json:"status"`
+    Type            string                 `json:"type"`
+    OpenedAt        time.Time              `json:"opened_at"`
+    FirstSeenAt     time.Time              `json:"first_seen_at"`
+    LastSeenAt      time.Time              `json:"last_seen_at"`
+    DismissedAt     *time.Time             `json:"dismissed_at,omitempty"`
+    AutoResolvedAt  *time.Time             `json:"auto_resolved_at,omitempty"`
+    MergedWith      *string                `json:"merged_with,omitempty"`
+    UpdatedAt       time.Time              `json:"updated_at"`
+    CreatedAt       time.Time              `json:"created_at"`
+    AggregationKeys map[string]interface{} `json:"aggregation_keys"`
+    Reference       map[string]interface{} `json:"reference"`
+    Data            map[string]interface{} `json:"data,omitempty"`
+}
+
+// IssueListResponse represents the paginated response from listing issues
+type IssueListResponse struct {
+    Models     []Issue            `json:"models"`
+    Pagination PaginationResponse `json:"pagination"`
+    Count      *int               `json:"count,omitempty"`
+}
+
+// IssueCountResponse represents the response from counting issues
+type IssueCountResponse struct {
+    Count int `json:"count"`
+}
+
+// IssueUpdateRequest is the request body for PUT /issues/{id}
+type IssueUpdateRequest struct {
+    Status string `json:"status"`
+}
+
+// ListIssues retrieves issues with optional filters
+func (c *Client) ListIssues(ctx context.Context, params map[string]string) (*IssueListResponse, error) {
+    queryParams := url.Values{}
+    for k, v := range params {
+        queryParams.Add(k, v)
+    }
+    resp, err := c.Get(ctx, APIPathPrefix+"/issues", queryParams.Encode(), nil)
+    if err != nil {
+        return nil, err
+    }
+    var result IssueListResponse
+    _, err = postprocessJsonResponse(resp, &result)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse issue list response: %w", err)
+    }
+    return &result, nil
+}
+
+// GetIssue retrieves a single issue by ID
+func (c *Client) GetIssue(ctx context.Context, id string) (*Issue, error) {
+    resp, err := c.Get(ctx, APIPathPrefix+"/issues/"+id, "", nil)
+    if err != nil {
+        return nil, err
+    }
+    var issue Issue
+    _, err = postprocessJsonResponse(resp, &issue)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse issue response: %w", err)
+    }
+    return &issue, nil
+}
+
+// UpdateIssue updates an issue's status
+func (c *Client) UpdateIssue(ctx context.Context, id string, req *IssueUpdateRequest) (*Issue, error) {
+    data, err := json.Marshal(req)
+    if err != nil {
+        return nil, fmt.Errorf("failed to marshal issue update request: %w", err)
+    }
+    resp, err := c.Put(ctx, APIPathPrefix+"/issues/"+id, data, nil)
+    if err != nil {
+        return nil, err
+    }
+    var issue Issue
+    _, err = postprocessJsonResponse(resp, &issue)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse issue response: %w", err)
+    }
+    return &issue, nil
+}
+
+// DismissIssue dismisses an issue (DELETE /issues/{id})
+func (c *Client) DismissIssue(ctx context.Context, id string) error {
+    urlPath := APIPathPrefix + "/issues/" + id
+    req, err := c.newRequest(ctx, "DELETE", urlPath, nil)
+    if err != nil {
+        return err
+    }
+    resp, err := c.PerformRequest(ctx, req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    return nil
+}
+
+// CountIssues counts issues matching the given filters
+func (c *Client) CountIssues(ctx context.Context, params map[string]string) (*IssueCountResponse, error) {
+    queryParams := url.Values{}
+    for k, v := range params {
+        queryParams.Add(k, v)
+    }
+    resp, err := c.Get(ctx, APIPathPrefix+"/issues/count", queryParams.Encode(), nil)
+    if err != nil {
+        return nil, err
+    }
+    var result IssueCountResponse
+    _, err = postprocessJsonResponse(resp, &result)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse issue count response: %w", err)
+    }
+    return &result, nil
+}
+```
+
+##### 1.2.9.6 New CLI Commands
+
+Following the existing resource command conventions, create these files:
+
+**`pkg/cmd/helptext.go` — add:**
+```go
+ResourceIssue = "issue"
+```
+
+**`pkg/cmd/issue.go`** — group command:
+```go
+// Pattern: same as source.go
+// Use: "issue", Aliases: []string{"issues"}
+// Short: ShortBeta("Manage your issues")
+// Subcommands: list, get, update, dismiss, count
+```
+
+**`pkg/cmd/issue_list.go`** — list issues:
+```go
+// Flags: --type (delivery,transformation,backpressure), --status (OPENED,IGNORED,ACKNOWLEDGED,RESOLVED),
+//        --issue-trigger-id, --order-by, --dir, --limit, --next, --prev, --output
+// Pattern: same as source_list.go, event_list.go
+```
+
+**`pkg/cmd/issue_get.go`** — get issue by ID:
+```go
+// Args: ExactArgs(1) — issue ID
+// Pattern: same as source_get.go (but no name resolution needed — issues are ID-only)
+```
+
+**`pkg/cmd/issue_update.go`** — update issue status:
+```go
+// Args: ExactArgs(1) — issue ID
+// Flags: --status (required) — OPENED, IGNORED, ACKNOWLEDGED, RESOLVED
+// Calls client.UpdateIssue(ctx, id, &IssueUpdateRequest{Status: status})
+```
+
+**`pkg/cmd/issue_dismiss.go`** — dismiss an issue:
+```go
+// Args: ExactArgs(1) — issue ID
+// Calls client.DismissIssue(ctx, id)
+// Pattern: same as connection_delete.go / source_delete.go
+```
+
+**`pkg/cmd/issue_count.go`** — count issues:
+```go
+// Flags: same filters as list (--type, --status, --issue-trigger-id)
+// Calls client.CountIssues(ctx, params)
+// Pattern: same as source_count.go
+```
+
+**Registration in `pkg/cmd/gateway.go`:**
+```go
+addIssueCmdTo(g.cmd)
+```
+
+##### 1.2.9.7 MCP Tool Schema
 
 ```
 Tool: hookdeck_issues
 Input:
-  action: string (required) — "list" or "get"
-  id: string — required for get
+  action: string (required) — "list", "get", "update", "dismiss"
+  id: string — required for get/update/dismiss
+  # update parameters:
+  status: string — required for update; OPENED, IGNORED, ACKNOWLEDGED, RESOLVED
   # list filters:
-  status: string (optional) — e.g., OPENED, DISMISSED
-  type: string (optional)
+  type: string (optional) — delivery, transformation, backpressure
+  filter_status: string (optional) — OPENED, IGNORED, ACKNOWLEDGED, RESOLVED
+  issue_trigger_id: string (optional)
+  order_by: string (optional) — created_at, first_seen_at, last_seen_at, opened_at, status
+  dir: string (optional) — asc, desc
   limit: integer (optional, default 100)
   next: string (optional)
   prev: string (optional)
+
+list action:
+  - Build params map from inputs
+  - Call client.ListIssues(ctx, params)
+  - Return IssueListResponse as JSON
+
+get action:
+  - Call client.GetIssue(ctx, id)
+  - Return Issue as JSON
+
+update action:
+  - Call client.UpdateIssue(ctx, id, &IssueUpdateRequest{Status: status})
+  - Return updated Issue as JSON
+
+dismiss action:
+  - Call client.DismissIssue(ctx, id)
+  - Return success confirmation
 ```
 
 ---
@@ -642,31 +899,70 @@ Input:
 
 **Actions:** `events`, `requests`, `attempts`, `transformations`
 
-The plan abstracts 7 API endpoints into 4 MCP actions. The existing CLI has 7 subcommands:
+##### 1.2.10.1 Metrics Consolidation
 
-| CLI Subcommand | API Endpoint | MCP Action |
+The current API has 7 endpoints, but the correct domain model has 4 resource-aligned metrics endpoints. Three of the current endpoints (`queue-depth`, `events-pending-timeseries`, `events-by-issue`) are views of the events resource and should be exposed as measures and dimensions on a single `events` action, not as separate actions.
+
+**Consolidation mapping:**
+
+| Current API Endpoint | Target MCP Action | How It Maps |
 |---|---|---|
-| `metrics events` | `GET /metrics/events` | `events` |
-| `metrics requests` | `GET /metrics/requests` | `requests` |
-| `metrics attempts` | `GET /metrics/attempts` | `attempts` |
-| `metrics transformations` | `GET /metrics/transformations` | `transformations` |
-| `metrics queue-depth` | `GET /metrics/queue-depth` | (not directly mapped) |
-| `metrics pending` | `GET /metrics/events-pending-timeseries` | (not directly mapped) |
-| `metrics events-by-issue` | `GET /metrics/events-by-issue` | (not directly mapped) |
+| `GET /metrics/events` | `events` | Direct |
+| `GET /metrics/queue-depth` | `events` | Measures: `pending`, `queue_depth`; Dimensions: `destination_id` |
+| `GET /metrics/events-pending-timeseries` | `events` | Measures: `pending`; with granularity |
+| `GET /metrics/events-by-issue` | `events` | Dimensions: `issue_id` |
+| `GET /metrics/requests` | `requests` | Direct |
+| `GET /metrics/attempts` | `attempts` | Direct |
+| `GET /metrics/transformations` | `transformations` | Direct |
 
-**Three endpoints don't map cleanly to the 4 actions:** queue-depth, events-pending-timeseries, and events-by-issue. See Question #3.
+##### 1.2.10.2 CLI Metrics Refactoring (Phase 1 prerequisite)
 
-**Existing CLI implementations:**
-- `pkg/cmd/metrics.go` — common flags and params
-- `pkg/cmd/metrics_events.go` — event metrics
-- `pkg/cmd/metrics_requests.go` — request metrics
-- `pkg/cmd/metrics_attempts.go` — attempt metrics
-- `pkg/cmd/metrics_transformations.go` — transformation metrics
-- `pkg/cmd/metrics_pending.go` — pending timeseries
-- `pkg/cmd/metrics_queue_depth.go` — queue depth
-- `pkg/cmd/metrics_events_by_issue.go` — events by issue
+The CLI should also be updated from 7 subcommands to 4 resource-aligned subcommands. The CLI client layer handles routing to the correct underlying API endpoint(s) based on the measures/dimensions requested.
 
-**API client methods:**
+**Current files to refactor:**
+- `pkg/cmd/metrics.go` — keep common flags; update subcommand registration
+- `pkg/cmd/metrics_events.go` — expand to handle queue-depth, pending, and events-by-issue
+- `pkg/cmd/metrics_requests.go` — keep as-is
+- `pkg/cmd/metrics_attempts.go` — keep as-is
+- `pkg/cmd/metrics_transformations.go` — keep as-is
+- `pkg/cmd/metrics_pending.go` — **remove** (folded into events)
+- `pkg/cmd/metrics_queue_depth.go` — **remove** (folded into events)
+- `pkg/cmd/metrics_events_by_issue.go` — **remove** (folded into events)
+
+**CLI routing logic for `hookdeck metrics events`:**
+
+When the user requests measures like `pending`, `queue_depth`, `max_depth`, `max_age` or dimensions like `issue_id`, the CLI client must route to the correct underlying API endpoint:
+
+```go
+func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client, params hookdeck.MetricsQueryParams) (hookdeck.MetricsResponse, error) {
+    // Route based on measures/dimensions requested:
+    // If measures include "queue_depth", "max_depth", "max_age" → QueryQueueDepth
+    // If measures include "pending" with granularity → QueryEventsPendingTimeseries
+    // If dimensions include "issue_id" or IssueID is set → QueryEventsByIssue
+    // Otherwise → QueryEventMetrics (default)
+}
+```
+
+This routing is an implementation detail of the CLI client layer. Both MCP tools and CLI commands use the same routing.
+
+**Updated measures per action (consolidated):**
+
+- **Events:** `count, successful_count, failed_count, scheduled_count, paused_count, error_rate, avg_attempts, scheduled_retry_count, pending, queue_depth, max_depth, max_age`
+- **Requests:** `count, accepted_count, rejected_count, discarded_count, avg_events_per_request, avg_ignored_per_request`
+- **Attempts:** `count, successful_count, failed_count, delivered_count, error_rate, response_latency_avg, response_latency_max, response_latency_p95, response_latency_p99, delivery_latency_avg`
+- **Transformations:** `count, successful_count, failed_count, error_rate, error_count, warn_count, info_count, debug_count`
+
+**Updated dimensions per action:**
+
+- **Events:** `connection_id`, `source_id`, `destination_id`, `issue_id`
+- **Requests:** `source_id`
+- **Attempts:** `destination_id`
+- **Transformations:** `transformation_id`, `connection_id`
+
+##### 1.2.10.3 Existing API Client Methods (unchanged)
+
+The underlying API client methods remain unchanged — the routing logic is added in a new helper layer:
+
 - `pkg/hookdeck/metrics.go:102` — `QueryEventMetrics(ctx, params MetricsQueryParams) (MetricsResponse, error)`
 - `pkg/hookdeck/metrics.go:107` — `QueryRequestMetrics(ctx, params MetricsQueryParams) (MetricsResponse, error)`
 - `pkg/hookdeck/metrics.go:112` — `QueryAttemptMetrics(ctx, params MetricsQueryParams) (MetricsResponse, error)`
@@ -680,16 +976,9 @@ The plan abstracts 7 API endpoints into 4 MCP actions. The existing CLI has 7 su
 - `MetricDataPoint` (`pkg/hookdeck/metrics.go:14-18`): TimeBucket, Dimensions, Metrics
 - `MetricsResponse` (`pkg/hookdeck/metrics.go:21`): `= []MetricDataPoint`
 
-**Available measures per endpoint (from CLI constants):**
-- Events: `count, successful_count, failed_count, scheduled_count, paused_count, error_rate, avg_attempts, scheduled_retry_count` (`pkg/cmd/metrics_events.go:10`)
-- Requests: `count, accepted_count, rejected_count, discarded_count, avg_events_per_request, avg_ignored_per_request` (`pkg/cmd/metrics_requests.go:10`)
-- Attempts: `count, successful_count, failed_count, delivered_count, error_rate, response_latency_avg, response_latency_max, response_latency_p95, response_latency_p99, delivery_latency_avg` (`pkg/cmd/metrics_attempts.go:10`)
-- Transformations: `count, successful_count, failed_count, error_rate, error_count, warn_count, info_count, debug_count` (`pkg/cmd/metrics_transformations.go:10`)
-- Queue depth: `max_depth, max_age` (`pkg/cmd/metrics_queue_depth.go:10`)
+**Dimension mapping:** The CLI maps `connection_id` / `connection-id` → `webhook_id` for the API (see `pkg/cmd/metrics.go:110-112`). Both CLI and MCP must do this.
 
-**Dimension mapping:** The CLI maps `connection_id` / `connection-id` → `webhook_id` for the API (see `pkg/cmd/metrics.go:110-112`). The MCP layer must do the same.
-
-**MCP tool schema:**
+##### 1.2.10.4 MCP Tool Schema
 
 ```
 Tool: hookdeck_metrics
@@ -699,16 +988,18 @@ Input:
   end: string (required) — ISO 8601 datetime
   granularity: string (optional) — e.g., "1h", "5m", "1d"
   measures: string[] (optional) — specific measures to return
-  dimensions: string[] (optional) — e.g., ["source_id", "connection_id"]
+  dimensions: string[] (optional) — e.g., ["source_id", "connection_id", "issue_id"]
   source_id: string (optional)
   destination_id: string (optional)
   connection_id: string (optional) — maps to webhook_id in API
   status: string (optional)
+  issue_id: string (optional) — for events action, triggers events-by-issue routing
 
 Preprocessing:
   - Map connection_id → webhook_id in dimensions array
   - Build MetricsQueryParams from inputs
-  - Call the appropriate Query*Metrics method based on action
+  - For "events" action: use consolidated routing to pick correct API endpoint
+  - For other actions: call respective Query*Metrics method
 
 Output:
   - Return MetricsResponse ([]MetricDataPoint) as JSON array
@@ -744,28 +1035,55 @@ Output:
 ### 1.3 File Structure
 
 ```
-pkg/gateway/mcp/
-├── server.go          # MCP server initialization, tool registration, stdio transport
-├── tools.go           # Tool handler dispatch (action routing)
-├── tool_projects.go   # projects tool implementation
-├── tool_connections.go # connections tool implementation
-├── tool_sources.go    # sources tool implementation
-├── tool_destinations.go # destinations tool implementation
-├── tool_transformations.go # transformations tool implementation
-├── tool_requests.go   # requests tool implementation
-├── tool_events.go     # events tool implementation
-├── tool_attempts.go   # attempts tool implementation
-├── tool_issues.go     # issues tool implementation
-├── tool_metrics.go    # metrics tool implementation
-├── tool_help.go       # help tool implementation
-├── errors.go          # Error translation (APIError → MCP error messages)
-└── response.go        # Response formatting helpers (JSON marshaling)
+# Phase 1 prerequisite: Issues CLI backfill
+pkg/hookdeck/
+├── issues.go              # NEW: Issue API client (ListIssues, GetIssue, UpdateIssue, DismissIssue, CountIssues)
 
 pkg/cmd/
-├── mcp.go             # Cobra command: hookdeck gateway mcp
+├── issue.go               # NEW: Issue group command (issue/issues)
+├── issue_list.go           # NEW: hookdeck gateway issue list
+├── issue_get.go            # NEW: hookdeck gateway issue get
+├── issue_update.go         # NEW: hookdeck gateway issue update
+├── issue_dismiss.go        # NEW: hookdeck gateway issue dismiss
+├── issue_count.go          # NEW: hookdeck gateway issue count
+├── helptext.go             # MODIFY: add ResourceIssue = "issue"
+├── gateway.go              # MODIFY: add addIssueCmdTo(g.cmd)
 
-pkg/hookdeck/
-├── issues.go          # NEW: Issue API client methods (ListIssues, GetIssue)
+# Phase 1 prerequisite: Metrics CLI consolidation
+pkg/cmd/
+├── metrics.go              # MODIFY: remove 3 deprecated subcommand registrations
+├── metrics_events.go       # MODIFY: expand to handle queue-depth, pending, events-by-issue routing
+├── metrics_requests.go     # KEEP: unchanged
+├── metrics_attempts.go     # KEEP: unchanged
+├── metrics_transformations.go # KEEP: unchanged
+├── metrics_pending.go      # REMOVE: folded into metrics_events.go
+├── metrics_queue_depth.go  # REMOVE: folded into metrics_events.go
+├── metrics_events_by_issue.go # REMOVE: folded into metrics_events.go
+
+# MCP server
+pkg/gateway/mcp/
+├── server.go              # MCP server initialization, tool registration, stdio transport
+├── tools.go               # Tool handler dispatch (action routing)
+├── tool_projects.go       # projects tool implementation
+├── tool_connections.go    # connections tool implementation
+├── tool_sources.go        # sources tool implementation
+├── tool_destinations.go   # destinations tool implementation
+├── tool_transformations.go # transformations tool implementation
+├── tool_requests.go       # requests tool implementation
+├── tool_events.go         # events tool implementation
+├── tool_attempts.go       # attempts tool implementation
+├── tool_issues.go         # issues tool implementation
+├── tool_metrics.go        # metrics tool implementation
+├── tool_help.go           # help tool implementation
+├── errors.go              # Error translation (APIError → MCP error messages)
+└── response.go            # Response formatting helpers (JSON marshaling)
+
+pkg/cmd/
+├── mcp.go                 # Cobra command: hookdeck gateway mcp
+
+# Reference
+plans/
+├── openapi_2025-07-01.json # OpenAPI spec for Hookdeck API (reference)
 ```
 
 ### 1.4 Dependency Addition
@@ -843,111 +1161,49 @@ Option 2 is simpler and likely safe, but Option 1 is what the existing codebase 
 
 ## Section 2: Questions and Unknowns
 
-### Functionality Unknown
+### Resolved
 
-#### Q1: Issues API client methods do not exist
+The following questions from the initial analysis have been resolved:
 
-**What was found:** There are no `ListIssues()` or `GetIssue()` methods in `pkg/hookdeck/`. No `issues.go` file exists. The only issue reference is as a filter parameter (`issue_id`) on events and metrics.
+- **Q1–Q2 (Issues API/struct unknown):** Resolved. The OpenAPI spec (`plans/openapi_2025-07-01.json`) provides full Issue schema and endpoint definitions. Section 1.2.9 now contains complete API client code, CLI commands, and MCP tool schema derived from the spec.
+- **Q3 (Metrics endpoint mapping):** Resolved. Metrics will be consolidated from 7 CLI subcommands to 4 resource-aligned ones (requests, events, attempts, transformations). The CLI client handles routing to the underlying 7 API endpoints. See Section 1.2.10 for full details.
 
-**Why it's unclear:** The plan calls for an `issues` tool with `list` and `get` actions, but the codebase has no implementation to reference.
+### Open Questions
 
-**Resolution paths:**
-1. **Add `pkg/hookdeck/issues.go`** with `ListIssues()` and `GetIssue()` following the existing pattern (same structure as `events.go`, `connections.go`, etc.). The API endpoints are likely `GET /2025-07-01/issues` and `GET /2025-07-01/issues/{id}`.
-2. **Verify the Issue model** against the Hookdeck API documentation or OpenAPI spec before implementing, since the exact response fields are unknown from the codebase alone.
-3. **Defer the issues tool** to a later phase if the API endpoints are not stable.
-
-#### Q2: Issue struct field definitions are unknown from codebase
-
-**What was found:** There is no Issue struct defined anywhere in the codebase.
-
-**Why it's unclear:** Without the Hookdeck OpenAPI spec or API documentation, the exact fields on the Issue response object are a guess.
-
-**Resolution paths:**
-1. Consult the Hookdeck API documentation for the Issue schema
-2. Make a test API call to `GET /issues` and inspect the response
-3. Start with a minimal struct (`ID`, `Title`, `Status`, `Type`, `CreatedAt`, `UpdatedAt`) and add fields as needed
-
-### Ambiguity in Plan
-
-#### Q3: Three metrics endpoints are not mapped to the 4 MCP actions
-
-**What was found:** The plan specifies 4 metrics actions (events, requests, attempts, transformations), but the CLI and API have 7 endpoints. Three endpoints have no corresponding MCP action:
-- `queue-depth` (`GET /metrics/queue-depth`) — measures: max_depth, max_age
-- `pending` / `events-pending-timeseries` (`GET /metrics/events-pending-timeseries`) — measures: count
-- `events-by-issue` (`GET /metrics/events-by-issue`) — requires issue_id
-
-**Why it's unclear:** The plan says "The API has 7 separate metrics endpoints that the MCP abstracts into 4 actions" but does not specify how the remaining 3 endpoints are handled.
-
-**Resolution paths:**
-1. **Expose all 7 as separate actions** — change the MCP tool to have 7 actions instead of 4. This is the most complete.
-2. **Fold queue-depth and pending into a broader action** — e.g., add `queue_depth` and `pending` as additional actions. events-by-issue could be folded into `events` with a special parameter.
-3. **Omit the 3 endpoints from Phase 1** — accept that agents won't have access to queue depth, pending timeseries, or events-by-issue metrics. These are less commonly needed.
-
-#### Q4: `ListProjects()` does not accept context.Context
+#### Q1: `ListProjects()` does not accept context.Context
 
 **What was found:** `ListProjects()` in `pkg/hookdeck/projects.go:15` uses `context.Background()` internally, unlike all other API methods which accept `ctx context.Context`.
 
-**Why it's unclear:** MCP tool handlers typically receive a context from the MCP framework. Should the MCP layer pass its context, or is it acceptable to use `context.Background()`?
+**Recommendation:** Use the method as-is for Phase 1. MCP stdio is sequential, and ListProjects is fast. A `ListProjectsCtx` variant can be added later if needed.
 
-**Resolution paths:**
-1. **Use the method as-is** — `context.Background()` is fine since ListProjects is fast and rarely cancelled
-2. **Add a `ListProjectsCtx(ctx context.Context)` variant** if context propagation is important for cancellation
+#### Q2: Tool naming convention — flat vs namespaced
 
-#### Q5: Tool naming convention — flat vs namespaced
+**What was found:** MCP tools are typically named with a prefix for namespacing (e.g., `hookdeck_projects`) to prevent collisions with other MCP servers.
 
-**What was found:** The plan refers to tools like "projects", "connections", etc. But MCP tools are typically named with a prefix for namespacing.
+**Recommendation:** Use `hookdeck_` prefix (e.g., `hookdeck_projects`, `hookdeck_connections`). This follows MCP best practices and prevents name collisions when agents use multiple MCP servers.
 
-**Why it's unclear:** Should the tools be named `hookdeck_projects`, `hookdeck_connections`, etc. (namespaced) or just `projects`, `connections` (flat)?
+#### Q3: `Config.GetAPIClient()` singleton and project switching
 
-**Resolution paths:**
-1. **Namespaced** (e.g., `hookdeck_projects`) — prevents collisions with other MCP servers, recommended practice
-2. **Flat** (e.g., `projects`) — simpler for agents, but risks name collisions
-3. **Configurable prefix** — overkill for Phase 1
+**What was found:** `Config.GetAPIClient()` uses `sync.Once` to create a single `*hookdeck.Client`. The `projects.use` action needs to change `ProjectID` on this singleton.
 
-### Implementation Risk
+**Impact:** Low. Since `ProjectID` is a public field on the pointer, `client.ProjectID = newID` works. MCP stdio is inherently sequential (one request at a time), so concurrent mutation races should not occur.
 
-#### Q6: `Config.GetAPIClient()` is a singleton with `sync.Once`
+**Recommendation:** Accept the current design. Add a note in the MCP server code that ProjectID mutation is safe only because stdio transport is sequential. If SSE/HTTP transport is added later, add a mutex.
 
-**What was found:** `Config.GetAPIClient()` (`pkg/config/apiclient.go:14-30`) uses `sync.Once` to create a single `*hookdeck.Client`. Once created, the `APIKey` and initial `ProjectID` are baked in.
-
-**Why it's a risk:** The `projects.use` action needs to change `ProjectID`. Since the client is a pointer and `ProjectID` is a public field, setting `client.ProjectID = newID` works. However, the `sync.Once` means the API key cannot be changed after initialization — this is fine for the MCP use case since auth is set before the server starts.
-
-**Impact:** Low. This works as designed. The only concern is thread safety if multiple MCP tool calls execute concurrently and one changes ProjectID while another is mid-request. Since `PerformRequest` reads `c.ProjectID` during header setup (`pkg/hookdeck/client.go:102-105`), there could be a race condition.
-
-**Resolution paths:**
-1. **Accept the race** — MCP stdio is inherently sequential (one request at a time), so concurrent mutations should not occur
-2. **Add a mutex** around `ProjectID` access if the MCP SDK allows concurrent tool calls
-3. **Create a new Client** for each tool call — heavyweight but safe
-
-#### Q7: The `go-sdk` MCP library API surface is unknown from the codebase
+#### Q4: The `go-sdk` MCP library API surface is unknown from the codebase
 
 **What was found:** The `go.mod` does not include `github.com/modelcontextprotocol/go-sdk`. It's a new dependency.
 
-**Why it's a risk:** The exact API for `server.NewMCPServer()`, tool registration, stdio transport, and error handling in the Go MCP SDK needs to be verified against the actual library version.
+**Recommendation:** Write a small spike first — create a minimal MCP server with one tool to validate the SDK API before building all 11 tools. Pin to v1.2.0+.
 
-**Resolution paths:**
-1. **Pin to a specific version** (v1.2.0+) and verify the API before starting implementation
-2. **Write a small spike** — create a minimal MCP server with one tool to validate the SDK API before building all 11 tools
-3. **Review the SDK's README/examples** for the canonical usage pattern
+#### Q5: Raw body responses may be very large
 
-#### Q8: Raw body responses may be very large
+**What was found:** `GetEventRawBody` and `GetRequestRawBody` return `[]byte` of arbitrary size. Webhook payloads can be multi-megabyte.
 
-**What was found:** `GetEventRawBody` and `GetRequestRawBody` return `[]byte` of arbitrary size. Webhook payloads can be large.
+**Recommendation:** Truncate with indication — return the first 100KB with a note: "Body truncated at 100KB. Full body is X bytes." This keeps MCP responses manageable for AI agents.
 
-**Why it's a risk:** MCP tool responses have practical size limits. A multi-megabyte raw body could cause issues for the AI agent processing the response.
+#### Q6: The `project use` action's scope within an MCP session
 
-**Resolution paths:**
-1. **Truncate with indication** — return the first N bytes with a note: "Body truncated at 100KB. Full body is X bytes."
-2. **Base64 encode** — return as base64 string (doubles size but is safe for JSON)
-3. **Return metadata only** — return content length and content type without the full body, let the agent decide if they need it
+**What was found:** The CLI's `project use` persists to config files. The MCP server should not persist project changes to disk, as this would affect other CLI sessions unexpectedly.
 
-#### Q9: The `project use` action's scope within an MCP session
-
-**What was found:** The plan says "use" changes the active project. The CLI persists this to config files. The MCP server should not persist.
-
-**Why it's a risk:** If the MCP server dies and restarts, the project context is lost. The agent would need to call `projects.use` again. This is acceptable behavior but should be documented.
-
-**Resolution paths:**
-1. **Session-scoped only** (recommended) — mutate `client.ProjectID` in memory only
-2. **Persist to config** — matches CLI behavior but affects other CLI sessions, which is unexpected
-3. **Return the project context in every response** — so the agent always knows which project is active
+**Recommendation:** Session-scoped only — mutate `client.ProjectID` in memory. If the MCP server restarts, the agent must call `projects.use` again. Document this behavior in the tool description.
