@@ -27,9 +27,9 @@ This document maps the high-level MCP build-out plan against the existing hookde
 - [x] `pkg/cmd/gateway.go` — Register issue commands via `addIssueCmdTo(g.cmd)`
 - [x] Build and verify compilation
 - [x] `test/acceptance/issue_test.go` — Acceptance tests for all issue subcommands (help, list, get, update, dismiss, count)
-- [ ] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestIssue -v`
+- [x] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestIssue -v`
 
-### Part 2: Metrics CLI Consolidation (prerequisite)
+### Part 2: Metrics CLI Consolidation (prerequisite) -- COMPLETE
 
 Consolidate from 7 subcommands to 4 resource-aligned subcommands. The CLI should support:
 ```
@@ -41,21 +41,21 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 ```
 
 **Events consolidation** (fold 3 subcommands into `events`):
-- [ ] Expand `pkg/cmd/metrics_events.go` — add routing logic: measures like `pending`, `queue_depth`, `max_depth`, `max_age` route to the correct underlying API endpoint (queue-depth, pending-timeseries, events-by-issue) based on requested measures/dimensions
-- [ ] Remove `pkg/cmd/metrics_pending.go` (folded into events)
-- [ ] Remove `pkg/cmd/metrics_queue_depth.go` (folded into events)
-- [ ] Remove `pkg/cmd/metrics_events_by_issue.go` (folded into events)
-- [ ] Update `pkg/cmd/metrics.go` — remove 3 deprecated subcommand registrations, update help text to reflect 4 subcommands
+- [x] Expand `pkg/cmd/metrics_events.go` — add routing logic: measures like `pending`, `queue_depth`, `max_depth`, `max_age` route to the correct underlying API endpoint (queue-depth, pending-timeseries, events-by-issue) based on requested measures/dimensions
+- [x] Remove `pkg/cmd/metrics_pending.go` (folded into events)
+- [x] Remove `pkg/cmd/metrics_queue_depth.go` (folded into events)
+- [x] Remove `pkg/cmd/metrics_events_by_issue.go` (folded into events)
+- [x] Update `pkg/cmd/metrics.go` — remove 3 deprecated subcommand registrations, update help text to reflect 4 subcommands
 
 **Verify all 4 subcommands** (requests, attempts, transformations already have `--measures`/`--dimensions` via `metricsCommonFlags`):
-- [ ] Verify `metrics requests --measures count,accepted_count --dimensions source_id` works
-- [ ] Verify `metrics attempts --measures count,error_rate --dimensions destination_id` works
-- [ ] Verify `metrics transformations --measures count,error_rate --dimensions connection_id` works
+- [x] Verify `metrics requests --measures count,accepted_count --dimensions source_id` works
+- [x] Verify `metrics attempts --measures count,error_rate --dimensions destination_id` works
+- [x] Verify `metrics transformations --measures count,error_rate --dimensions connection_id` works
 
 **Acceptance tests:**
-- [ ] Update `test/acceptance/metrics_test.go` — remove tests for `queue-depth`, `pending`, `events-by-issue` subcommands; add tests for consolidated `events` with queue-depth/pending/issue measures and dimensions
-- [ ] Add acceptance tests for `--measures` and `--dimensions` on `requests`, `attempts`, `transformations`
-- [ ] Update `TestMetricsHelp` to assert 4 subcommands (not 7)
+- [x] Update `test/acceptance/metrics_test.go` — remove tests for `queue-depth`, `pending`, `events-by-issue` subcommands; add tests for consolidated `events` with queue-depth/pending/issue measures and dimensions
+- [x] Add acceptance tests for `--measures` and `--dimensions` on `requests`, `attempts`, `transformations`
+- [x] Update `TestMetricsHelp` to assert 4 subcommands (not 7)
 - [ ] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestMetrics -v`
 
 ### Part 3: MCP Server Skeleton
