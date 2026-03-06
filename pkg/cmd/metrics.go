@@ -139,16 +139,16 @@ func newMetricsCmd() *metricsCmd {
 		Use:   "metrics",
 		Args:  validators.NoArgs,
 		Short: ShortBeta("Query Event Gateway metrics"),
-		Long: LongBeta(`Query metrics for events, requests, attempts, queue depth, pending events, events by issue, and transformations.
-Requires --start and --end (ISO 8601 date-time). Use subcommands to choose the metric type.`),
+		Long: LongBeta(`Query metrics for events, requests, attempts, and transformations.
+Requires --start and --end (ISO 8601 date-time). Use subcommands to choose the metric type.
+
+The events subcommand consolidates queue-depth, pending, and events-by-issue
+queries — use --measures and --dimensions to select the view you need.`),
 	}
 
 	mc.cmd.AddCommand(newMetricsEventsCmd().cmd)
 	mc.cmd.AddCommand(newMetricsRequestsCmd().cmd)
 	mc.cmd.AddCommand(newMetricsAttemptsCmd().cmd)
-	mc.cmd.AddCommand(newMetricsQueueDepthCmd().cmd)
-	mc.cmd.AddCommand(newMetricsPendingCmd().cmd)
-	mc.cmd.AddCommand(newMetricsEventsByIssueCmd().cmd)
 	mc.cmd.AddCommand(newMetricsTransformationsCmd().cmd)
 
 	return mc

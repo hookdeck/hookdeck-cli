@@ -17,7 +17,9 @@ func metricsArgs(subcmd string, extra ...string) []string {
 	return append(args, extra...)
 }
 
-// TestMetricsHelp verifies that hookdeck gateway metrics --help lists all 7 subcommands.
+// --- Help ---
+
+// TestMetricsHelp verifies that hookdeck gateway metrics --help lists all 4 subcommands.
 func TestMetricsHelp(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -27,13 +29,15 @@ func TestMetricsHelp(t *testing.T) {
 	assert.Contains(t, stdout, "events")
 	assert.Contains(t, stdout, "requests")
 	assert.Contains(t, stdout, "attempts")
-	assert.Contains(t, stdout, "queue-depth")
-	assert.Contains(t, stdout, "pending")
-	assert.Contains(t, stdout, "events-by-issue")
 	assert.Contains(t, stdout, "transformations")
+	// Removed subcommands should not appear
+	assert.NotContains(t, stdout, "queue-depth")
+	assert.NotContains(t, stdout, "pending")
+	assert.NotContains(t, stdout, "events-by-issue")
 }
 
-// Baseline: one success test per endpoint. API requires at least one measure for most endpoints.
+// --- Events (default) ---
+
 func TestMetricsEvents(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -43,62 +47,6 @@ func TestMetricsEvents(t *testing.T) {
 	assert.NotEmpty(t, stdout)
 }
 
-func TestMetricsRequests(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("requests"), "--measures", "count")...)
-	assert.NotEmpty(t, stdout)
-}
-
-func TestMetricsAttempts(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("attempts"), "--measures", "count")...)
-	assert.NotEmpty(t, stdout)
-}
-
-func TestMetricsQueueDepth(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("queue-depth"), "--measures", "max_depth")...)
-	assert.NotEmpty(t, stdout)
-}
-
-func TestMetricsPending(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("pending"), "--measures", "count")...)
-	assert.NotEmpty(t, stdout)
-}
-
-func TestMetricsEventsByIssue(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	// events-by-issue requires issue-id as positional argument and --measures
-	stdout := cli.RunExpectSuccess("gateway", "metrics", "events-by-issue", "iss_placeholder", "--start", metricsStart, "--end", metricsEnd, "--measures", "count")
-	assert.NotEmpty(t, stdout)
-}
-
-func TestMetricsTransformations(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("transformations"), "--measures", "count")...)
-	assert.NotEmpty(t, stdout)
-}
-
-// Common flags: granularity, measures, dimensions, source-id, destination-id, connection-id, output.
 func TestMetricsEventsWithGranularity(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -117,21 +65,64 @@ func TestMetricsEventsWithMeasures(t *testing.T) {
 	assert.NotEmpty(t, stdout)
 }
 
-func TestMetricsQueueDepthWithMeasuresAndDimensions(t *testing.T) {
+// --- Events (consolidated: queue-depth routing) ---
+
+func TestMetricsEventsQueueDepth(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("queue-depth"), "--measures", "max_depth,max_age", "--dimensions", "destination_id")...)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "max_depth")...)
 	assert.NotEmpty(t, stdout)
 }
+
+func TestMetricsEventsQueueDepthWithDimensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "max_depth,max_age", "--dimensions", "destination_id")...)
+	assert.NotEmpty(t, stdout)
+}
+
+// --- Events (consolidated: pending routing) ---
+
+func TestMetricsEventsPending(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "pending", "--granularity", "1h")...)
+	assert.NotEmpty(t, stdout)
+}
+
+// --- Events (consolidated: events-by-issue routing) ---
+
+func TestMetricsEventsByIssueID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "count", "--issue-id", "iss_placeholder")...)
+	assert.NotEmpty(t, stdout)
+}
+
+func TestMetricsEventsByIssueDimension(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "count", "--dimensions", "issue_id")...)
+	assert.NotEmpty(t, stdout)
+}
+
+// --- Events (filters) ---
 
 func TestMetricsEventsWithSourceID(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	// Filter by a placeholder ID; API may return empty data but command should succeed
 	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "count", "--source-id", "src_placeholder")...)
 	assert.NotEmpty(t, stdout)
 }
@@ -163,7 +154,8 @@ func TestMetricsEventsWithStatus(t *testing.T) {
 	assert.NotEmpty(t, stdout)
 }
 
-// Output: JSON structure (array of objects with time_bucket, dimensions, metrics).
+// --- Events (JSON output) ---
+
 func TestMetricsEventsOutputJSON(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -175,11 +167,10 @@ func TestMetricsEventsOutputJSON(t *testing.T) {
 		Metrics    map[string]float64     `json:"metrics"`
 	}
 	require.NoError(t, cli.RunJSON(&data, append(metricsArgs("events"), "--measures", "count")...))
-	// Response is an array; may be empty
 	assert.NotNil(t, data)
 }
 
-func TestMetricsQueueDepthOutputJSON(t *testing.T) {
+func TestMetricsEventsQueueDepthOutputJSON(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
@@ -189,11 +180,81 @@ func TestMetricsQueueDepthOutputJSON(t *testing.T) {
 		Dimensions map[string]interface{} `json:"dimensions"`
 		Metrics    map[string]float64     `json:"metrics"`
 	}
-	require.NoError(t, cli.RunJSON(&data, append(metricsArgs("queue-depth"), "--measures", "max_depth")...))
+	require.NoError(t, cli.RunJSON(&data, append(metricsArgs("events"), "--measures", "max_depth")...))
 	assert.NotNil(t, data)
 }
 
-// Validation: missing --start or --end should fail.
+// --- Requests ---
+
+func TestMetricsRequests(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("requests"), "--measures", "count")...)
+	assert.NotEmpty(t, stdout)
+}
+
+func TestMetricsRequestsWithMeasuresAndDimensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("requests"), "--measures", "count,accepted_count", "--dimensions", "source_id")...)
+	assert.NotEmpty(t, stdout)
+}
+
+// --- Attempts ---
+
+func TestMetricsAttempts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("attempts"), "--measures", "count")...)
+	assert.NotEmpty(t, stdout)
+}
+
+func TestMetricsAttemptsWithMeasuresAndDimensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("attempts"), "--measures", "count,error_rate", "--dimensions", "destination_id")...)
+	assert.NotEmpty(t, stdout)
+}
+
+// --- Transformations ---
+
+func TestMetricsTransformations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("transformations"), "--measures", "count")...)
+	assert.NotEmpty(t, stdout)
+}
+
+func TestMetricsTransformationsWithMeasures(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("transformations"), "--measures", "count,error_rate")...)
+	assert.NotEmpty(t, stdout)
+}
+
+func TestMetricsTransformationsWithMeasuresAndDimensions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("transformations"), "--measures", "count,error_rate", "--dimensions", "connection_id")...)
+	assert.NotEmpty(t, stdout)
+}
+
+// --- Validation ---
+
 func TestMetricsEventsMissingStart(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -230,7 +291,6 @@ func TestMetricsAttemptsMissingEnd(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Missing --measures: API returns 422 (measures required for all endpoints).
 func TestMetricsEventsMissingMeasures(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -238,33 +298,4 @@ func TestMetricsEventsMissingMeasures(t *testing.T) {
 	cli := NewCLIRunner(t)
 	_, _, err := cli.Run("gateway", "metrics", "events", "--start", metricsStart, "--end", metricsEnd)
 	require.Error(t, err)
-}
-
-// events-by-issue without required <issue-id> argument: Cobra rejects (ExactArgs(1)).
-func TestMetricsEventsByIssueMissingIssueID(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	_, _, err := cli.Run("gateway", "metrics", "events-by-issue", "--start", metricsStart, "--end", metricsEnd, "--measures", "count")
-	require.Error(t, err)
-}
-
-// Pending and transformations with minimal flags.
-func TestMetricsPendingWithGranularity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("pending"), "--granularity", "1h", "--measures", "count")...)
-	assert.NotEmpty(t, stdout)
-}
-
-func TestMetricsTransformationsWithMeasures(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	cli := NewCLIRunner(t)
-	stdout := cli.RunExpectSuccess(append(metricsArgs("transformations"), "--measures", "count,error_rate")...)
-	assert.NotEmpty(t, stdout)
 }
