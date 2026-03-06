@@ -26,6 +26,8 @@ This document maps the high-level MCP build-out plan against the existing hookde
 - [x] `pkg/cmd/issue_count.go` — `hookdeck gateway issue count`
 - [x] `pkg/cmd/gateway.go` — Register issue commands via `addIssueCmdTo(g.cmd)`
 - [x] Build and verify compilation
+- [x] `test/acceptance/issue_test.go` — Acceptance tests for all issue subcommands (help, list, get, update, dismiss, count)
+- [ ] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestIssue -v`
 
 ### Part 2: Metrics CLI Consolidation (prerequisite)
 
@@ -34,6 +36,8 @@ This document maps the high-level MCP build-out plan against the existing hookde
 - [ ] Remove `pkg/cmd/metrics_queue_depth.go` (folded into metrics_events)
 - [ ] Remove `pkg/cmd/metrics_events_by_issue.go` (folded into metrics_events)
 - [ ] Update `pkg/cmd/metrics.go` — remove deprecated subcommand registrations
+- [ ] Update `test/acceptance/metrics_test.go` — Update acceptance tests to reflect consolidated subcommands (ensure removed subcommands are no longer listed, new routing works)
+- [ ] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestMetrics -v`
 
 ### Part 3: MCP Server Skeleton
 
@@ -44,6 +48,7 @@ This document maps the high-level MCP build-out plan against the existing hookde
 - [ ] `pkg/gateway/mcp/response.go` — Response formatting helpers
 - [ ] `pkg/cmd/mcp.go` — Cobra command: `hookdeck gateway mcp`
 - [ ] `pkg/cmd/gateway.go` — Register MCP command via `addMCPCmdTo(g.cmd)`
+- [ ] `test/acceptance/mcp_test.go` — Acceptance test for `hookdeck gateway mcp` command (help text, command registration in gateway)
 
 ### Part 4: MCP Tool Implementations
 
@@ -61,6 +66,12 @@ This document maps the high-level MCP build-out plan against the existing hookde
 
 ### Part 5: Integration Testing & Polish
 
+**CLI Acceptance Tests** (ensure all CLI changes are covered in `test/acceptance/`):
+- [ ] Run full acceptance test suite: `go test ./test/acceptance/ -v`
+- [ ] Verify no regressions in existing tests (gateway, connection, source, destination, etc.)
+- [ ] Verify `hookdeck gateway --help` lists `mcp` as a subcommand
+
+**MCP Integration Tests** (end-to-end via stdio transport):
 - [ ] End-to-end test: start MCP server, send tool calls, verify responses
 - [ ] Verify all 11 tools return well-formed JSON
 - [ ] Test error scenarios (auth failure, 404, 422, rate limiting)
