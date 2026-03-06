@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -22,15 +23,14 @@ func newMetricsEventsCmd() *metricsEventsCmd {
 		Use:   "events",
 		Args:  cobra.NoArgs,
 		Short: ShortBeta("Query event metrics"),
-		Long: LongBeta(`Query metrics for events (volume, success/failure counts, error rate, queue depth, pending, etc.).
+		Long: LongBeta(`Query event metrics: volume and success/failure counts, error rate, queue depth,
+pending over time, or per-issue. Use --measures and --dimensions to choose what to query.
+Requires --start and --end.
+
+When querying per-issue (e.g. --dimensions issue_id), --issue-id is required.
 
 Measures: ` + metricsEventsMeasures + `.
-Dimensions: ` + metricsEventsDimensions + `.
-
-Routing: measures like queue_depth/max_depth/max_age query the queue-depth endpoint;
-pending with --granularity queries the pending-timeseries endpoint;
---issue-id or dimensions including issue_id query the events-by-issue endpoint;
-all other combinations query the default events metrics endpoint.`),
+Dimensions: ` + metricsEventsDimensions + `.`),
 		RunE: c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags)
@@ -73,11 +73,18 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		return client.QueryQueueDepth(ctx, params)
 	}
 	// 2. If measures include "pending" with granularity → QueryEventsPendingTimeseries
+	// API expects measures[]=count; "pending" is only used for routing.
 	if hasMeasure(params, map[string]bool{"pending": true}) && params.Granularity != "" {
-		return client.QueryEventsPendingTimeseries(ctx, params)
+		pendingParams := params
+		pendingParams.Measures = []string{"count"}
+		return client.QueryEventsPendingTimeseries(ctx, pendingParams)
 	}
 	// 3. If dimensions include "issue_id" or IssueID filter is set → QueryEventsByIssue
+	// API requires filters (we send filters[issue_id]); --issue-id is required for this path.
 	if hasDimension(params, "issue_id") || params.IssueID != "" {
+		if params.IssueID == "" {
+			return nil, errors.New("per-issue metrics require --issue-id (required when using --dimensions issue_id)")
+		}
 		return client.QueryEventsByIssue(ctx, params)
 	}
 	// 4. Default → QueryEventMetrics
