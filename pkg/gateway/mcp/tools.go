@@ -2,12 +2,17 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
+
+// emptyObjectSchema is the minimal JSON schema for tools that accept optional
+// key-value arguments. Required by the MCP SDK (AddTool panics without it).
+var emptyObjectSchema = json.RawMessage(`{"type":"object"}`)
 
 // toolDefs lists every tool the MCP server exposes. Each entry pairs a Tool
 // definition with a low-level ToolHandler. Part 4 of the implementation plan
@@ -31,6 +36,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_projects",
 				Description: "List available Hookdeck projects or switch the active project for this session.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_projects"),
 		},
@@ -38,6 +44,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_connections",
 				Description: "Manage connections (webhook routes) that link sources to destinations.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_connections"),
 		},
@@ -45,6 +52,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_sources",
 				Description: "Manage inbound webhook sources.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_sources"),
 		},
@@ -52,6 +60,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_destinations",
 				Description: "Manage webhook delivery destinations.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_destinations"),
 		},
@@ -59,6 +68,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_transformations",
 				Description: "Manage JavaScript transformations applied to webhook payloads.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_transformations"),
 		},
@@ -66,6 +76,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_requests",
 				Description: "Query inbound webhook requests received by Hookdeck.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_requests"),
 		},
@@ -73,6 +84,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_events",
 				Description: "Query events (processed webhook deliveries) and manage retries.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_events"),
 		},
@@ -80,6 +92,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_attempts",
 				Description: "Query delivery attempts for webhook events.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_attempts"),
 		},
@@ -87,6 +100,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_issues",
 				Description: "List, inspect, and manage Hookdeck issues (delivery failures, transformation errors, etc.).",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_issues"),
 		},
@@ -94,6 +108,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_metrics",
 				Description: "Query metrics for events, requests, attempts, and transformations.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_metrics"),
 		},
@@ -101,6 +116,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_help",
 				Description: "Describe available tools and their actions.",
+				InputSchema: emptyObjectSchema,
 			},
 			handler: placeholder("hookdeck_help"),
 		},
