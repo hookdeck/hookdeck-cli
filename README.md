@@ -530,9 +530,11 @@ For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
 
 ### Event Gateway MCP
 
-The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that exposes Hookdeck Event Gateway as tools for AI and agent workflows. You don't run it yourself—you add it to your MCP client (e.g. Cursor, Claude), and the editor starts the server when it needs Hookdeck tools (list/inspect connections, sources, destinations, events, requests, attempts, issues, metrics; login when unauthenticated).
+The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for investigating webhook traffic in production. It exposes read-only tools that let AI agents query your Hookdeck Event Gateway — inspect connections, trace requests through events and delivery attempts, review issues, and pull aggregate metrics.
 
-**Configure your client** (e.g. Cursor: `~/.cursor/mcp.json` or project-level config):
+**Configure your MCP client** (Cursor, Claude Desktop, or any MCP-compatible host):
+
+Cursor (`~/.cursor/mcp.json`):
 
 ```json
 {
@@ -545,7 +547,63 @@ The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Proto
 }
 ```
 
-The client runs `hookdeck gateway mcp` (stdio) as the server process. After configuration, the host can use tools such as `hookdeck_connections_list`, `hookdeck_events_list`, and `hookdeck_login`. For the full tool reference, see [REFERENCE.md](REFERENCE.md) or run `hookdeck gateway mcp --help`.
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp"]
+    }
+  }
+}
+```
+
+The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool is available to log in via the browser.
+
+#### Available tools
+
+| Tool | Description |
+|------|-------------|
+| `hookdeck_projects` | List projects or switch the active project for this session |
+| `hookdeck_connections` | Inspect connections and control delivery flow (list, get, pause, unpause) |
+| `hookdeck_sources` | Inspect inbound webhook sources |
+| `hookdeck_destinations` | Inspect webhook delivery destinations |
+| `hookdeck_transformations` | Inspect JavaScript transformations applied to payloads |
+| `hookdeck_requests` | Query inbound requests — list, get details, raw body, linked events |
+| `hookdeck_events` | Query processed events — list, get details, raw payload body |
+| `hookdeck_attempts` | Query delivery attempts — retry history, response codes, errors |
+| `hookdeck_issues` | Inspect aggregated failure signals (delivery failures, transform errors, backpressure) |
+| `hookdeck_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
+| `hookdeck_help` | Discover available tools and their actions |
+
+#### Example prompts
+
+Once the MCP server is configured, you can ask your agent questions like:
+
+```
+"Are any of my webhooks failing right now?"
+→ Agent uses hookdeck_issues to list open issues, then hookdeck_events to inspect recent failures.
+
+"Show me the last 10 events for my Stripe source and check if any failed."
+→ Agent uses hookdeck_sources to find the Stripe source, then hookdeck_events filtered by source and status.
+
+"What's the error rate for my API destination over the last 24 hours?"
+→ Agent uses hookdeck_metrics with measures like failed_count and count, grouped by destination.
+
+"Trace request req_abc123 — what events did it produce, and did they all deliver successfully?"
+→ Agent uses hookdeck_requests to get the request, then the events action to list generated events.
+
+"Why is my checkout webhook returning 500s? Show me the latest attempt details."
+→ Agent uses hookdeck_events filtered by status FAILED, then hookdeck_attempts to inspect delivery details.
+
+"Pause the connection between Stripe and my staging endpoint while I debug."
+→ Agent uses hookdeck_connections to find and pause the connection.
+
+"Compare failure rates across all my destinations this week."
+→ Agent uses hookdeck_metrics with dimensions set to destination_id and measures like error_rate.
+```
 
 ### Manage connections
 

@@ -35,17 +35,17 @@ func helpOverview(client *hookdeck.Client) *mcpsdk.CallToolResult {
 
 Current project: %s
 
-hookdeck_projects     — List or switch projects (actions: list, use)
-hookdeck_connections  — Manage connections/webhook routes (actions: list, get, pause, unpause)
-hookdeck_sources      — Manage inbound webhook sources (actions: list, get)
-hookdeck_destinations — Manage webhook delivery destinations (actions: list, get)
-hookdeck_transformations — Manage JavaScript transformations (actions: list, get)
-hookdeck_requests     — Query inbound webhook requests (actions: list, get, raw_body, events, ignored_events)
-hookdeck_events       — Query events (actions: list, get, raw_body)
-hookdeck_attempts     — Query delivery attempts (actions: list, get)
-hookdeck_issues       — Inspect issues (actions: list, get)
-hookdeck_metrics      — Query metrics (actions: events, requests, attempts, transformations)
-hookdeck_help         — This help text
+hookdeck_projects        — List or switch projects (actions: list, use)
+hookdeck_connections     — Inspect connections and control delivery flow (actions: list, get, pause, unpause)
+hookdeck_sources         — Inspect inbound webhook sources (actions: list, get)
+hookdeck_destinations    — Inspect webhook delivery destinations (actions: list, get)
+hookdeck_transformations — Inspect JavaScript transformations (actions: list, get)
+hookdeck_requests        — Query inbound webhook requests (actions: list, get, raw_body, events, ignored_events)
+hookdeck_events          — Query processed webhook events (actions: list, get, raw_body)
+hookdeck_attempts        — Query delivery attempts (actions: list, get)
+hookdeck_issues          — Inspect aggregated failure signals (actions: list, get)
+hookdeck_metrics         — Query aggregate metrics (actions: events, requests, attempts, transformations)
+hookdeck_help            — This help text
 
 Use hookdeck_help with topic="<tool_name>" for detailed help on a specific tool.`, projectInfo)
 
@@ -63,13 +63,13 @@ Parameters:
   action      (string, required) — "list" or "use"
   project_id  (string)           — Required for "use" action`,
 
-	"hookdeck_connections": `hookdeck_connections — Manage connections (webhook routes)
+	"hookdeck_connections": `hookdeck_connections — Inspect connections and control delivery flow
 
 Actions:
   list    — List connections with optional filters
   get     — Get a single connection by ID
-  pause   — Pause a connection
-  unpause — Unpause a connection
+  pause   — Pause a connection (stops event delivery)
+  unpause — Resume a paused connection
 
 Parameters:
   action         (string, required) — list, get, pause, or unpause
@@ -81,7 +81,7 @@ Parameters:
   limit          (integer)          — Max results (list, default 100)
   next/prev      (string)           — Pagination cursors (list)`,
 
-	"hookdeck_sources": `hookdeck_sources — Manage inbound webhook sources
+	"hookdeck_sources": `hookdeck_sources — Inspect inbound webhook sources
 
 Actions:
   list — List sources with optional filters
@@ -94,7 +94,7 @@ Parameters:
   limit   (integer)          — Max results (list, default 100)
   next/prev (string)         — Pagination cursors (list)`,
 
-	"hookdeck_destinations": `hookdeck_destinations — Manage webhook delivery destinations
+	"hookdeck_destinations": `hookdeck_destinations — Inspect webhook delivery destinations
 
 Actions:
   list — List destinations with optional filters
@@ -107,7 +107,7 @@ Parameters:
   limit   (integer)          — Max results (list, default 100)
   next/prev (string)         — Pagination cursors (list)`,
 
-	"hookdeck_transformations": `hookdeck_transformations — Manage JavaScript transformations
+	"hookdeck_transformations": `hookdeck_transformations — Inspect JavaScript transformations
 
 Actions:
   list — List transformations with optional filters
@@ -178,7 +178,7 @@ Parameters:
   dir       (string)           — "asc" or "desc" (list)
   next/prev (string)           — Pagination cursors (list)`,
 
-	"hookdeck_issues": `hookdeck_issues — Inspect issues
+	"hookdeck_issues": `hookdeck_issues — Inspect aggregated failure signals
 
 Actions:
   list — List issues with optional filters
@@ -195,7 +195,7 @@ Parameters:
   limit            (integer)          — Max results (list, default 100)
   next/prev        (string)           — Pagination cursors (list)`,
 
-	"hookdeck_metrics": `hookdeck_metrics — Query metrics
+	"hookdeck_metrics": `hookdeck_metrics — Query aggregate metrics
 
 Actions:
   events          — Event metrics (auto-routes to queue-depth, pending, or by-issue as needed)
@@ -216,7 +216,7 @@ Parameters:
   status         (string)             — Filter by status
   issue_id       (string)             — Filter by issue (events only)`,
 
-	"hookdeck_help": `hookdeck_help — Describe available tools
+	"hookdeck_help": `hookdeck_help — Get an overview of available tools or detailed help for a specific tool
 
 Parameters:
   topic  (string) — Tool name for detailed help (e.g. "hookdeck_events"). Omit for overview.`,
