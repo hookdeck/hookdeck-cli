@@ -40,10 +40,10 @@ hookdeck_connections  — Manage connections/webhook routes (actions: list, get,
 hookdeck_sources      — Manage inbound webhook sources (actions: list, get)
 hookdeck_destinations — Manage webhook delivery destinations (actions: list, get)
 hookdeck_transformations — Manage JavaScript transformations (actions: list, get)
-hookdeck_requests     — Query inbound webhook requests (actions: list, get, raw_body, events, ignored_events, retry)
-hookdeck_events       — Query events and manage deliveries (actions: list, get, raw_body, retry, cancel, mute)
+hookdeck_requests     — Query inbound webhook requests (actions: list, get, raw_body, events, ignored_events)
+hookdeck_events       — Query events (actions: list, get, raw_body)
 hookdeck_attempts     — Query delivery attempts (actions: list, get)
-hookdeck_issues       — Manage issues (actions: list, get, update, dismiss)
+hookdeck_issues       — Inspect issues (actions: list, get)
 hookdeck_metrics      — Query metrics (actions: events, requests, attempts, transformations)
 hookdeck_help         — This help text
 
@@ -128,32 +128,27 @@ Actions:
   raw_body       — Get the raw body of a request
   events         — List events generated from a request
   ignored_events — List ignored events for a request
-  retry          — Retry a request
 
 Parameters:
-  action          (string, required) — list, get, raw_body, events, ignored_events, or retry
-  id              (string)           — Required for get/raw_body/events/ignored_events/retry
+  action          (string, required) — list, get, raw_body, events, or ignored_events
+  id              (string)           — Required for get/raw_body/events/ignored_events
   source_id       (string)           — Filter by source (list)
   status          (string)           — Filter by status (list)
   rejection_cause (string)           — Filter by rejection cause (list)
   verified        (boolean)          — Filter by verification status (list)
-  connection_ids  (string[])         — Limit retry to specific connections (retry)
   limit           (integer)          — Max results (list, default 100)
   next/prev       (string)           — Pagination cursors (list)`,
 
-	"hookdeck_events": `hookdeck_events — Query events and manage deliveries
+	"hookdeck_events": `hookdeck_events — Query events (processed webhook deliveries)
 
 Actions:
   list     — List events with optional filters
   get      — Get a single event by ID
   raw_body — Get the raw body of an event
-  retry    — Retry an event
-  cancel   — Cancel a scheduled event
-  mute     — Mute an event
 
 Parameters:
-  action          (string, required) — list, get, raw_body, retry, cancel, or mute
-  id              (string)           — Required for get/raw_body/retry/cancel/mute
+  action          (string, required) — list, get, or raw_body
+  id              (string)           — Required for get/raw_body
   connection_id   (string)           — Filter by connection (list, maps to webhook_id)
   source_id       (string)           — Filter by source (list)
   destination_id  (string)           — Filter by destination (list)
@@ -183,18 +178,15 @@ Parameters:
   dir       (string)           — "asc" or "desc" (list)
   next/prev (string)           — Pagination cursors (list)`,
 
-	"hookdeck_issues": `hookdeck_issues — Manage issues
+	"hookdeck_issues": `hookdeck_issues — Inspect issues
 
 Actions:
-  list    — List issues with optional filters
-  get     — Get a single issue by ID
-  update  — Update an issue's status
-  dismiss — Dismiss an issue
+  list — List issues with optional filters
+  get  — Get a single issue by ID
 
 Parameters:
-  action           (string, required) — list, get, update, or dismiss
-  id               (string)           — Required for get/update/dismiss
-  status           (string)           — Required for update: OPENED, IGNORED, ACKNOWLEDGED, RESOLVED
+  action           (string, required) — list or get
+  id               (string)           — Required for get
   type             (string)           — Filter: delivery, transformation, backpressure (list)
   filter_status    (string)           — Filter by status (list)
   issue_trigger_id (string)           — Filter by trigger (list)

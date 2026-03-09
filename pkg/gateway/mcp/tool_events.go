@@ -28,14 +28,8 @@ func handleEvents(client *hookdeck.Client) mcpsdk.ToolHandler {
 			return eventsGet(ctx, client, in)
 		case "raw_body":
 			return eventsRawBody(ctx, client, in)
-		case "retry":
-			return eventsRetry(ctx, client, in)
-		case "cancel":
-			return eventsCancel(ctx, client, in)
-		case "mute":
-			return eventsMute(ctx, client, in)
 		default:
-			return ErrorResult(fmt.Sprintf("unknown action %q; expected list, get, raw_body, retry, cancel, or mute", action)), nil
+			return ErrorResult(fmt.Sprintf("unknown action %q; expected list, get, or raw_body", action)), nil
 		}
 	}
 }
@@ -94,47 +88,3 @@ func eventsRawBody(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 	return JSONResult(map[string]string{"raw_body": text})
 }
 
-func eventsRetry(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return ErrorResult("id is required for the retry action"), nil
-	}
-	if err := client.RetryEvent(ctx, id); err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
-	}
-	return JSONResult(map[string]string{
-		"status":   "ok",
-		"action":   "retry",
-		"event_id": id,
-	})
-}
-
-func eventsCancel(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return ErrorResult("id is required for the cancel action"), nil
-	}
-	if err := client.CancelEvent(ctx, id); err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
-	}
-	return JSONResult(map[string]string{
-		"status":   "ok",
-		"action":   "cancel",
-		"event_id": id,
-	})
-}
-
-func eventsMute(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return ErrorResult("id is required for the mute action"), nil
-	}
-	if err := client.MuteEvent(ctx, id); err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
-	}
-	return JSONResult(map[string]string{
-		"status":   "ok",
-		"action":   "mute",
-		"event_id": id,
-	})
-}

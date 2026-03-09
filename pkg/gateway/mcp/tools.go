@@ -98,13 +98,12 @@ func toolDefs(client *hookdeck.Client) []struct {
 				Name:        "hookdeck_requests",
 				Description: "Query inbound webhook requests received by Hookdeck.",
 				InputSchema: schema(map[string]prop{
-					"action":         {Type: "string", Desc: "Action: list, get, raw_body, events, ignored_events, or retry", Enum: []string{"list", "get", "raw_body", "events", "ignored_events", "retry"}},
-					"id":             {Type: "string", Desc: "Request ID (required for get/raw_body/events/ignored_events/retry)"},
+					"action":         {Type: "string", Desc: "Action: list, get, raw_body, events, or ignored_events", Enum: []string{"list", "get", "raw_body", "events", "ignored_events"}},
+					"id":             {Type: "string", Desc: "Request ID (required for get/raw_body/events/ignored_events)"},
 					"source_id":      {Type: "string", Desc: "Filter by source (list)"},
 					"status":         {Type: "string", Desc: "Filter by status (list)"},
 					"rejection_cause": {Type: "string", Desc: "Filter by rejection cause (list)"},
 					"verified":       {Type: "boolean", Desc: "Filter by verification status (list)"},
-					"connection_ids": {Type: "array", Desc: "Limit retry to specific connection IDs (retry)", Items: &prop{Type: "string"}},
 					"limit":          {Type: "integer", Desc: "Max results (list)"},
 					"next":           {Type: "string", Desc: "Next page cursor"},
 					"prev":           {Type: "string", Desc: "Previous page cursor"},
@@ -115,10 +114,10 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_events",
-				Description: "Query events (processed webhook deliveries) and manage retries.",
+				Description: "Query events (processed webhook deliveries).",
 				InputSchema: schema(map[string]prop{
-					"action":          {Type: "string", Desc: "Action: list, get, raw_body, retry, cancel, or mute", Enum: []string{"list", "get", "raw_body", "retry", "cancel", "mute"}},
-					"id":              {Type: "string", Desc: "Event ID (required for get/raw_body/retry/cancel/mute)"},
+					"action":          {Type: "string", Desc: "Action: list, get, or raw_body", Enum: []string{"list", "get", "raw_body"}},
+					"id":              {Type: "string", Desc: "Event ID (required for get/raw_body)"},
 					"connection_id":   {Type: "string", Desc: "Filter by connection (list, maps to webhook_id)"},
 					"source_id":       {Type: "string", Desc: "Filter by source (list)"},
 					"destination_id":  {Type: "string", Desc: "Filter by destination (list)"},
@@ -157,11 +156,10 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_issues",
-				Description: "List, inspect, and manage Hookdeck issues (delivery failures, transformation errors, etc.).",
+				Description: "List and inspect Hookdeck issues (delivery failures, transformation errors, etc.).",
 				InputSchema: schema(map[string]prop{
-					"action":           {Type: "string", Desc: "Action: list, get, update, or dismiss", Enum: []string{"list", "get", "update", "dismiss"}},
-					"id":               {Type: "string", Desc: "Issue ID (required for get/update/dismiss)"},
-					"status":           {Type: "string", Desc: "New status for update: OPENED, IGNORED, ACKNOWLEDGED, RESOLVED"},
+					"action":           {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
+					"id":               {Type: "string", Desc: "Issue ID (required for get)"},
 					"type":             {Type: "string", Desc: "Filter: delivery, transformation, or backpressure (list)"},
 					"filter_status":    {Type: "string", Desc: "Filter by status (list)"},
 					"issue_trigger_id": {Type: "string", Desc: "Filter by trigger (list)"},

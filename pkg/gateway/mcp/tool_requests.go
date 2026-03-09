@@ -34,10 +34,8 @@ func handleRequests(client *hookdeck.Client) mcpsdk.ToolHandler {
 			return requestsEvents(ctx, client, in)
 		case "ignored_events":
 			return requestsIgnoredEvents(ctx, client, in)
-		case "retry":
-			return requestsRetry(ctx, client, in)
 		default:
-			return ErrorResult(fmt.Sprintf("unknown action %q; expected list, get, raw_body, events, ignored_events, or retry", action)), nil
+			return ErrorResult(fmt.Sprintf("unknown action %q; expected list, get, raw_body, events, or ignored_events", action)), nil
 		}
 	}
 }
@@ -118,23 +116,3 @@ func requestsIgnoredEvents(ctx context.Context, client *hookdeck.Client, in inpu
 	return JSONResult(result)
 }
 
-func requestsRetry(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return ErrorResult("id is required for the retry action"), nil
-	}
-
-	var body *hookdeck.RequestRetryRequest
-	if ids := in.StringSlice("connection_ids"); len(ids) > 0 {
-		body = &hookdeck.RequestRetryRequest{WebhookIDs: ids}
-	}
-
-	if err := client.RetryRequest(ctx, id, body); err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
-	}
-	return JSONResult(map[string]string{
-		"status":     "ok",
-		"action":     "retry",
-		"request_id": id,
-	})
-}

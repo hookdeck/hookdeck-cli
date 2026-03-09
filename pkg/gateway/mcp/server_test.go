@@ -187,7 +187,6 @@ func TestHelpTool_SpecificTopic(t *testing.T) {
 	assert.Contains(t, text, "list")
 	assert.Contains(t, text, "get")
 	assert.Contains(t, text, "raw_body")
-	assert.Contains(t, text, "retry")
 }
 
 func TestHelpTool_ShortTopicName(t *testing.T) {
@@ -606,75 +605,6 @@ func TestEventsRawBody_Truncation(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "truncated")
 }
 
-func TestEventsRetry_Success(t *testing.T) {
-	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2025-07-01/events/evt_abc/retry": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "POST", r.Method)
-			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc"})
-		},
-	})
-
-	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "retry", "id": "evt_abc"})
-	assert.False(t, result.IsError)
-	text := textContent(t, result)
-	assert.Contains(t, text, "ok")
-	assert.Contains(t, text, "evt_abc")
-}
-
-func TestEventsRetry_MissingID(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "retry"})
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
-}
-
-func TestEventsCancel_Success(t *testing.T) {
-	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2025-07-01/events/evt_abc/cancel": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "PUT", r.Method)
-			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc"})
-		},
-	})
-
-	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "cancel", "id": "evt_abc"})
-	assert.False(t, result.IsError)
-	text := textContent(t, result)
-	assert.Contains(t, text, "ok")
-	assert.Contains(t, text, "cancel")
-}
-
-func TestEventsCancel_MissingID(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "cancel"})
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
-}
-
-func TestEventsMute_Success(t *testing.T) {
-	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2025-07-01/events/evt_abc/mute": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "PUT", r.Method)
-			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc"})
-		},
-	})
-
-	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "mute", "id": "evt_abc"})
-	assert.False(t, result.IsError)
-	text := textContent(t, result)
-	assert.Contains(t, text, "ok")
-	assert.Contains(t, text, "mute")
-}
-
-func TestEventsMute_MissingID(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "mute"})
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
-}
-
 func TestEventsTool_UnknownAction(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
@@ -805,48 +735,6 @@ func TestRequestsIgnoredEvents_MissingID(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "id is required")
 }
 
-func TestRequestsRetry_Success(t *testing.T) {
-	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2025-07-01/requests/req_001/retry": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "POST", r.Method)
-			json.NewEncoder(w).Encode(map[string]any{"id": "req_001"})
-		},
-	})
-
-	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "retry", "id": "req_001"})
-	assert.False(t, result.IsError)
-	text := textContent(t, result)
-	assert.Contains(t, text, "ok")
-	assert.Contains(t, text, "req_001")
-}
-
-func TestRequestsRetry_WithConnectionIDs(t *testing.T) {
-	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2025-07-01/requests/req_001/retry": func(w http.ResponseWriter, r *http.Request) {
-			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			// Verify webhook_ids are passed
-			assert.NotNil(t, body["webhook_ids"])
-			json.NewEncoder(w).Encode(map[string]any{"id": "req_001"})
-		},
-	})
-
-	result := callTool(t, session, "hookdeck_requests", map[string]any{
-		"action":         "retry",
-		"id":             "req_001",
-		"connection_ids": []any{"web_1", "web_2"},
-	})
-	assert.False(t, result.IsError)
-}
-
-func TestRequestsRetry_MissingID(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "retry"})
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
-}
-
 func TestRequestsTool_UnknownAction(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
@@ -899,61 +787,6 @@ func TestIssuesGet_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "get"})
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
-}
-
-func TestIssuesUpdate_Success(t *testing.T) {
-	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2025-07-01/issues/iss_001": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "PUT", r.Method)
-			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			assert.Equal(t, "RESOLVED", body["status"])
-			json.NewEncoder(w).Encode(map[string]any{"id": "iss_001", "status": "RESOLVED"})
-		},
-	})
-
-	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "update", "id": "iss_001", "status": "RESOLVED"})
-	assert.False(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "RESOLVED")
-}
-
-func TestIssuesUpdate_MissingID(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "update", "status": "RESOLVED"})
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
-}
-
-func TestIssuesUpdate_MissingStatus(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "update", "id": "iss_001"})
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "status is required")
-}
-
-func TestIssuesDismiss_Success(t *testing.T) {
-	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2025-07-01/issues/iss_001": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "DELETE", r.Method)
-			json.NewEncoder(w).Encode(map[string]any{"id": "iss_001"})
-		},
-	})
-
-	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "dismiss", "id": "iss_001"})
-	assert.False(t, result.IsError)
-	text := textContent(t, result)
-	assert.Contains(t, text, "ok")
-	assert.Contains(t, text, "dismiss")
-}
-
-func TestIssuesDismiss_MissingID(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "dismiss"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }

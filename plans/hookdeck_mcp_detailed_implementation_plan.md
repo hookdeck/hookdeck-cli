@@ -95,10 +95,10 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [x] `pkg/gateway/mcp/tool_sources.go` — sources (list, get)
 - [x] `pkg/gateway/mcp/tool_destinations.go` — destinations (list, get)
 - [x] `pkg/gateway/mcp/tool_transformations.go` — transformations (list, get)
-- [x] `pkg/gateway/mcp/tool_requests.go` — requests (list, get, raw_body, events, ignored_events, retry)
-- [x] `pkg/gateway/mcp/tool_events.go` — events (list, get, raw_body, retry, cancel, mute)
+- [x] `pkg/gateway/mcp/tool_requests.go` — requests (list, get, raw_body, events, ignored_events)
+- [x] `pkg/gateway/mcp/tool_events.go` — events (list, get, raw_body)
 - [x] `pkg/gateway/mcp/tool_attempts.go` — attempts (list, get)
-- [x] `pkg/gateway/mcp/tool_issues.go` — issues (list, get, update, dismiss)
+- [x] `pkg/gateway/mcp/tool_issues.go` — issues (list, get)
 - [x] `pkg/gateway/mcp/tool_metrics.go` — metrics (events, requests, attempts, transformations)
 - [x] `pkg/gateway/mcp/tool_help.go` — help (overview, per-tool detail)
 - [x] `pkg/gateway/mcp/tool_login.go` — login (browser-based device auth; see Section 1.7)
@@ -505,7 +505,7 @@ get action:
 
 #### 1.2.6 Tool: `requests`
 
-**Actions:** `list`, `get`, `raw_body`, `events`, `ignored_events`, `retry`
+**Actions:** `list`, `get`, `raw_body`, `events`, `ignored_events`
 
 **Existing CLI implementations:**
 - `pkg/cmd/request_list.go` — list requests
@@ -576,7 +576,7 @@ retry action:
 
 #### 1.2.7 Tool: `events`
 
-**Actions:** `list`, `get`, `raw_body`, `retry`, `cancel`, `mute`
+**Actions:** `list`, `get`, `raw_body`
 
 **Existing CLI implementations:**
 - `pkg/cmd/event_list.go` — list events
@@ -690,7 +690,7 @@ get action:
 
 #### 1.2.9 Tool: `issues`
 
-**Actions:** `list`, `get`, `update`, `dismiss`
+**Actions:** `list`, `get`
 
 **Existing CLI implementations:** NONE. There are no issue-specific commands in `pkg/cmd/`. The only reference to issues is as a filter parameter on events (`--issue-id` in `pkg/cmd/event_list.go:71`) and the `metrics events-by-issue` command.
 
