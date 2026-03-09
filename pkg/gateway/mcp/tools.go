@@ -66,7 +66,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_destinations",
-				Description: "List and inspect delivery destinations (HTTP endpoints where events are sent). Returns destination configuration including URL, authentication, and rate limiting settings.",
+				Description: "List and inspect delivery destinations where events are sent. Destination types include HTTP endpoints, CLI (local development), and MOCK (testing). Returns destination configuration including URL, authentication, and rate limiting settings.",
 				InputSchema: schema(map[string]prop{
 					"action": {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
 					"id":     {Type: "string", Desc: "Destination ID (required for get)"},

@@ -38,7 +38,7 @@ Current project: %s
 hookdeck_projects        — List or switch projects (actions: list, use)
 hookdeck_connections     — Inspect connections and control delivery flow (actions: list, get, pause, unpause)
 hookdeck_sources         — Inspect inbound sources (actions: list, get)
-hookdeck_destinations    — Inspect delivery destinations (actions: list, get)
+hookdeck_destinations    — Inspect delivery destinations: HTTP, CLI, MOCK (actions: list, get)
 hookdeck_transformations — Inspect JavaScript transformations (actions: list, get)
 hookdeck_requests        — Query inbound requests (actions: list, get, raw_body, events, ignored_events)
 hookdeck_events          — Query processed events (actions: list, get, raw_body)
@@ -94,7 +94,7 @@ Parameters:
   limit   (integer)          — Max results (list, default 100)
   next/prev (string)         — Pagination cursors (list)`,
 
-	"hookdeck_destinations": `hookdeck_destinations — Inspect delivery destinations
+	"hookdeck_destinations": `hookdeck_destinations — Inspect delivery destinations (types: HTTP, CLI, MOCK)
 
 Actions:
   list — List destinations with optional filters
