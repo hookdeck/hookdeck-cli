@@ -58,16 +58,17 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [x] Update `TestMetricsHelp` to assert 4 subcommands (not 7)
 - [ ] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestMetrics -v`
 
-### Part 3: MCP Server Skeleton
+### Part 3: MCP Server Skeleton -- COMPLETE
 
-- [ ] Add `github.com/modelcontextprotocol/go-sdk` dependency
-- [ ] `pkg/gateway/mcp/server.go` — MCP server init, tool registration, stdio transport
-- [ ] `pkg/gateway/mcp/tools.go` — Tool handler dispatch (action routing)
-- [ ] `pkg/gateway/mcp/errors.go` — API error → MCP error translation
-- [ ] `pkg/gateway/mcp/response.go` — Response formatting helpers
-- [ ] `pkg/cmd/mcp.go` — Cobra command: `hookdeck gateway mcp`
-- [ ] `pkg/cmd/gateway.go` — Register MCP command via `addMCPCmdTo(g.cmd)`
-- [ ] `test/acceptance/mcp_test.go` — Acceptance test for `hookdeck gateway mcp` command (help text, command registration in gateway)
+- [x] Add `github.com/modelcontextprotocol/go-sdk` dependency (v1.4.0)
+- [x] `pkg/gateway/mcp/server.go` — MCP server init, tool registration, stdio transport
+- [x] `pkg/gateway/mcp/tools.go` — Tool handler dispatch (action routing) — 11 tools with placeholder handlers
+- [x] `pkg/gateway/mcp/errors.go` — API error → MCP error translation
+- [x] `pkg/gateway/mcp/response.go` — Response formatting helpers (JSONResult, TextResult, ErrorResult)
+- [x] `pkg/cmd/mcp.go` — Cobra command: `hookdeck gateway mcp`
+- [x] `pkg/cmd/gateway.go` — Register MCP command via `addMCPCmdTo(g.cmd)`
+- [x] `test/acceptance/mcp_test.go` — Acceptance test for `hookdeck gateway mcp` command (help text, command registration in gateway)
+- [x] Build and verify compilation
 
 ### Part 4: MCP Tool Implementations
 
