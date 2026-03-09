@@ -530,7 +530,7 @@ For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
 
 ### Event Gateway MCP
 
-The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for investigating webhook traffic in production. It exposes read-only tools that let AI agents query your Hookdeck Event Gateway — inspect connections, trace requests through events and delivery attempts, review issues, and pull aggregate metrics.
+The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for investigating event traffic in production. It exposes read-only tools that let AI agents query your Hookdeck Event Gateway — inspect connections, trace requests through events and delivery attempts, review issues, and pull aggregate metrics.
 
 **Configure your MCP client** (Cursor, Claude Desktop, or any MCP-compatible host):
 
@@ -568,9 +568,9 @@ The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't a
 |------|-------------|
 | `hookdeck_projects` | List projects or switch the active project for this session |
 | `hookdeck_connections` | Inspect connections and control delivery flow (list, get, pause, unpause) |
-| `hookdeck_sources` | Inspect inbound webhook sources |
-| `hookdeck_destinations` | Inspect webhook delivery destinations |
-| `hookdeck_transformations` | Inspect JavaScript transformations applied to payloads |
+| `hookdeck_sources` | Inspect inbound sources (HTTP endpoints that receive events) |
+| `hookdeck_destinations` | Inspect delivery destinations (HTTP endpoints where events are sent) |
+| `hookdeck_transformations` | Inspect JavaScript transformations applied to event payloads |
 | `hookdeck_requests` | Query inbound requests — list, get details, raw body, linked events |
 | `hookdeck_events` | Query processed events — list, get details, raw payload body |
 | `hookdeck_attempts` | Query delivery attempts — retry history, response codes, errors |
@@ -583,7 +583,7 @@ The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't a
 Once the MCP server is configured, you can ask your agent questions like:
 
 ```
-"Are any of my webhooks failing right now?"
+"Are any of my events failing right now?"
 → Agent uses hookdeck_issues to list open issues, then hookdeck_events to inspect recent failures.
 
 "Show me the last 10 events for my Stripe source and check if any failed."
@@ -595,7 +595,7 @@ Once the MCP server is configured, you can ask your agent questions like:
 "Trace request req_abc123 — what events did it produce, and did they all deliver successfully?"
 → Agent uses hookdeck_requests to get the request, then the events action to list generated events.
 
-"Why is my checkout webhook returning 500s? Show me the latest attempt details."
+"Why is my checkout endpoint returning 500s? Show me the latest attempt details."
 → Agent uses hookdeck_events filtered by status FAILED, then hookdeck_attempts to inspect delivery details.
 
 "Pause the connection between Stripe and my staging endpoint while I debug."

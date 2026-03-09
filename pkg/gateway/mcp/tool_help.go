@@ -37,11 +37,11 @@ Current project: %s
 
 hookdeck_projects        — List or switch projects (actions: list, use)
 hookdeck_connections     — Inspect connections and control delivery flow (actions: list, get, pause, unpause)
-hookdeck_sources         — Inspect inbound webhook sources (actions: list, get)
-hookdeck_destinations    — Inspect webhook delivery destinations (actions: list, get)
+hookdeck_sources         — Inspect inbound sources (actions: list, get)
+hookdeck_destinations    — Inspect delivery destinations (actions: list, get)
 hookdeck_transformations — Inspect JavaScript transformations (actions: list, get)
-hookdeck_requests        — Query inbound webhook requests (actions: list, get, raw_body, events, ignored_events)
-hookdeck_events          — Query processed webhook events (actions: list, get, raw_body)
+hookdeck_requests        — Query inbound requests (actions: list, get, raw_body, events, ignored_events)
+hookdeck_events          — Query processed events (actions: list, get, raw_body)
 hookdeck_attempts        — Query delivery attempts (actions: list, get)
 hookdeck_issues          — Inspect aggregated failure signals (actions: list, get)
 hookdeck_metrics         — Query aggregate metrics (actions: events, requests, attempts, transformations)
@@ -81,7 +81,7 @@ Parameters:
   limit          (integer)          — Max results (list, default 100)
   next/prev      (string)           — Pagination cursors (list)`,
 
-	"hookdeck_sources": `hookdeck_sources — Inspect inbound webhook sources
+	"hookdeck_sources": `hookdeck_sources — Inspect inbound sources
 
 Actions:
   list — List sources with optional filters
@@ -94,7 +94,7 @@ Parameters:
   limit   (integer)          — Max results (list, default 100)
   next/prev (string)         — Pagination cursors (list)`,
 
-	"hookdeck_destinations": `hookdeck_destinations — Inspect webhook delivery destinations
+	"hookdeck_destinations": `hookdeck_destinations — Inspect delivery destinations
 
 Actions:
   list — List destinations with optional filters
@@ -120,7 +120,7 @@ Parameters:
   limit   (integer)          — Max results (list, default 100)
   next/prev (string)         — Pagination cursors (list)`,
 
-	"hookdeck_requests": `hookdeck_requests — Query inbound webhook requests
+	"hookdeck_requests": `hookdeck_requests — Query inbound requests
 
 Actions:
   list           — List requests with optional filters
@@ -139,7 +139,7 @@ Parameters:
   limit           (integer)          — Max results (list, default 100)
   next/prev       (string)           — Pagination cursors (list)`,
 
-	"hookdeck_events": `hookdeck_events — Query events (processed webhook deliveries)
+	"hookdeck_events": `hookdeck_events — Query events (processed deliveries)
 
 Actions:
   list     — List events with optional filters

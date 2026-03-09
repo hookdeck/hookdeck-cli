@@ -33,7 +33,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_connections",
-				Description: "Inspect webhook connections (routes linking sources to destinations). List connections with filters, get details by ID, or pause/unpause a connection's delivery pipeline.",
+				Description: "Inspect connections (routes linking sources to destinations). List connections with filters, get details by ID, or pause/unpause a connection's delivery pipeline.",
 				InputSchema: schema(map[string]prop{
 					"action":         {Type: "string", Desc: "Action: list, get, pause, or unpause", Enum: []string{"list", "get", "pause", "unpause"}},
 					"id":             {Type: "string", Desc: "Connection ID (required for get/pause/unpause)"},
@@ -51,7 +51,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_sources",
-				Description: "List and inspect inbound webhook sources. Returns source configuration including URL, verification settings, and allowed HTTP methods.",
+				Description: "List and inspect inbound sources (HTTP endpoints that receive events). Returns source configuration including URL, verification settings, and allowed HTTP methods.",
 				InputSchema: schema(map[string]prop{
 					"action": {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
 					"id":     {Type: "string", Desc: "Source ID (required for get)"},
@@ -66,7 +66,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_destinations",
-				Description: "List and inspect webhook delivery destinations. Returns destination configuration including URL, authentication, and rate limiting settings.",
+				Description: "List and inspect delivery destinations (HTTP endpoints where events are sent). Returns destination configuration including URL, authentication, and rate limiting settings.",
 				InputSchema: schema(map[string]prop{
 					"action": {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
 					"id":     {Type: "string", Desc: "Destination ID (required for get)"},
@@ -81,7 +81,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_transformations",
-				Description: "List and inspect JavaScript transformations applied to webhook payloads. Returns transformation code and configuration for debugging payload processing.",
+				Description: "List and inspect JavaScript transformations applied to event payloads. Returns transformation code and configuration for debugging payload processing.",
 				InputSchema: schema(map[string]prop{
 					"action": {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
 					"id":     {Type: "string", Desc: "Transformation ID (required for get)"},
@@ -96,7 +96,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_requests",
-				Description: "Query inbound webhook requests (raw data received by Hookdeck before routing). List with filters, get details, inspect the raw body, or view the events and ignored events generated from a request.",
+				Description: "Query inbound requests (raw HTTP data received by Hookdeck before routing). List with filters, get details, inspect the raw body, or view the events and ignored events generated from a request.",
 				InputSchema: schema(map[string]prop{
 					"action":         {Type: "string", Desc: "Action: list, get, raw_body, events, or ignored_events", Enum: []string{"list", "get", "raw_body", "events", "ignored_events"}},
 					"id":             {Type: "string", Desc: "Request ID (required for get/raw_body/events/ignored_events)"},
@@ -114,7 +114,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_events",
-				Description: "Query events (webhook deliveries routed through connections). List with filters by status, source, destination, or date range. Get event details or inspect the raw payload body.",
+				Description: "Query events (processed deliveries routed through connections to destinations). List with filters by status, source, destination, or date range. Get event details or inspect the raw payload body.",
 				InputSchema: schema(map[string]prop{
 					"action":          {Type: "string", Desc: "Action: list, get, or raw_body", Enum: []string{"list", "get", "raw_body"}},
 					"id":              {Type: "string", Desc: "Event ID (required for get/raw_body)"},
@@ -156,7 +156,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_issues",
-				Description: "List and inspect Hookdeck issues — aggregated failure signals such as repeated delivery failures, transformation errors, and backpressure alerts. Use this to identify systemic problems across your webhooks.",
+				Description: "List and inspect Hookdeck issues — aggregated failure signals such as repeated delivery failures, transformation errors, and backpressure alerts. Use this to identify systemic problems across your event pipeline.",
 				InputSchema: schema(map[string]prop{
 					"action":           {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
 					"id":               {Type: "string", Desc: "Issue ID (required for get)"},
