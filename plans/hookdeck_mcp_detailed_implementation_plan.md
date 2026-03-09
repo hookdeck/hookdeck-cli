@@ -6,9 +6,25 @@ This document maps the high-level MCP build-out plan against the existing hookde
 
 **Package location:** `pkg/gateway/mcp`
 **Command:** `hookdeck gateway mcp`
-**Go MCP SDK:** `github.com/modelcontextprotocol/go-sdk` v1.2.0+
+**Go MCP SDK:** `github.com/modelcontextprotocol/go-sdk` v1.4.0
 **Transport:** stdio only (Phase 1)
 **Auth model:** Inherited from CLI via `Config.GetAPIClient()`
+
+---
+
+## Current Status (updated 2026-03-09)
+
+| Part | Description | Status |
+|------|-------------|--------|
+| Part 1 | Issues CLI Backfill (prerequisite) | **COMPLETE** |
+| Part 2 | Metrics CLI Consolidation (prerequisite) | **COMPLETE** |
+| Part 3 | MCP Server Skeleton | **COMPLETE** |
+| Part 4 | MCP Tool Implementations | **NEXT UP** |
+| Part 5 | Integration Testing & Polish | PENDING |
+
+**What's done:** The MCP server skeleton is fully wired — `hookdeck gateway mcp` starts a stdio MCP server, registers 11 placeholder tools, responds to `initialize`/`tools/list`/`tools/call`, and has been manually verified on Cloud Desktop. All prerequisite CLI work (issues commands, metrics consolidation) is in place.
+
+**What's next:** Part 4 — implement the real handlers for all 11 tools (replace the placeholder "not yet implemented" stubs with actual Hookdeck API calls). See the detailed tool specifications in Section 2 below.
 
 ---
 
@@ -56,7 +72,7 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [x] Update `test/acceptance/metrics_test.go` — remove tests for `queue-depth`, `pending`, `events-by-issue` subcommands; add tests for consolidated `events` with queue-depth/pending/issue measures and dimensions
 - [x] Add acceptance tests for `--measures` and `--dimensions` on `requests`, `attempts`, `transformations`
 - [x] Update `TestMetricsHelp` to assert 4 subcommands (not 7)
-- [ ] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestMetrics -v`
+- [x] Run acceptance tests and verify all pass: `go test ./test/acceptance/ -run TestMetrics -v`
 
 ### Part 3: MCP Server Skeleton -- COMPLETE
 
@@ -69,8 +85,10 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [x] `pkg/cmd/gateway.go` — Register MCP command via `addMCPCmdTo(g.cmd)`
 - [x] `test/acceptance/mcp_test.go` — Acceptance test for `hookdeck gateway mcp` command (help text, command registration in gateway)
 - [x] Build and verify compilation
+- [x] Fix: Add `InputSchema: json.RawMessage('{"type":"object"}')` to all 11 tools (MCP SDK panics without it)
+- [x] Manually verified on Cloud Desktop — initialize, tools/list, and placeholder tool calls all work correctly
 
-### Part 4: MCP Tool Implementations
+### Part 4: MCP Tool Implementations — NEXT UP
 
 - [ ] `pkg/gateway/mcp/tool_projects.go` — projects (list, use)
 - [ ] `pkg/gateway/mcp/tool_connections.go` — connections (list, get, create, update, delete, upsert)
