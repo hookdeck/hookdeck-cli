@@ -530,19 +530,9 @@ For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
 
 ### Event Gateway MCP
 
-The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that exposes Hookdeck Event Gateway as tools for AI and agent workflows. Use it in MCP-compatible clients (e.g. Cursor, Claude) to list and inspect connections, sources, destinations, events, requests, attempts, issues, and metrics, and to run login from the host.
+The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that exposes Hookdeck Event Gateway as tools for AI and agent workflows. You don't run it yourself—you add it to your MCP client (e.g. Cursor, Claude), and the editor starts the server when it needs Hookdeck tools (list/inspect connections, sources, destinations, events, requests, attempts, issues, metrics; login when unauthenticated).
 
-**Run the server (stdio):**
-
-```sh
-hookdeck gateway mcp
-```
-
-The server is intended to be configured as an MCP server in your client; it reads and writes JSON-RPC over stdin/stdout. Configure your client to run the above command as the server process.
-
-**Example: Cursor MCP config**
-
-Add to your Cursor MCP settings (e.g. `~/.cursor/mcp.json` or project-level config):
+**Configure your client** (e.g. Cursor: `~/.cursor/mcp.json` or project-level config):
 
 ```json
 {
@@ -555,7 +545,7 @@ Add to your Cursor MCP settings (e.g. `~/.cursor/mcp.json` or project-level conf
 }
 ```
 
-After configuration, the host can use tools such as `hookdeck_connections_list`, `hookdeck_events_list`, and `hookdeck_login` (when unauthenticated). For the full tool reference, see [REFERENCE.md](REFERENCE.md) or run `hookdeck gateway mcp --help`.
+The client runs `hookdeck gateway mcp` (stdio) as the server process. After configuration, the host can use tools such as `hookdeck_connections_list`, `hookdeck_events_list`, and `hookdeck_login`. For the full tool reference, see [REFERENCE.md](REFERENCE.md) or run `hookdeck gateway mcp --help`.
 
 ### Manage connections
 
