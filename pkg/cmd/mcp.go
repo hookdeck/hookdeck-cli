@@ -24,7 +24,9 @@ The server exposes Hookdeck Event Gateway resources — connections, sources,
 destinations, events, requests, and more — as MCP tools that AI agents and
 LLM-based clients can invoke.
 
-Authentication is inherited from the CLI profile (run "hookdeck login" first).`,
+If the CLI is already authenticated, all tools are available immediately.
+If not, a hookdeck_login tool is provided that initiates browser-based
+authentication so the user can log in without leaving the MCP session.`,
 		Example: `  # Start the MCP server (stdio transport)
   hookdeck gateway mcp
 
@@ -40,11 +42,10 @@ func addMCPCmdTo(parent *cobra.Command) {
 }
 
 func (mc *mcpCmd) runMCPCmd(cmd *cobra.Command, args []string) error {
-	if err := Config.Profile.ValidateAPIKey(); err != nil {
-		return err
-	}
-
+	// Always build the client — it may have an empty APIKey if the CLI is
+	// not yet authenticated. The MCP server handles this gracefully by
+	// registering a hookdeck_login tool instead of crashing.
 	client := Config.GetAPIClient()
-	srv := gatewaymcp.NewServer(client)
+	srv := gatewaymcp.NewServer(client, &Config)
 	return srv.RunStdio(context.Background())
 }

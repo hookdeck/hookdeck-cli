@@ -11,6 +11,10 @@ import (
 
 func handleIssues(client *hookdeck.Client) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		if r := requireAuth(client); r != nil {
+			return r, nil
+		}
+
 		in, err := parseInput(req.Params.Arguments)
 		if err != nil {
 			return ErrorResult(err.Error()), nil

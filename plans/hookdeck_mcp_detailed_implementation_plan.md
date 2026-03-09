@@ -101,8 +101,11 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [ ] `pkg/gateway/mcp/tool_issues.go` — issues (list, get, update, dismiss, count)
 - [ ] `pkg/gateway/mcp/tool_metrics.go` — metrics (requests, events, attempts, transformations)
 - [ ] `pkg/gateway/mcp/tool_help.go` — help (list_tools, tool_detail)
-- [ ] `pkg/gateway/mcp/tool_login.go` — login (browser-based device auth; see Section 1.7)
-- [ ] Auth-gate middleware in tool handlers — return `isError` when unauthenticated (see Section 1.7)
+- [x] `pkg/gateway/mcp/tool_login.go` — login (browser-based device auth; see Section 1.7)
+- [x] `pkg/gateway/mcp/auth.go` — `requireAuth()` helper for auth-gating resource tools
+- [x] Auth-gate middleware in all 10 resource tool handlers — return `isError` when unauthenticated (see Section 1.7)
+- [x] `pkg/cmd/mcp.go` — removed `ValidateAPIKey()` gate; passes config to `NewServer()`
+- [x] `pkg/gateway/mcp/server.go` — accepts `*config.Config`; conditionally registers `hookdeck_login` tool
 
 ### Part 5: Integration Testing & Polish
 
@@ -1187,6 +1190,8 @@ pkg/gateway/mcp/
 ├── tool_issues.go         # issues tool implementation
 ├── tool_metrics.go        # metrics tool implementation
 ├── tool_help.go           # help tool implementation
+├── tool_login.go          # login tool (browser-based device auth; see Section 1.7)
+├── auth.go                # requireAuth() helper for auth-gating resource tools
 ├── errors.go              # Error translation (APIError → MCP error messages)
 └── response.go            # Response formatting helpers (JSON marshaling)
 
