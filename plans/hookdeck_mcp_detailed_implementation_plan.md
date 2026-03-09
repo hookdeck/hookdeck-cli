@@ -19,12 +19,12 @@ This document maps the high-level MCP build-out plan against the existing hookde
 | Part 1 | Issues CLI Backfill (prerequisite) | **COMPLETE** |
 | Part 2 | Metrics CLI Consolidation (prerequisite) | **COMPLETE** |
 | Part 3 | MCP Server Skeleton | **COMPLETE** |
-| Part 4 | MCP Tool Implementations | **NEXT UP** |
+| Part 4 | MCP Tool Implementations | **COMPLETE** |
 | Part 5 | Integration Testing & Polish | PENDING |
 
-**What's done:** The MCP server skeleton is fully wired — `hookdeck gateway mcp` starts a stdio MCP server, registers 11 placeholder tools, responds to `initialize`/`tools/list`/`tools/call`, and has been manually verified on Cloud Desktop. All prerequisite CLI work (issues commands, metrics consolidation) is in place.
+**What's done:** Parts 1–4 are complete. The MCP server is fully functional with all 11 resource tools and the `hookdeck_login` tool implemented. All tools have been manually tested against the live Hookdeck API (sources, connections, destinations, transformations, requests, events, attempts, issues, metrics, projects, help). Both auth paths verified: pre-authenticated via `--api-key` flag (11 tools, no login) and unauthenticated startup (12 tools including `hookdeck_login`, resource tools return auth error).
 
-**What's next:** Part 4 — implement the real handlers for all 11 tools (replace the placeholder "not yet implemented" stubs with actual Hookdeck API calls), plus the `hookdeck_login` tool for in-band browser-based authentication when the CLI is not yet logged in (see Section 1.7). See the detailed tool specifications in Section 2 below.
+**What's next:** Part 5 — integration testing and polish. Two schema/UX issues were found and fixed during testing: `measures` was not marked required in `hookdeck_metrics` (caused confusing 422), and `hookdeck_help` gave a poor error for non-tool-name topics.
 
 ---
 
@@ -88,19 +88,19 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [x] Fix: Add `InputSchema: json.RawMessage('{"type":"object"}')` to all 11 tools (MCP SDK panics without it)
 - [x] Manually verified on Cloud Desktop — initialize, tools/list, and placeholder tool calls all work correctly
 
-### Part 4: MCP Tool Implementations — NEXT UP
+### Part 4: MCP Tool Implementations — COMPLETE
 
-- [ ] `pkg/gateway/mcp/tool_projects.go` — projects (list, use)
-- [ ] `pkg/gateway/mcp/tool_connections.go` — connections (list, get, create, update, delete, upsert)
-- [ ] `pkg/gateway/mcp/tool_sources.go` — sources (list, get, create, update, delete, upsert)
-- [ ] `pkg/gateway/mcp/tool_destinations.go` — destinations (list, get, create, update, delete, upsert)
-- [ ] `pkg/gateway/mcp/tool_transformations.go` — transformations (list, get, create, update, upsert)
-- [ ] `pkg/gateway/mcp/tool_requests.go` — requests (list, get, get_body, retry)
-- [ ] `pkg/gateway/mcp/tool_events.go` — events (list, get, get_body, retry, mute)
-- [ ] `pkg/gateway/mcp/tool_attempts.go` — attempts (list, get, get_body)
-- [ ] `pkg/gateway/mcp/tool_issues.go` — issues (list, get, update, dismiss, count)
-- [ ] `pkg/gateway/mcp/tool_metrics.go` — metrics (requests, events, attempts, transformations)
-- [ ] `pkg/gateway/mcp/tool_help.go` — help (list_tools, tool_detail)
+- [x] `pkg/gateway/mcp/tool_projects.go` — projects (list, use)
+- [x] `pkg/gateway/mcp/tool_connections.go` — connections (list, get, pause, unpause)
+- [x] `pkg/gateway/mcp/tool_sources.go` — sources (list, get)
+- [x] `pkg/gateway/mcp/tool_destinations.go` — destinations (list, get)
+- [x] `pkg/gateway/mcp/tool_transformations.go` — transformations (list, get)
+- [x] `pkg/gateway/mcp/tool_requests.go` — requests (list, get, raw_body, events, ignored_events, retry)
+- [x] `pkg/gateway/mcp/tool_events.go` — events (list, get, raw_body, retry, cancel, mute)
+- [x] `pkg/gateway/mcp/tool_attempts.go` — attempts (list, get)
+- [x] `pkg/gateway/mcp/tool_issues.go` — issues (list, get, update, dismiss)
+- [x] `pkg/gateway/mcp/tool_metrics.go` — metrics (events, requests, attempts, transformations)
+- [x] `pkg/gateway/mcp/tool_help.go` — help (overview, per-tool detail)
 - [x] `pkg/gateway/mcp/tool_login.go` — login (browser-based device auth; see Section 1.7)
 - [x] `pkg/gateway/mcp/auth.go` — `requireAuth()` helper for auth-gating resource tools
 - [x] Auth-gate middleware in all 10 resource tool handlers — return `isError` when unauthenticated (see Section 1.7)
@@ -1387,6 +1387,33 @@ Each resource tool handler calls `requireAuth()` first and returns early if it g
 | `pkg/gateway/mcp/tools.go` | Add `hookdeck_login` tool definition to `toolDefs()` (conditionally included) |
 | `pkg/gateway/mcp/auth.go` | New file: `requireAuth()` helper function |
 | `pkg/cmd/mcp.go` | Remove `ValidateAPIKey()` gate; pass config to `NewServer()` |
+
+#### Design Decision: No API Key Parameter on `hookdeck_login`
+
+The `hookdeck_login` tool deliberately does **not** accept an `api_key` parameter. This is intentional:
+
+- **Interactive use (Claude Desktop, Cursor, etc.):** The browser-based device auth flow is the correct path. It gives full account access across all projects and persists credentials for future sessions.
+- **CI/headless use:** Pass the API key via the `--api-key` CLI flag in the MCP server configuration. For example, in Claude Desktop's `claude_desktop_config.json`:
+  ```json
+  {
+    "mcpServers": {
+      "hookdeck": {
+        "command": "hookdeck",
+        "args": ["gateway", "mcp", "--api-key", "your-api-key-here"]
+      }
+    }
+  }
+  ```
+  When started with `--api-key`, the server is pre-authenticated — `hookdeck_login` is not registered, and all resource tools work immediately.
+
+**Code path for `--api-key`:**
+1. The `--api-key` flag is a hidden persistent flag on the root command (`pkg/cmd/root.go:108`) bound to `Config.Profile.APIKey`
+2. `Config.InitConfig()` resolves APIKey with priority: flag > profile config > global config > empty (`pkg/config/config.go:325`)
+3. `runMCPCmd` calls `Config.GetAPIClient()` which sets `hookdeck.Client.APIKey` from `Config.Profile.APIKey` (`pkg/config/apiclient.go:23`)
+4. `NewServer()` checks `client.APIKey == ""` (`pkg/gateway/mcp/server.go:52`) — if non-empty, `hookdeck_login` is not registered
+5. All resource tool handlers call `requireAuth(client)` (`pkg/gateway/mcp/auth.go:13`) — passes immediately when APIKey is set
+
+**Tested and verified:** Starting `hookdeck gateway mcp --api-key <key>` results in 11 tools (no `hookdeck_login`), and all resource tools (sources, connections, events, etc.) work correctly.
 
 #### Existing Code Reused
 
