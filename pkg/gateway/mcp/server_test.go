@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,7 +18,9 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-// --- helpers ---
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
 
 // newTestClient creates a hookdeck.Client pointing at the given base URL.
 func newTestClient(baseURL string, apiKey string) *hookdeck.Client {
@@ -39,14 +42,12 @@ func connectInMemory(t *testing.T, client *hookdeck.Client) *mcpsdk.ClientSessio
 
 	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
 
-	// Run server in background.
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() {
 		_ = srv.mcpServer.Run(ctx, serverTransport)
 	}()
 
-	// Connect client.
 	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{
 		Name:    "test-client",
 		Version: "0.0.1",
@@ -67,7 +68,54 @@ func textContent(t *testing.T, result *mcpsdk.CallToolResult) string {
 	return tc.Text
 }
 
-// --- Test: Server initialization and tool listing ---
+// callTool is a convenience wrapper.
+func callTool(t *testing.T, session *mcpsdk.ClientSession, name string, args map[string]any) *mcpsdk.CallToolResult {
+	t.Helper()
+	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
+		Name:      name,
+		Arguments: args,
+	})
+	require.NoError(t, err)
+	return result
+}
+
+// listResponse returns a standard paginated API response.
+func listResponse(models ...map[string]any) map[string]any {
+	return map[string]any{
+		"models":     models,
+		"pagination": map[string]any{},
+	}
+}
+
+// mockAPI creates an httptest server that handles specific API paths.
+func mockAPI(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	for pattern, handler := range handlers {
+		mux.HandleFunc(pattern, handler)
+	}
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("unhandled request: %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]any{"message": "not found: " + r.URL.Path})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// mockAPIWithClient creates a mock API and returns both the server and a connected MCP session.
+func mockAPIWithClient(t *testing.T, handlers map[string]http.HandlerFunc) *mcpsdk.ClientSession {
+	t.Helper()
+	api := mockAPI(t, handlers)
+	client := newTestClient(api.URL, "test-key")
+	client.SuppressRateLimitErrors = true
+	return connectInMemory(t, client)
+}
+
+// ---------------------------------------------------------------------------
+// Server initialization and tool listing
+// ---------------------------------------------------------------------------
 
 func TestListTools_Authenticated(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-api-key")
@@ -81,22 +129,13 @@ func TestListTools_Authenticated(t *testing.T) {
 		toolNames[i] = tool.Name
 	}
 
-	// When authenticated, hookdeck_login should NOT be present.
 	assert.NotContains(t, toolNames, "hookdeck_login")
 
-	// All 11 standard tools should be present.
 	expectedTools := []string{
-		"hookdeck_projects",
-		"hookdeck_connections",
-		"hookdeck_sources",
-		"hookdeck_destinations",
-		"hookdeck_transformations",
-		"hookdeck_requests",
-		"hookdeck_events",
-		"hookdeck_attempts",
-		"hookdeck_issues",
-		"hookdeck_metrics",
-		"hookdeck_help",
+		"hookdeck_projects", "hookdeck_connections", "hookdeck_sources",
+		"hookdeck_destinations", "hookdeck_transformations", "hookdeck_requests",
+		"hookdeck_events", "hookdeck_attempts", "hookdeck_issues",
+		"hookdeck_metrics", "hookdeck_help",
 	}
 	for _, name := range expectedTools {
 		assert.Contains(t, toolNames, name)
@@ -104,7 +143,7 @@ func TestListTools_Authenticated(t *testing.T) {
 }
 
 func TestListTools_Unauthenticated(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "") // no API key
+	client := newTestClient("https://api.hookdeck.com", "")
 	session := connectInMemory(t, client)
 
 	result, err := session.ListTools(context.Background(), nil)
@@ -115,96 +154,88 @@ func TestListTools_Unauthenticated(t *testing.T) {
 		toolNames[i] = tool.Name
 	}
 
-	// When unauthenticated, hookdeck_login SHOULD be present.
 	assert.Contains(t, toolNames, "hookdeck_login")
-
-	// All 11 standard tools should still be present.
 	assert.Contains(t, toolNames, "hookdeck_help")
 	assert.Contains(t, toolNames, "hookdeck_events")
 }
 
-// --- Test: Help tool (no API calls) ---
+// ---------------------------------------------------------------------------
+// Help tool
+// ---------------------------------------------------------------------------
 
 func TestHelpTool_Overview(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_help",
-		Arguments: map[string]any{},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_help", map[string]any{})
 	assert.False(t, result.IsError)
 
 	text := textContent(t, result)
 	assert.Contains(t, text, "hookdeck_events")
 	assert.Contains(t, text, "hookdeck_connections")
 	assert.Contains(t, text, "hookdeck_sources")
+	assert.Contains(t, text, "proj_test123") // current project
 }
 
 func TestHelpTool_SpecificTopic(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_help",
-		Arguments: map[string]any{"topic": "hookdeck_events"},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_help", map[string]any{"topic": "hookdeck_events"})
 	assert.False(t, result.IsError)
-
 	text := textContent(t, result)
 	assert.Contains(t, text, "list")
 	assert.Contains(t, text, "get")
+	assert.Contains(t, text, "raw_body")
+	assert.Contains(t, text, "retry")
+}
+
+func TestHelpTool_ShortTopicName(t *testing.T) {
+	// "events" should resolve to "hookdeck_events"
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_help", map[string]any{"topic": "events"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "hookdeck_events")
 }
 
 func TestHelpTool_UnknownTopic(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_help",
-		Arguments: map[string]any{"topic": "nonexistent_tool"},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_help", map[string]any{"topic": "nonexistent_tool"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "No help found")
 }
 
-// --- Test: Auth guard on resource tools ---
+// ---------------------------------------------------------------------------
+// Auth guard on resource tools
+// ---------------------------------------------------------------------------
 
 func TestAuthGuard_UnauthenticatedReturnsError(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "") // no API key
+	client := newTestClient("https://api.hookdeck.com", "")
 	session := connectInMemory(t, client)
 
-	// All resource tools should return auth error when unauthenticated.
 	resourceTools := []string{
-		"hookdeck_sources",
-		"hookdeck_destinations",
-		"hookdeck_connections",
-		"hookdeck_events",
-		"hookdeck_requests",
-		"hookdeck_attempts",
-		"hookdeck_issues",
-		"hookdeck_transformations",
-		"hookdeck_metrics",
+		"hookdeck_sources", "hookdeck_destinations", "hookdeck_connections",
+		"hookdeck_events", "hookdeck_requests", "hookdeck_attempts",
+		"hookdeck_issues", "hookdeck_transformations", "hookdeck_metrics",
 		"hookdeck_projects",
 	}
 
 	for _, toolName := range resourceTools {
 		t.Run(toolName, func(t *testing.T) {
-			result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-				Name:      toolName,
-				Arguments: map[string]any{"action": "list"},
-			})
-			require.NoError(t, err)
+			result := callTool(t, session, toolName, map[string]any{"action": "list"})
 			assert.True(t, result.IsError, "expected IsError=true for unauthenticated %s", toolName)
 			assert.Contains(t, textContent(t, result), "hookdeck_login")
 		})
 	}
 }
 
-// --- Test: Error translation ---
+// ---------------------------------------------------------------------------
+// Error translation
+// ---------------------------------------------------------------------------
 
 func TestTranslateAPIError(t *testing.T) {
 	tests := []struct {
@@ -212,36 +243,12 @@ func TestTranslateAPIError(t *testing.T) {
 		err        error
 		wantSubstr string
 	}{
-		{
-			name:       "401 Unauthorized",
-			err:        &hookdeck.APIError{StatusCode: 401, Message: "bad key"},
-			wantSubstr: "Authentication failed",
-		},
-		{
-			name:       "404 Not Found",
-			err:        &hookdeck.APIError{StatusCode: 404, Message: "resource xyz"},
-			wantSubstr: "Resource not found",
-		},
-		{
-			name:       "422 Validation",
-			err:        &hookdeck.APIError{StatusCode: 422, Message: "invalid field foo"},
-			wantSubstr: "invalid field foo",
-		},
-		{
-			name:       "429 Rate Limit",
-			err:        &hookdeck.APIError{StatusCode: 429, Message: "slow down"},
-			wantSubstr: "Rate limited",
-		},
-		{
-			name:       "500 Server Error",
-			err:        &hookdeck.APIError{StatusCode: 500, Message: "internal"},
-			wantSubstr: "Hookdeck API error",
-		},
-		{
-			name:       "Non-API error",
-			err:        fmt.Errorf("network timeout"),
-			wantSubstr: "network timeout",
-		},
+		{"401 Unauthorized", &hookdeck.APIError{StatusCode: 401, Message: "bad key"}, "Authentication failed"},
+		{"404 Not Found", &hookdeck.APIError{StatusCode: 404, Message: "resource xyz"}, "Resource not found"},
+		{"422 Validation", &hookdeck.APIError{StatusCode: 422, Message: "invalid field foo"}, "invalid field foo"},
+		{"429 Rate Limit", &hookdeck.APIError{StatusCode: 429, Message: "slow down"}, "Rate limited"},
+		{"500 Server Error", &hookdeck.APIError{StatusCode: 500, Message: "internal"}, "Hookdeck API error"},
+		{"Non-API error", fmt.Errorf("network timeout"), "network timeout"},
 	}
 
 	for _, tt := range tests {
@@ -252,257 +259,1064 @@ func TestTranslateAPIError(t *testing.T) {
 	}
 }
 
-// --- Test: Tool calls with mock API server ---
-
-// mockAPI creates an httptest server that handles specific API paths.
-func mockAPI(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Server {
-	t.Helper()
-	mux := http.NewServeMux()
-	for pattern, handler := range handlers {
-		mux.HandleFunc(pattern, handler)
-	}
-	// Default handler for unmatched routes.
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("unhandled request: %s %s", r.Method, r.URL.Path)
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]any{"message": "not found: " + r.URL.Path})
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	return srv
-}
+// ---------------------------------------------------------------------------
+// Sources tool
+// ---------------------------------------------------------------------------
 
 func TestSourcesList_Success(t *testing.T) {
-	apiResp := map[string]any{
-		"models": []map[string]any{
-			{"id": "src_123", "name": "my-source"},
-		},
-		"pagination": map[string]any{
-			"order_by": "created_at",
-			"dir":      "desc",
-		},
-	}
-
-	api := mockAPI(t, map[string]http.HandlerFunc{
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/sources": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(apiResp)
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "src_123", "name": "my-source"}))
 		},
 	})
 
-	client := newTestClient(api.URL, "test-key")
-	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_sources",
-		Arguments: map[string]any{"action": "list"},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
 	assert.False(t, result.IsError)
-
 	text := textContent(t, result)
 	assert.Contains(t, text, "src_123")
 	assert.Contains(t, text, "my-source")
 }
 
+func TestSourcesGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/sources/src_123": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "src_123", "name": "github-webhooks"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "get", "id": "src_123"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "github-webhooks")
+}
+
 func TestSourcesGet_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_sources",
-		Arguments: map[string]any{"action": "get"},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "get"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }
 
-func TestEventsList_WithMockAPI(t *testing.T) {
-	apiResp := map[string]any{
-		"models": []map[string]any{
-			{"id": "evt_abc", "status": "SUCCESSFUL"},
-		},
-		"pagination": map[string]any{
-			"order_by": "created_at",
-			"dir":      "desc",
-		},
-	}
-
-	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(apiResp)
-		},
-	})
-
-	client := newTestClient(api.URL, "test-key")
+func TestSourcesTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_events",
-		Arguments: map[string]any{"action": "list"},
-	})
-	require.NoError(t, err)
-	assert.False(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "evt_abc")
+	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "delete"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
 }
 
-func TestConnectionsList_WithMockAPI(t *testing.T) {
-	apiResp := map[string]any{
-		"models": []map[string]any{
-			{"id": "web_conn1", "name": "stripe-to-backend"},
-		},
-		"pagination": map[string]any{},
-	}
+// ---------------------------------------------------------------------------
+// Destinations tool
+// ---------------------------------------------------------------------------
 
-	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/connections": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(apiResp)
+func TestDestinationsList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/destinations": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "des_456", "name": "my-backend"}))
 		},
 	})
 
-	client := newTestClient(api.URL, "test-key")
+	result := callTool(t, session, "hookdeck_destinations", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "des_456")
+}
+
+func TestDestinationsGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/destinations/des_456": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "des_456", "name": "my-backend"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_destinations", map[string]any{"action": "get", "id": "des_456"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "des_456")
+}
+
+func TestDestinationsGet_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_destinations", map[string]any{"action": "get"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
 
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_connections",
-		Arguments: map[string]any{"action": "list"},
+func TestDestinationsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_destinations", map[string]any{"action": "create"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// ---------------------------------------------------------------------------
+// Connections tool
+// ---------------------------------------------------------------------------
+
+func TestConnectionsList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
+		},
 	})
-	require.NoError(t, err)
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "list"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "stripe-to-backend")
 }
 
-// --- Test: API error scenarios via mock ---
+func TestConnectionsGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "get", "id": "web_conn1"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "web_conn1")
+}
+
+func TestConnectionsGet_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "get"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestConnectionsPause_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections/web_conn1/pause": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "PUT", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "paused_at": "2025-01-01T00:00:00Z"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "pause", "id": "web_conn1"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "web_conn1")
+}
+
+func TestConnectionsPause_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "pause"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestConnectionsUnpause_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections/web_conn1/unpause": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "PUT", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "unpause", "id": "web_conn1"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "web_conn1")
+}
+
+func TestConnectionsUnpause_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "unpause"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestConnectionsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "delete"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+func TestConnectionsList_DisabledFilter(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections": func(w http.ResponseWriter, r *http.Request) {
+			// Verify disabled_at[any]=true is sent when disabled=true
+			assert.Equal(t, "true", r.URL.Query().Get("disabled_at[any]"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "list", "disabled": true})
+	assert.False(t, result.IsError)
+}
+
+// ---------------------------------------------------------------------------
+// Transformations tool
+// ---------------------------------------------------------------------------
+
+func TestTransformationsList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/transformations": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "trn_789", "name": "enrich-payload"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_transformations", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "trn_789")
+}
+
+func TestTransformationsGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/transformations/trn_789": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "trn_789", "name": "enrich-payload", "code": "module.exports = (req) => req"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_transformations", map[string]any{"action": "get", "id": "trn_789"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "enrich-payload")
+}
+
+func TestTransformationsGet_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_transformations", map[string]any{"action": "get"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestTransformationsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_transformations", map[string]any{"action": "run"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// ---------------------------------------------------------------------------
+// Attempts tool
+// ---------------------------------------------------------------------------
+
+func TestAttemptsList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/attempts": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "atm_001", "status": "SUCCESSFUL", "response_status": 200}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_attempts", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "atm_001")
+}
+
+func TestAttemptsGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/attempts/atm_001": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "atm_001", "response_status": 200})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_attempts", map[string]any{"action": "get", "id": "atm_001"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "atm_001")
+}
+
+func TestAttemptsGet_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_attempts", map[string]any{"action": "get"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestAttemptsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_attempts", map[string]any{"action": "retry"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// ---------------------------------------------------------------------------
+// Events tool
+// ---------------------------------------------------------------------------
+
+func TestEventsList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_abc", "status": "SUCCESSFUL"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "evt_abc")
+}
+
+func TestEventsGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events/evt_abc": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc", "status": "SUCCESSFUL"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "get", "id": "evt_abc"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "evt_abc")
+}
+
+func TestEventsGet_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "get"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestEventsRawBody_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events/evt_abc/raw_body": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`{"key":"value"}`))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "raw_body", "id": "evt_abc"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "raw_body")
+}
+
+func TestEventsRawBody_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "raw_body"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestEventsRawBody_Truncation(t *testing.T) {
+	// Generate a body larger than 100KB
+	largeBody := strings.Repeat("x", 150*1024)
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events/evt_big/raw_body": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(largeBody))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "raw_body", "id": "evt_big"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "truncated")
+}
+
+func TestEventsRetry_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events/evt_abc/retry": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "POST", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "retry", "id": "evt_abc"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "ok")
+	assert.Contains(t, text, "evt_abc")
+}
+
+func TestEventsRetry_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "retry"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestEventsCancel_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events/evt_abc/cancel": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "PUT", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "cancel", "id": "evt_abc"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "ok")
+	assert.Contains(t, text, "cancel")
+}
+
+func TestEventsCancel_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "cancel"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestEventsMute_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events/evt_abc/mute": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "PUT", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "mute", "id": "evt_abc"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "ok")
+	assert.Contains(t, text, "mute")
+}
+
+func TestEventsMute_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "mute"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestEventsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "delete"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+func TestEventsList_ConnectionIDMapsToWebhookID(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			// Verify connection_id is mapped to webhook_id
+			assert.Equal(t, "web_123", r.URL.Query().Get("webhook_id"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "list", "connection_id": "web_123"})
+	assert.False(t, result.IsError)
+}
+
+// ---------------------------------------------------------------------------
+// Requests tool
+// ---------------------------------------------------------------------------
+
+func TestRequestsList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_001", "source_id": "src_123"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "req_001")
+}
+
+func TestRequestsGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests/req_001": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "req_001"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "get", "id": "req_001"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "req_001")
+}
+
+func TestRequestsGet_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "get"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestRequestsRawBody_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests/req_001/raw_body": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`{"payload":"data"}`))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "raw_body", "id": "req_001"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "raw_body")
+}
+
+func TestRequestsRawBody_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "raw_body"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestRequestsRawBody_Truncation(t *testing.T) {
+	largeBody := strings.Repeat("y", 150*1024)
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests/req_big/raw_body": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(largeBody))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "raw_body", "id": "req_big"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "truncated")
+}
+
+func TestRequestsEvents_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests/req_001/events": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_from_req"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "events", "id": "req_001"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "evt_from_req")
+}
+
+func TestRequestsEvents_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "events"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestRequestsIgnoredEvents_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests/req_001/ignored_events": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "ign_evt_001"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "ignored_events", "id": "req_001"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "ign_evt_001")
+}
+
+func TestRequestsIgnoredEvents_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "ignored_events"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestRequestsRetry_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests/req_001/retry": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "POST", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "req_001"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "retry", "id": "req_001"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "ok")
+	assert.Contains(t, text, "req_001")
+}
+
+func TestRequestsRetry_WithConnectionIDs(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests/req_001/retry": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			// Verify webhook_ids are passed
+			assert.NotNil(t, body["webhook_ids"])
+			json.NewEncoder(w).Encode(map[string]any{"id": "req_001"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{
+		"action":         "retry",
+		"id":             "req_001",
+		"connection_ids": []any{"web_1", "web_2"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestRequestsRetry_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "retry"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestRequestsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "delete"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+func TestRequestsList_VerifiedFilter(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "true", r.URL.Query().Get("verified"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_v"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "list", "verified": true})
+	assert.False(t, result.IsError)
+}
+
+// ---------------------------------------------------------------------------
+// Issues tool
+// ---------------------------------------------------------------------------
+
+func TestIssuesList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/issues": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "iss_001", "type": "delivery", "status": "OPENED"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "iss_001")
+}
+
+func TestIssuesGet_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/issues/iss_001": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"id": "iss_001", "type": "delivery"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "get", "id": "iss_001"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "iss_001")
+}
+
+func TestIssuesGet_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "get"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestIssuesUpdate_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/issues/iss_001": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "PUT", r.Method)
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			assert.Equal(t, "RESOLVED", body["status"])
+			json.NewEncoder(w).Encode(map[string]any{"id": "iss_001", "status": "RESOLVED"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "update", "id": "iss_001", "status": "RESOLVED"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "RESOLVED")
+}
+
+func TestIssuesUpdate_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "update", "status": "RESOLVED"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestIssuesUpdate_MissingStatus(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "update", "id": "iss_001"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "status is required")
+}
+
+func TestIssuesDismiss_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/issues/iss_001": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "DELETE", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "iss_001"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "dismiss", "id": "iss_001"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "ok")
+	assert.Contains(t, text, "dismiss")
+}
+
+func TestIssuesDismiss_MissingID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "dismiss"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "id is required")
+}
+
+func TestIssuesTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "close"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// ---------------------------------------------------------------------------
+// Projects tool
+// ---------------------------------------------------------------------------
+
+func TestProjectsList_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/teams": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"id": "proj_test123", "name": "Production", "mode": "console"},
+				{"id": "proj_other", "name": "Staging", "mode": "console"},
+			})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "Production")
+	assert.Contains(t, text, "Staging")
+	// Current project should be marked
+	assert.Contains(t, text, "proj_test123")
+}
+
+func TestProjectsUse_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/teams": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"id": "proj_test123", "name": "Production", "mode": "console"},
+				{"id": "proj_new", "name": "Staging", "mode": "console"},
+			})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "use", "project_id": "proj_new"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "proj_new")
+	assert.Contains(t, text, "Staging")
+	assert.Contains(t, text, "ok")
+}
+
+func TestProjectsUse_MissingProjectID(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "use"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "project_id is required")
+}
+
+func TestProjectsUse_ProjectNotFound(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/teams": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"id": "proj_test123", "name": "Production", "mode": "console"},
+			})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "use", "project_id": "proj_nonexistent"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "not found")
+}
+
+func TestProjectsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "create"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// ---------------------------------------------------------------------------
+// Metrics tool
+// ---------------------------------------------------------------------------
+
+func TestMetricsTool_MissingStartEnd(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{"action": "events"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "required")
+}
+
+func TestMetricsTool_MissingMeasures(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action": "events",
+		"start":  "2025-01-01T00:00:00Z",
+		"end":    "2025-01-02T00:00:00Z",
+	})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "measures")
+}
+
+func TestMetricsEvents_DefaultRoute(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/metrics/events": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{}, "granularity": "1h"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":   "events",
+		"start":    "2025-01-01T00:00:00Z",
+		"end":      "2025-01-02T00:00:00Z",
+		"measures": []any{"count"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestMetricsEvents_QueueDepthRoute(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/metrics/queue-depth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":   "events",
+		"start":    "2025-01-01T00:00:00Z",
+		"end":      "2025-01-02T00:00:00Z",
+		"measures": []any{"queue_depth"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestMetricsEvents_PendingTimeseriesRoute(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/metrics/events-pending-timeseries": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":      "events",
+		"start":       "2025-01-01T00:00:00Z",
+		"end":         "2025-01-02T00:00:00Z",
+		"measures":    []any{"pending"},
+		"granularity": "1h",
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestMetricsEvents_ByIssueRoute(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/metrics/events-by-issue": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":     "events",
+		"start":      "2025-01-01T00:00:00Z",
+		"end":        "2025-01-02T00:00:00Z",
+		"measures":   []any{"count"},
+		"dimensions": []any{"issue_id"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestMetricsRequests_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/metrics/requests": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":   "requests",
+		"start":    "2025-01-01T00:00:00Z",
+		"end":      "2025-01-02T00:00:00Z",
+		"measures": []any{"count"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestMetricsAttempts_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/metrics/attempts": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":   "attempts",
+		"start":    "2025-01-01T00:00:00Z",
+		"end":      "2025-01-02T00:00:00Z",
+		"measures": []any{"count"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestMetricsTransformations_Success(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/metrics/transformations": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":   "transformations",
+		"start":    "2025-01-01T00:00:00Z",
+		"end":      "2025-01-02T00:00:00Z",
+		"measures": []any{"count"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestMetricsTool_UnknownAction(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":   "invalid",
+		"start":    "2025-01-01T00:00:00Z",
+		"end":      "2025-01-02T00:00:00Z",
+		"measures": []any{"count"},
+	})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// ---------------------------------------------------------------------------
+// Login tool
+// ---------------------------------------------------------------------------
+
+func TestLoginTool_AlreadyAuthenticated(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key") // already has API key
+	// Login tool is only registered for unauthenticated, so we test via unauthenticated
+	// then manually set key to simulate already-authenticated scenario.
+	// Actually, login tool is only present when unauthenticated, so we need to
+	// create an unauthenticated server first, then set the key before calling.
+	unauthClient := newTestClient("https://api.hookdeck.com", "")
+	cfg := &config.Config{}
+	srv := NewServer(unauthClient, cfg)
+
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		_ = srv.mcpServer.Run(ctx, serverTransport)
+	}()
+
+	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	// Now set the API key before calling login — simulates already-auth scenario.
+	unauthClient.APIKey = "test-key"
+
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "Already authenticated")
+	_ = client // suppress unused warning
+}
+
+// ---------------------------------------------------------------------------
+// API error scenarios (shared across tools)
+// ---------------------------------------------------------------------------
 
 func TestSourcesList_404Error(t *testing.T) {
-	api := mockAPI(t, map[string]http.HandlerFunc{
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/sources": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]any{"message": "workspace not found"})
 		},
 	})
 
-	client := newTestClient(api.URL, "test-key")
-	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_sources",
-		Arguments: map[string]any{"action": "list"},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "not found")
 }
 
 func TestSourcesList_422ValidationError(t *testing.T) {
-	api := mockAPI(t, map[string]http.HandlerFunc{
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/sources": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			json.NewEncoder(w).Encode(map[string]any{"message": "invalid parameter: limit must be positive"})
 		},
 	})
 
-	client := newTestClient(api.URL, "test-key")
-	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_sources",
-		Arguments: map[string]any{"action": "list"},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "invalid parameter")
 }
 
 func TestSourcesList_429RateLimitError(t *testing.T) {
-	api := mockAPI(t, map[string]http.HandlerFunc{
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/sources": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(w).Encode(map[string]any{"message": "rate limited"})
 		},
 	})
 
-	client := newTestClient(api.URL, "test-key")
-	client.SuppressRateLimitErrors = true
-	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_sources",
-		Arguments: map[string]any{"action": "list"},
-	})
-	require.NoError(t, err)
+	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "Rate limited")
 }
 
-// --- Test: Invalid action ---
-
-func TestSourcesTool_UnknownAction(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_sources",
-		Arguments: map[string]any{"action": "delete"},
-	})
-	require.NoError(t, err)
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "unknown action")
-}
-
-// --- Test: Metrics tool requires start/end/measures ---
-
-func TestMetricsTool_MissingRequired(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_metrics",
-		Arguments: map[string]any{"action": "events"},
-	})
-	require.NoError(t, err)
-	assert.True(t, result.IsError)
-	text := textContent(t, result)
-	assert.Contains(t, text, "required")
-}
-
-// --- Test: Issues tool actions ---
-
-func TestIssuesTool_List(t *testing.T) {
-	apiResp := map[string]any{
-		"models": []map[string]any{
-			{"id": "iss_001", "type": "delivery", "status": "OPENED"},
-		},
-		"pagination": map[string]any{},
-	}
-
-	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/issues": func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(apiResp)
+func TestEventsGet_APIError(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events/evt_nope": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]any{"message": "event not found"})
 		},
 	})
 
-	client := newTestClient(api.URL, "test-key")
-	session := connectInMemory(t, client)
-
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_issues",
-		Arguments: map[string]any{"action": "list"},
-	})
-	require.NoError(t, err)
-	assert.False(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "iss_001")
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "get", "id": "evt_nope"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "not found")
 }
 
-func TestIssuesTool_GetMissingID(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
+// ---------------------------------------------------------------------------
+// Input parsing edge cases
+// ---------------------------------------------------------------------------
 
-	result, err := session.CallTool(context.Background(), &mcpsdk.CallToolParams{
-		Name:      "hookdeck_issues",
-		Arguments: map[string]any{"action": "get"},
-	})
+func TestInput_Accessors(t *testing.T) {
+	raw := json.RawMessage(`{
+		"name": "test",
+		"count": 42,
+		"active": true,
+		"tags": ["a", "b"],
+		"missing_bool": null
+	}`)
+
+	in, err := parseInput(raw)
 	require.NoError(t, err)
-	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
+
+	assert.Equal(t, "test", in.String("name"))
+	assert.Equal(t, "", in.String("nonexistent"))
+	assert.Equal(t, 42, in.Int("count", 0))
+	assert.Equal(t, 99, in.Int("nonexistent", 99))
+	assert.Equal(t, true, in.Bool("active"))
+	assert.Equal(t, false, in.Bool("nonexistent"))
+	assert.Equal(t, []string{"a", "b"}, in.StringSlice("tags"))
+	assert.Nil(t, in.StringSlice("nonexistent"))
+
+	bp := in.BoolPtr("active")
+	require.NotNil(t, bp)
+	assert.True(t, *bp)
+	assert.Nil(t, in.BoolPtr("nonexistent"))
+}
+
+func TestInput_EmptyArgs(t *testing.T) {
+	in, err := parseInput(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "", in.String("anything"))
+}
+
+func TestInput_InvalidJSON(t *testing.T) {
+	_, err := parseInput(json.RawMessage(`{invalid`))
+	assert.Error(t, err)
 }
