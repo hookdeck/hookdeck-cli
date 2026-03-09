@@ -8,11 +8,48 @@ Using the Hookdeck CLI, you can forward your events (e.g. webhooks) to your loca
 
 Hookdeck CLI is compatible with most of Hookdeck's features, such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your event (e.g. webhook) integration code locally.
 
+You can also manage Hookdeck Event Gateway resources—sources, destinations, connections, events, transformations—from the CLI. For AI and agent workflows, the Event Gateway MCP server (`hookdeck gateway mcp`) exposes these capabilities as tools in MCP-compatible clients (e.g. Cursor, Claude).
+
 Although it uses a different approach and philosophy, it's a replacement for ngrok and alternative HTTP tunnel solutions.
 
 Hookdeck for development is completely free, and we monetize the platform with our production offering.
 
 For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE.md).
+
+## Table of contents
+
+- [Installation](#installation)
+  - [NPM](#npm)
+  - [macOS](#macos)
+  - [Windows](#windows)
+  - [Linux Or without package managers](#linux-or-without-package-managers)
+  - [Docker](#docker)
+- [Usage](#usage)
+- [Commands](#commands)
+  - [Login](#login)
+  - [Listen](#listen)
+  - [Logout](#logout)
+  - [Skip SSL validation](#skip-ssl-validation)
+  - [Disable health checks](#disable-health-checks)
+  - [Version](#version)
+  - [Completion](#completion)
+  - [Running in CI](#running-in-ci)
+  - [Event Gateway](#event-gateway)
+  - [Event Gateway MCP](#event-gateway-mcp)
+  - [Manage connections](#manage-connections)
+  - [Transformations](#transformations)
+  - [Requests, events, and attempts](#requests-events-and-attempts)
+  - [Manage active project](#manage-active-project)
+- [Configuration files](#configuration-files)
+- [Global Flags](#global-flags)
+- [Troubleshooting](#troubleshooting)
+- [Developing](#developing)
+- [Testing](#testing)
+- [Releasing](#releasing)
+- [Repository Setup](#repository-setup)
+- [License](#license)
+
+**Quick links:** [Local development (Listen)](#listen) · [Resource management (CLI)](#event-gateway) / [Manage connections](#manage-connections) · [AI / agent integration (Event Gateway MCP)](#event-gateway-mcp)
 
 https://github.com/user-attachments/assets/7a333c5b-e4cb-45bb-8570-29fafd137bd2
 
@@ -490,6 +527,35 @@ hookdeck gateway transformation run --code "addHandler(\"transform\", (request, 
 ```
 
 For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
+
+### Event Gateway MCP
+
+The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that exposes Hookdeck Event Gateway as tools for AI and agent workflows. Use it in MCP-compatible clients (e.g. Cursor, Claude) to list and inspect connections, sources, destinations, events, requests, attempts, issues, and metrics, and to run login from the host.
+
+**Run the server (stdio):**
+
+```sh
+hookdeck gateway mcp
+```
+
+The server is intended to be configured as an MCP server in your client; it reads and writes JSON-RPC over stdin/stdout. Configure your client to run the above command as the server process.
+
+**Example: Cursor MCP config**
+
+Add to your Cursor MCP settings (e.g. `~/.cursor/mcp.json` or project-level config):
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp"]
+    }
+  }
+}
+```
+
+After configuration, the host can use tools such as `hookdeck_connections_list`, `hookdeck_events_list`, and `hookdeck_login` (when unauthenticated). For the full tool reference, see [REFERENCE.md](REFERENCE.md) or run `hookdeck gateway mcp --help`.
 
 ### Manage connections
 
