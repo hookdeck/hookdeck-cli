@@ -42,12 +42,16 @@ func buildMetricsParams(in input) (hookdeck.MetricsQueryParams, error) {
 	if start == "" || end == "" {
 		return hookdeck.MetricsQueryParams{}, fmt.Errorf("start and end are required (ISO 8601 datetime)")
 	}
+	measures := in.StringSlice("measures")
+	if len(measures) == 0 {
+		return hookdeck.MetricsQueryParams{}, fmt.Errorf("measures is required (e.g. [\"count\"], [\"successful_count\", \"failed_count\"])")
+	}
 
 	return hookdeck.MetricsQueryParams{
 		Start:         start,
 		End:           end,
 		Granularity:   in.String("granularity"),
-		Measures:      in.StringSlice("measures"),
+		Measures:      measures,
 		Dimensions:    in.StringSlice("dimensions"),
 		SourceID:      in.String("source_id"),
 		DestinationID: in.String("destination_id"),

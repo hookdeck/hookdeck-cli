@@ -216,7 +216,7 @@ Parameters:
   start          (string, required)   — ISO 8601 datetime
   end            (string, required)   — ISO 8601 datetime
   granularity    (string)             — e.g. "1h", "5m", "1d"
-  measures       (string[])           — Metrics to retrieve (varies by action)
+  measures       (string[], required)  — Metrics to retrieve. Common: count, successful_count, failed_count, error_count
   dimensions     (string[])           — Grouping dimensions (varies by action)
   source_id      (string)             — Filter by source
   destination_id (string)             — Filter by destination
@@ -236,8 +236,18 @@ func helpTopic(topic string) *mcpsdk.CallToolResult {
 		topic = "hookdeck_" + topic
 	}
 	text, ok := toolHelp[topic]
-	if !ok {
-		return ErrorResult(fmt.Sprintf("unknown tool %q; use hookdeck_help without a topic to see all tools", topic))
+	if ok {
+		return TextResult(text)
 	}
-	return TextResult(text)
+
+	// If the topic doesn't match a tool name exactly, it may be a natural
+	// language question. List all available tools so the caller can pick.
+	var names []string
+	for k := range toolHelp {
+		names = append(names, k)
+	}
+	return ErrorResult(fmt.Sprintf(
+		"No help found for %q. The topic parameter expects a tool name, not a question.\n\nAvailable tools: %s\n\nOmit the topic parameter for a general overview.",
+		topic, strings.Join(names, ", "),
+	))
 }
