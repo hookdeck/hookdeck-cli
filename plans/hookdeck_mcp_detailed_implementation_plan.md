@@ -8,7 +8,7 @@ This document maps the high-level MCP build-out plan against the existing hookde
 **Command:** `hookdeck gateway mcp`
 **Go MCP SDK:** `github.com/modelcontextprotocol/go-sdk` v1.4.0
 **Transport:** stdio only (Phase 1)
-**Auth model:** Inherited from CLI via `Config.GetAPIClient()`
+**Auth model:** Inherited from CLI profile; dynamic browser-based login via `hookdeck_login` tool when unauthenticated (see Section 1.7)
 
 ---
 
@@ -24,7 +24,7 @@ This document maps the high-level MCP build-out plan against the existing hookde
 
 **What's done:** The MCP server skeleton is fully wired — `hookdeck gateway mcp` starts a stdio MCP server, registers 11 placeholder tools, responds to `initialize`/`tools/list`/`tools/call`, and has been manually verified on Cloud Desktop. All prerequisite CLI work (issues commands, metrics consolidation) is in place.
 
-**What's next:** Part 4 — implement the real handlers for all 11 tools (replace the placeholder "not yet implemented" stubs with actual Hookdeck API calls). See the detailed tool specifications in Section 2 below.
+**What's next:** Part 4 — implement the real handlers for all 11 tools (replace the placeholder "not yet implemented" stubs with actual Hookdeck API calls), plus the `hookdeck_login` tool for in-band browser-based authentication when the CLI is not yet logged in (see Section 1.7). See the detailed tool specifications in Section 2 below.
 
 ---
 
@@ -101,6 +101,8 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [ ] `pkg/gateway/mcp/tool_issues.go` — issues (list, get, update, dismiss, count)
 - [ ] `pkg/gateway/mcp/tool_metrics.go` — metrics (requests, events, attempts, transformations)
 - [ ] `pkg/gateway/mcp/tool_help.go` — help (list_tools, tool_detail)
+- [ ] `pkg/gateway/mcp/tool_login.go` — login (browser-based device auth; see Section 1.7)
+- [ ] Auth-gate middleware in tool handlers — return `isError` when unauthenticated (see Section 1.7)
 
 ### Part 5: Integration Testing & Polish
 
@@ -112,7 +114,9 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 **MCP Integration Tests** (end-to-end via stdio transport):
 - [ ] End-to-end test: start MCP server, send tool calls, verify responses
 - [ ] Verify all 11 tools return well-formed JSON
-- [ ] Test error scenarios (auth failure, 404, 422, rate limiting)
+- [ ] Test error scenarios (404, 422, rate limiting)
+- [ ] Test unauthenticated startup: server starts, `hookdeck_login` tool is listed, resource tools return auth error
+- [ ] Test authenticated startup: server starts, only resource tools are listed, no `hookdeck_login`
 - [ ] Test project switching within an MCP session
 
 ---
@@ -160,11 +164,14 @@ func addMCPCmdTo(parent *cobra.Command) {
 ```
 
 The `runMCPCmd` method should:
-1. Validate the API key via `Config.Profile.ValidateAPIKey()` (pattern used by every command, e.g., `pkg/cmd/event_list.go:93`)
-2. Get the API client via `Config.GetAPIClient()` (see `pkg/config/apiclient.go:14`)
-3. Initialize the MCP server using `github.com/modelcontextprotocol/go-sdk`
-4. Register all 11 tools
-5. Start the stdio transport and block until the process is terminated
+1. Build the API client via `Config.GetAPIClient()` (see `pkg/config/apiclient.go:14`)
+2. Check whether the CLI profile has a valid API key
+3. Initialize the MCP server via `NewServer()`, passing the client, config, and the authentication state
+4. If **authenticated**: register all 11 resource tools (no login tool)
+5. If **not authenticated**: register all 11 resource tools **plus** the `hookdeck_login` tool. The resource tool handlers check auth state and return `isError: true` with a message directing the agent to call `hookdeck_login` first. See Section 1.7 for the full authentication flow.
+6. Start the stdio transport and block until the process is terminated
+
+**Important:** The server must **never exit or crash** due to missing authentication. MCP hosts (Claude Desktop, Cursor) handle server process crashes poorly — they may enter a permanently broken state requiring manual config removal. The server always starts; authentication is handled in-band via the `hookdeck_login` tool.
 
 #### 1.1.2 API Client Wiring
 
@@ -1261,6 +1268,131 @@ For the MCP server's `projects.list` action, you should either:
 2. Call `ListProjects()` directly on the shared client — this works because `ListProjects()` hits `GET /teams` which is not project-scoped, and the `X-Team-ID` header is simply ignored for this endpoint
 
 Option 2 is simpler and likely safe, but Option 1 is what the existing codebase does. Follow Option 1 for consistency.
+
+---
+
+### 1.7 MCP Authentication & Login Flow
+
+#### Problem
+
+MCP servers are started as subprocesses by MCP hosts (Claude Desktop, Cursor, Claude Code, etc.). If the Hookdeck CLI is not authenticated (no API key in the profile), the server must still start successfully. Crashing or exiting on auth failure causes MCP hosts to enter a broken state — Claude Desktop shows "Could not connect to MCP server" and may require manual config removal to recover.
+
+Additionally, we do **not** want to suggest passing an API key via environment variable as the primary auth method, because that puts the CLI into CI mode, which locks access to a single project. The browser-based device auth flow gives full account access across all projects.
+
+#### Design
+
+The MCP server implements a **dynamic login tool** pattern (precedent: Duolingo's Slack MCP server uses the same approach with `slack_get_oauth_url()`).
+
+**Startup behavior:**
+
+1. `runMCPCmd` builds the API client and checks `Config.Profile.ValidateAPIKey()`
+2. The auth state (authenticated or not) is passed to `NewServer()`
+3. `NewServer()` always registers all 11 resource tools
+4. If **not authenticated**, it additionally registers the `hookdeck_login` tool
+
+**When authenticated at startup:**
+
+- All 11 resource tools are registered and functional
+- No `hookdeck_login` tool is registered
+- This is the common case after the user has run `hookdeck login` once
+
+**When not authenticated at startup:**
+
+- All 11 resource tools are registered, but each handler checks auth state first
+- If called before login, resource tools return `isError: true` with the message:
+  ```
+  Not authenticated. Please call the hookdeck_login tool to authenticate with Hookdeck.
+  ```
+- The `hookdeck_login` tool is also registered (see tool spec below)
+
+**Why register all tools even when unauthenticated:** The MCP protocol supports `notifications/tools/list_changed` to dynamically update the tool list, but not all clients handle it. Claude Code supports it; Claude Desktop has quirks; Cursor support is undocumented. By registering all tools upfront, clients that ignore `list_changed` still see the full tool list after login — the resource tools simply start working once the API key is set. This ensures compatibility across all MCP hosts.
+
+#### `hookdeck_login` Tool Specification
+
+**Tool name:** `hookdeck_login`
+
+**Description:** `Authenticate the Hookdeck CLI. Returns a URL that the user must open in their browser to complete login. The tool will wait for the user to complete authentication before returning.`
+
+**Input schema:**
+```json
+{
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
+```
+No parameters required. The device name is derived from `os.Hostname()`.
+
+**Handler flow:**
+
+1. Build an unauthenticated `hookdeck.Client` with only `BaseURL` set (from config)
+2. Call `client.StartLogin(deviceName)` — this hits `POST /cli-auth` and returns a `LoginSession` with `BrowserURL` and an internal `pollURL`
+3. Return the browser URL immediately to the AI agent as a **first result**:
+   ```
+   To authenticate with Hookdeck, please ask the user to open this URL in their browser:
+
+   https://dashboard.hookdeck.com/cli-auth/...
+
+   Waiting for the user to complete authentication...
+   ```
+   **Note:** MCP tool calls are synchronous (request-response). The tool cannot send a partial result and then continue. Instead, the handler must poll and block until auth completes or times out, then return the final result. The browser URL should be included in the final success or timeout message so the agent can present it to the user.
+
+   **Revised flow:**
+   1. Call `client.StartLogin(deviceName)` to get the `BrowserURL`
+   2. Call `session.WaitForAPIKey(2*time.Second, 120)` — polls for up to ~4 minutes
+   3. **On success:** save credentials to profile, update the shared API client's `APIKey` and `ProjectID`, remove the `hookdeck_login` tool via `mcpServer.RemoveTools("hookdeck_login")` (sends `tools/list_changed` notification), and return:
+      ```
+      Successfully authenticated as {UserName} ({UserEmail}).
+      Active project: {ProjectName} in organization {OrganizationName}.
+      All Hookdeck tools are now available.
+      ```
+   4. **On timeout:** return `isError: true` with:
+      ```
+      Authentication timed out. Please try again by calling hookdeck_login.
+      To authenticate, the user needs to open this URL in their browser:
+
+      https://dashboard.hookdeck.com/cli-auth/...
+      ```
+
+4. On success, save credentials to the CLI profile (reusing existing `config.Profile.SaveProfile()` / `config.Profile.UseProfile()` logic) so the next MCP server startup finds the saved key
+5. Update the shared `*hookdeck.Client`'s `APIKey` and `ProjectID` fields — since all resource tool handlers share this pointer, they immediately become functional
+6. Call `mcpServer.RemoveTools("hookdeck_login")` — this sends `notifications/tools/list_changed` to the MCP host. Clients that support it will re-fetch tools and see the login tool is gone. Clients that don't will still work — the login tool just lingers harmlessly
+
+**Auth state tracking:**
+
+The `Server` struct gains an `authenticated` field (or simply checks `client.APIKey != ""`). The auth-gate in resource tool handlers is a simple check at the top of each handler:
+
+```go
+func requireAuth(client *hookdeck.Client) *mcpsdk.CallToolResult {
+    if client.APIKey == "" {
+        return ErrorResult("Not authenticated. Please call the hookdeck_login tool to authenticate with Hookdeck.")
+    }
+    return nil
+}
+```
+
+Each resource tool handler calls `requireAuth()` first and returns early if it gets a non-nil result.
+
+#### Implementation Files
+
+| File | Changes |
+|------|---------|
+| `pkg/gateway/mcp/server.go` | Add `config` field to `Server`; accept auth state in `NewServer()`; conditionally register `hookdeck_login` |
+| `pkg/gateway/mcp/tool_login.go` | New file: `hookdeck_login` tool handler using `hookdeck.Client.StartLogin()` and `LoginSession.WaitForAPIKey()` |
+| `pkg/gateway/mcp/tools.go` | Add `hookdeck_login` tool definition to `toolDefs()` (conditionally included) |
+| `pkg/gateway/mcp/auth.go` | New file: `requireAuth()` helper function |
+| `pkg/cmd/mcp.go` | Remove `ValidateAPIKey()` gate; pass config to `NewServer()` |
+
+#### Existing Code Reused
+
+The login flow reuses existing infrastructure with no changes needed:
+
+- `hookdeck.Client.StartLogin()` (`pkg/hookdeck/auth.go:66`) — initiates browser auth, returns `LoginSession`
+- `LoginSession.WaitForAPIKey()` (`pkg/hookdeck/auth.go:121`) — polls until user completes browser auth
+- `config.Profile.SaveProfile()` / `UseProfile()` — persists credentials to disk
+- Device name via `os.Hostname()` — same approach as `pkg/login/interactive_login.go:102`
+
+No changes to any existing CLI commands, login flows, or the `hookdeck.Client` are required.
 
 ---
 
