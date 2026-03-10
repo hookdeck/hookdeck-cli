@@ -101,27 +101,31 @@ This plan is intentionally high-level on API details. An agent with access to th
 
 The MCP server uses the **same internal API client** the CLI uses (`Config.GetAPIClient()`), not shelling out to CLI subprocesses. One auth story (`hookdeck login` or a CI API key); no subprocess management or stdout parsing. Tool calls use the same project/workspace context as the CLI. The agent can list and switch projects via the `projects` tool (action: `use`).
 
-**Authentication:** Inherited from the CLI. If auth is missing, every tool returns a clear error: `"Not authenticated. Run hookdeck login to authenticate."` No tool succeeds silently with missing credentials.
+**Authentication:** Two paths, both zero-config for the agent:
+
+1. **Pre-authenticated (typical):** User has already run `hookdeck login`. The MCP server inherits the CLI's API key and project context. All resource tools work immediately.
+2. **In-band login (unauthenticated start):** If the CLI has no API key, the server registers a `hookdeck_login` tool that initiates browser-based device auth (polls for completion, persists credentials, then removes itself via `notifications/tools/list_changed`). All other tools return: `"Not authenticated. Please call the hookdeck_login tool to authenticate with Hookdeck."` until login completes. No tool succeeds silently with missing credentials.
 
 **Suggested implementation order:**
 1. MCP server skeleton and transport setup — the `initialize` handshake is handled automatically by the SDK, not something to implement as a tool; validate with `tools/list`
-2. `projects` tool (sets project context for all subsequent calls)
-3. `connections`, `sources`, `destinations` (orientation tools)
-4. `transformations` tool
-5. `events` tool (list, get)
-6. `requests` tool
-7. `attempts` tool
-8. `issues` tool
-9. `metrics` tool
-10. `help` tool (stub early; enrich once other tools exist so responses can reference what's available)
+2. `login` tool (conditional registration when unauthenticated; enables zero-config agent onboarding)
+3. `projects` tool (sets project context for all subsequent calls)
+4. `connections`, `sources`, `destinations` (orientation tools)
+5. `transformations` tool
+6. `events` tool (list, get, raw_body)
+7. `requests` tool (list, get, raw_body, events, ignored_events)
+8. `attempts` tool
+9. `issues` tool
+10. `metrics` tool
+11. `help` tool (stub early; enrich once other tools exist so responses can reference what's available)
 
 Layer 1 and 2 tests can follow each slice. `projects` first because project context is required for all subsequent calls to be meaningful.
 
 ---
 
-## 2. Tool surface area (11 tools)
+## 2. Tool surface area (12 tools)
 
-LLM tool-calling accuracy degrades above 30-50 tools. Phase 1 ships **11 tools** — 10 investigation and operational tools plus a catch-all guidance tool. All use the **compound pattern**: a single tool name with an `action` parameter. This keeps the selection surface small while preserving per-tool capability.
+LLM tool-calling accuracy degrades above 30-50 tools. Phase 1 ships **12 tools** — 10 investigation and operational tools, a catch-all guidance tool, and a conditional login tool. All resource tools use the **compound pattern**: a single tool name with an `action` parameter. This keeps the selection surface small while preserving per-tool capability.
 
 The compound pattern is a testable bet. If agents consistently fail to specify an action or confuse action-specific parameters, the fallback is to expand compound tools into single-action tools (e.g. `connections_list`, `connections_get`, `connections_pause`). Layer 3 behavioral testing validates this early.
 
@@ -134,12 +138,13 @@ The compound pattern is a testable bet. If agents consistently fail to specify a
 | `sources` | `list`, `get` | Source details, URLs (e.g. "what's the URL I gave to Stripe?") |
 | `destinations` | `list`, `get` | Destination details, URLs, auth config |
 | `transformations` | `list`, `get` | "What does this transformation do?" |
-| `requests` | `list`, `get` | Inbound requests with filters |
-| `events` | `list`, `get` | Events with body search and status filters |
+| `requests` | `list`, `get`, `raw_body`, `events`, `ignored_events` | Inbound requests with filters, raw payload inspection, and downstream event tracing |
+| `events` | `list`, `get`, `raw_body` | Events with body search, status filters, and raw payload inspection |
 | `attempts` | `list`, `get` | Delivery attempts and destination responses |
 | `issues` | `list`, `get` | Open issues, quick pipeline health check |
 | `metrics` | `events`, `requests`, `attempts`, `transformations` | Aggregate stats over time with measures and dimensions |
 | `help` | topic (string) | Catch-all guidance; redirects action-oriented requests to skills + CLI |
+| `login` | *(none — single action)* | Conditional: only registered when unauthenticated; removed after successful login |
 
 ### 2.2 Tool detail: `projects`
 
@@ -187,21 +192,23 @@ CLI reference: `hookdeck gateway transformation list/get`. API: GET `/transforma
 
 ### 2.7 Tool detail: `requests`
 
-Actions: `list` | `get`
+Actions: `list` | `get` | `raw_body` | `events` | `ignored_events`
 
-`list` returns inbound requests with filters: `source_id`, `rejected`, `ingested_at` (range), `headers`, `body`, `path`, `parsed_query`, `bulk_retry_id`; plus `order_by`, `dir`, `limit`, `next`, `prev`. `get` takes `request_id` and returns full request details including the raw inbound body and headers. Useful for "did the provider even send this?" vs. "why did delivery fail?"
+`list` returns inbound requests with filters: `source_id`, `status`, `rejection_cause`, `verified`; plus `limit`, `next`, `prev`. `get` takes `request_id` and returns full request details including headers and parsed body. `raw_body` returns the unparsed inbound payload for a request — useful when the parsed body loses fidelity or you need the exact bytes. `events` lists the events generated from a request (the fan-out after routing). `ignored_events` lists events that were received but not routed (e.g. filtered by rules). Together these answer "did the provider send this?" and "what happened to it after ingestion?"
 
-CLI reference: `hookdeck gateway request list/get`. API: GET `/requests`, GET `/requests/{id}`.
+CLI reference: `hookdeck gateway request list/get`. API: GET `/requests`, GET `/requests/{id}`, GET `/requests/{id}/raw_body`, GET `/requests/{id}/events`, GET `/requests/{id}/ignored_events`.
 
 ### 2.8 Tool detail: `events`
 
-Actions: `list` | `get`
+Actions: `list` | `get` | `raw_body`
 
-`list` returns events with filters: `id`, `connection_id`, `source_id`, `destination_id`, `status` (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED), `attempts`, `response_status`, `error_code`, `cli_id`, `issue_id`, `created_after` / `created_before`, `successful_at_after` / `successful_at_before`, `last_attempt_at_after` / `last_attempt_at_before`, `headers`, `body`, `path`, `parsed_query`; plus `order_by`, `dir`, `limit`, `next`, `prev`.
+`list` returns events with filters: `connection_id`, `source_id`, `destination_id`, `status` (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED), `response_status`, `error_code`, `issue_id`, `created_after` / `created_before`; plus `order_by`, `dir`, `limit`, `next`, `prev`.
 
-`get` takes `event_id` and returns event details including body and headers. **Enrichment decision:** Whether `get` additionally fetches the latest attempt's request/response inline (to avoid requiring agents to call `attempts` separately) is an implementation decision for the Phase 1 build. Enriching is better UX; deferring keeps the tool simpler. Decide during build based on the complexity of the additional API call.
+`get` takes `event_id` and returns event details including parsed body and headers. `raw_body` returns the unparsed event payload — same pattern as `requests` `raw_body`, useful when the parsed body loses fidelity.
 
-CLI reference: `hookdeck gateway event list/get`. API: GET `/events`, GET `/events/{id}`.
+**Enrichment decision (resolved):** `get` returns the event as-is from the API without inlining the latest attempt. The simpler approach was chosen — agents call `attempts` (action: `list`, filtered by `event_id`) when they need delivery details. This keeps the tool straightforward and avoids coupling event retrieval to attempt data.
+
+CLI reference: `hookdeck gateway event list/get`. API: GET `/events`, GET `/events/{id}`, GET `/events/{id}/raw_body`.
 
 ### 2.9 Tool detail: `attempts`
 
@@ -229,7 +236,17 @@ Each action supports: `connection_id` (or `source_id` / `destination_id` / `tran
 
 CLI reference: `hookdeck gateway metrics events/requests/attempts`. API: GET `/metrics/events`, GET `/metrics/requests`, GET `/metrics/attempts`, GET `/metrics/transformations`.
 
-### 2.12 Tool detail: `help`
+### 2.12 Tool detail: `login`
+
+Action: none (single-action tool, no `action` parameter)
+
+**Conditional registration:** Only added to the tool list when the MCP server starts without an API key (`client.APIKey == ""`). After successful login, the tool is removed via `mcpServer.RemoveTools("hookdeck_login")`, which sends `notifications/tools/list_changed` to clients that support dynamic tool updates.
+
+**Flow:** Calls `StartLogin()` to initiate browser-based device auth → returns the browser URL for the user to open → polls `WaitForAPIKey()` at 2-second intervals (up to ~4 minutes) → on success, persists credentials to the CLI profile, updates the shared client's `APIKey` and `ProjectID`, and removes itself from the tool list. On timeout, returns the browser URL again so the user can retry.
+
+This tool bridges the gap between "user installed the CLI but hasn't logged in yet" and "all MCP tools require auth." Without it, an agent encountering the auth error would have no way to resolve the situation within the MCP session.
+
+### 2.13 Tool detail: `help`
 
 Action: `topic` (string parameter)
 
@@ -241,7 +258,7 @@ The catch-all entry point when no other tool fits the request. Two behaviors:
 
 The `help` tool generates the signal that tells us what Phase 2 should be. Calls to `help`, and the topics passed to it, are the primary feedback mechanism for understanding unmet needs.
 
-**Server-level description:** Set a clear MCP server description so clients display it correctly: "Hookdeck MCP — investigation and operational tools for querying event data, inspecting delivery attempts, checking pipeline health, and performing lightweight operational actions (pause, unpause, retry). For setup, scaffolding, and development workflows, use skills + CLI: `npx skills add hookdeck`."
+**Server-level description:** Set a clear MCP server description so clients display it correctly: "Hookdeck MCP — investigation and operational tools for querying event data, inspecting delivery attempts, checking pipeline health, and performing lightweight operational actions (pause, unpause). For setup, scaffolding, and development workflows, use skills + CLI: `npx skills add hookdeck`."
 
 ---
 
@@ -251,13 +268,14 @@ Every tool call returns a **clear, actionable error message** the agent can reas
 
 | Failure | Tool response |
 |---------|--------------|
-| Auth missing | `"Not authenticated. Run hookdeck login to authenticate."` |
-| No project selected | `"No project selected. Use projects (action: use) to set the active project, or run hookdeck login."` |
-| Resource not found | `"Connection web_G79G7nNUYWTa not found. Use connections (action: list) to see available connections."` |
-| API 400 bad request | Surface the API error message verbatim with context: `"Invalid filter parameter 'statuss'. Valid values for status: SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED."` |
-| Rate limit (429) | `"Rate limited. Retry after {N} seconds."` (Surface API Retry-After value when present.) |
-| Write tool not available | Do not return a generic "method not allowed." Return: `"Creating/updating resources isn't available through the MCP. Use the CLI with agent skills: npx skills add hookdeck."` |
-| API 5xx | `"Hookdeck API returned an error ({status}). This may be transient — try again in a moment."` |
+| Auth missing | `"Not authenticated. Please call the hookdeck_login tool to authenticate with Hookdeck."` (When `hookdeck_login` is available, the agent can resolve this in-band.) |
+| Auth failed (401) | `"Authentication failed. Check your API key."` |
+| Resource not found (404) | `"Resource not found: {API message}"` |
+| Validation error (422) | API error message passed through verbatim. |
+| Rate limit (429) | `"Rate limited. Retry after a brief pause."` |
+| API 5xx | `"Hookdeck API error: {API message}"` |
+
+**Note:** The error translation layer (`TranslateAPIError`) maps `*hookdeck.APIError` status codes to these messages. Non-API errors are returned unchanged.
 
 **Rate limiting:** Rely on the API's 429 responses. Surface the `Retry-After` header to the agent. No client-side rate limiting or queuing in Phase 1.
 
@@ -295,6 +313,84 @@ Use **MCP Inspector** (`npx @modelcontextprotocol/inspector`) for manual validat
 - **Command:** `hookdeck gateway mcp`. Gateway-scoped for the same reason — all Event Gateway resources live under this namespace, and scoping here preserves the option to restrict the MCP to Event Gateway projects in future.
 - **Go MCP library:** Use the official `modelcontextprotocol/go-sdk` (v1.2.0+). Stable with a formal backward-compatibility guarantee, maintained by the MCP organization and Google, supports the 2025-11-25 spec, first-class stdio and streamable HTTP transports sharing the same server implementation.
 - **Transport:** **Phase 1 is stdio only.** Stdio covers Claude Desktop, Cursor, Claude Code, Windsurf, Cline, and current AI coding tools. The SDK makes adding HTTP straightforward later since the server is transport-agnostic.
+
+---
+
+---
+
+## 7. Missing features for consideration
+
+The following items are specified in the plan but not yet implemented, or are gaps discovered during implementation. Each is listed with context to help decide whether to implement now (Phase 1), defer to Phase 2, or skip.
+
+### 7.1 Help tool: skills + CLI redirect for action-oriented requests
+
+**Plan reference:** Section 2.13 — when someone asks about create/update/delete/listen/scaffold, help should return guidance like *"Creating and managing connections isn't available through the MCP — that's handled by the Hookdeck CLI with agent skills."*
+
+**Current state:** The help tool only returns tool reference documentation. If you ask about a topic that doesn't match a tool name, it returns an error saying the topic parameter expects a tool name. There is no natural-language routing and no skills/CLI redirect.
+
+**Impact:** This is the primary mechanism for bridging MCP users to write operations. Without it, agents hitting the boundary of what's available get a dead-end error instead of actionable guidance. The plan also identifies `help` call topics as the feedback signal for Phase 2 priorities.
+
+**Effort:** Medium — needs a category-matching layer (keyword or pattern-based) and a set of redirect response templates.
+
+### 7.2 Server-level description
+
+**Plan reference:** Section 2.13 — set a description so MCP clients display context about the server's purpose.
+
+**Current state:** The server only sets `Name: "hookdeck-gateway"` and `Version`. No description field.
+
+**Impact:** Low-medium. Clients like Claude Desktop show the server description to help users understand what's available. Without it, users see just the name.
+
+**Effort:** Trivial — one field on `mcpsdk.Implementation` or server options.
+
+### 7.3 Structured logging via slog
+
+**Plan reference:** Section 4 — structured logging to stderr via `slog`, INFO/WARN/ERROR levels, `--verbose` flag for DEBUG.
+
+**Current state:** No logging in the MCP server code at all.
+
+**Impact:** Medium for debugging and support. Without it, diagnosing issues in production or during development requires adding ad-hoc prints. The `--verbose` flag is particularly useful for MCP Inspector workflows.
+
+**Effort:** Medium — add slog setup in `NewServer`, pass logger through to handlers, add `--verbose` flag to the `hookdeck gateway mcp` command.
+
+### 7.4 "No project selected" validation
+
+**Plan reference:** Section 3 error table — *"No project selected. Use projects (action: use) to set the active project."*
+
+**Current state:** Tools call the API without checking if `client.ProjectID` is set. The API may return confusing errors or default project data.
+
+**Impact:** Medium. Without this guard, agents get opaque API errors when project context is missing instead of clear guidance to call `projects (action: use)`.
+
+**Effort:** Low — add a `requireProject()` check similar to `requireAuth()`, call it from each tool handler.
+
+### 7.5 Projects tool: `organization_name` + `project_name` resolution and `persist_scope`
+
+**Plan reference:** Section 2.2 — resolve project by org + name, optional `persist_scope` (global vs local).
+
+**Current state:** Only supports `project_id` for the `use` action.
+
+**Impact:** Low-medium. Agents can work around this by calling `list` first to find the ID. `persist_scope` is mostly relevant for multi-directory workflows.
+
+**Effort:** Low for name resolution (lookup from list results). Low for `persist_scope` (maps to existing `UseProject` vs `UseProjectLocal`).
+
+### 7.6 Richer error messages for not-found and bad-request
+
+**Plan reference:** Section 3 — *"Connection web_G79G7nNUYWTa not found. Use connections (action: list) to see available connections."* and *"Invalid filter parameter 'statuss'. Valid values for status: ..."*
+
+**Current state:** Not-found returns `"Resource not found: {API message}"`. Validation errors pass through the API message verbatim. Neither includes next-step guidance (e.g. suggesting the `list` action).
+
+**Impact:** Low-medium. The current errors are functional but not as agent-friendly. Adding "try X instead" guidance helps agents self-correct.
+
+**Effort:** Low — enhance `TranslateAPIError` to include tool-aware suggestions for 404 and 422.
+
+### 7.7 Rate limit: surface `Retry-After` header value
+
+**Plan reference:** Section 3 — *"Rate limited. Retry after {N} seconds."*
+
+**Current state:** Returns `"Rate limited. Retry after a brief pause."` — no specific duration from the API response.
+
+**Impact:** Low. The generic message works, but surfacing the actual value lets agents wait precisely.
+
+**Effort:** Low — extract `Retry-After` from `APIError` (if the API client exposes it) and include in the message.
 
 ---
 
@@ -385,7 +481,7 @@ If Phase 1 shows that users immediately want write operations through the MCP ra
 
 | Topic | Decision |
 |-------|----------|
-| **Scope** | 11 tools: 10 investigation/operational (read + pause/unpause) + 1 `help` catch-all. No CRUD, no listen, no retry. |
+| **Scope** | 12 tools: 10 investigation/operational (read + pause/unpause) + 1 `help` catch-all + 1 conditional `login`. No CRUD, no listen, no retry. |
 | **Primary use case** | Investigation and production monitoring. Not development/setup. |
 | **Development path** | Skills + CLI (already available). MCP does not duplicate this. |
 | **Compound tools** | Single tool with action parameter. Testable bet; fallback to split tools if agents struggle with action selection. |
@@ -396,7 +492,7 @@ If Phase 1 shows that users immediately want write operations through the MCP ra
 | **Command** | `hookdeck gateway mcp`. |
 | **Go MCP** | Official `modelcontextprotocol/go-sdk` (v1.2.0+). |
 | **Transport** | Phase 1: stdio only. Phase 2: streamable HTTP. |
-| **Auth** | Inherited from CLI; clear error if missing. |
+| **Auth** | Two paths: inherited from CLI (pre-authenticated), or in-band `hookdeck_login` tool (browser-based device auth, self-removing after success). Clear error if missing. |
 | **Error handling** | Actionable messages for every failure. Rate limit: surface API Retry-After. Write tool requests: redirect to skills + CLI. |
 | **Logging** | Structured stderr via `slog`; INFO/WARN/ERROR; `--verbose` for DEBUG. |
 | **Testing** | Three layers: protocol compliance, tool integration (mock API), behavioral (manual/semi-automated). MCP Inspector for manual validation. |
