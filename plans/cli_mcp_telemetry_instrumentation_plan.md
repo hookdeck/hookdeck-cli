@@ -304,19 +304,17 @@ Not in scope for this CLI PR, but documents the expected server-side changes:
 
 ## File Change Summary
 
-| File | Change | Complexity |
-|------|--------|-----------|
-| `pkg/hookdeck/telemetry.go` | Add fields, invocation ID generator | Small |
-| `pkg/hookdeck/telemetry_test.go` | Update tests for new fields | Small |
-| `pkg/hookdeck/client.go` | Add `Telemetry` field, `WithTelemetry()`, update `PerformRequest` | Small |
-| `pkg/cmd/root.go` | Add `PersistentPreRun` with `initTelemetry()` | Small |
-| `pkg/cmd/connection.go` | Call `initTelemetry()` in existing `PersistentPreRun` | Trivial |
-| `pkg/gateway/mcp/server.go` | Capture MCP client info, store on Server struct | Small |
-| `pkg/gateway/mcp/tools.go` | Add telemetry wrapping in tool dispatch | Medium |
-| `pkg/hookdeck/sdkclient.go` | No changes needed (already reads singleton) | None |
-| `pkg/config/config.go` | Add `TelemetryDisabled` field, read from viper in `constructConfig()` | Small |
-| `pkg/hookdeck/telemetry.go` | Update `telemetryOptedOut()` to accept config flag; add `DetectEnvironment()` for CI detection; add `Environment` field | Small |
-| `pkg/hookdeck/client.go` | Add `TelemetryDisabled` field, thread through opt-out check | Small |
+| File | Change | Phase | Complexity |
+|------|--------|-------|-----------|
+| `pkg/hookdeck/telemetry.go` | Add `Source`, `Environment`, `InvocationID` fields; `NewInvocationID()` generator; `DetectEnvironment()` for CI; update `telemetryOptedOut()` to accept config flag | 1, 5 | Small |
+| `pkg/hookdeck/telemetry_test.go` | Update tests for new fields, opt-out with config flag, environment detection | 1, 5 | Small |
+| `pkg/hookdeck/client.go` | Add `Telemetry` field + `TelemetryDisabled` field; `WithTelemetry()` clone method; update `PerformRequest` to use per-request telemetry override and config-based opt-out | 2, 5 | Small |
+| `pkg/cmd/root.go` | Add `PersistentPreRun` with `initTelemetry()` helper | 1 | Small |
+| `pkg/cmd/connection.go` | Call `initTelemetry()` in existing `PersistentPreRun` | 1 | Trivial |
+| `pkg/gateway/mcp/server.go` | Capture MCP client info, store on Server struct | 2 | Small |
+| `pkg/gateway/mcp/tools.go` | Add telemetry wrapping in tool dispatch (central `WithTelemetry` per tool call) | 2 | Medium |
+| `pkg/hookdeck/sdkclient.go` | Add `TelemetryDisabled` field, thread through opt-out check | 5 | Small |
+| `pkg/config/config.go` | Add `TelemetryDisabled` field, read from viper in `constructConfig()` | 5 | Small |
 
 ## Risks and Edge Cases
 
@@ -454,6 +452,22 @@ func DetectEnvironment() string {
 ```
 
 This integrates cleanly with Phase 1's telemetry struct as a new `environment` field. Server-side, PostHog dashboards get two clean dimensions to slice by.
+
+## Key Source Files
+
+These are the files an implementer needs to read before starting:
+
+| File | What it contains |
+|------|-----------------|
+| `pkg/hookdeck/telemetry.go` | `CLITelemetry` struct, singleton `GetTelemetryInstance()`, `getTelemetryHeader()`, `telemetryOptedOut()` — all telemetry logic lives here |
+| `pkg/hookdeck/client.go` | Internal HTTP client, `PerformRequest()` where telemetry header is set per-request (line ~107) |
+| `pkg/hookdeck/sdkclient.go` | `CreateSDKClient()` where telemetry header is baked in at construction (line ~39) |
+| `pkg/config/config.go` | `Config` struct, `InitConfig()`, `constructConfig()` with viper precedence chain, `getConfigPath()` for local/global config resolution |
+| `pkg/config/profile.go` | `Profile` struct, save/load/remove profile, field getter helpers |
+| `pkg/cmd/root.go` | Root cobra command, `cobra.OnInitialize` wiring, where `PersistentPreRun` should be added |
+| `pkg/cmd/connection.go` | Has its own `PersistentPreRun` (deprecation warning) — must be updated to call shared `initTelemetry()` |
+| `pkg/gateway/mcp/server.go` | MCP server setup, `Server.Run()`, session management |
+| `pkg/gateway/mcp/tools.go` | MCP tool dispatch — where per-tool-call telemetry wrapping goes |
 
 ## Testing Strategy
 
