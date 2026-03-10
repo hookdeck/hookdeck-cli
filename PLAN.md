@@ -32,6 +32,7 @@ This is the key constraint: the SDK client bakes headers in at creation time. An
 ```json
 {
   "source": "cli",
+  "environment": "interactive",
   "command_path": "hookdeck listen",
   "invocation_id": "inv_a1b2c3d4",
   "device_name": "macbook-pro",
@@ -44,6 +45,7 @@ For MCP:
 ```json
 {
   "source": "mcp",
+  "environment": "interactive",
   "command_path": "hookdeck_events/list",
   "invocation_id": "inv_e5f6g7h8",
   "device_name": "macbook-pro",
@@ -51,8 +53,22 @@ For MCP:
 }
 ```
 
+For CLI in CI:
+
+```json
+{
+  "source": "cli",
+  "environment": "ci",
+  "command_path": "hookdeck listen",
+  "invocation_id": "inv_c9d0e1f2",
+  "device_name": "github-runner-xyz",
+  "generated_resource": false
+}
+```
+
 Fields:
-- **`source`**: `"cli"` or `"mcp"` — the primary discriminator
+- **`source`**: `"cli"` or `"mcp"` — what initiated the request (the interface)
+- **`environment`**: `"interactive"` or `"ci"` — where it's running (auto-detected via `CI` env var). These are orthogonal dimensions: source is about the interface, environment is about the runtime context. A CLI command can run in CI; an MCP tool could theoretically run in CI too
 - **`command_path`**: For CLI: cobra command path (e.g. `"hookdeck gateway source list"`). For MCP: `"{tool_name}/{action}"` (e.g. `"hookdeck_events/list"`)
 - **`invocation_id`**: Unique ID per command execution (CLI) or per tool call (MCP). This is what lets the server group multiple API requests into one logical event
 - **`device_name`**: Machine hostname
@@ -76,6 +92,7 @@ Replace the singleton pattern with a struct that can be instantiated per-invocat
 ```go
 type CLITelemetry struct {
     Source            string `json:"source"`
+    Environment       string `json:"environment"`
     CommandPath       string `json:"command_path"`
     InvocationID      string `json:"invocation_id"`
     DeviceName        string `json:"device_name"`
@@ -137,6 +154,7 @@ Actually, the cleanest approach: use `PersistentPreRun` on root, and change the 
 func initTelemetry(cmd *cobra.Command) {
     tel := hookdeck.GetTelemetryInstance()
     tel.SetSource("cli")
+    tel.SetEnvironment(hookdeck.DetectEnvironment())
     tel.SetCommandContext(cmd)
     tel.SetDeviceName(Config.DeviceName)
     tel.SetInvocationID(hookdeck.NewInvocationID())
@@ -226,6 +244,7 @@ Then in MCP tool handlers, wrap the client before making API calls:
 // In tool handler
 tel := &hookdeck.CLITelemetry{
     Source:       "mcp",
+    Environment:  hookdeck.DetectEnvironment(),
     CommandPath:  "hookdeck_events/list",
     InvocationID: hookdeck.NewInvocationID(),
     DeviceName:   deviceName,
@@ -296,7 +315,7 @@ Not in scope for this CLI PR, but documents the expected server-side changes:
 | `pkg/gateway/mcp/tools.go` | Add telemetry wrapping in tool dispatch | Medium |
 | `pkg/hookdeck/sdkclient.go` | No changes needed (already reads singleton) | None |
 | `pkg/config/config.go` | Add `TelemetryDisabled` field, read from viper in `constructConfig()` | Small |
-| `pkg/hookdeck/telemetry.go` | Update `telemetryOptedOut()` to accept config flag; add `detectSource()` for CI detection | Small |
+| `pkg/hookdeck/telemetry.go` | Update `telemetryOptedOut()` to accept config flag; add `DetectEnvironment()` for CI detection; add `Environment` field | Small |
 | `pkg/hookdeck/client.go` | Add `TelemetryDisabled` field, thread through opt-out check | Small |
 
 ## Risks and Edge Cases
@@ -408,27 +427,33 @@ A simple `isCI()` function checking `os.Getenv("CI")` covers ~90% of cases.
 - A GitHub Action (`hookdeck/hookdeck-cli-action`) is a deliberate integration — the user chose to put it in CI
 - Silently disabling telemetry means you lose visibility into a growing use case
 
-**Recommended approach — middle ground:**
+**Recommended approach — separate dimensions:**
 
-1. **Detect CI but don't fully disable.** Instead, set `source: "ci"` (alongside `"cli"` and `"mcp"`) so CI traffic can be filtered server-side. This gives the analytics team the ability to include or exclude CI data as needed, without losing it entirely.
+`source` and `environment` are orthogonal:
+- **`source`**: what interface initiated the request — `"cli"` (command) or `"mcp"` (tool call)
+- **`environment`**: where it's running — `"interactive"` or `"ci"` (auto-detected)
+
+This means you can cross-tabulate: "how many MCP tool calls come from CI?" is a valid query. Collapsing both into `source` would lose that.
+
+1. **Detect CI, tag as `environment: "ci"`.** Telemetry stays enabled. The `source` field remains `"cli"` or `"mcp"` as appropriate. Server-side, PostHog can filter or segment on either dimension independently.
 
 2. **Respect explicit opt-out.** If `HOOKDECK_CLI_TELEMETRY_OPTOUT=1` or `telemetry_disabled = true` is set, disable completely — same as interactive mode.
 
 3. **Do NOT auto-disable.** The user made a deliberate choice to run hookdeck-cli in CI. Unlike, say, a package manager that runs implicitly, hookdeck-cli is an explicit integration. Disabling telemetry by default in CI would be overly conservative.
 
-4. **Log/document it.** If `CI=true` is detected, the telemetry header includes `"source": "ci"` and nothing else changes. Document this behavior so CI-conscious users know what's sent.
+4. **Document it.** If `CI=true` is detected, the telemetry header includes `"environment": "ci"`. Document this behavior so CI-conscious users know what's sent.
 
 **Implementation:**
 ```go
-func detectSource() string {
+func DetectEnvironment() string {
     if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
         return "ci"
     }
-    return "cli"  // default; overridden to "mcp" by MCP server
+    return "interactive"
 }
 ```
 
-This integrates cleanly with Phase 1's `source` field — it's just another source value. Server-side, PostHog dashboards can filter by `source = "ci"` to see CI-specific usage or exclude it from interactive metrics.
+This integrates cleanly with Phase 1's telemetry struct as a new `environment` field. Server-side, PostHog dashboards get two clean dimensions to slice by.
 
 ## Testing Strategy
 
