@@ -15,9 +15,10 @@ import (
 const apiVersion = "/2024-03-01"
 
 type SDKClientInit struct {
-	APIBaseURL string
-	APIKey     string
-	TeamID     string
+	APIBaseURL        string
+	APIKey            string
+	TeamID            string
+	TelemetryDisabled bool
 }
 
 func CreateSDKClient(init SDKClientInit) *hookdeckclient.Client {
@@ -36,7 +37,7 @@ func CreateSDKClient(init SDKClientInit) *hookdeckclient.Client {
 		header.Set("Authorization", "Basic "+basicAuth(init.APIKey, ""))
 	}
 
-	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT")) {
+	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT"), init.TelemetryDisabled) {
 		telemetryHeader, err := getTelemetryHeader()
 		if err == nil {
 			header.Set("Hookdeck-CLI-Telemetry", telemetryHeader)

@@ -42,6 +42,9 @@ type Config struct {
 	configFile     string // resolved path of config file
 	viper          *viper.Viper
 
+	// Telemetry
+	TelemetryDisabled bool
+
 	// Internal
 	fs ConfigFS
 }
@@ -329,6 +332,11 @@ func (c *Config) constructConfig() {
 	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
 
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
+
+	// Telemetry opt-out: check config file for telemetry_disabled = true
+	if c.viper.IsSet("telemetry_disabled") {
+		c.TelemetryDisabled = c.viper.GetBool("telemetry_disabled")
+	}
 }
 
 // getConfigPath returns the path for the config file.

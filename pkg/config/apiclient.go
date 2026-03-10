@@ -19,10 +19,11 @@ func (c *Config) GetAPIClient() *hookdeck.Client {
 		}
 
 		apiClient = &hookdeck.Client{
-			BaseURL:   baseURL,
-			APIKey:    c.Profile.APIKey,
-			ProjectID: c.Profile.ProjectId,
-			Verbose:   c.LogLevel == "debug",
+			BaseURL:           baseURL,
+			APIKey:            c.Profile.APIKey,
+			ProjectID:         c.Profile.ProjectId,
+			Verbose:           c.LogLevel == "debug",
+			TelemetryDisabled: c.TelemetryDisabled,
 		}
 	})
 
