@@ -156,6 +156,7 @@ func init() {
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
 	rootCmd.AddCommand(newProjectCmd().cmd)
 	rootCmd.AddCommand(newGatewayCmd().cmd)
+	rootCmd.AddCommand(newTelemetryCmd().cmd)
 	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
 	addConnectionCmdTo(rootCmd)
 }

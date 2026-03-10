@@ -339,6 +339,13 @@ func (c *Config) constructConfig() {
 	}
 }
 
+// SetTelemetryDisabled persists the telemetry_disabled flag to the config file.
+func (c *Config) SetTelemetryDisabled(disabled bool) error {
+	c.TelemetryDisabled = disabled
+	c.viper.Set("telemetry_disabled", disabled)
+	return c.writeConfig()
+}
+
 // getConfigPath returns the path for the config file.
 // Precedence:
 // - path (if path is provided)

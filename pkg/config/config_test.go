@@ -353,6 +353,44 @@ func TestWriteConfig(t *testing.T) {
 	})
 }
 
+func TestSetTelemetryDisabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("disable telemetry", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/default-profile.toml")
+		c.InitConfig()
+
+		assert.False(t, c.TelemetryDisabled)
+
+		err := c.SetTelemetryDisabled(true)
+
+		assert.NoError(t, err)
+		assert.True(t, c.TelemetryDisabled)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), "telemetry_disabled = true")
+	})
+
+	t.Run("enable telemetry", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/telemetry-disabled.toml")
+		c.InitConfig()
+
+		assert.True(t, c.TelemetryDisabled)
+
+		err := c.SetTelemetryDisabled(false)
+
+		assert.NoError(t, err)
+		assert.False(t, c.TelemetryDisabled)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), "telemetry_disabled = false")
+	})
+}
+
 // ===== Test helpers =====
 
 func setupTempConfig(t *testing.T, sourceConfigPath string) string {
