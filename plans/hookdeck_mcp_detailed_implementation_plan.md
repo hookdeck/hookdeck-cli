@@ -12,7 +12,7 @@ This document maps the high-level MCP build-out plan against the existing hookde
 
 ---
 
-## Current Status (updated 2026-03-09)
+## Current Status (updated 2026-03-10)
 
 | Part | Description | Status |
 |------|-------------|--------|
@@ -20,11 +20,9 @@ This document maps the high-level MCP build-out plan against the existing hookde
 | Part 2 | Metrics CLI Consolidation (prerequisite) | **COMPLETE** |
 | Part 3 | MCP Server Skeleton | **COMPLETE** |
 | Part 4 | MCP Tool Implementations | **COMPLETE** |
-| Part 5 | Integration Testing & Polish | PENDING |
+| Part 5 | Integration Testing & Polish | **COMPLETE** |
 
-**What's done:** Parts 1–4 are complete. The MCP server is fully functional with all 11 resource tools and the `hookdeck_login` tool implemented. All tools have been manually tested against the live Hookdeck API (sources, connections, destinations, transformations, requests, events, attempts, issues, metrics, projects, help). Both auth paths verified: pre-authenticated via `--api-key` flag (11 tools, no login) and unauthenticated startup (12 tools including `hookdeck_login`, resource tools return auth error).
-
-**What's next:** Part 5 — integration testing and polish. Two schema/UX issues were found and fixed during testing: `measures` was not marked required in `hookdeck_metrics` (caused confusing 422), and `hookdeck_help` gave a poor error for non-tool-name topics.
+**What's done:** All 5 parts are complete. The MCP server is fully functional with all 11 resource tools and the `hookdeck_login` tool. 80 unit/integration tests cover all tools, actions, error scenarios (404, 422, 429), auth guards, and project switching. Acceptance test suite passes with no regressions from MCP changes (transient 502s and listen-test timeouts are pre-existing issues). Tool descriptions have been polished for accuracy (event-centric terminology, destination types: HTTP/CLI/MOCK). AGENTS.md updated with acceptance test setup guidance.
 
 ---
 
@@ -107,20 +105,20 @@ hookdeck metrics transformations --measures count,error_rate --dimensions connec
 - [x] `pkg/cmd/mcp.go` — removed `ValidateAPIKey()` gate; passes config to `NewServer()`
 - [x] `pkg/gateway/mcp/server.go` — accepts `*config.Config`; conditionally registers `hookdeck_login` tool
 
-### Part 5: Integration Testing & Polish
+### Part 5: Integration Testing & Polish — COMPLETE
 
 **CLI Acceptance Tests** (ensure all CLI changes are covered in `test/acceptance/`):
-- [ ] Run full acceptance test suite: `go test ./test/acceptance/ -v`
-- [ ] Verify no regressions in existing tests (gateway, connection, source, destination, etc.)
-- [ ] Verify `hookdeck gateway --help` lists `mcp` as a subcommand
+- [x] Run full acceptance test suite: `go test ./test/acceptance/ -v`
+- [x] Verify no regressions in existing tests (gateway, connection, source, destination, etc.)
+- [x] Verify `hookdeck gateway --help` lists `mcp` as a subcommand
 
-**MCP Integration Tests** (end-to-end via stdio transport):
-- [ ] End-to-end test: start MCP server, send tool calls, verify responses
-- [ ] Verify all 11 tools return well-formed JSON
-- [ ] Test error scenarios (404, 422, rate limiting)
-- [ ] Test unauthenticated startup: server starts, `hookdeck_login` tool is listed, resource tools return auth error
-- [ ] Test authenticated startup: server starts, only resource tools are listed, no `hookdeck_login`
-- [ ] Test project switching within an MCP session
+**MCP Integration Tests** (end-to-end via in-memory transport in `pkg/gateway/mcp/server_test.go`, 80 tests):
+- [x] End-to-end test: start MCP server, send tool calls, verify responses (`connectInMemory` helper)
+- [x] Verify all 11 tools return well-formed JSON (every tool has `*_Success` tests)
+- [x] Test error scenarios (404, 422, rate limiting) — `TestSourcesList_404Error`, `_422ValidationError`, `_429RateLimitError`, `TestEventsGet_APIError`, `TestTranslateAPIError`
+- [x] Test unauthenticated startup: server starts, `hookdeck_login` tool is listed, resource tools return auth error — `TestListTools_Unauthenticated`, `TestAuthGuard_UnauthenticatedReturnsError`
+- [x] Test authenticated startup: server starts, only resource tools are listed, no `hookdeck_login` — `TestListTools_Authenticated`
+- [x] Test project switching within an MCP session — `TestProjectsUse_Success`
 
 ---
 

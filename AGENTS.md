@@ -351,6 +351,9 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 - **Always run tests** when changing code. Run unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`). If tests fail due to TLS/network/sandbox (e.g. `x509`, `operation not permitted`), prompt the user and re-run with elevated permissions (e.g. `required_permissions: ["all"]`) so tests can pass.
 - **Create tests for new functionality.** Add unit tests for validation and business logic; add acceptance tests for flows that use the CLI as a user or agent would (success and failure paths). Acceptance tests must pass or fail—no skipping to avoid failures.
 
+### Acceptance Test Setup
+Acceptance tests require a Hookdeck API key. See [`test/acceptance/README.md`](test/acceptance/README.md) for full details. Quick setup: create `test/acceptance/.env` with `HOOKDECK_CLI_TESTING_API_KEY=<key>`. The `.env` file is git-ignored and must never be committed.
+
 ### Unit Testing
 - Test validation logic thoroughly
 - Mock API calls for command tests
