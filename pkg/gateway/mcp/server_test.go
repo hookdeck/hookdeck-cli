@@ -1153,3 +1153,194 @@ func TestInput_InvalidJSON(t *testing.T) {
 	_, err := parseInput(json.RawMessage(`{invalid`))
 	assert.Error(t, err)
 }
+
+// ---------------------------------------------------------------------------
+// Server instructions
+// ---------------------------------------------------------------------------
+
+func TestServerInfo_NameAndVersion(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	info := session.InitializeResult()
+	require.NotNil(t, info)
+	assert.Equal(t, "hookdeck-gateway", info.ServerInfo.Name)
+	assert.NotEmpty(t, info.ServerInfo.Version)
+}
+
+// ---------------------------------------------------------------------------
+// Help tool: all topics return valid content
+// ---------------------------------------------------------------------------
+
+func TestHelpTool_AllTopics(t *testing.T) {
+	topics := []struct {
+		name           string
+		expectContains string
+	}{
+		{"hookdeck_projects", "list"},
+		{"hookdeck_connections", "pause"},
+		{"hookdeck_sources", "list"},
+		{"hookdeck_destinations", "HTTP"},
+		{"hookdeck_transformations", "JavaScript"},
+		{"hookdeck_requests", "raw_body"},
+		{"hookdeck_events", "raw_body"},
+		{"hookdeck_attempts", "event_id"},
+		{"hookdeck_issues", "delivery"},
+		{"hookdeck_metrics", "granularity"},
+		{"hookdeck_help", "topic"},
+	}
+
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	for _, tt := range topics {
+		t.Run(tt.name, func(t *testing.T) {
+			result := callTool(t, session, "hookdeck_help", map[string]any{"topic": tt.name})
+			assert.False(t, result.IsError, "help for %s should not be an error", tt.name)
+			text := textContent(t, result)
+			assert.Contains(t, text, tt.expectContains,
+				"help for %s should mention %q", tt.name, tt.expectContains)
+		})
+	}
+}
+
+func TestHelpTool_ShortNames(t *testing.T) {
+	shortNames := []string{
+		"projects", "connections", "sources", "destinations",
+		"transformations", "requests", "events", "attempts",
+		"issues", "metrics", "help",
+	}
+
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	for _, name := range shortNames {
+		t.Run(name, func(t *testing.T) {
+			result := callTool(t, session, "hookdeck_help", map[string]any{"topic": name})
+			assert.False(t, result.IsError, "short name %q should resolve", name)
+			assert.Contains(t, textContent(t, result), "hookdeck_"+name)
+		})
+	}
+}
+
+func TestHelpTool_OverviewListsAllTools(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_help", map[string]any{})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+
+	expectedTools := []string{
+		"hookdeck_projects", "hookdeck_connections", "hookdeck_sources",
+		"hookdeck_destinations", "hookdeck_transformations", "hookdeck_requests",
+		"hookdeck_events", "hookdeck_attempts", "hookdeck_issues",
+		"hookdeck_metrics", "hookdeck_help",
+	}
+	for _, tool := range expectedTools {
+		assert.Contains(t, text, tool, "overview should list %s", tool)
+	}
+}
+
+func TestHelpTool_OverviewShowsProjectNotSet(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	client.ProjectID = "" // no project set
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_help", map[string]any{})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "not set")
+}
+
+func TestHelpTool_UnknownTopicListsAvailable(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_help", map[string]any{"topic": "bogus"})
+	assert.True(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "No help found")
+	assert.Contains(t, text, "hookdeck_events") // lists available tools
+}
+
+// ---------------------------------------------------------------------------
+// Error feedback: 500 server error through HTTP flow
+// ---------------------------------------------------------------------------
+
+func TestDestinationsGet_500ServerError(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/destinations/des_fail": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]any{"message": "internal server error"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_destinations", map[string]any{"action": "get", "id": "des_fail"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "Hookdeck API error")
+}
+
+func TestConnectionsGet_401UnauthorizedError(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections/web_bad": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]any{"message": "invalid api key"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "get", "id": "web_bad"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "Authentication failed")
+}
+
+func TestIssuesList_422ValidationError(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/issues": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			json.NewEncoder(w).Encode(map[string]any{"message": "invalid filter: bad_field"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_issues", map[string]any{"action": "list"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "invalid filter")
+}
+
+func TestAttemptsList_429RateLimitError(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/attempts": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]any{"message": "too many requests"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_attempts", map[string]any{"action": "list"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "Rate limited")
+}
+
+// ---------------------------------------------------------------------------
+// Error translation: additional cases
+// ---------------------------------------------------------------------------
+
+func TestTranslateAPIError_RetryAfterMessage(t *testing.T) {
+	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 429, Message: "rate limited"})
+	assert.Contains(t, msg, "Rate limited")
+	assert.Contains(t, msg, "Retry after")
+}
+
+func TestTranslateAPIError_GenericClientError(t *testing.T) {
+	// A 4xx status not explicitly handled should pass through the message
+	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 409, Message: "conflict on resource"})
+	assert.Contains(t, msg, "conflict on resource")
+}
+
+func TestTranslateAPIError_502GatewayError(t *testing.T) {
+	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 502, Message: "bad gateway"})
+	assert.Contains(t, msg, "Hookdeck API error")
+}
+
+func TestTranslateAPIError_503ServiceUnavailable(t *testing.T) {
+	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 503, Message: "service unavailable"})
+	assert.Contains(t, msg, "Hookdeck API error")
+}
