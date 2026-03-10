@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -19,11 +22,47 @@ const (
 	loginMaxAttempts  = 120 // ~4 minutes
 )
 
+// loginState tracks a background login poll so that repeated calls to
+// hookdeck_login don't start duplicate auth flows.
+type loginState struct {
+	mu         sync.Mutex
+	browserURL string        // URL the user must open
+	done       chan struct{} // closed when polling finishes
+	err        error         // non-nil if polling failed
+}
+
 func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.Server) mcpsdk.ToolHandler {
+	var state *loginState
+
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		// If already authenticated, let the caller know.
+		// Already authenticated — nothing to do.
 		if client.APIKey != "" {
 			return TextResult("Already authenticated. All Hookdeck tools are available."), nil
+		}
+
+		// If a login flow is already in progress, check its status.
+		if state != nil {
+			select {
+			case <-state.done:
+				// Polling finished — check result.
+				if state.err != nil {
+					errMsg := state.err.Error()
+					browserURL := state.browserURL
+					state = nil // allow a fresh retry
+					return ErrorResult(fmt.Sprintf(
+						"Authentication failed: %s\n\nPlease call hookdeck_login again to retry.\nThe user needs to open this URL in their browser:\n\n%s",
+						errMsg, browserURL,
+					)), nil
+				}
+				// Success was already handled by the goroutine (client.APIKey set).
+				return TextResult("Already authenticated. All Hookdeck tools are available."), nil
+			default:
+				// Still polling — remind the agent about the URL.
+				return TextResult(fmt.Sprintf(
+					"Login is already in progress. Waiting for the user to complete authentication.\n\nThe user needs to open this URL in their browser:\n\n%s\n\nCall hookdeck_login again to check status.",
+					state.browserURL,
+				)), nil
+			}
 		}
 
 		parsedBaseURL, err := url.Parse(cfg.APIBaseURL)
@@ -40,49 +79,62 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.
 			return ErrorResult(fmt.Sprintf("Failed to start login: %s", err)), nil
 		}
 
-		// Poll until the user completes login or we time out.
-		response, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
-		if err != nil {
-			return &mcpsdk.CallToolResult{
-				Content: []mcpsdk.Content{
-					&mcpsdk.TextContent{Text: fmt.Sprintf(
-						"Authentication timed out or failed: %s\n\nPlease try again by calling hookdeck_login.\nTo authenticate, the user needs to open this URL in their browser:\n\n%s",
-						err, session.BrowserURL,
-					)},
-				},
-				IsError: true,
-			}, nil
+		// Set up background polling state.
+		state = &loginState{
+			browserURL: session.BrowserURL,
+			done:       make(chan struct{}),
 		}
 
-		if err := validators.APIKey(response.APIKey); err != nil {
-			return ErrorResult(fmt.Sprintf("Received invalid API key: %s", err)), nil
-		}
+		// Poll in the background so we return the URL to the agent immediately.
+		go func(s *loginState) {
+			defer close(s.done)
 
-		// Persist credentials so future MCP sessions start authenticated.
-		cfg.Profile.APIKey = response.APIKey
-		cfg.Profile.ProjectId = response.ProjectID
-		cfg.Profile.ProjectMode = response.ProjectMode
-		cfg.Profile.GuestURL = "" // Clear guest URL for permanent accounts.
+			response, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
+			if err != nil {
+				s.mu.Lock()
+				s.err = err
+				s.mu.Unlock()
+				log.WithError(err).Debug("Login polling failed")
+				return
+			}
 
-		if err := cfg.Profile.SaveProfile(); err != nil {
-			return ErrorResult(fmt.Sprintf("Login succeeded but failed to save profile: %s", err)), nil
-		}
-		if err := cfg.Profile.UseProfile(); err != nil {
-			return ErrorResult(fmt.Sprintf("Login succeeded but failed to activate profile: %s", err)), nil
-		}
+			if err := validators.APIKey(response.APIKey); err != nil {
+				s.mu.Lock()
+				s.err = fmt.Errorf("received invalid API key: %s", err)
+				s.mu.Unlock()
+				return
+			}
 
-		// Update the shared client so all resource tools start working.
-		client.APIKey = response.APIKey
-		client.ProjectID = response.ProjectID
+			// Persist credentials so future MCP sessions start authenticated.
+			cfg.Profile.APIKey = response.APIKey
+			cfg.Profile.ProjectId = response.ProjectID
+			cfg.Profile.ProjectMode = response.ProjectMode
+			cfg.Profile.GuestURL = ""
 
-		// Remove the login tool now that auth is complete. This sends
-		// notifications/tools/list_changed to clients that support it.
-		mcpServer.RemoveTools("hookdeck_login")
+			if err := cfg.Profile.SaveProfile(); err != nil {
+				log.WithError(err).Error("Login succeeded but failed to save profile")
+			}
+			if err := cfg.Profile.UseProfile(); err != nil {
+				log.WithError(err).Error("Login succeeded but failed to activate profile")
+			}
 
+			// Update the shared client so all resource tools start working.
+			client.APIKey = response.APIKey
+			client.ProjectID = response.ProjectID
+
+			// Remove the login tool now that auth is complete.
+			mcpServer.RemoveTools("hookdeck_login")
+
+			log.WithFields(log.Fields{
+				"user":    response.UserName,
+				"project": response.ProjectName,
+			}).Info("MCP login completed successfully")
+		}(state)
+
+		// Return the URL immediately so the agent can show it to the user.
 		return TextResult(fmt.Sprintf(
-			"Successfully authenticated as %s (%s).\nActive project: %s in organization %s.\nAll Hookdeck tools are now available.",
-			response.UserName, response.UserEmail,
-			response.ProjectName, response.OrganizationName,
+			"Login initiated. The user must open the following URL in their browser to authenticate:\n\n%s\n\nOnce the user completes authentication in the browser, all Hookdeck tools will become available.\nCall hookdeck_login again to check if authentication has completed.",
+			session.BrowserURL,
 		)), nil
 	}
 }

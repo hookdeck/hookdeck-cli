@@ -1056,6 +1056,85 @@ func TestLoginTool_AlreadyAuthenticated(t *testing.T) {
 	_ = client // suppress unused warning
 }
 
+func TestLoginTool_ReturnsURLImmediately(t *testing.T) {
+	// Mock the /cli-auth endpoint to return a browser URL and a poll URL
+	// that never completes (simulates user not yet opening browser).
+	authCalled := false
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			authCalled = true
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=abc123",
+				"poll_url":    "http://" + r.Host + "/2025-07-01/cli-auth/poll?key=abc123",
+			})
+		},
+		"/2025-07-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			// Never claimed — user hasn't opened the browser yet.
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+
+	unauthClient := newTestClient(api.URL, "")
+	cfg := &config.Config{APIBaseURL: api.URL}
+	srv := NewServer(unauthClient, cfg)
+
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = srv.mcpServer.Run(ctx, serverTransport) }()
+
+	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	// The call should return immediately (not block for 4 minutes).
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.True(t, authCalled, "should have called /cli-auth")
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "https://hookdeck.com/auth?code=abc123")
+	assert.Contains(t, text, "browser")
+}
+
+func TestLoginTool_InProgressShowsURL(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=xyz",
+				"poll_url":    "http://" + r.Host + "/2025-07-01/cli-auth/poll?key=xyz",
+			})
+		},
+		"/2025-07-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+
+	unauthClient := newTestClient(api.URL, "")
+	cfg := &config.Config{APIBaseURL: api.URL}
+	srv := NewServer(unauthClient, cfg)
+
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = srv.mcpServer.Run(ctx, serverTransport) }()
+
+	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	// First call starts the flow.
+	_ = callTool(t, session, "hookdeck_login", map[string]any{})
+
+	// Second call should report "in progress" with the URL.
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "already in progress")
+	assert.Contains(t, text, "https://hookdeck.com/auth?code=xyz")
+}
+
 // ---------------------------------------------------------------------------
 // API error scenarios (shared across tools)
 // ---------------------------------------------------------------------------
