@@ -295,6 +295,9 @@ Not in scope for this CLI PR, but documents the expected server-side changes:
 | `pkg/gateway/mcp/server.go` | Capture MCP client info, store on Server struct | Small |
 | `pkg/gateway/mcp/tools.go` | Add telemetry wrapping in tool dispatch | Medium |
 | `pkg/hookdeck/sdkclient.go` | No changes needed (already reads singleton) | None |
+| `pkg/config/config.go` | Add `TelemetryDisabled` field, read from viper in `constructConfig()` | Small |
+| `pkg/hookdeck/telemetry.go` | Update `telemetryOptedOut()` to accept config flag; add `detectSource()` for CI detection | Small |
+| `pkg/hookdeck/client.go` | Add `TelemetryDisabled` field, thread through opt-out check | Small |
 
 ## Risks and Edge Cases
 
@@ -307,6 +310,125 @@ Not in scope for this CLI PR, but documents the expected server-side changes:
 4. **SDK client static headers**: The `listen` command's SDK client gets one invocation ID baked in. If `listen` ran for days and we wanted to track "sessions," we'd need a different mechanism. Fine for now — we're tracking command invocations, not long-lived sessions.
 
 5. **Backward compatibility**: The server must handle both old (empty) and new telemetry payloads. Since it's JSON with new fields, old servers will simply ignore unknown keys. New servers should treat missing `source` as `"cli"` for backward compat.
+
+## Phase 5: Telemetry Opt-Out via Config
+
+### Problem
+
+Telemetry opt-out is currently only possible via the `HOOKDECK_CLI_TELEMETRY_OPTOUT` environment variable. This requires users to set it in their shell profile or per-invocation, which is fragile and inconvenient. Users who want telemetry permanently disabled (corporate policy, personal preference) need a persistent config-based option.
+
+### Design
+
+Add a **top-level** `telemetry` setting to `config.toml`. No per-profile override initially — telemetry is a user-level concern, not a project-level one. We can always add profile granularity later if needed.
+
+**Precedence (highest to lowest):**
+1. `HOOKDECK_CLI_TELEMETRY_OPTOUT` env var (existing, unchanged)
+2. `telemetry` in `config.toml` (new)
+3. Default: enabled
+
+**Config format:**
+```toml
+# ~/.config/hookdeck/config.toml
+telemetry = false   # disables telemetry globally
+profile = "default"
+
+[default]
+  api_key = "..."
+```
+
+### Implementation
+
+**File: `pkg/config/config.go`**
+
+Add field to `Config` struct:
+```go
+type Config struct {
+    // ... existing fields ...
+    TelemetryDisabled bool
+}
+```
+
+In `constructConfig()`, read the value:
+```go
+c.TelemetryDisabled = c.viper.GetBool("telemetry_disabled")
+```
+
+**File: `pkg/hookdeck/telemetry.go`**
+
+Update `telemetryOptedOut` to accept a config-based flag in addition to the env var:
+
+```go
+func telemetryOptedOut(envVar string, configDisabled bool) bool {
+    if configDisabled {
+        return true
+    }
+    envVar = strings.ToLower(envVar)
+    return envVar == "1" || envVar == "true"
+}
+```
+
+**File: `pkg/hookdeck/client.go` and `pkg/hookdeck/sdkclient.go`**
+
+Thread the config value through. The `Client` struct already receives config indirectly — the simplest approach is to add a `TelemetryDisabled bool` field to `Client` (set during construction in `Config.GetClient()`) and check it alongside the env var in `PerformRequest`.
+
+**UX — setting the value:**
+
+Users can edit `config.toml` directly, or we expose a command:
+```bash
+hookdeck config set telemetry_disabled true
+hookdeck config set telemetry_disabled false
+```
+
+This depends on whether a generic `config set` command exists or is planned. If not, a simple `hookdeck telemetry off/on` subcommand is the alternative.
+
+### CI/CD Environment Detection
+
+**Context:** Some CLI tools (e.g., `npx @anthropic-ai/claude-code`) detect CI environments and disable telemetry by default. The question is whether hookdeck-cli should do the same.
+
+**How CI detection works:** Check for well-known environment variables:
+- `CI=true` (GitHub Actions, GitLab CI, CircleCI, Travis, most CI systems)
+- `GITHUB_ACTIONS=true`
+- `GITLAB_CI=true`
+- `JENKINS_URL` is set
+- `CODEBUILD_BUILD_ID` is set (AWS CodeBuild)
+- `TF_BUILD=true` (Azure Pipelines)
+- `BUILDKITE=true`
+
+A simple `isCI()` function checking `os.Getenv("CI")` covers ~90% of cases.
+
+**Arguments for disabling in CI:**
+- CI runs can generate massive telemetry volume (every build, every PR, every retry)
+- CI telemetry is "noisy" — it represents automation, not human decision-making
+- CI environments often have strict data-exfiltration policies
+- Users don't expect background analytics from build tools
+
+**Arguments against disabling in CI:**
+- Knowing that hookdeck-cli is used in CI/CD pipelines is genuinely useful product insight
+- CI usage patterns differ from interactive use — that's *interesting*, not noise
+- A GitHub Action (`hookdeck/hookdeck-cli-action`) is a deliberate integration — the user chose to put it in CI
+- Silently disabling telemetry means you lose visibility into a growing use case
+
+**Recommended approach — middle ground:**
+
+1. **Detect CI but don't fully disable.** Instead, set `source: "ci"` (alongside `"cli"` and `"mcp"`) so CI traffic can be filtered server-side. This gives the analytics team the ability to include or exclude CI data as needed, without losing it entirely.
+
+2. **Respect explicit opt-out.** If `HOOKDECK_CLI_TELEMETRY_OPTOUT=1` or `telemetry_disabled = true` is set, disable completely — same as interactive mode.
+
+3. **Do NOT auto-disable.** The user made a deliberate choice to run hookdeck-cli in CI. Unlike, say, a package manager that runs implicitly, hookdeck-cli is an explicit integration. Disabling telemetry by default in CI would be overly conservative.
+
+4. **Log/document it.** If `CI=true` is detected, the telemetry header includes `"source": "ci"` and nothing else changes. Document this behavior so CI-conscious users know what's sent.
+
+**Implementation:**
+```go
+func detectSource() string {
+    if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
+        return "ci"
+    }
+    return "cli"  // default; overridden to "mcp" by MCP server
+}
+```
+
+This integrates cleanly with Phase 1's `source` field — it's just another source value. Server-side, PostHog dashboards can filter by `source = "ci"` to see CI-specific usage or exclude it from interactive metrics.
 
 ## Testing Strategy
 
