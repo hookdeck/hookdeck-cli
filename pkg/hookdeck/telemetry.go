@@ -102,6 +102,13 @@ func DetectEnvironment() string {
 var instance *CLITelemetry
 var once sync.Once
 
+// ResetTelemetryInstanceForTesting resets the global telemetry singleton so
+// that tests can start with a fresh instance. Must only be called from tests.
+func ResetTelemetryInstanceForTesting() {
+	instance = nil
+	once = sync.Once{}
+}
+
 //
 // Private functions
 //

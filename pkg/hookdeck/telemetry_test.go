@@ -1,7 +1,11 @@
 package hookdeck
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -144,6 +148,116 @@ func TestTelemetryJSONSerialization(t *testing.T) {
 	require.Equal(t, "mcp", parsedMCP["source"])
 	require.Equal(t, "hookdeck_events/list", parsedMCP["command_path"])
 	require.Equal(t, "claude-desktop/1.2.0", parsedMCP["mcp_client"])
+}
+
+func TestResetTelemetryInstanceForTesting(t *testing.T) {
+	// Get the singleton and configure it
+	tel1 := GetTelemetryInstance()
+	tel1.SetSource("cli")
+	tel1.SetDeviceName("machine-1")
+
+	// Reset and get a fresh instance
+	ResetTelemetryInstanceForTesting()
+	tel2 := GetTelemetryInstance()
+
+	// Should be a new, empty instance
+	require.NotSame(t, tel1, tel2)
+	require.Empty(t, tel2.Source)
+	require.Empty(t, tel2.DeviceName)
+}
+
+func TestResetTelemetrySingletonThenRequest(t *testing.T) {
+	// This tests the full singleton reset → populate → request → header cycle
+	// which is the CLI telemetry path.
+	var receivedHeader string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader = r.Header.Get("Hookdeck-CLI-Telemetry")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+
+	// Reset the singleton from any prior test state
+	ResetTelemetryInstanceForTesting()
+
+	// Populate the singleton the same way initTelemetry does
+	tel := GetTelemetryInstance()
+	tel.SetSource("cli")
+	tel.SetEnvironment("interactive")
+	tel.CommandPath = "hookdeck gateway source list"
+	tel.SetDeviceName("test-device")
+	tel.SetInvocationID("inv_reset_test_0001")
+
+	// Create a client without per-request telemetry (CLI path)
+	baseURL, _ := url.Parse(server.URL)
+	client := &Client{
+		BaseURL: baseURL,
+		APIKey:  "test",
+	}
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	require.NoError(t, err)
+
+	_, err = client.PerformRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	// Verify the header was sent with the correct singleton values
+	require.NotEmpty(t, receivedHeader)
+
+	var parsed CLITelemetry
+	require.NoError(t, json.Unmarshal([]byte(receivedHeader), &parsed))
+	require.Equal(t, "cli", parsed.Source)
+	require.Equal(t, "interactive", parsed.Environment)
+	require.Equal(t, "hookdeck gateway source list", parsed.CommandPath)
+	require.Equal(t, "test-device", parsed.DeviceName)
+	require.Equal(t, "inv_reset_test_0001", parsed.InvocationID)
+}
+
+func TestResetTelemetrySingletonIsolation(t *testing.T) {
+	// Simulates two sequential CLI command invocations.
+	// Each should have its own telemetry context.
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+
+	headers := make([]string, 2)
+
+	for i, cmdPath := range []string{"hookdeck listen", "hookdeck gateway source list"} {
+		ResetTelemetryInstanceForTesting()
+
+		tel := GetTelemetryInstance()
+		tel.SetSource("cli")
+		tel.SetEnvironment("interactive")
+		tel.CommandPath = cmdPath
+		tel.SetDeviceName("device")
+		tel.SetInvocationID("inv_isolation_" + string(rune('0'+i)))
+
+		// Capture header via a dedicated handler for this iteration
+		var hdr string
+		captureServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hdr = r.Header.Get("Hookdeck-CLI-Telemetry")
+			w.WriteHeader(http.StatusOK)
+		}))
+		captureURL, _ := url.Parse(captureServer.URL)
+
+		client := &Client{BaseURL: captureURL, APIKey: "test"}
+		req, err := http.NewRequest(http.MethodGet, captureServer.URL+"/test", nil)
+		require.NoError(t, err)
+
+		_, err = client.PerformRequest(context.Background(), req)
+		require.NoError(t, err)
+		captureServer.Close()
+
+		headers[i] = hdr
+	}
+
+	// Parse both headers and verify they have different command paths
+	var parsed0, parsed1 CLITelemetry
+	require.NoError(t, json.Unmarshal([]byte(headers[0]), &parsed0))
+	require.NoError(t, json.Unmarshal([]byte(headers[1]), &parsed1))
+
+	require.Equal(t, "hookdeck listen", parsed0.CommandPath)
+	require.Equal(t, "hookdeck gateway source list", parsed1.CommandPath)
+	require.NotEqual(t, parsed0.InvocationID, parsed1.InvocationID)
 }
 
 func TestTelemetryJSONWithGeneratedResource(t *testing.T) {
