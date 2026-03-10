@@ -40,6 +40,7 @@ For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE
   - [Transformations](#transformations)
   - [Requests, events, and attempts](#requests-events-and-attempts)
   - [Manage active project](#manage-active-project)
+  - [Telemetry](#telemetry)
 - [Configuration files](#configuration-files)
 - [Global Flags](#global-flags)
 - [Troubleshooting](#troubleshooting)
@@ -1093,6 +1094,20 @@ $ hookdeck gateway connection delete conn_123abc --force
 ```
 
 For complete flag documentation and all examples, see [REFERENCE.md](REFERENCE.md).
+
+### Telemetry
+
+The Hookdeck CLI collects anonymous telemetry to help improve the tool. You can opt out at any time:
+
+```sh
+# Disable telemetry
+hookdeck telemetry disable
+
+# Re-enable telemetry
+hookdeck telemetry enable
+```
+
+You can also disable telemetry by setting the `HOOKDECK_CLI_TELEMETRY_OPTOUT` environment variable to `1` or `true`.
 
 ## Configuration files
 
