@@ -302,39 +302,13 @@ Not in scope for this CLI PR, but documents the expected server-side changes:
 4. Use `command_path` as the event name / action property
 5. Use `mcp_client` to break down MCP usage by AI agent
 
-## File Change Summary
+### Phase 5: Telemetry Opt-Out via Config
 
-| File | Change | Phase | Complexity |
-|------|--------|-------|-----------|
-| `pkg/hookdeck/telemetry.go` | Add `Source`, `Environment`, `InvocationID` fields; `NewInvocationID()` generator; `DetectEnvironment()` for CI; update `telemetryOptedOut()` to accept config flag | 1, 5 | Small |
-| `pkg/hookdeck/telemetry_test.go` | Update tests for new fields, opt-out with config flag, environment detection | 1, 5 | Small |
-| `pkg/hookdeck/client.go` | Add `Telemetry` field + `TelemetryDisabled` field; `WithTelemetry()` clone method; update `PerformRequest` to use per-request telemetry override and config-based opt-out | 2, 5 | Small |
-| `pkg/cmd/root.go` | Add `PersistentPreRun` with `initTelemetry()` helper | 1 | Small |
-| `pkg/cmd/connection.go` | Call `initTelemetry()` in existing `PersistentPreRun` | 1 | Trivial |
-| `pkg/gateway/mcp/server.go` | Capture MCP client info, store on Server struct | 2 | Small |
-| `pkg/gateway/mcp/tools.go` | Add telemetry wrapping in tool dispatch (central `WithTelemetry` per tool call) | 2 | Medium |
-| `pkg/hookdeck/sdkclient.go` | Add `TelemetryDisabled` field, thread through opt-out check | 5 | Small |
-| `pkg/config/config.go` | Add `TelemetryDisabled` field, read from viper in `constructConfig()` | 5 | Small |
-
-## Risks and Edge Cases
-
-1. **Cobra PersistentPreRun chaining**: Cobra doesn't chain `PersistentPreRun` from parent to child. Any command with its own `PersistentPreRun` must explicitly call `initTelemetry()`. Currently only `connection` has one. Must audit for future additions.
-
-2. **MCP session info timing**: `ServerSession.InitializeParams()` is available after handshake. Tool calls only happen after handshake, so this is safe. But if the server ever supports multiple sessions, we'd need per-session client info.
-
-3. **Invocation ID uniqueness**: 8 random bytes = 16 hex chars. Collision probability is negligible for our use case (not a security-critical ID).
-
-4. **SDK client static headers**: The `listen` command's SDK client gets one invocation ID baked in. If `listen` ran for days and we wanted to track "sessions," we'd need a different mechanism. Fine for now — we're tracking command invocations, not long-lived sessions.
-
-5. **Backward compatibility**: The server must handle both old (empty) and new telemetry payloads. Since it's JSON with new fields, old servers will simply ignore unknown keys. New servers should treat missing `source` as `"cli"` for backward compat.
-
-## Phase 5: Telemetry Opt-Out via Config
-
-### Problem
+#### Problem
 
 Telemetry opt-out is currently only possible via the `HOOKDECK_CLI_TELEMETRY_OPTOUT` environment variable. This requires users to set it in their shell profile or per-invocation, which is fragile and inconvenient. Users who want telemetry permanently disabled (corporate policy, personal preference) need a persistent config-based option.
 
-### Design
+#### Design
 
 Add a **top-level** `telemetry` setting to `config.toml`. No per-profile override initially — telemetry is a user-level concern, not a project-level one. We can always add profile granularity later if needed.
 
@@ -353,7 +327,7 @@ profile = "default"
   api_key = "..."
 ```
 
-### Implementation
+#### Implementation
 
 **File: `pkg/config/config.go`**
 
@@ -398,9 +372,9 @@ hookdeck config set telemetry_disabled false
 
 This depends on whether a generic `config set` command exists or is planned. If not, a simple `hookdeck telemetry off/on` subcommand is the alternative.
 
-### CI/CD Environment Detection
+### Phase 6: CI/CD Environment Detection
 
-**Context:** Some CLI tools (e.g., `npx @anthropic-ai/claude-code`) detect CI environments and disable telemetry by default. The question is whether hookdeck-cli should do the same.
+**Context:** Some CLI tools (e.g., `npx @anthropic-ai/claude-code`) detect CI environments and disable telemetry by default. The question is whether hookdeck-cli should do the same. Decision: keep telemetry enabled in CI, but tag it with `environment: "ci"` so it can be filtered server-side.
 
 **How CI detection works:** Check for well-known environment variables:
 - `CI=true` (GitHub Actions, GitLab CI, CircleCI, Travis, most CI systems)
@@ -453,6 +427,32 @@ func DetectEnvironment() string {
 
 This integrates cleanly with Phase 1's telemetry struct as a new `environment` field. Server-side, PostHog dashboards get two clean dimensions to slice by.
 
+## File Change Summary
+
+| File | Change | Phase | Complexity |
+|------|--------|-------|-----------|
+| `pkg/hookdeck/telemetry.go` | Add `Source`, `Environment`, `InvocationID` fields; `NewInvocationID()` generator; `DetectEnvironment()` for CI; update `telemetryOptedOut()` to accept config flag | 1, 5, 6 | Small |
+| `pkg/hookdeck/telemetry_test.go` | Update tests for new fields, opt-out with config flag, environment detection | 1, 5, 6 | Small |
+| `pkg/hookdeck/client.go` | Add `Telemetry` field + `TelemetryDisabled` field; `WithTelemetry()` clone method; update `PerformRequest` to use per-request telemetry override and config-based opt-out | 2, 5 | Small |
+| `pkg/cmd/root.go` | Add `PersistentPreRun` with `initTelemetry()` helper | 1 | Small |
+| `pkg/cmd/connection.go` | Call `initTelemetry()` in existing `PersistentPreRun` | 1 | Trivial |
+| `pkg/gateway/mcp/server.go` | Capture MCP client info, store on Server struct | 2 | Small |
+| `pkg/gateway/mcp/tools.go` | Add telemetry wrapping in tool dispatch (central `WithTelemetry` per tool call) | 2 | Medium |
+| `pkg/hookdeck/sdkclient.go` | Add `TelemetryDisabled` field, thread through opt-out check | 5 | Small |
+| `pkg/config/config.go` | Add `TelemetryDisabled` field, read from viper in `constructConfig()` | 5 | Small |
+
+## Risks and Edge Cases
+
+1. **Cobra PersistentPreRun chaining**: Cobra doesn't chain `PersistentPreRun` from parent to child. Any command with its own `PersistentPreRun` must explicitly call `initTelemetry()`. Currently only `connection` has one. Must audit for future additions.
+
+2. **MCP session info timing**: `ServerSession.InitializeParams()` is available after handshake. Tool calls only happen after handshake, so this is safe. But if the server ever supports multiple sessions, we'd need per-session client info.
+
+3. **Invocation ID uniqueness**: 8 random bytes = 16 hex chars. Collision probability is negligible for our use case (not a security-critical ID).
+
+4. **SDK client static headers**: The `listen` command's SDK client gets one invocation ID baked in. If `listen` ran for days and we wanted to track "sessions," we'd need a different mechanism. Fine for now — we're tracking command invocations, not long-lived sessions.
+
+5. **Backward compatibility**: The server must handle both old (empty) and new telemetry payloads. Since it's JSON with new fields, old servers will simply ignore unknown keys. New servers should treat missing `source` as `"cli"` for backward compat.
+
 ## Key Source Files
 
 These are the files an implementer needs to read before starting:
@@ -473,5 +473,7 @@ These are the files an implementer needs to read before starting:
 
 1. **Unit tests for telemetry struct**: Verify JSON serialization includes new fields
 2. **Unit tests for `WithTelemetry`**: Verify cloned client uses override telemetry
-3. **Integration test**: Wire up an MCP test with a mock API server, verify the `Hookdeck-CLI-Telemetry` header on requests contains correct `source`, `command_path`, and `invocation_id`
-4. **Manual test**: Run `hookdeck listen` against a local proxy, inspect the telemetry header on outgoing requests
+3. **Unit tests for `DetectEnvironment`**: Verify CI env var detection
+4. **Unit tests for config-based opt-out**: Verify `telemetryOptedOut()` with config flag
+5. **Integration test**: Wire up an MCP test with a mock API server, verify the `Hookdeck-CLI-Telemetry` header on requests contains correct `source`, `environment`, `command_path`, and `invocation_id`
+6. **Manual test**: Run `hookdeck listen` against a local proxy, inspect the telemetry header on outgoing requests
