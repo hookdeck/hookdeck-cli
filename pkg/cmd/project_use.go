@@ -49,7 +49,7 @@ Pinning project [Acme] Ecommerce Staging to current directory`,
 func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) error {
 	// Validate flag compatibility
 	if lc.local && Config.ConfigFileFlag != "" {
-		return fmt.Errorf("Error: --local and --config flags cannot be used together\n  --local creates config at: .hookdeck/config.toml\n  --config uses custom path: %s", Config.ConfigFileFlag)
+		return fmt.Errorf("Error: --local and --hookdeck-config flags cannot be used together\n  --local creates config at: .hookdeck/config.toml\n  --hookdeck-config uses custom path: %s", Config.ConfigFileFlag)
 	}
 
 	if err := Config.Profile.ValidateAPIKey(); err != nil {

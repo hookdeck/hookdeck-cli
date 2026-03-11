@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -46,7 +48,7 @@ func NewServer(client *hookdeck.Client, cfg *config.Config) *Server {
 // registered so that AI agents can initiate authentication in-band.
 func (s *Server) registerTools() {
 	for _, td := range toolDefs(s.client) {
-		s.mcpServer.AddTool(td.tool, td.handler)
+		s.mcpServer.AddTool(td.tool, s.wrapWithTelemetry(td.tool.Name, td.handler))
 	}
 
 	if s.client.APIKey == "" {
@@ -56,9 +58,70 @@ func (s *Server) registerTools() {
 				Description: "Authenticate the Hookdeck CLI. Returns a URL that the user must open in their browser to complete login. The tool will wait for the user to complete authentication before returning.",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 			},
-			handleLogin(s.client, s.cfg, s.mcpServer),
+			s.wrapWithTelemetry("hookdeck_login", handleLogin(s.client, s.cfg, s.mcpServer)),
 		)
 	}
+}
+
+// mcpClientInfo extracts the MCP client name/version string from the
+// session's initialize params. Returns "" if unavailable.
+func mcpClientInfo(req *mcpsdk.CallToolRequest) string {
+	if req.Session == nil {
+		return ""
+	}
+	params := req.Session.InitializeParams()
+	if params == nil || params.ClientInfo == nil {
+		return ""
+	}
+	ci := params.ClientInfo
+	if ci.Version != "" {
+		return fmt.Sprintf("%s/%s", ci.Name, ci.Version)
+	}
+	return ci.Name
+}
+
+// wrapWithTelemetry returns a handler that sets per-invocation telemetry on the
+// shared client before delegating to the original handler. The stdio transport
+// processes tool calls sequentially, so setting telemetry on the shared client
+// is safe (no concurrent access).
+func (s *Server) wrapWithTelemetry(toolName string, handler mcpsdk.ToolHandler) mcpsdk.ToolHandler {
+	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		// Extract the action from the request arguments for command_path.
+		action := extractAction(req)
+		commandPath := toolName
+		if action != "" {
+			commandPath = toolName + "/" + action
+		}
+
+		deviceName, _ := os.Hostname()
+
+		s.client.Telemetry = &hookdeck.CLITelemetry{
+			Source:       "mcp",
+			Environment:  hookdeck.DetectEnvironment(),
+			CommandPath:  commandPath,
+			InvocationID: hookdeck.NewInvocationID(),
+			DeviceName:   deviceName,
+			MCPClient:    mcpClientInfo(req),
+		}
+		defer func() { s.client.Telemetry = nil }()
+
+		return handler(ctx, req)
+	}
+}
+
+// extractAction parses the "action" field from the tool call arguments.
+func extractAction(req *mcpsdk.CallToolRequest) string {
+	if req.Params.Arguments == nil {
+		return ""
+	}
+	var args map[string]interface{}
+	if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+		return ""
+	}
+	if action, ok := args["action"].(string); ok {
+		return action
+	}
+	return ""
 }
 
 // RunStdio starts the MCP server on stdin/stdout and blocks until the

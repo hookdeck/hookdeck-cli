@@ -1,3 +1,5 @@
+//go:build connection_error_hints
+
 package acceptance
 
 import (

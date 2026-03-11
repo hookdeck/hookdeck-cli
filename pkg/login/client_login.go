@@ -31,7 +31,7 @@ func Login(config *config.Config, input io.Reader) error {
 		}).Debug("Logging in with API key")
 
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
-		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey, config.Profile.ProjectId)
+		response, err := config.GetAPIClient().ValidateAPIKey()
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,8 @@ func Login(config *config.Config, input io.Reader) error {
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
+		BaseURL:           parsedBaseURL,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	session, err := client.StartLogin(config.DeviceName)
@@ -116,7 +117,8 @@ func GuestLogin(config *config.Config) (string, error) {
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
+		BaseURL:           parsedBaseURL,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	fmt.Println("\n🚩 You are using the CLI for the first time without a permanent account. Creating a guest account...")
@@ -157,8 +159,9 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
-		APIKey:  apiKey,
+		BaseURL:           parsedBaseURL,
+		APIKey:            apiKey,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	deviceName := name
