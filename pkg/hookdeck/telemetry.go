@@ -16,9 +16,7 @@ import (
 //
 
 // TelemetryHeaderName is the HTTP header used to send CLI telemetry data.
-// We intentionally omit the "X-" prefix following RFC 6648, which deprecated
-// the convention for new custom headers.
-const TelemetryHeaderName = "Hookdeck-CLI-Telemetry"
+const TelemetryHeaderName = "X-Hookdeck-CLI-Telemetry"
 
 //
 // Public types
