@@ -17,8 +17,8 @@ func newMCPCmd() *mcpCmd {
 	mc.cmd = &cobra.Command{
 		Use:   "mcp",
 		Args:  validators.NoArgs,
-		Short: "Start an MCP server for AI agent access to Hookdeck",
-		Long: `Starts a Model Context Protocol (MCP) server over stdio.
+		Short: ShortBeta("Start an MCP server for AI agent access to Hookdeck"),
+		Long: LongBeta(`Starts a Model Context Protocol (MCP) server over stdio.
 
 The server exposes Hookdeck Event Gateway resources — connections, sources,
 destinations, events, requests, and more — as MCP tools that AI agents and
@@ -26,7 +26,7 @@ LLM-based clients can invoke.
 
 If the CLI is already authenticated, all tools are available immediately.
 If not, a hookdeck_login tool is provided that initiates browser-based
-authentication so the user can log in without leaving the MCP session.`,
+authentication so the user can log in without leaving the MCP session.`),
 		Example: `  # Start the MCP server (stdio transport)
   hookdeck gateway mcp
 

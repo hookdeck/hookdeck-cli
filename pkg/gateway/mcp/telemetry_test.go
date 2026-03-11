@@ -183,7 +183,7 @@ func parseTelemetryHeader(t *testing.T, raw string) hookdeck.CLITelemetry {
 
 func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 	// Ensure env-var opt-out is disabled so telemetry flows.
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	capture := &headerCapture{}
 
@@ -213,7 +213,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 }
 
 func TestMCPToolCall_EachCallGetsUniqueInvocationID(t *testing.T) {
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	capture := &headerCapture{}
 
@@ -243,7 +243,7 @@ func TestMCPToolCall_EachCallGetsUniqueInvocationID(t *testing.T) {
 }
 
 func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	capture := &headerCapture{}
 
@@ -274,7 +274,7 @@ func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
 }
 
 func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	capture := &headerCapture{}
 
@@ -298,7 +298,7 @@ func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
 }
 
 func TestMCPToolCall_TelemetryDisabledByEnvVar(t *testing.T) {
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "true")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "true")
 
 	capture := &headerCapture{}
 
@@ -320,7 +320,7 @@ func TestMCPToolCall_TelemetryDisabledByEnvVar(t *testing.T) {
 func TestMCPToolCall_MultipleAPICallsSameInvocation(t *testing.T) {
 	// The "projects use" action makes 2 API calls (list projects, then update).
 	// Both should carry the same invocation ID.
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	capture := &headerCapture{}
 
