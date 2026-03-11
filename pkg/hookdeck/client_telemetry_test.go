@@ -51,7 +51,7 @@ func TestWithTelemetry(t *testing.T) {
 func TestPerformRequestUsesTelemetryOverride(t *testing.T) {
 	var receivedHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get("Hookdeck-CLI-Telemetry")
+		receivedHeader = r.Header.Get(TelemetryHeaderName)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -95,7 +95,7 @@ func TestPerformRequestUsesTelemetryOverride(t *testing.T) {
 func TestPerformRequestTelemetryDisabledByConfig(t *testing.T) {
 	var receivedHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get("Hookdeck-CLI-Telemetry")
+		receivedHeader = r.Header.Get(TelemetryHeaderName)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -121,7 +121,7 @@ func TestPerformRequestTelemetryDisabledByConfig(t *testing.T) {
 func TestPerformRequestTelemetryDisabledByEnvVar(t *testing.T) {
 	var receivedHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get("Hookdeck-CLI-Telemetry")
+		receivedHeader = r.Header.Get(TelemetryHeaderName)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -146,7 +146,7 @@ func TestPerformRequestTelemetryDisabledByEnvVar(t *testing.T) {
 func TestPerformRequestFallsBackToSingleton(t *testing.T) {
 	var receivedHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get("Hookdeck-CLI-Telemetry")
+		receivedHeader = r.Header.Get(TelemetryHeaderName)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

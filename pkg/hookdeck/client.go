@@ -138,7 +138,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 			telemetryHdr, telErr = getTelemetryHeader()
 		}
 		if telErr == nil {
-			req.Header.Set("Hookdeck-CLI-Telemetry", telemetryHdr)
+			req.Header.Set(TelemetryHeaderName, telemetryHdr)
 		}
 	}
 

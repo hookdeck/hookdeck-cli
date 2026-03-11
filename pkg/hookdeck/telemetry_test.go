@@ -171,7 +171,7 @@ func TestResetTelemetrySingletonThenRequest(t *testing.T) {
 	// which is the CLI telemetry path.
 	var receivedHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get("Hookdeck-CLI-Telemetry")
+		receivedHeader = r.Header.Get(TelemetryHeaderName)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -234,7 +234,7 @@ func TestResetTelemetrySingletonIsolation(t *testing.T) {
 		// Capture header via a dedicated handler for this iteration
 		var hdr string
 		captureServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			hdr = r.Header.Get("Hookdeck-CLI-Telemetry")
+			hdr = r.Header.Get(TelemetryHeaderName)
 			w.WriteHeader(http.StatusOK)
 		}))
 		captureURL, _ := url.Parse(captureServer.URL)

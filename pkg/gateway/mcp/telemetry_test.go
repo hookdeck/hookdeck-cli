@@ -136,12 +136,12 @@ func TestWrapWithTelemetryUniqueInvocationIDs(t *testing.T) {
 // ---------------------------------------------------------------------------
 // End-to-end integration tests: MCP tool call → HTTP request → telemetry header
 // These tests use the full MCP server pipeline (mockAPIWithClient) and verify
-// that the Hookdeck-CLI-Telemetry header arrives at the mock API server with
+// that the telemetry header arrives at the mock API server with
 // the correct content.
 // ---------------------------------------------------------------------------
 
 // headerCapture is a thread-safe collector for HTTP headers received by the
-// mock API. Each incoming request appends its Hookdeck-CLI-Telemetry header.
+// mock API. Each incoming request appends its telemetry header.
 type headerCapture struct {
 	mu      sync.Mutex
 	headers []string
@@ -150,7 +150,7 @@ type headerCapture struct {
 func (hc *headerCapture) handler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hc.mu.Lock()
-		hc.headers = append(hc.headers, r.Header.Get("Hookdeck-CLI-Telemetry"))
+		hc.headers = append(hc.headers, r.Header.Get(hookdeck.TelemetryHeaderName))
 		hc.mu.Unlock()
 		next(w, r)
 	}
@@ -173,7 +173,7 @@ func (hc *headerCapture) all() []string {
 	return cp
 }
 
-// parseTelemetryHeader unmarshals a Hookdeck-CLI-Telemetry header value.
+// parseTelemetryHeader unmarshals a telemetry header value.
 func parseTelemetryHeader(t *testing.T, raw string) hookdeck.CLITelemetry {
 	t.Helper()
 	var tel hookdeck.CLITelemetry
@@ -198,9 +198,9 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError, "tool call should succeed")
 
-	// Verify the Hookdeck-CLI-Telemetry header was sent.
+	// Verify the telemetry header was sent.
 	raw := capture.last()
-	require.NotEmpty(t, raw, "Hookdeck-CLI-Telemetry header must be sent")
+	require.NotEmpty(t, raw, "telemetry header must be sent")
 
 	tel := parseTelemetryHeader(t, raw)
 	require.Equal(t, "mcp", tel.Source)

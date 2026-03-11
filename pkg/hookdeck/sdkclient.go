@@ -40,7 +40,7 @@ func CreateSDKClient(init SDKClientInit) *hookdeckclient.Client {
 	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT"), init.TelemetryDisabled) {
 		telemetryHeader, err := getTelemetryHeader()
 		if err == nil {
-			header.Set("Hookdeck-CLI-Telemetry", telemetryHeader)
+			header.Set(TelemetryHeaderName, telemetryHeader)
 		}
 	}
 
