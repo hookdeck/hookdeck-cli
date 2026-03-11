@@ -348,7 +348,8 @@ func (c *Config) SetTelemetryDisabled(disabled bool) error {
 
 // getConfigPath returns the path for the config file.
 // Precedence:
-// - path (if path is provided)
+// - path (if path is provided, e.g. from --hookdeck-config flag)
+// - HOOKDECK_CONFIG_FILE env var (for acceptance tests / parallel runs; avoids flag collision with subcommand JSON --config)
 // - `${PWD}/.hookdeck/config.toml`
 // - `${HOME}/.config/hookdeck/config.toml`
 // Returns the path string and a boolean indicating whether it's the global default path.
@@ -363,6 +364,9 @@ func (c *Config) getConfigPath(path string) (string, bool) {
 			return path, false
 		}
 		return filepath.Join(workspaceFolder, path), false
+	}
+	if envPath := os.Getenv("HOOKDECK_CONFIG_FILE"); envPath != "" {
+		return envPath, false
 	}
 
 	localConfigPath := filepath.Join(workspaceFolder, ".hookdeck/config.toml")

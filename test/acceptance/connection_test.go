@@ -1,3 +1,5 @@
+//go:build connection
+
 package acceptance
 
 import (

@@ -732,7 +732,7 @@ By default, `project use` saves your selection to the **global configuration** (
 
 The CLI uses exactly one configuration file based on this precedence:
 
-1. **Custom config** (via `--config` flag) - highest priority
+1. **Custom config** (via `--hookdeck-config` flag) - highest priority
 2. **Local config** - `${PWD}/.hookdeck/config.toml` (if exists)
 3. **Global config** - `~/.config/hookdeck/config.toml` (default)
 
@@ -782,11 +782,11 @@ This ensures your directory-specific configuration is preserved when it exists.
 hookdeck project use my-org my-project
 hookdeck project use my-org my-project --local
 
-# ❌ Invalid (cannot combine --config with --local)
-hookdeck --config custom.toml project use my-org my-project --local
-Error: --local and --config flags cannot be used together
+# ❌ Invalid (cannot combine --hookdeck-config with --local)
+hookdeck --hookdeck-config custom.toml project use my-org my-project --local
+Error: --local and --hookdeck-config flags cannot be used together
   --local creates config at: .hookdeck/config.toml
-  --config uses custom path: custom.toml
+  --hookdeck-config uses custom path: custom.toml
 ```
 
 #### Benefits of local project pinning
@@ -1117,9 +1117,10 @@ The Hookdeck CLI uses configuration files to store the your keys, project settin
 
 The CLI will look for the configuration file in the following order:
 
-1. The `--config` flag, which allows you to specify a custom configuration file name and path per command.
-2. The local directory `.hookdeck/config.toml`.
-3. The default global configuration file location.
+1. The `--hookdeck-config` flag, which allows you to specify a custom configuration file path per command.
+2. The `HOOKDECK_CONFIG_FILE` environment variable (path to the config file).
+3. The local directory `.hookdeck/config.toml`.
+4. The default global configuration file location.
 
 ### Default configuration Location
 
@@ -1194,7 +1195,7 @@ The following flags can be used with any command:
 
 - `--api-key`: Your API key to use for the command.
 - `--color`: Turn on/off color output (on, off, auto).
-- `--config`: Path to a specific configuration file.
+- `--hookdeck-config`: Path to the CLI configuration file. You can also set the `HOOKDECK_CONFIG_FILE` environment variable to the config file path.
 - `--device-name`: A unique name for your device.
 - `--insecure`: Allow invalid TLS certificates.
 - `--log-level`: Set the logging level (debug, info, warn, error).
@@ -1236,16 +1237,16 @@ go run main.go
 
 ### Generating REFERENCE.md
 
-The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it:
+The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it in place:
 
 ```sh
-go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md
+go run ./tools/generate-reference
 ```
 
 To validate that REFERENCE.md is up to date (useful in CI):
 
 ```sh
-go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md --check
+go run ./tools/generate-reference --check
 ```
 
 Build from source by running:

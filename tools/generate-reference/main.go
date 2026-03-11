@@ -1,7 +1,7 @@
-// generate-reference generates REFERENCE.md (or other files) from Cobra command metadata.
+// generate-reference generates REFERENCE.md from Cobra command metadata.
 //
-// It reads input file(s), finds GENERATE marker pairs, and replaces content between
-// START and END with generated output. Structure is controlled by the input file.
+// It reads the input file, finds GENERATE marker pairs, and replaces content between
+// START and END with generated output. Structure is controlled by the file.
 //
 // Marker format:
 //   - GENERATE_TOC:START ... GENERATE_END - table of contents
@@ -13,10 +13,10 @@
 //
 // Usage:
 //
-//	go run ./tools/generate-reference --input REFERENCE.md                    # in-place
-//	go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md
-//	go run ./tools/generate-reference --input a.mdoc --input b.mdoc           # batch, each in-place
-//	go run ./tools/generate-reference --input REFERENCE.md --check            # verify up to date
+//	go run ./tools/generate-reference                          # in-place update REFERENCE.md
+//	go run ./tools/generate-reference --input REFERENCE.md     # same (explicit input)
+//	go run ./tools/generate-reference --input a.mdoc --input b.mdoc  # batch, each in-place
+//	go run ./tools/generate-reference --check                  # verify REFERENCE.md is up to date
 //
 // For website two-column layout (section/div/aside), add --no-toc, --no-examples-heading, and wrappers:
 //
@@ -90,8 +90,7 @@ func main() {
 	}
 
 	if len(inputs) == 0 {
-		fmt.Fprintf(os.Stderr, "generate-reference: --input is required (use --input <file>)\n")
-		os.Exit(1)
+		inputs = []string{"REFERENCE.md"}
 	}
 	if len(inputs) > 1 && *output != "" {
 		fmt.Fprintf(os.Stderr, "generate-reference: cannot use --output with multiple --input (batch is in-place only)\n")
@@ -751,6 +750,6 @@ func runCheck(refPath string, generated []byte) {
 	tmp.Write(generated)
 	tmp.Close()
 	absRef, _ := filepath.Abs(refPath)
-	fmt.Fprintf(os.Stderr, "%s is out of date. Run: go run ./tools/generate-reference --input <template> [--output <file>]\n", refPath)
+	fmt.Fprintf(os.Stderr, "%s is out of date. Run: go run ./tools/generate-reference [--input REFERENCE.md]\n", refPath)
 	fmt.Fprintf(os.Stderr, "Diff: diff %s %s\n", absRef, tmpPath)
 }
