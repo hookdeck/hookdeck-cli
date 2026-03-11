@@ -1101,13 +1101,13 @@ The Hookdeck CLI collects anonymous telemetry to help improve the tool. You can 
 
 ```sh
 # Disable telemetry
-hookdeck telemetry disable
+hookdeck telemetry disabled
 
 # Re-enable telemetry
-hookdeck telemetry enable
+hookdeck telemetry enabled
 ```
 
-You can also disable telemetry by setting the `HOOKDECK_CLI_TELEMETRY_OPTOUT` environment variable to `1` or `true`.
+You can also disable telemetry by setting the `HOOKDECK_CLI_TELEMETRY_DISABLED` environment variable to `1` or `true`.
 
 ## Configuration files
 

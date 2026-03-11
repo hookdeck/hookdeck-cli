@@ -76,7 +76,7 @@ func TestPerformRequestUsesTelemetryOverride(t *testing.T) {
 	require.NoError(t, err)
 
 	// Clear opt-out env var
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	_, err = client.PerformRequest(context.Background(), req)
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestPerformRequestTelemetryDisabledByConfig(t *testing.T) {
 		TelemetryDisabled: true,
 	}
 
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestPerformRequestTelemetryDisabledByEnvVar(t *testing.T) {
 		APIKey:  "test",
 	}
 
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "true")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "true")
 
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestPerformRequestFallsBackToSingleton(t *testing.T) {
 	tel.SetDeviceName("test-host")
 	tel.SetInvocationID("inv_singleton_test")
 
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
 	require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestPerformRequestTelemetryDisabledBySingleton(t *testing.T) {
 	tel := GetTelemetryInstance()
 	tel.SetDisabled(true)
 
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
 	require.NoError(t, err)

@@ -176,7 +176,7 @@ func TestResetTelemetrySingletonThenRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	// Reset the singleton from any prior test state
 	ResetTelemetryInstanceForTesting()
@@ -217,7 +217,7 @@ func TestResetTelemetrySingletonThenRequest(t *testing.T) {
 func TestResetTelemetrySingletonIsolation(t *testing.T) {
 	// Simulates two sequential CLI command invocations.
 	// Each should have its own telemetry context.
-	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 
 	headers := make([]string, 2)
 
