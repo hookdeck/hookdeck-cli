@@ -7,9 +7,8 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/slug"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
-	hookdeckclient "github.com/hookdeck/hookdeck-go-sdk/client"
 	"golang.org/x/term"
 )
 
@@ -29,33 +28,31 @@ import (
 // For case 4, we'll get available sources and ask the user which ones
 // they'd like to use. They will also have an option to create a new source.
 
-func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hookdecksdk.Source, error) {
-	limit := 255 // Hookdeck API limit
-
+func getSources(client *hookdeck.Client, sourceQuery []string) ([]*hookdeck.Source, error) {
 	// case 1
 	if len(sourceQuery) == 1 && sourceQuery[0] == "*" {
-		sources, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{})
+		resp, err := client.ListSources(context.Background(), nil)
 		if err != nil {
-			return []*hookdecksdk.Source{}, err
+			return []*hookdeck.Source{}, err
 		}
-		if sources == nil || *sources.Count == 0 {
-			return []*hookdecksdk.Source{}, errors.New("unable to find any matching sources")
+		if resp == nil || len(resp.Models) == 0 {
+			return []*hookdeck.Source{}, errors.New("unable to find any matching sources")
 		}
-		return validateSources(sources.Models)
+		return validateSources(toSourcePtrs(resp.Models))
 
 		// case 2
 	} else if len(sourceQuery) > 1 {
-		searchedSources, err := listMultipleSources(sdkClient, sourceQuery)
+		searchedSources, err := listMultipleSources(client, sourceQuery)
 		if err != nil {
-			return []*hookdecksdk.Source{}, err
+			return []*hookdeck.Source{}, err
 		}
 		return validateSources(searchedSources)
 
 		// case 3
 	} else if len(sourceQuery) == 1 {
-		searchedSources, err := listMultipleSources(sdkClient, sourceQuery)
+		searchedSources, err := listMultipleSources(client, sourceQuery)
 		if err != nil {
-			return []*hookdecksdk.Source{}, err
+			return []*hookdeck.Source{}, err
 		}
 		if len(searchedSources) > 0 {
 			return validateSources(searchedSources)
@@ -96,37 +93,37 @@ func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hook
 		}
 
 		// Create source with provided name
-		source, err := createSource(sdkClient, &sourceQuery[0])
+		source, err := createSource(client, &sourceQuery[0])
 		if err != nil {
-			return []*hookdecksdk.Source{}, err
+			return []*hookdeck.Source{}, err
 		}
 
-		return validateSources([]*hookdecksdk.Source{source})
+		return validateSources([]*hookdeck.Source{source})
 
 		// case 4
 	} else {
-		sources := []*hookdecksdk.Source{}
+		sources := []*hookdeck.Source{}
 
-		availableSources, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
-			Limit: &limit,
+		availableSources, err := client.ListSources(context.Background(), map[string]string{
+			"limit": "255",
 		})
 
 		if err != nil {
-			return []*hookdecksdk.Source{}, err
+			return []*hookdeck.Source{}, err
 		}
 
-		if *availableSources.Count > 0 {
-			selectedSources, err := selectSources(availableSources.Models)
+		if len(availableSources.Models) > 0 {
+			selectedSources, err := selectSources(toSourcePtrs(availableSources.Models))
 			if err != nil {
-				return []*hookdecksdk.Source{}, err
+				return []*hookdeck.Source{}, err
 			}
 			sources = append(sources, selectedSources...)
 		}
 
 		if len(sources) == 0 {
-			source, err := createSource(sdkClient, nil)
+			source, err := createSource(client, nil)
 			if err != nil {
-				return []*hookdecksdk.Source{}, err
+				return []*hookdeck.Source{}, err
 			}
 			sources = append(sources, source)
 		}
@@ -135,26 +132,27 @@ func getSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hook
 	}
 }
 
-func listMultipleSources(sdkClient *hookdeckclient.Client, sourceQuery []string) ([]*hookdecksdk.Source, error) {
-	sources := []*hookdecksdk.Source{}
+func listMultipleSources(client *hookdeck.Client, sourceQuery []string) ([]*hookdeck.Source, error) {
+	sources := []*hookdeck.Source{}
 
 	for _, sourceName := range sourceQuery {
-		sourceQuery, err := sdkClient.Source.List(context.Background(), &hookdecksdk.SourceListRequest{
-			Name: &sourceName,
+		resp, err := client.ListSources(context.Background(), map[string]string{
+			"name": sourceName,
 		})
 		if err != nil {
-			return []*hookdecksdk.Source{}, err
+			return []*hookdeck.Source{}, err
 		}
-		if len(sourceQuery.Models) > 0 {
-			sources = append(sources, sourceQuery.Models[0])
+		if len(resp.Models) > 0 {
+			src := resp.Models[0]
+			sources = append(sources, &src)
 		}
 	}
 
 	return sources, nil
 }
 
-func selectSources(availableSources []*hookdecksdk.Source) ([]*hookdecksdk.Source, error) {
-	sources := []*hookdecksdk.Source{}
+func selectSources(availableSources []*hookdeck.Source) ([]*hookdeck.Source, error) {
+	sources := []*hookdeck.Source{}
 
 	var sourceAliases []string
 	for _, temp_source := range availableSources {
@@ -178,7 +176,7 @@ func selectSources(availableSources []*hookdecksdk.Source) ([]*hookdecksdk.Sourc
 	err := survey.Ask(qs, &answers)
 	if err != nil {
 		fmt.Println(err.Error())
-		return []*hookdecksdk.Source{}, err
+		return []*hookdeck.Source{}, err
 	}
 
 	if answers.SourceAlias != "Create new source" {
@@ -192,7 +190,7 @@ func selectSources(availableSources []*hookdecksdk.Source) ([]*hookdecksdk.Sourc
 	return sources, nil
 }
 
-func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.Source, error) {
+func createSource(client *hookdeck.Client, name *string) (*hookdeck.Source, error) {
 	var sourceName string
 
 	fmt.Println("\033[2mA source represents where requests originate from (ie. Github, Stripe, Shopify, etc.). Each source has it's own unique URL that you can use to send requests to.\033[0m")
@@ -218,17 +216,26 @@ func createSource(sdkClient *hookdeckclient.Client, name *string) (*hookdecksdk.
 		sourceName = answers.Label
 	}
 
-	source, err := sdkClient.Source.Create(context.Background(), &hookdecksdk.SourceCreateRequest{
+	source, err := client.CreateSource(context.Background(), &hookdeck.SourceCreateRequest{
 		Name: slug.Make(sourceName),
 	})
 
 	return source, err
 }
 
-func validateSources(sources []*hookdecksdk.Source) ([]*hookdecksdk.Source, error) {
+func validateSources(sources []*hookdeck.Source) ([]*hookdeck.Source, error) {
 	if len(sources) == 0 {
-		return []*hookdecksdk.Source{}, errors.New("unable to find any matching sources")
+		return []*hookdeck.Source{}, errors.New("unable to find any matching sources")
 	}
 
 	return sources, nil
+}
+
+// toSourcePtrs converts a slice of Source values to a slice of Source pointers.
+func toSourcePtrs(sources []hookdeck.Source) []*hookdeck.Source {
+	ptrs := make([]*hookdeck.Source, len(sources))
+	for i := range sources {
+		ptrs[i] = &sources[i]
+	}
+	return ptrs
 }

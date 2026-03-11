@@ -6,7 +6,6 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
 // Renderer is the interface for handling proxy output
@@ -56,8 +55,8 @@ type RendererConfig struct {
 	GuestURL         string
 	TargetURL        *url.URL
 	Output           string
-	Sources          []*hookdecksdk.Source
-	Connections      []*hookdecksdk.Connection
+	Sources          []*hookdeck.Source
+	Connections      []*hookdeck.Connection
 	Filters          *hookdeck.SessionFilters
 }
 

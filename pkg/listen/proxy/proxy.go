@@ -23,7 +23,6 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/healthcheck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
 const (
@@ -69,7 +68,7 @@ type Config struct {
 // back to Hookdeck.
 type Proxy struct {
 	cfg             *Config
-	connections     []*hookdecksdk.Connection
+	connections     []*hookdeck.Connection
 	webSocketClient *websocket.Client
 	connectionTimer *time.Timer
 	httpClient      *http.Client
@@ -269,7 +268,7 @@ func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 
 	var connectionIDs []string
 	for _, connection := range p.connections {
-		connectionIDs = append(connectionIDs, connection.Id)
+		connectionIDs = append(connectionIDs, connection.ID)
 	}
 
 	for i := 0; i <= 5; i++ {
@@ -515,7 +514,7 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 //
 
 // New creates a new Proxy
-func New(cfg *Config, connections []*hookdecksdk.Connection, renderer Renderer) *Proxy {
+func New(cfg *Config, connections []*hookdeck.Connection, renderer Renderer) *Proxy {
 	if cfg.Log == nil {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}

@@ -9,8 +9,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
-
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -85,8 +83,8 @@ type Config struct {
 	ProjectID        string
 	GuestURL         string
 	TargetURL        *url.URL
-	Sources          []*hookdecksdk.Source
-	Connections      []*hookdecksdk.Connection
+	Sources          []*hookdeck.Source
+	Connections      []*hookdeck.Connection
 	Filters          interface{} // Session filters (stored as interface{} to avoid circular dependency)
 }
 

@@ -333,7 +333,7 @@ func (m Model) renderConnectionInfo() string {
 
 	if m.cfg.Sources != nil && m.cfg.Connections != nil {
 		for _, conn := range m.cfg.Connections {
-			sourceID := conn.Source.Id
+			sourceID := conn.Source.ID
 			destName := ""
 			cliPath := ""
 
@@ -344,8 +344,8 @@ func (m Model) renderConnectionInfo() string {
 				}
 			}
 
-			if conn.Destination.CliPath != nil {
-				cliPath = *conn.Destination.CliPath
+			if p := conn.Destination.GetCLIPath(); p != nil {
+				cliPath = *p
 			}
 
 			if sourceConnections[sourceID] == nil {
@@ -370,11 +370,11 @@ func (m Model) renderConnectionInfo() string {
 
 			// Show webhook URL
 			s.WriteString("│  Requests to → ")
-			s.WriteString(source.Url)
+			s.WriteString(source.URL)
 			s.WriteString("\n")
 
 			// Show connections
-			if conns, exists := sourceConnections[source.Id]; exists {
+			if conns, exists := sourceConnections[source.ID]; exists {
 				numConns := len(conns)
 				for j, conn := range conns {
 					fullPath := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host + conn.cliPath
