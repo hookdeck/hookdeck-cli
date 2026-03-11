@@ -1236,16 +1236,16 @@ go run main.go
 
 ### Generating REFERENCE.md
 
-The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it:
+The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it in place:
 
 ```sh
-go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md
+go run ./tools/generate-reference
 ```
 
 To validate that REFERENCE.md is up to date (useful in CI):
 
 ```sh
-go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md --check
+go run ./tools/generate-reference --check
 ```
 
 Build from source by running:
