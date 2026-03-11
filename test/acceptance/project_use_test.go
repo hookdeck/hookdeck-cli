@@ -1,3 +1,5 @@
+//go:build project_use
+
 package acceptance
 
 import (
@@ -71,7 +73,7 @@ func readLocalConfigTOML(t *testing.T) map[string]interface{} {
 	return config
 }
 
-// TestProjectUseLocalAndConfigFlagConflict tests that using both --local and --config flags returns error
+// TestProjectUseLocalAndConfigFlagConflict tests that using both --local and --hookdeck-config flags returns error
 // This test doesn't require API calls since it validates flag conflicts before any API interaction
 func TestProjectUseLocalAndConfigFlagConflict(t *testing.T) {
 	if testing.Short() {
@@ -89,12 +91,12 @@ func TestProjectUseLocalAndConfigFlagConflict(t *testing.T) {
 	// Create a dummy config file path
 	dummyConfigPath := filepath.Join(tempDir, "custom-config.toml")
 
-	// Run with both --local and --config flags (should error)
+	// Run with both --local and --hookdeck-config flags (should error)
 	// Use placeholder values for org/project since the error occurs before API validation
-	stdout, stderr, err := cli.Run("project", "use", "test-org", "test-project", "--local", "--config", dummyConfigPath)
+	stdout, stderr, err := cli.Run("project", "use", "test-org", "test-project", "--local", "--hookdeck-config", dummyConfigPath)
 
 	// Should return an error
-	require.Error(t, err, "Using both --local and --config should fail")
+	require.Error(t, err, "Using both --local and --hookdeck-config should fail")
 
 	// Verify error message contains expected text
 	combinedOutput := stdout + stderr
