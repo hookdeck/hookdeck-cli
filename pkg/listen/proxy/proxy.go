@@ -61,6 +61,8 @@ type Config struct {
 	MaxConnections int
 	// Filters for this CLI session
 	Filters *hookdeck.SessionFilters
+	// APIClient is the shared API client (from config.GetAPIClient)
+	APIClient *hookdeck.Client
 }
 
 // A Proxy opens a websocket connection with Hookdeck, listens for incoming
@@ -254,17 +256,9 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 
 func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 	var session hookdeck.Session
+	var err error
 
-	parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
-	if err != nil {
-		return session, err
-	}
-
-	client := &hookdeck.Client{
-		BaseURL:   parsedBaseURL,
-		APIKey:    p.cfg.Key,
-		ProjectID: p.cfg.ProjectID,
-	}
+	client := p.cfg.APIClient
 
 	var connectionIDs []string
 	for _, connection := range p.connections {

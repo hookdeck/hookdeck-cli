@@ -58,6 +58,7 @@ type RendererConfig struct {
 	Sources          []*hookdeck.Source
 	Connections      []*hookdeck.Connection
 	Filters          *hookdeck.SessionFilters
+	APIClient        *hookdeck.Client
 }
 
 // NewRenderer creates the appropriate renderer based on output mode

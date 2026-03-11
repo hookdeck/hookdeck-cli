@@ -86,19 +86,14 @@ type Config struct {
 	Sources          []*hookdeck.Source
 	Connections      []*hookdeck.Connection
 	Filters          interface{} // Session filters (stored as interface{} to avoid circular dependency)
+	APIClient        *hookdeck.Client
 }
 
 // NewModel creates a new TUI model
 func NewModel(cfg *Config) Model {
-	parsedBaseURL, _ := url.Parse(cfg.APIBaseURL)
-
 	return Model{
-		cfg: cfg,
-		client: &hookdeck.Client{
-			BaseURL:   parsedBaseURL,
-			APIKey:    cfg.APIKey,
-			ProjectID: cfg.ProjectID,
-		},
+		cfg:           cfg,
+		client:        cfg.APIClient,
 		events:        make([]EventInfo, 0),
 		selectedIndex: -1,
 		ready:         false,

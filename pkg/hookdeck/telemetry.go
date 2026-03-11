@@ -32,6 +32,11 @@ type CLITelemetry struct {
 	DeviceName        string `json:"device_name"`
 	GeneratedResource bool   `json:"generated_resource,omitempty"`
 	MCPClient         string `json:"mcp_client,omitempty"`
+
+	// Disabled is set from the user's config (telemetry_disabled).
+	// It is checked by PerformRequest as a fallback so that clients
+	// which don't set Client.TelemetryDisabled still respect opt-out.
+	Disabled bool `json:"-"`
 }
 
 // SetCommandContext sets the telemetry values for the command being executed.
@@ -66,6 +71,11 @@ func (t *CLITelemetry) SetEnvironment(env string) {
 // SetInvocationID sets the unique invocation identifier.
 func (t *CLITelemetry) SetInvocationID(id string) {
 	t.InvocationID = id
+}
+
+// SetDisabled records the config-level telemetry opt-out in the singleton.
+func (t *CLITelemetry) SetDisabled(disabled bool) {
+	t.Disabled = disabled
 }
 
 //

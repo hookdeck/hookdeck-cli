@@ -180,6 +180,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		GuestURL:         guestURL,
 		MaxConnections:   flags.MaxConnections,
 		Filters:          flags.Filters,
+		APIClient:        apiClient,
 	}
 
 	// Create renderer based on output mode
@@ -197,6 +198,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		Sources:          sources,
 		Connections:      connections,
 		Filters:          flags.Filters,
+		APIClient:        apiClient,
 	}
 
 	renderer := proxy.NewRenderer(rendererCfg)

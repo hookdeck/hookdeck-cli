@@ -128,7 +128,8 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 		req.Header.Set("X-Project-ID", c.ProjectID)
 	}
 
-	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT"), c.TelemetryDisabled) {
+	singletonDisabled := GetTelemetryInstance().Disabled
+	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT"), c.TelemetryDisabled || singletonDisabled) {
 		var telemetryHdr string
 		var telErr error
 		if c.Telemetry != nil {

@@ -46,6 +46,7 @@ var rootCmd = &cobra.Command{
 // must call this explicitly — Cobra does not chain PersistentPreRun.
 func initTelemetry(cmd *cobra.Command) {
 	tel := hookdeck.GetTelemetryInstance()
+	tel.SetDisabled(Config.TelemetryDisabled)
 	tel.SetSource("cli")
 	tel.SetEnvironment(hookdeck.DetectEnvironment())
 	tel.SetCommandContext(cmd)

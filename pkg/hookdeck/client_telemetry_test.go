@@ -182,3 +182,36 @@ func TestPerformRequestFallsBackToSingleton(t *testing.T) {
 	require.Equal(t, "test-host", parsed.DeviceName)
 	require.Equal(t, "inv_singleton_test", parsed.InvocationID)
 }
+
+func TestPerformRequestTelemetryDisabledBySingleton(t *testing.T) {
+	ResetTelemetryInstanceForTesting()
+	defer ResetTelemetryInstanceForTesting()
+
+	var receivedHeader string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader = r.Header.Get(TelemetryHeaderName)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	baseURL, _ := url.Parse(server.URL)
+	// Client does NOT set TelemetryDisabled — simulates a stray client construction
+	client := &Client{
+		BaseURL: baseURL,
+		APIKey:  "test",
+	}
+
+	// Disable telemetry via the singleton (as initTelemetry would)
+	tel := GetTelemetryInstance()
+	tel.SetDisabled(true)
+
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_OPTOUT", "")
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/test", nil)
+	require.NoError(t, err)
+
+	_, err = client.PerformRequest(context.Background(), req)
+	require.NoError(t, err)
+
+	require.Empty(t, receivedHeader, "telemetry header should be empty when singleton has Disabled=true")
+}
