@@ -1,3 +1,5 @@
+//go:build issue
+
 package acceptance
 
 import (

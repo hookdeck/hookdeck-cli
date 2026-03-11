@@ -1,3 +1,5 @@
+//go:build attempt
+
 package acceptance
 
 import (

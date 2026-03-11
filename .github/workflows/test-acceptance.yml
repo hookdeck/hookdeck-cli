@@ -7,10 +7,24 @@ on:
       - main
 
 jobs:
-  test:
+  acceptance:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slice: "0"
+            api_key_secret: HOOKDECK_CLI_TESTING_API_KEY
+            tags: "basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
+          - slice: "1"
+            api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_2
+            tags: "request event"
+          - slice: "2"
+            api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_3
+            tags: "attempt metrics issue transformation"
     runs-on: ubuntu-latest
     env:
-      HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_API_KEY }}
+      ACCEPTANCE_SLICE: ${{ matrix.slice }}
+      HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets[matrix.api_key_secret] }}
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -20,5 +34,5 @@ jobs:
         with:
           go-version: "1.24.9"
 
-      - name: Run Go Acceptance Tests
-        run: go test ./test/acceptance/... -v -timeout 20m
+      - name: Run Go Acceptance Tests (slice ${{ matrix.slice }})
+        run: go test -tags="${{ matrix.tags }}" ./test/acceptance/... -v -timeout 12m

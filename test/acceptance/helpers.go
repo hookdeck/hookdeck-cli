@@ -60,12 +60,12 @@ type CLIRunner struct {
 }
 
 // NewCLIRunner creates a new CLI runner for tests
-// It requires HOOKDECK_CLI_TESTING_API_KEY (and optionally HOOKDECK_CLI_TESTING_API_KEY_2 for slice 1) to be set
+// It requires HOOKDECK_CLI_TESTING_API_KEY (and optionally HOOKDECK_CLI_TESTING_API_KEY_2 for slice 1, HOOKDECK_CLI_TESTING_API_KEY_3 for slice 2) to be set
 func NewCLIRunner(t *testing.T) *CLIRunner {
 	t.Helper()
 
 	apiKey := getAcceptanceAPIKey(t)
-	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY (or HOOKDECK_CLI_TESTING_API_KEY_2 for slice 1) must be set")
+	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY (or HOOKDECK_CLI_TESTING_API_KEY_2 for slice 1, HOOKDECK_CLI_TESTING_API_KEY_3 for slice 2) must be set")
 
 	// Get and store the absolute project root path before any directory changes
 	projectRoot, err := filepath.Abs("../..")
@@ -86,11 +86,16 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 }
 
 // getAcceptanceAPIKey returns the API key for the current acceptance slice.
-// When ACCEPTANCE_SLICE=1 and HOOKDECK_CLI_TESTING_API_KEY_2 is set, use it; else HOOKDECK_CLI_TESTING_API_KEY.
+// When ACCEPTANCE_SLICE=1 and HOOKDECK_CLI_TESTING_API_KEY_2 is set, use it; when ACCEPTANCE_SLICE=2 and HOOKDECK_CLI_TESTING_API_KEY_3 is set, use that; else HOOKDECK_CLI_TESTING_API_KEY.
 func getAcceptanceAPIKey(t *testing.T) string {
 	t.Helper()
-	if os.Getenv("ACCEPTANCE_SLICE") == "1" {
+	switch os.Getenv("ACCEPTANCE_SLICE") {
+	case "1":
 		if k := os.Getenv("HOOKDECK_CLI_TESTING_API_KEY_2"); k != "" {
+			return k
+		}
+	case "2":
+		if k := os.Getenv("HOOKDECK_CLI_TESTING_API_KEY_3"); k != "" {
 			return k
 		}
 	}
@@ -143,8 +148,7 @@ func NewManualCLIRunner(t *testing.T) *CLIRunner {
 
 // Run executes the CLI with the given arguments and returns stdout, stderr, and error
 // The CLI is executed via `go run main.go` from the project root.
-// When configPath is set (parallel slice mode), HOOKDECK_CONFIG_FILE env is set so each slice uses its own config file
-// (we use env instead of --hookdeck-config to avoid colliding with subcommands that use --config for JSON).
+// When configPath is set (parallel slice mode), HOOKDECK_CONFIG_FILE env is set so each slice uses its own config file.
 func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 

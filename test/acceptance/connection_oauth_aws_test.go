@@ -1,3 +1,5 @@
+//go:build connection_oauth_aws
+
 package acceptance
 
 import (

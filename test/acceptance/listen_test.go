@@ -1,3 +1,5 @@
+//go:build listen
+
 package acceptance
 
 import (
