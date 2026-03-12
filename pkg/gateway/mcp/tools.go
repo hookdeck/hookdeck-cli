@@ -114,10 +114,10 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_events",
-				Description: "Query events (processed deliveries routed through connections to destinations). List with filters by status, source, destination, or date range. Get event details or inspect the raw payload body.",
+				Description: "Query events (processed deliveries routed through connections to destinations). List with filters by status, source, destination, or date range. Get event details (get) or the event payload (raw_body). Use action raw_body with the event id to get the payload directly — do not use hookdeck_requests for the payload when you already have an event id.",
 				InputSchema: schema(map[string]prop{
-					"action":          {Type: "string", Desc: "Action: list, get, or raw_body", Enum: []string{"list", "get", "raw_body"}},
-					"id":              {Type: "string", Desc: "Event ID (required for get/raw_body)"},
+					"action":          {Type: "string", Desc: "Action: list, get, or raw_body. Use raw_body to get the event payload (body); get returns metadata and headers only.", Enum: []string{"list", "get", "raw_body"}},
+					"id":              {Type: "string", Desc: "Event ID (required for get/raw_body). Use with raw_body to fetch the event payload without querying the request."},
 					"connection_id":   {Type: "string", Desc: "Filter by connection (list, maps to webhook_id)"},
 					"source_id":       {Type: "string", Desc: "Filter by source (list)"},
 					"destination_id":  {Type: "string", Desc: "Filter by destination (list)"},

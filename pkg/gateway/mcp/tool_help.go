@@ -143,8 +143,8 @@ Parameters:
 
 Actions:
   list     — List events with optional filters
-  get      — Get a single event by ID
-  raw_body — Get the raw body of an event
+  get      — Get a single event by ID (metadata and headers only; no payload)
+  raw_body — Get the event payload (body) directly by event ID. Use this when you need the payload; no need to call hookdeck_requests.
 
 Parameters:
   action          (string, required) — list, get, or raw_body
