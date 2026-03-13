@@ -25,6 +25,9 @@ func newConnectionPauseCmd() *connectionPauseCmd {
 The connection will queue incoming events until unpaused.`,
 		RunE: cc.runConnectionPauseCmd,
 	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+	}
 
 	return cc
 }

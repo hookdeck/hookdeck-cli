@@ -23,6 +23,9 @@ func newConnectionDisableCmd() *connectionDisableCmd {
 		Long:  LongDisableIntro(ResourceConnection),
 		RunE: cc.runConnectionDisableCmd,
 	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+	}
 
 	return cc
 }
