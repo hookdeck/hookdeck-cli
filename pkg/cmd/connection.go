@@ -29,6 +29,7 @@ A connection links a source to a destination and defines how webhooks are routed
 You can create connections with inline source and destination creation, or reference
 existing resources.`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			initTelemetry(cmd)
 			if shouldShowConnectionDeprecation() {
 				fmt.Fprint(os.Stderr, connectionDeprecationNotice)
 			}

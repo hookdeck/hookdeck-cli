@@ -1,3 +1,5 @@
+//go:build connection_upsert
+
 package acceptance
 
 import (

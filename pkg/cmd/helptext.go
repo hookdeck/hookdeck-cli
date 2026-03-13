@@ -12,6 +12,7 @@ const (
 	ResourceEvent          = "event"
 	ResourceRequest        = "request"
 	ResourceAttempt       = "attempt"
+	ResourceIssue         = "issue"
 )
 
 // Short help (one line) for common commands. Use when the only difference is the resource name.

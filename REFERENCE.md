@@ -19,7 +19,6 @@ The Hookdeck CLI provides comprehensive webhook infrastructure management includ
 - [Events](#events)
 - [Requests](#requests)
 - [Attempts](#attempts)
-- [Metrics](#metrics)
 - [Utilities](#utilities)
 <!-- GENERATE_END -->
 ## Global Options
@@ -30,8 +29,8 @@ All commands support these global options:
 | Flag | Type | Description |
 |------|------|-------------|
 | `--color` | `string` | turn on/off color output (on, off, auto) |
-| `--config` | `string` | config file (default is $HOME/.config/hookdeck/config.toml) |
 | `--device-name` | `string` | device name |
+| `--hookdeck-config` | `string` | path to CLI config file (default is $HOME/.config/hookdeck/config.toml) |
 | `--insecure` | `bool` | Allow invalid TLS certificates |
 | `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
 | `-p, --profile` | `string` | profile name (default "default") |
@@ -206,7 +205,7 @@ hookdeck listen [port or forwarding URL] [source] [connection] [flags]
 ## Gateway
 
 Commands for managing Event Gateway sources, destinations, connections,
-transformations, events, requests, and metrics.
+transformations, events, requests, metrics, and MCP server.
 
 The gateway command group provides full access to all Event Gateway resources.
 
@@ -227,6 +226,9 @@ hookdeck gateway source create --name my-source --type WEBHOOK
 
 # Query event metrics
 hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z
+
+# Start the MCP server for AI agent access
+hookdeck gateway mcp
 ```
 <!-- GENERATE_END -->
 ## Connections
@@ -544,7 +546,7 @@ hookdeck gateway connection upsert <name> [flags]
 | `--destination-basic-auth-pass` | `string` | Password for destination Basic authentication |
 | `--destination-basic-auth-user` | `string` | Username for destination Basic authentication |
 | `--destination-bearer-token` | `string` | Bearer token for destination authentication |
-| `--destination-cli-path` | `string` | CLI path for CLI destinations (default: /) (default "/") |
+| `--destination-cli-path` | `string` | CLI path for CLI destinations (default: / for new connections) |
 | `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
 | `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
 | `--destination-description` | `string` | Destination description |
@@ -725,6 +727,7 @@ hookdeck gateway source create [flags]
 | `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
+| `--config` | `string` | JSON object for source config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
 | `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
 | `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
@@ -785,6 +788,7 @@ hookdeck gateway source update <source-id> [flags]
 | `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
+| `--config` | `string` | JSON object for source config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
 | `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
 | `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
@@ -843,6 +847,7 @@ hookdeck gateway source upsert <name> [flags]
 | `--api-key` | `string` | API key for source authentication |
 | `--basic-auth-pass` | `string` | Password for Basic authentication |
 | `--basic-auth-user` | `string` | Username for Basic authentication |
+| `--config` | `string` | JSON object for source config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for source config (overrides individual flags if set) |
 | `--custom-response-body` | `string` | Custom response body (max 1000 chars) |
 | `--custom-response-content-type` | `string` | Custom response content type (json, text, xml) |
@@ -971,6 +976,7 @@ hookdeck gateway destination create [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations (default "/") |
+| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
@@ -1037,6 +1043,7 @@ hookdeck gateway destination update <destination-id> [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
+| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
@@ -1100,6 +1107,7 @@ hookdeck gateway destination upsert <name> [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
+| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |

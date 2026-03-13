@@ -39,6 +39,9 @@ Examples:
 	 hookdeck connection get my-connection`,
 		RunE: cc.runConnectionGetCmd,
 	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id-or-name","type":"string","description":"Connection ID or name","required":true}]`,
+	}
 
 	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
 	addIncludeSourceAuthFlagForConnection(cc.cmd, &cc.includeSourceAuth)

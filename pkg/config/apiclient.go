@@ -10,6 +10,13 @@ import (
 var apiClient *hookdeck.Client
 var apiClientOnce sync.Once
 
+// ResetAPIClientForTesting resets the global API client singleton so that
+// tests can start with a fresh instance. Must only be called from tests.
+func ResetAPIClientForTesting() {
+	apiClient = nil
+	apiClientOnce = sync.Once{}
+}
+
 // GetAPIClient returns the internal API client instance
 func (c *Config) GetAPIClient() *hookdeck.Client {
 	apiClientOnce.Do(func() {
@@ -19,10 +26,11 @@ func (c *Config) GetAPIClient() *hookdeck.Client {
 		}
 
 		apiClient = &hookdeck.Client{
-			BaseURL:   baseURL,
-			APIKey:    c.Profile.APIKey,
-			ProjectID: c.Profile.ProjectId,
-			Verbose:   c.LogLevel == "debug",
+			BaseURL:           baseURL,
+			APIKey:            c.Profile.APIKey,
+			ProjectID:         c.Profile.ProjectId,
+			Verbose:           c.LogLevel == "debug",
+			TelemetryDisabled: c.TelemetryDisabled,
 		}
 	})
 

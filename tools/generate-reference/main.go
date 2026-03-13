@@ -1,7 +1,7 @@
-// generate-reference generates REFERENCE.md (or other files) from Cobra command metadata.
+// generate-reference generates REFERENCE.md from Cobra command metadata.
 //
-// It reads input file(s), finds GENERATE marker pairs, and replaces content between
-// START and END with generated output. Structure is controlled by the input file.
+// It reads the input file, finds GENERATE marker pairs, and replaces content between
+// START and END with generated output. Structure is controlled by the file.
 //
 // Marker format:
 //   - GENERATE_TOC:START ... GENERATE_END - table of contents
@@ -13,10 +13,10 @@
 //
 // Usage:
 //
-//	go run ./tools/generate-reference --input REFERENCE.md                    # in-place
-//	go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md
-//	go run ./tools/generate-reference --input a.mdoc --input b.mdoc           # batch, each in-place
-//	go run ./tools/generate-reference --input REFERENCE.md --check            # verify up to date
+//	go run ./tools/generate-reference                          # in-place update REFERENCE.md
+//	go run ./tools/generate-reference --input REFERENCE.md     # same (explicit input)
+//	go run ./tools/generate-reference --input a.mdoc --input b.mdoc  # batch, each in-place
+//	go run ./tools/generate-reference --check                  # verify REFERENCE.md is up to date
 //
 // For website two-column layout (section/div/aside), add --no-toc, --no-examples-heading, and wrappers:
 //
@@ -90,8 +90,7 @@ func main() {
 	}
 
 	if len(inputs) == 0 {
-		fmt.Fprintf(os.Stderr, "generate-reference: --input is required (use --input <file>)\n")
-		os.Exit(1)
+		inputs = []string{"REFERENCE.md"}
 	}
 	if len(inputs) > 1 && *output != "" {
 		fmt.Fprintf(os.Stderr, "generate-reference: cannot use --output with multiple --input (batch is in-place only)\n")
@@ -283,7 +282,8 @@ func generateHelpOutput(root *cobra.Command, path string, wrap wrapConfig) strin
 	mainBuf.WriteString(globalFlagsTable(root))
 	mainStr := strings.TrimRight(mainBuf.String(), "\n")
 
-	// Examples: available commands (comes after flags, no heading to avoid layout issues)
+	// Examples: available commands (comes after flags, no heading to avoid layout issues).
+	// For leaf subcommands, append placeholders for required flags/args so the line is runnable.
 	var examplesBuf bytes.Buffer
 	if c.HasAvailableSubCommands() {
 		examplesBuf.WriteString("```bash\n")
@@ -293,6 +293,17 @@ func generateHelpOutput(root *cobra.Command, path string, wrap wrapConfig) strin
 			}
 			cmdPath := sub.CommandPath()
 			examplesBuf.WriteString(cmdPath)
+			// Append required flags/args placeholders for leaf commands so aside lines are runnable.
+			if !sub.HasAvailableSubCommands() {
+				suffix := exampleSuffixForRequired(sub)
+				// Metrics subcommands always need --start/--end and --measures; ensure we never emit a bare line.
+				if suffix == "" && strings.Contains(cmdPath, " metrics ") {
+					suffix = "--start 2025-01-01T00:00:00Z --end 2025-01-02T00:00:00Z --measures count"
+				}
+				if suffix != "" {
+					examplesBuf.WriteString(" " + suffix)
+				}
+			}
 			if sub.Short != "" {
 				examplesBuf.WriteString("  # " + sub.Short)
 			}
@@ -634,6 +645,126 @@ type argSpec struct {
 	Required    bool   `json:"required"`
 }
 
+// bashCompOneRequiredFlag is the pflag annotation key Cobra sets for required flags.
+// Cobra uses this in ValidateRequiredFlags; we use it to discover required flags for example placeholders.
+const bashCompOneRequiredFlag = "cobra_annotation_bash_completion_one_required_flag"
+
+// requiredFlags returns the list of required flag names for c (local flags only), in visit order.
+func requiredFlags(c *cobra.Command) []string {
+	var names []string
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Hidden {
+			return
+		}
+		ann, ok := f.Annotations[bashCompOneRequiredFlag]
+		if !ok || len(ann) == 0 || ann[0] != "true" {
+			return
+		}
+		names = append(names, f.Name)
+	})
+	return names
+}
+
+// requiredArgsFromAnnotations returns required positional args from c.Annotations["cli.arguments"] in order.
+func requiredArgsFromAnnotations(c *cobra.Command) []argSpec {
+	if c.Annotations == nil {
+		return nil
+	}
+	raw, ok := c.Annotations["cli.arguments"]
+	if !ok || raw == "" {
+		return nil
+	}
+	var args []argSpec
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		return nil
+	}
+	var out []argSpec
+	for _, a := range args {
+		if a.Required {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// exampleSuffixForRequired returns a placeholder string for required flags and args for use in example lines.
+// Used by the command-group aside and (optionally) per-command examples. Returns empty if no required flags/args.
+func exampleSuffixForRequired(c *cobra.Command) string {
+	flags := requiredFlags(c)
+	args := requiredArgsFromAnnotations(c)
+	path := c.CommandPath()
+	isMetrics := strings.Contains(path, " metrics ")
+	// Metrics subcommands always require --start, --end, and --measures (CLI/API enforce this). If annotation wasn't found, still add them.
+	if isMetrics && len(flags) == 0 && len(args) == 0 {
+		return "--start 2025-01-01T00:00:00Z --end 2025-01-02T00:00:00Z --measures count"
+	}
+	if len(flags) == 0 && len(args) == 0 {
+		return ""
+	}
+	var parts []string
+
+	// Time range: start and end (metrics subcommands)
+	hasStart := false
+	hasEnd := false
+	for _, n := range flags {
+		if n == "start" {
+			hasStart = true
+		}
+		if n == "end" {
+			hasEnd = true
+		}
+	}
+	if hasStart && hasEnd && isMetrics {
+		parts = append(parts, "--start 2025-01-01T00:00:00Z", "--end 2025-01-02T00:00:00Z")
+	}
+	// measures (metrics)
+	for _, n := range flags {
+		if n == "measures" && isMetrics {
+			parts = append(parts, "--measures count")
+			break
+		}
+	}
+	// Other required flags not yet added
+	for _, n := range flags {
+		if (n == "start" || n == "end") && isMetrics {
+			continue
+		}
+		if n == "measures" && isMetrics {
+			continue
+		}
+		switch n {
+		case "name":
+			if !sliceContains(parts, "--name") {
+				parts = append(parts, "--name <name>")
+			}
+		case "type":
+			if !sliceContains(parts, "--type") {
+				parts = append(parts, "--type <type>")
+			}
+		case "status":
+			if !sliceContains(parts, "--status") {
+				parts = append(parts, "--status acknowledged")
+			}
+		default:
+			parts = append(parts, "--"+n+" <value>")
+		}
+	}
+	// Required positionals
+	for _, a := range args {
+		parts = append(parts, "<"+a.Name+">")
+	}
+	return strings.Join(parts, " ")
+}
+
+func sliceContains(parts []string, s string) bool {
+	for _, p := range parts {
+		if strings.HasPrefix(p, s+" ") || p == s {
+			return true
+		}
+	}
+	return false
+}
+
 // renderArgumentsTable returns a markdown Arguments table if c.Annotations["cli.arguments"] contains
 // valid JSON array of argSpec. Used to document positional args before the Flags table.
 func renderArgumentsTable(c *cobra.Command) string {
@@ -751,6 +882,6 @@ func runCheck(refPath string, generated []byte) {
 	tmp.Write(generated)
 	tmp.Close()
 	absRef, _ := filepath.Abs(refPath)
-	fmt.Fprintf(os.Stderr, "%s is out of date. Run: go run ./tools/generate-reference --input <template> [--output <file>]\n", refPath)
+	fmt.Fprintf(os.Stderr, "%s is out of date. Run: go run ./tools/generate-reference [--input REFERENCE.md]\n", refPath)
 	fmt.Fprintf(os.Stderr, "Diff: diff %s %s\n", absRef, tmpPath)
 }

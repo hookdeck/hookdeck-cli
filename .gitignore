@@ -16,6 +16,7 @@ default_cassette.yaml
 __debug_bin
 node_modules/
 .env
+test/acceptance/logs/
 test-scripts/.install-test/
 
 # Temporary OpenAPI spec download (large; do not commit)
@@ -23,3 +24,6 @@ test-scripts/.install-test/
 
 # Claude Code temporary worktrees
 .claude/worktrees/
+
+# Claude Code project notes (local only)
+CLAUDE.md

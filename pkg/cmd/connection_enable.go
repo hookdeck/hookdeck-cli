@@ -23,6 +23,9 @@ func newConnectionEnableCmd() *connectionEnableCmd {
 		Long:  LongEnableIntro(ResourceConnection),
 		RunE: cc.runConnectionEnableCmd,
 	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+	}
 
 	return cc
 }

@@ -18,7 +18,7 @@ func newGatewayCmd() *gatewayCmd {
 		Args:  validators.NoArgs,
 		Short: "Manage Hookdeck Event Gateway resources",
 		Long: `Commands for managing Event Gateway sources, destinations, connections,
-transformations, events, requests, and metrics.
+transformations, events, requests, metrics, and MCP server.
 
 The gateway command group provides full access to all Event Gateway resources.`,
 		Example: `  # List connections
@@ -28,7 +28,10 @@ The gateway command group provides full access to all Event Gateway resources.`,
   hookdeck gateway source create --name my-source --type WEBHOOK
 
   # Query event metrics
-  hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z`,
+  hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z
+
+  # Start the MCP server for AI agent access
+  hookdeck gateway mcp`,
 	}
 
 	// Register resource subcommands (same factory as root backward-compat registration)
@@ -40,6 +43,8 @@ The gateway command group provides full access to all Event Gateway resources.`,
 	addRequestCmdTo(g.cmd)
 	addAttemptCmdTo(g.cmd)
 	addMetricsCmdTo(g.cmd)
+	addIssueCmdTo(g.cmd)
+	addMCPCmdTo(g.cmd)
 
 	return g
 }

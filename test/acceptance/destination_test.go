@@ -1,3 +1,5 @@
+//go:build destination
+
 package acceptance
 
 import (

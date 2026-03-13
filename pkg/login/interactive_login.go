@@ -36,7 +36,8 @@ func InteractiveLogin(config *config.Config) error {
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
+		BaseURL:           parsedBaseURL,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	response, err := client.PollForAPIKeyWithKey(apiKey, 0, 0)

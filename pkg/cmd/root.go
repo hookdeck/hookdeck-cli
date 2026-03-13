@@ -36,6 +36,22 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	Version:       version.Version,
 	Short:         "A CLI to forward events received on Hookdeck to your local server.",
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		initTelemetry(cmd)
+	},
+}
+
+// initTelemetry populates the process-wide telemetry singleton before any
+// command runs. Commands that override PersistentPreRun (e.g. connection)
+// must call this explicitly — Cobra does not chain PersistentPreRun.
+func initTelemetry(cmd *cobra.Command) {
+	tel := hookdeck.GetTelemetryInstance()
+	tel.SetDisabled(Config.TelemetryDisabled)
+	tel.SetSource("cli")
+	tel.SetEnvironment(hookdeck.DetectEnvironment())
+	tel.SetCommandContext(cmd)
+	tel.SetDeviceName(Config.DeviceName)
+	tel.SetInvocationID(hookdeck.NewInvocationID())
 }
 
 // RootCmd returns the root command for use by tools (e.g. generate-reference).
@@ -110,7 +126,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
 
-	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "hookdeck-config", "", "path to CLI config file (default is $HOME/.config/hookdeck/config.toml)")
 
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
 
@@ -141,6 +157,7 @@ func init() {
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
 	rootCmd.AddCommand(newProjectCmd().cmd)
 	rootCmd.AddCommand(newGatewayCmd().cmd)
+	rootCmd.AddCommand(newTelemetryCmd().cmd)
 	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
 	addConnectionCmdTo(rootCmd)
 }

@@ -42,6 +42,9 @@ type Config struct {
 	configFile     string // resolved path of config file
 	viper          *viper.Viper
 
+	// Telemetry
+	TelemetryDisabled bool
+
 	// Internal
 	fs ConfigFS
 }
@@ -329,11 +332,24 @@ func (c *Config) constructConfig() {
 	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
 
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
+
+	// Telemetry opt-out: check config file for telemetry_disabled = true
+	if c.viper.IsSet("telemetry_disabled") {
+		c.TelemetryDisabled = c.viper.GetBool("telemetry_disabled")
+	}
+}
+
+// SetTelemetryDisabled persists the telemetry_disabled flag to the config file.
+func (c *Config) SetTelemetryDisabled(disabled bool) error {
+	c.TelemetryDisabled = disabled
+	c.viper.Set("telemetry_disabled", disabled)
+	return c.writeConfig()
 }
 
 // getConfigPath returns the path for the config file.
 // Precedence:
-// - path (if path is provided)
+// - path (if path is provided, e.g. from --hookdeck-config flag)
+// - HOOKDECK_CONFIG_FILE env var (for acceptance tests / parallel runs; avoids flag collision with subcommand JSON --config)
 // - `${PWD}/.hookdeck/config.toml`
 // - `${HOME}/.config/hookdeck/config.toml`
 // Returns the path string and a boolean indicating whether it's the global default path.
@@ -348,6 +364,9 @@ func (c *Config) getConfigPath(path string) (string, bool) {
 			return path, false
 		}
 		return filepath.Join(workspaceFolder, path), false
+	}
+	if envPath := os.Getenv("HOOKDECK_CONFIG_FILE"); envPath != "" {
+		return envPath, false
 	}
 
 	localConfigPath := filepath.Join(workspaceFolder, ".hookdeck/config.toml")

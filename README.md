@@ -8,11 +8,49 @@ Using the Hookdeck CLI, you can forward your events (e.g. webhooks) to your loca
 
 Hookdeck CLI is compatible with most of Hookdeck's features, such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your event (e.g. webhook) integration code locally.
 
+You can also manage Hookdeck Event Gateway resources—sources, destinations, connections, events, transformations—from the CLI. For AI and agent workflows, the Event Gateway MCP server (`hookdeck gateway mcp`) exposes these capabilities as tools in MCP-compatible clients (e.g. Cursor, Claude).
+
 Although it uses a different approach and philosophy, it's a replacement for ngrok and alternative HTTP tunnel solutions.
 
 Hookdeck for development is completely free, and we monetize the platform with our production offering.
 
 For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE.md).
+
+## Table of contents
+
+- [Installation](#installation)
+  - [NPM](#npm)
+  - [macOS](#macos)
+  - [Windows](#windows)
+  - [Linux Or without package managers](#linux-or-without-package-managers)
+  - [Docker](#docker)
+- [Usage](#usage)
+- [Commands](#commands)
+  - [Login](#login)
+  - [Listen](#listen)
+  - [Logout](#logout)
+  - [Skip SSL validation](#skip-ssl-validation)
+  - [Disable health checks](#disable-health-checks)
+  - [Version](#version)
+  - [Completion](#completion)
+  - [Running in CI](#running-in-ci)
+  - [Event Gateway](#event-gateway)
+  - [Event Gateway MCP](#event-gateway-mcp)
+  - [Manage connections](#manage-connections)
+  - [Transformations](#transformations)
+  - [Requests, events, and attempts](#requests-events-and-attempts)
+  - [Manage active project](#manage-active-project)
+  - [Telemetry](#telemetry)
+- [Configuration files](#configuration-files)
+- [Global Flags](#global-flags)
+- [Troubleshooting](#troubleshooting)
+- [Developing](#developing)
+- [Testing](#testing)
+- [Releasing](#releasing)
+- [Repository Setup](#repository-setup)
+- [License](#license)
+
+**Quick links:** [Local development (Listen)](#listen) · [Resource management (CLI)](#event-gateway) / [Manage connections](#manage-connections) · [AI / agent integration (Event Gateway MCP)](#event-gateway-mcp)
 
 https://github.com/user-attachments/assets/7a333c5b-e4cb-45bb-8570-29fafd137bd2
 
@@ -491,6 +529,83 @@ hookdeck gateway transformation run --code "addHandler(\"transform\", (request, 
 
 For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
 
+### Event Gateway MCP
+
+The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for investigating event traffic in production. It exposes read-only tools that let AI agents query your Hookdeck Event Gateway — inspect connections, trace requests through events and delivery attempts, review issues, and pull aggregate metrics.
+
+**Configure your MCP client** (Cursor, Claude Desktop, or any MCP-compatible host):
+
+Cursor (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp"]
+    }
+  }
+}
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp"]
+    }
+  }
+}
+```
+
+The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool is available to log in via the browser.
+
+#### Available tools
+
+| Tool | Description |
+|------|-------------|
+| `hookdeck_projects` | List projects or switch the active project for this session |
+| `hookdeck_connections` | Inspect connections and control delivery flow (list, get, pause, unpause) |
+| `hookdeck_sources` | Inspect inbound sources (HTTP endpoints that receive events) |
+| `hookdeck_destinations` | Inspect delivery destinations (HTTP endpoints where events are sent) |
+| `hookdeck_transformations` | Inspect JavaScript transformations applied to event payloads |
+| `hookdeck_requests` | Query inbound requests — list, get details, raw body, linked events |
+| `hookdeck_events` | Query processed events — list, get details, raw payload body |
+| `hookdeck_attempts` | Query delivery attempts — retry history, response codes, errors |
+| `hookdeck_issues` | Inspect aggregated failure signals (delivery failures, transform errors, backpressure) |
+| `hookdeck_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
+| `hookdeck_help` | Discover available tools and their actions |
+
+#### Example prompts
+
+Once the MCP server is configured, you can ask your agent questions like:
+
+```
+"Are any of my events failing right now?"
+→ Agent uses hookdeck_issues to list open issues, then hookdeck_events to inspect recent failures.
+
+"Show me the last 10 events for my Stripe source and check if any failed."
+→ Agent uses hookdeck_sources to find the Stripe source, then hookdeck_events filtered by source and status.
+
+"What's the error rate for my API destination over the last 24 hours?"
+→ Agent uses hookdeck_metrics with measures like failed_count and count, grouped by destination.
+
+"Trace request req_abc123 — what events did it produce, and did they all deliver successfully?"
+→ Agent uses hookdeck_requests to get the request, then the events action to list generated events.
+
+"Why is my checkout endpoint returning 500s? Show me the latest attempt details."
+→ Agent uses hookdeck_events filtered by status FAILED, then hookdeck_attempts to inspect delivery details.
+
+"Pause the connection between Stripe and my staging endpoint while I debug."
+→ Agent uses hookdeck_connections to find and pause the connection.
+
+"Compare failure rates across all my destinations this week."
+→ Agent uses hookdeck_metrics with dimensions set to destination_id and measures like error_rate.
+```
+
 ### Manage connections
 
 Create and manage webhook connections between sources and destinations with inline resource creation, authentication, processing rules, and lifecycle management. Use `hookdeck gateway connection` (or the backward-compatible alias `hookdeck connection`). For detailed examples with authentication, filters, retry rules, and rate limiting, see the complete [connection management](#manage-connections) section below.
@@ -617,7 +732,7 @@ By default, `project use` saves your selection to the **global configuration** (
 
 The CLI uses exactly one configuration file based on this precedence:
 
-1. **Custom config** (via `--config` flag) - highest priority
+1. **Custom config** (via `--hookdeck-config` flag) - highest priority
 2. **Local config** - `${PWD}/.hookdeck/config.toml` (if exists)
 3. **Global config** - `~/.config/hookdeck/config.toml` (default)
 
@@ -667,11 +782,11 @@ This ensures your directory-specific configuration is preserved when it exists.
 hookdeck project use my-org my-project
 hookdeck project use my-org my-project --local
 
-# ❌ Invalid (cannot combine --config with --local)
-hookdeck --config custom.toml project use my-org my-project --local
-Error: --local and --config flags cannot be used together
+# ❌ Invalid (cannot combine --hookdeck-config with --local)
+hookdeck --hookdeck-config custom.toml project use my-org my-project --local
+Error: --local and --hookdeck-config flags cannot be used together
   --local creates config at: .hookdeck/config.toml
-  --config uses custom path: custom.toml
+  --hookdeck-config uses custom path: custom.toml
 ```
 
 #### Benefits of local project pinning
@@ -980,6 +1095,20 @@ $ hookdeck gateway connection delete conn_123abc --force
 
 For complete flag documentation and all examples, see [REFERENCE.md](REFERENCE.md).
 
+### Telemetry
+
+The Hookdeck CLI collects anonymous telemetry to help improve the tool. You can opt out at any time:
+
+```sh
+# Disable telemetry
+hookdeck telemetry disabled
+
+# Re-enable telemetry
+hookdeck telemetry enabled
+```
+
+You can also disable telemetry by setting the `HOOKDECK_CLI_TELEMETRY_DISABLED` environment variable to `1` or `true`.
+
 ## Configuration files
 
 The Hookdeck CLI uses configuration files to store the your keys, project settings, profiles, and other configurations.
@@ -988,9 +1117,10 @@ The Hookdeck CLI uses configuration files to store the your keys, project settin
 
 The CLI will look for the configuration file in the following order:
 
-1. The `--config` flag, which allows you to specify a custom configuration file name and path per command.
-2. The local directory `.hookdeck/config.toml`.
-3. The default global configuration file location.
+1. The `--hookdeck-config` flag, which allows you to specify a custom configuration file path per command.
+2. The `HOOKDECK_CONFIG_FILE` environment variable (path to the config file).
+3. The local directory `.hookdeck/config.toml`.
+4. The default global configuration file location.
 
 ### Default configuration Location
 
@@ -1065,7 +1195,7 @@ The following flags can be used with any command:
 
 - `--api-key`: Your API key to use for the command.
 - `--color`: Turn on/off color output (on, off, auto).
-- `--config`: Path to a specific configuration file.
+- `--hookdeck-config`: Path to the CLI configuration file. You can also set the `HOOKDECK_CONFIG_FILE` environment variable to the config file path.
 - `--device-name`: A unique name for your device.
 - `--insecure`: Allow invalid TLS certificates.
 - `--log-level`: Set the logging level (debug, info, warn, error).
@@ -1107,16 +1237,16 @@ go run main.go
 
 ### Generating REFERENCE.md
 
-The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it:
+The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it in place:
 
 ```sh
-go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md
+go run ./tools/generate-reference
 ```
 
 To validate that REFERENCE.md is up to date (useful in CI):
 
 ```sh
-go run ./tools/generate-reference --input REFERENCE.template.md --output REFERENCE.md --check
+go run ./tools/generate-reference --check
 ```
 
 Build from source by running:

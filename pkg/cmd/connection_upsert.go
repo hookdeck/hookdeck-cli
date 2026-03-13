@@ -63,6 +63,9 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 		PreRunE: cu.validateUpsertFlags,
 		RunE:    cu.runConnectionUpsertCmd,
 	}
+	cu.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"name","type":"string","description":"Connection name (create or update by name)","required":true}]`,
+	}
 
 	// Reuse all flags from create command (name is now a positional argument)
 	cu.cmd.Flags().StringVar(&cu.description, "description", "", "Connection description")

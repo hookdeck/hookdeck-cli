@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +36,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nUsing profile %s (use -p flag to use a different config profile)\n\n", color.Bold(Config.Profile.Name))
 
-	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.ProjectId)
+	response, err := Config.GetAPIClient().ValidateAPIKey()
 	if err != nil {
 		return err
 	}
