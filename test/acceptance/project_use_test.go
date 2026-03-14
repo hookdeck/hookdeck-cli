@@ -3,8 +3,10 @@
 package acceptance
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -149,4 +151,52 @@ api_key = "test_key_456"
 	assert.Equal(t, "test_project_123", projectId, "Project ID should match")
 
 	t.Log("Successfully verified local config helper functions work correctly")
+}
+
+// TestProjectListShowsType asserts that project list output includes project type (Gateway, Outpost, or Console).
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY (only CLI keys can list projects; API/CI keys cannot).
+func TestProjectListShowsType(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	stdout := cli.RunExpectSuccess("project", "list")
+	// Default output format: "Org / Project (current?) | Type"
+	assert.Contains(t, stdout, "|", "project list should show type separator")
+	assert.True(t,
+		strings.Contains(stdout, "Gateway") || strings.Contains(stdout, "Outpost") || strings.Contains(stdout, "Console"),
+		"project list should show at least one project type (Gateway, Outpost, or Console)")
+}
+
+// TestProjectListJSONOutput asserts that project list --output json returns valid JSON with id, org, project, type, current.
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY (only CLI keys can list projects; API/CI keys cannot).
+func TestProjectListJSONOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	stdout := cli.RunExpectSuccess("project", "list", "--output", "json")
+	var list []struct {
+		Id      string `json:"id"`
+		Org     string `json:"org"`
+		Project string `json:"project"`
+		Type    string `json:"type"`
+		Current bool   `json:"current"`
+	}
+	err := json.Unmarshal([]byte(stdout), &list)
+	require.NoError(t, err, "project list --output json should return valid JSON array")
+	for i, item := range list {
+		assert.NotEmpty(t, item.Id, "item %d should have id", i)
+		assert.NotEmpty(t, item.Type, "item %d should have type", i)
+		assert.True(t, item.Type == "gateway" || item.Type == "outpost" || item.Type == "console",
+			"item %d type should be gateway, outpost, or console", i)
+	}
 }

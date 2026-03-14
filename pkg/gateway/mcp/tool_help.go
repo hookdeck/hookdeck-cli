@@ -56,7 +56,7 @@ var toolHelp = map[string]string{
 	"hookdeck_projects": `hookdeck_projects — List or switch the active project
 
 Actions:
-  list  — List all projects. Returns id, name, mode, and which is current.
+  list  — List all projects. Returns id, org, project, type (gateway/outpost/console), and which is current. Outbound projects are excluded.
   use   — Switch the active project for this session (in-memory only).
 
 Parameters:

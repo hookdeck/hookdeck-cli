@@ -103,6 +103,8 @@ hookdeck whoami
 ```bash
 $ hookdeck whoami
 ```
+
+Output includes the current project type (Gateway, Outpost, or Console).
 <!-- GENERATE_END -->
 ## Projects
 
@@ -112,21 +114,30 @@ $ hookdeck whoami
 
 ### hookdeck project list
 
-List and filter projects by organization and project name substrings
+List and filter projects by organization and project name substrings. Output shows project type (Gateway, Outpost, Console). Outbound projects are excluded from the list.
 
 **Usage:**
 
 ```bash
-hookdeck project list [<organization_substring>] [<project_substring>]
+hookdeck project list [<organization_substring>] [<project_substring>] [flags]
 ```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--output` | `string` | Output format: `json` for machine-readable list (id, org, project, type, current) |
+| `--type` | `string` | Filter by project type: `gateway`, `outpost`, or `console` |
 
 **Examples:**
 
 ```bash
 $ hookdeck project list
-[Acme] Ecommerce Production (current)
-[Acme] Ecommerce Staging
-[Acme] Ecommerce Development
+Acme / Ecommerce Production (current) | Gateway
+Acme / Ecommerce Staging | Gateway
+
+$ hookdeck project list --output json
+$ hookdeck project list --type gateway
 ```
 ### hookdeck project use
 
@@ -208,6 +219,7 @@ Commands for managing Event Gateway sources, destinations, connections,
 transformations, events, requests, metrics, and MCP server.
 
 The gateway command group provides full access to all Event Gateway resources.
+**Gateway commands require the current project to be a Gateway project** (inbound or console). If your project type is Outpost or you have no project selected, run `hookdeck project use` to switch to a Gateway project first.
 
 **Usage:**
 

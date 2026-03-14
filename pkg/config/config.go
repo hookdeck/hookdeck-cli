@@ -164,6 +164,7 @@ func (c *Config) InitConfig() {
 func (c *Config) UseProject(projectId string, projectMode string) error {
 	c.Profile.ProjectId = projectId
 	c.Profile.ProjectMode = projectMode
+	c.Profile.ProjectType = ModeToProjectType(projectMode)
 	return c.Profile.SaveProfile()
 }
 
@@ -194,6 +195,7 @@ func (c *Config) UseProjectLocal(projectId string, projectMode string) (bool, er
 	// Update in-memory state
 	c.Profile.ProjectId = projectId
 	c.Profile.ProjectMode = projectMode
+	c.Profile.ProjectType = ModeToProjectType(projectMode)
 
 	// Write to local config file using shared helper
 	if err := c.writeProjectConfig(localConfigPath, !fileExists); err != nil {
@@ -236,6 +238,11 @@ func (c *Config) setProfileFieldsInViper(v *viper.Viper) {
 	v.Set("profile", c.Profile.Name)
 	v.Set(c.Profile.getConfigField("project_id"), c.Profile.ProjectId)
 	v.Set(c.Profile.getConfigField("project_mode"), c.Profile.ProjectMode)
+	projectType := c.Profile.ProjectType
+	if projectType == "" && c.Profile.ProjectMode != "" {
+		projectType = ModeToProjectType(c.Profile.ProjectMode)
+	}
+	v.Set(c.Profile.getConfigField("project_type"), projectType)
 	if c.Profile.GuestURL != "" {
 		v.Set(c.Profile.getConfigField("guest_url"), c.Profile.GuestURL)
 	}
@@ -330,6 +337,12 @@ func (c *Config) constructConfig() {
 	c.Profile.ProjectId = stringCoalesce(c.Profile.ProjectId, c.viper.GetString(c.Profile.getConfigField("project_id")), c.viper.GetString("project_id"), c.viper.GetString(c.Profile.getConfigField("workspace_id")), c.viper.GetString(c.Profile.getConfigField("team_id")), c.viper.GetString("workspace_id"), "")
 
 	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
+
+	// ProjectType: prefer project_type from config; else derive from project_mode
+	c.Profile.ProjectType = stringCoalesce(c.Profile.ProjectType, c.viper.GetString(c.Profile.getConfigField("project_type")), c.viper.GetString("project_type"), "")
+	if c.Profile.ProjectType == "" && c.Profile.ProjectMode != "" {
+		c.Profile.ProjectType = ModeToProjectType(c.Profile.ProjectMode)
+	}
 
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
 
