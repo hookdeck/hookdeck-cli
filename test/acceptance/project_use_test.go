@@ -200,3 +200,73 @@ func TestProjectListJSONOutput(t *testing.T) {
 			"item %d type should be gateway, outpost, or console", i)
 	}
 }
+
+// TestProjectListFilterByType asserts that project list --type <type> returns only projects of that type.
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY.
+func TestProjectListFilterByType(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	stdout := cli.RunExpectSuccess("project", "list", "--type", "gateway", "--output", "json")
+	var list []struct {
+		Id      string `json:"id"`
+		Org     string `json:"org"`
+		Project string `json:"project"`
+		Type    string `json:"type"`
+		Current bool   `json:"current"`
+	}
+	err := json.Unmarshal([]byte(stdout), &list)
+	require.NoError(t, err, "project list --type gateway --output json should return valid JSON array")
+	for i, item := range list {
+		assert.Equal(t, "gateway", item.Type, "item %d should have type gateway when filtering by --type gateway", i)
+	}
+}
+
+// TestProjectListFilterByOrgProject asserts that project list with org/project substrings filters results.
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY. Runs list with a substring and checks output shape and that items match.
+func TestProjectListFilterByOrgProject(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	// Get full list first to derive a substring that matches at least one project
+	full := cli.RunExpectSuccess("project", "list", "--output", "json")
+	var fullList []struct {
+		Org     string `json:"org"`
+		Project string `json:"project"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(full), &fullList), "full list should be valid JSON")
+	if len(fullList) == 0 {
+		t.Skip("No projects to filter; skipping filter test")
+	}
+	// Use first character of first org as substring so we get a non-empty filtered result
+	firstOrg := strings.TrimSpace(fullList[0].Org)
+	if firstOrg == "" {
+		t.Skip("First project has no org; skipping filter test")
+	}
+	substring := string([]rune(firstOrg)[0])
+	stdout := cli.RunExpectSuccess("project", "list", substring, "--output", "json")
+	var filtered []struct {
+		Id      string `json:"id"`
+		Org     string `json:"org"`
+		Project string `json:"project"`
+		Type    string `json:"type"`
+		Current bool   `json:"current"`
+	}
+	err := json.Unmarshal([]byte(stdout), &filtered)
+	require.NoError(t, err, "project list with org substring should return valid JSON array")
+	for i, item := range filtered {
+		assert.Contains(t, strings.ToLower(item.Org), strings.ToLower(substring),
+			"item %d org should contain substring %q", i, substring)
+		assert.NotEmpty(t, item.Type, "item %d should have type", i)
+	}
+}
