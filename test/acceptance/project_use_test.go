@@ -3,8 +3,10 @@
 package acceptance
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -149,4 +151,182 @@ api_key = "test_key_456"
 	assert.Equal(t, "test_project_123", projectId, "Project ID should match")
 
 	t.Log("Successfully verified local config helper functions work correctly")
+}
+
+// TestProjectListShowsType asserts that project list output includes project type (Gateway, Outpost, or Console).
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY (only CLI keys can list projects; API/CI keys cannot).
+func TestProjectListShowsType(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	stdout := cli.RunExpectSuccess("project", "list")
+	// Default output format: "Org / Project (current?) | Type"
+	assert.Contains(t, stdout, "|", "project list should show type separator")
+	assert.True(t,
+		strings.Contains(stdout, "Gateway") || strings.Contains(stdout, "Outpost") || strings.Contains(stdout, "Console"),
+		"project list should show at least one project type (Gateway, Outpost, or Console)")
+}
+
+// TestProjectListJSONOutput asserts that project list --output json returns valid JSON with id, org, project, type, current.
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY (only CLI keys can list projects; API/CI keys cannot).
+func TestProjectListJSONOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	stdout := cli.RunExpectSuccess("project", "list", "--output", "json")
+	var list []struct {
+		Id      string `json:"id"`
+		Org     string `json:"org"`
+		Project string `json:"project"`
+		Type    string `json:"type"`
+		Current bool   `json:"current"`
+	}
+	err := json.Unmarshal([]byte(stdout), &list)
+	require.NoError(t, err, "project list --output json should return valid JSON array")
+	for i, item := range list {
+		assert.NotEmpty(t, item.Id, "item %d should have id", i)
+		assert.NotEmpty(t, item.Type, "item %d should have type", i)
+		assert.True(t, item.Type == "gateway" || item.Type == "outpost" || item.Type == "console",
+			"item %d type should be gateway, outpost, or console", i)
+	}
+}
+
+// TestProjectListInvalidType asserts that project list --type <invalid> returns an error.
+// Does not require CLI key (validation runs before listing).
+func TestProjectListInvalidType(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout, stderr, err := cli.Run("project", "list", "--type", "invalid")
+	require.Error(t, err)
+	combined := stdout + stderr
+	assert.Contains(t, combined, "invalid", "error should mention invalid type")
+	assert.Contains(t, combined, "gateway", "error should list valid types")
+}
+
+// TestProjectListFilterByType asserts that project list --type <type> returns only projects of that type.
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY.
+func TestProjectListFilterByType(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	stdout := cli.RunExpectSuccess("project", "list", "--type", "gateway", "--output", "json")
+	var list []struct {
+		Id      string `json:"id"`
+		Org     string `json:"org"`
+		Project string `json:"project"`
+		Type    string `json:"type"`
+		Current bool   `json:"current"`
+	}
+	err := json.Unmarshal([]byte(stdout), &list)
+	require.NoError(t, err, "project list --type gateway --output json should return valid JSON array")
+	for i, item := range list {
+		assert.Equal(t, "gateway", item.Type, "item %d should have type gateway when filtering by --type gateway", i)
+	}
+}
+
+// TestProjectListFilterByOrgProject asserts that project list with org/project substrings filters results.
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY. Runs list with a substring and checks output shape and that items match.
+func TestProjectListFilterByOrgProject(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	// Get full list first to derive a substring that matches at least one project
+	full := cli.RunExpectSuccess("project", "list", "--output", "json")
+	var fullList []struct {
+		Org     string `json:"org"`
+		Project string `json:"project"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(full), &fullList), "full list should be valid JSON")
+	if len(fullList) == 0 {
+		t.Skip("No projects to filter; skipping filter test")
+	}
+	// Use first character of first org as substring so we get a non-empty filtered result
+	firstOrg := strings.TrimSpace(fullList[0].Org)
+	if firstOrg == "" {
+		t.Skip("First project has no org; skipping filter test")
+	}
+	substring := string([]rune(firstOrg)[0])
+	stdout := cli.RunExpectSuccess("project", "list", substring, "--output", "json")
+	var filtered []struct {
+		Id      string `json:"id"`
+		Org     string `json:"org"`
+		Project string `json:"project"`
+		Type    string `json:"type"`
+		Current bool   `json:"current"`
+	}
+	err := json.Unmarshal([]byte(stdout), &filtered)
+	require.NoError(t, err, "project list with org substring should return valid JSON array")
+	for i, item := range filtered {
+		assert.Contains(t, strings.ToLower(item.Org), strings.ToLower(substring),
+			"item %d org should contain substring %q", i, substring)
+		assert.NotEmpty(t, item.Type, "item %d should have type", i)
+	}
+}
+
+// TestProjectListFilterByOrgAndProject asserts that project list with two args (org and project substrings) filters correctly.
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY.
+func TestProjectListFilterByOrgAndProject(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
+	full := cli.RunExpectSuccess("project", "list", "--output", "json")
+	var fullList []struct {
+		Org     string `json:"org"`
+		Project string `json:"project"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(full), &fullList), "full list should be valid JSON")
+	if len(fullList) == 0 {
+		t.Skip("No projects to filter; skipping filter test")
+	}
+	first := fullList[0]
+	orgSub := strings.TrimSpace(first.Org)
+	projSub := strings.TrimSpace(first.Project)
+	if orgSub == "" || projSub == "" {
+		t.Skip("First project missing org or project name; skipping filter test")
+	}
+	// Use first character of each so filter matches at least one project
+	orgChar := string([]rune(orgSub)[0])
+	projChar := string([]rune(projSub)[0])
+	stdout := cli.RunExpectSuccess("project", "list", orgChar, projChar, "--output", "json")
+	var filtered []struct {
+		Org     string `json:"org"`
+		Project string `json:"project"`
+		Type    string `json:"type"`
+	}
+	err := json.Unmarshal([]byte(stdout), &filtered)
+	require.NoError(t, err, "project list with org and project substrings should return valid JSON array")
+	for i, item := range filtered {
+		assert.Contains(t, strings.ToLower(item.Org), strings.ToLower(orgChar),
+			"item %d org should contain org substring", i)
+		assert.Contains(t, strings.ToLower(item.Project), strings.ToLower(projChar),
+			"item %d project should contain project substring", i)
+		assert.NotEmpty(t, item.Type, "item %d should have type", i)
+	}
 }

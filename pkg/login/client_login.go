@@ -11,7 +11,7 @@ import (
 	"github.com/briandowns/spinner"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/open"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
@@ -21,7 +21,7 @@ var openBrowser = open.Browser
 var canOpenBrowser = open.CanOpenBrowser
 
 // Login function is used to obtain credentials via hookdeck dashboard.
-func Login(config *config.Config, input io.Reader) error {
+func Login(config *configpkg.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
 	if config.Profile.APIKey != "" {
@@ -95,6 +95,7 @@ func Login(config *config.Config, input io.Reader) error {
 	config.Profile.APIKey = response.APIKey
 	config.Profile.ProjectId = response.ProjectID
 	config.Profile.ProjectMode = response.ProjectMode
+	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
 	config.Profile.GuestURL = "" // Clear guest URL when logging in with permanent account
 
 	if err = config.Profile.SaveProfile(); err != nil {
@@ -110,7 +111,7 @@ func Login(config *config.Config, input io.Reader) error {
 	return nil
 }
 
-func GuestLogin(config *config.Config) (string, error) {
+func GuestLogin(config *configpkg.Config) (string, error) {
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return "", err
@@ -140,6 +141,7 @@ func GuestLogin(config *config.Config) (string, error) {
 	config.Profile.APIKey = response.APIKey
 	config.Profile.ProjectId = response.ProjectID
 	config.Profile.ProjectMode = response.ProjectMode
+	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
 	config.Profile.GuestURL = session.GuestURL
 
 	if err = config.Profile.SaveProfile(); err != nil {
@@ -152,7 +154,7 @@ func GuestLogin(config *config.Config) (string, error) {
 	return session.GuestURL, nil
 }
 
-func CILogin(config *config.Config, apiKey string, name string) error {
+func CILogin(config *configpkg.Config, apiKey string, name string) error {
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return err
@@ -182,6 +184,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 	config.Profile.APIKey = response.APIKey
 	config.Profile.ProjectId = response.ProjectID
 	config.Profile.ProjectMode = response.ProjectMode
+	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err

@@ -6,7 +6,9 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 )
 
 func handleProjects(client *hookdeck.Client) mcpsdk.ToolHandler {
@@ -34,8 +36,9 @@ func handleProjects(client *hookdeck.Client) mcpsdk.ToolHandler {
 
 type projectEntry struct {
 	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Mode    string `json:"mode"`
+	Org     string `json:"org"`
+	Project string `json:"project"`
+	Type    string `json:"type"` // lowercase: gateway, outpost, console
 	Current bool   `json:"current"`
 }
 
@@ -45,13 +48,16 @@ func projectsList(client *hookdeck.Client) (*mcpsdk.CallToolResult, error) {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
 
-	entries := make([]projectEntry, len(projects))
-	for i, p := range projects {
+	items := project.NormalizeProjects(projects, client.ProjectID)
+
+	entries := make([]projectEntry, len(items))
+	for i, it := range items {
 		entries[i] = projectEntry{
-			ID:      p.Id,
-			Name:    p.Name,
-			Mode:    p.Mode,
-			Current: p.Id == client.ProjectID,
+			ID:      it.Id,
+			Org:     it.Org,
+			Project: it.Project,
+			Type:    config.ProjectTypeToJSON(it.Type),
+			Current: it.Current,
 		}
 	}
 	return JSONResult(entries)
@@ -63,28 +69,33 @@ func projectsUse(client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, err
 		return ErrorResult("project_id is required for the use action"), nil
 	}
 
-	// Validate project exists
 	projects, err := client.ListProjects()
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
 
-	var name string
-	for _, p := range projects {
-		if p.Id == id {
-			name = p.Name
+	items := project.NormalizeProjects(projects, client.ProjectID)
+	var found *project.ProjectListItem
+	for i := range items {
+		if items[i].Id == id {
+			found = &items[i]
 			break
 		}
 	}
-	if name == "" {
+	if found == nil {
 		return ErrorResult(fmt.Sprintf("project %q not found", id)), nil
 	}
 
 	client.ProjectID = id
 
+	displayName := found.Project
+	if found.Org != "" {
+		displayName = found.Org + " / " + found.Project
+	}
 	return JSONResult(map[string]string{
 		"project_id":   id,
-		"project_name": name,
+		"project_name": displayName,
+		"type":         config.ProjectTypeToJSON(found.Type),
 		"status":       "ok",
 	})
 }

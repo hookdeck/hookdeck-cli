@@ -27,6 +27,8 @@ For local testing, create a `.env` file in this directory:
 ```bash
 # test/acceptance/.env
 HOOKDECK_CLI_TESTING_API_KEY=your_api_key_here
+# Optional: CLI key (from interactive login) required for project list tests only
+# HOOKDECK_CLI_TESTING_CLI_KEY=your_cli_key_here
 ```
 
 The `.env` file is automatically loaded when tests run. **This file is git-ignored and should never be committed.**
@@ -63,6 +65,8 @@ ACCEPTANCE_SLICE=1 go test -tags="request event" ./test/acceptance/... -v -timeo
 ACCEPTANCE_SLICE=2 go test -tags="attempt metrics issue transformation" ./test/acceptance/... -v -timeout 12m
 ```
 For slice 1 set `HOOKDECK_CLI_TESTING_API_KEY_2`; for slice 2 set `HOOKDECK_CLI_TESTING_API_KEY_3` (or set `HOOKDECK_CLI_TESTING_API_KEY` to that key).
+
+**Project list tests** (`TestProjectListShowsType`, `TestProjectListJSONOutput`) require a **CLI key**, not an API or CI key: only keys created via interactive login can list or switch projects. Set `HOOKDECK_CLI_TESTING_CLI_KEY` in your `.env` (or environment) to run these tests; if unset, they are skipped with a clear message.
 
 ### Run in parallel locally (three keys)
 From the **repository root**, run the script that runs all three slices in parallel (same as CI):
