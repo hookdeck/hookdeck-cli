@@ -1,0 +1,20 @@
+## Problem
+
+The CLI's update detection logic had two bugs:
+
+1. **Multi-digit minor version comparison**: String-based comparison treated `1.10` as less than `1.9` (lexicographic order), so users on `1.9.x` would not be prompted to upgrade to `1.10.x`.
+2. **Pre-release tag handling**: When running a beta version like `1.10.0-beta.4`, the system incorrectly identified the older stable release `v1.9.1` as newer.
+
+## Solution
+
+Replaced the string-comparison logic in `pkg/version/version.go` with proper semantic versioning using a self-contained `parseVersion` / `compareVersions` implementation (no new dependencies required):
+
+- Strips the optional `v` prefix, then parses `major.minor.patch[-prerelease]` numerically.
+- Compares major, minor, and patch as integers, avoiding the lexicographic ordering bug.
+- Applies pre-release promotion rules:
+  - **GA → beta**: do not prompt (stable users should not be pushed to pre-releases)
+  - **beta → newer beta**: prompt
+  - **beta → newer GA**: prompt
+  - **GA → newer GA**: prompt
+
+Tests in `pkg/version/version_test.go` cover all cases including the original bug scenarios (`1.10.0-beta.4` vs `v1.9.1`, `1.9.1` vs `1.10.0`).

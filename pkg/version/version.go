@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-github/v28/github"
@@ -37,8 +38,117 @@ func CheckLatestVersion() {
 	}
 }
 
+// parsedVersion holds the numeric components and optional pre-release string
+// for a semver-style version (major.minor.patch[-prerelease]).
+type parsedVersion struct {
+	major      int
+	minor      int
+	patch      int
+	prerelease string // empty string means GA release
+}
+
+// parseVersion strips the optional "v" prefix and parses "major.minor.patch"
+// or "major.minor.patch-prerelease". Returns ok=false for unrecognised formats.
+func parseVersion(v string) (parsedVersion, bool) {
+	v = strings.TrimPrefix(v, "v")
+
+	// Split off pre-release tag (everything after the first "-")
+	prerelease := ""
+	if idx := strings.Index(v, "-"); idx >= 0 {
+		prerelease = v[idx+1:]
+		v = v[:idx]
+	}
+
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return parsedVersion{}, false
+	}
+
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return parsedVersion{}, false
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return parsedVersion{}, false
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return parsedVersion{}, false
+	}
+
+	return parsedVersion{major, minor, patch, prerelease}, true
+}
+
+// compareVersions returns -1, 0, or 1 depending on whether a is less than,
+// equal to, or greater than b, using numeric major/minor/patch comparison.
+// Pre-release versions are considered lower than the corresponding GA release
+// (semver §9: "1.0.0-alpha < 1.0.0").
+func compareVersions(a, b parsedVersion) int {
+	for _, pair := range [][2]int{
+		{a.major, b.major},
+		{a.minor, b.minor},
+		{a.patch, b.patch},
+	} {
+		if pair[0] < pair[1] {
+			return -1
+		}
+		if pair[0] > pair[1] {
+			return 1
+		}
+	}
+
+	// Same major.minor.patch — compare pre-release:
+	// GA (empty prerelease) > any pre-release string
+	switch {
+	case a.prerelease == "" && b.prerelease == "":
+		return 0
+	case a.prerelease == "" && b.prerelease != "":
+		return 1 // GA is higher than pre-release
+	case a.prerelease != "" && b.prerelease == "":
+		return -1
+	default:
+		// Both have pre-release: lexicographic comparison
+		if a.prerelease < b.prerelease {
+			return -1
+		}
+		if a.prerelease > b.prerelease {
+			return 1
+		}
+		return 0
+	}
+}
+
+// needsToUpgrade returns true if latest is a newer version than version and
+// the upgrade makes sense based on pre-release promotion rules:
+//   - GA → newer GA: prompt
+//   - GA → beta: do not prompt (stable users should not be pushed to pre-releases)
+//   - beta → newer beta: prompt
+//   - beta → newer GA: prompt
 func needsToUpgrade(version, latest string) bool {
-	return latest != "" && (strings.TrimPrefix(latest, "v") != strings.TrimPrefix(version, "v"))
+	if latest == "" {
+		return false
+	}
+
+	current, currentOK := parseVersion(version)
+	latestParsed, latestOK := parseVersion(latest)
+
+	if !currentOK || !latestOK {
+		// Fall back to simple string comparison for unrecognised version formats
+		return strings.TrimPrefix(latest, "v") != strings.TrimPrefix(version, "v")
+	}
+
+	// Only prompt if latest is strictly newer
+	if compareVersions(latestParsed, current) <= 0 {
+		return false
+	}
+
+	// Do not prompt when upgrading from GA to a pre-release version
+	if current.prerelease == "" && latestParsed.prerelease != "" {
+		return false
+	}
+
+	return true
 }
 
 func getLatestVersion() string {
