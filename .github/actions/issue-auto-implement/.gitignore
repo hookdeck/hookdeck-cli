@@ -2,6 +2,8 @@
 .commit_msg
 .pr_title
 .pr_body
+# PR comment body when implement makes no code changes (no-change rationale or request for clarification; workflow reads, then discards)
+.comment_body
 
 # Local env (secrets); do not commit
 .env

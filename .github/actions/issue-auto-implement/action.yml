@@ -214,17 +214,19 @@ runs:
         COMMIT_MSG_FILE=".github/actions/issue-auto-implement/.commit_msg"
         BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
         VERIFY_FAILURE=""
+        CHANGES_PUSHED="false"
         for i in $(seq 1 "$MAX"); do
           echo "Implement–verify attempt $i of $MAX"
           export PREVIOUS_VERIFY_OUTPUT="$VERIFY_FAILURE"
           cd .github/actions/issue-auto-implement/assess && npx tsx src/implement.ts
           cd "$GITHUB_WORKSPACE"
           git add -A
-          git reset -- "$COMMIT_MSG_FILE" ".github/actions/issue-auto-implement/.pr_title" ".github/actions/issue-auto-implement/.pr_body" 2>/dev/null || true
+          git reset -- "$COMMIT_MSG_FILE" ".github/actions/issue-auto-implement/.pr_title" ".github/actions/issue-auto-implement/.pr_body" ".github/actions/issue-auto-implement/.comment_body" 2>/dev/null || true
           if ! git diff --staged --quiet; then
             git commit -F "$COMMIT_MSG_FILE"
             rm -f "$COMMIT_MSG_FILE"
             git push -u origin "$BRANCH"
+            CHANGES_PUSHED="true"
           else
             echo "No changes to commit (attempt $i)."
           fi
@@ -235,6 +237,7 @@ runs:
             if [ -f "$PR_DIR/.pr_title" ]; then echo "pr_title<<EOF" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_title" >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT; else echo "pr_title=Implement issue #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
             if [ -f "$PR_DIR/.pr_body" ]; then echo "pr_body<<EOF" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_body" >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT; else echo "pr_body=Closes #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
             echo "verified=true" >> $GITHUB_OUTPUT
+            echo "changes_pushed=$CHANGES_PUSHED" >> $GITHUB_OUTPUT
             exit 0
           fi
           VERIFY_FAILURE="$VERIFY_OUTPUT"
@@ -273,8 +276,18 @@ runs:
         REPO: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         HEAD_REF: ${{ github.event.pull_request.head.ref || format('auto-implement-issue-{0}', steps.assess.outputs.issue_number) }}
+        CHANGES_PUSHED: ${{ steps.implement_verify_loop.outputs.changes_pushed }}
       run: |
-        BODY="Addressed review feedback. New commit(s) pushed; verification passed."
+        if [ "$CHANGES_PUSHED" = "true" ]; then
+          BODY="Addressed review feedback. New commit(s) pushed; verification passed."
+        else
+          COMMENT_BODY_FILE=".github/actions/issue-auto-implement/.comment_body"
+          if [ -f "$COMMENT_BODY_FILE" ]; then
+            BODY="$(cat "$COMMENT_BODY_FILE"). Verification passed."
+          else
+            BODY="Thanks for the suggestion. We reviewed it and are keeping the current implementation; no code changes were made. Verification passed."
+          fi
+        fi
         curl -s -X POST \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github+json" \

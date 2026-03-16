@@ -22,6 +22,8 @@ const ACTION_DIR = '.github/actions/issue-auto-implement';
 const COMMIT_MSG_FILE = process.env.IMPLEMENT_COMMIT_MSG_FILE || resolve(REPO_ROOT, ACTION_DIR + '/.commit_msg');
 const PR_TITLE_FILE = resolve(REPO_ROOT, ACTION_DIR + '/.pr_title');
 const PR_BODY_FILE = resolve(REPO_ROOT, ACTION_DIR + '/.pr_body');
+/** When implement makes no code changes, Claude writes the PR comment body here (no-change rationale or request for clarification). */
+const COMMENT_BODY_FILE = resolve(REPO_ROOT, ACTION_DIR + '/.comment_body');
 
 async function fetchIssue(owner: string, repo: string, issueNumber: number, token: string): Promise<{ title: string; body: string }> {
   const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`;
@@ -68,11 +70,13 @@ function buildClaudeCliPrompt(
     'Rules:',
     '- Only change what is necessary to implement the issue. Preserve existing exported symbols and call sites unless the issue explicitly asks to remove or replace them.',
     '- Consider the broader codebase—other code may depend on the files you edit; make minimal, targeted edits and keep the public API intact.',
-    '- When you are done, you MUST write three files (create the directory if needed):',
+    '- When you MAKE code changes, you MUST write three files (create the directory if needed):',
     `  1. ${metaDir}/.commit_msg — one line, conventional commit message (e.g. "fix: correct version comparison for beta").`,
     `  2. ${metaDir}/.pr_title — one-line PR title.`,
     `  3. ${metaDir}/.pr_body — markdown body: brief problem summary, then "How it was solved" or "Solution". Do NOT include "Closes #N" (it will be appended).`,
     `  These files are workflow-only inputs (consumed by the action to create the commit and PR). Do NOT add or commit them to the repository.`,
+    '',
+    `- When you decide NOT to make any code changes, do NOT write .commit_msg. Instead write the PR comment body to ${metaDir}/.comment_body — one or two sentences. Use this for: (a) no-change scenarios (e.g. the feedback is a question or the current approach is preferred; thank the reviewer and briefly explain), or (b) when more information is needed (e.g. "Could you clarify whether you want X or Y?"). This file will be posted on the PR.`,
     '',
     'Issue title:',
     issueTitle,
@@ -98,7 +102,7 @@ function buildClaudeCliPrompt(
   if (contextBlock) {
     parts.push('', contextBlock);
   }
-  parts.push('', `After implementing, write ${metaDir}/.commit_msg, .pr_title, and .pr_body as above.`);
+  parts.push('', 'After implementing, write the appropriate files: .commit_msg, .pr_title, and .pr_body if you made code changes; or .comment_body if you made no code changes (no-change rationale or request for clarification).');
   return parts.join('\n');
 }
 
@@ -134,10 +138,13 @@ function runClaudeCli(prompt: string): void {
   }
 }
 
-/** Ensure commit message and PR meta files exist; write defaults if missing. */
+/** Ensure commit message and PR meta files exist when Claude made code changes; skip defaults if Claude wrote .comment_body. */
 function ensureMetaFiles(issueNumber: number): void {
   const metaDir = dirname(COMMIT_MSG_FILE);
   if (!existsSync(metaDir)) mkdirSync(metaDir, { recursive: true });
+  if (existsSync(COMMENT_BODY_FILE)) {
+    return;
+  }
   if (!existsSync(COMMIT_MSG_FILE)) {
     writeFileSync(COMMIT_MSG_FILE, `fix: implement issue #${issueNumber}`, 'utf-8');
   }
