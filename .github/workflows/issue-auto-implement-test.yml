@@ -1,0 +1,32 @@
+# Run issue-auto-implement assess script tests (unit tests, no secrets).
+name: Issue auto-implement (assess tests)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/actions/issue-auto-implement/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/issue-auto-implement/**'
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_WORKSPACE: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: .github/actions/issue-auto-implement/assess/package-lock.json
+      - name: Install and test assess script
+        working-directory: .github/actions/issue-auto-implement/assess
+        run: |
+          npm ci
+          npm test

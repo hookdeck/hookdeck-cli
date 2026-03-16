@@ -1,0 +1,11 @@
+{
+  "action": "labeled",
+  "issue": {
+    "number": 192,
+    "title": "Fix rule-filter-headers storing JSON as escaped string",
+    "body": "When using --rule-filter-headers the value is stored as an escaped JSON string...",
+    "labels": [{ "name": "automation/auto-implement" }]
+  },
+  "label": { "name": "automation/auto-implement" },
+  "repository": { "full_name": "hookdeck/hookdeck-cli" }
+}
