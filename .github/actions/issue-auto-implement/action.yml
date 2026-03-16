@@ -2,7 +2,7 @@ name: 'Issue auto-implement'
 description: 'Assess labeled issues (or PR reviews), request more info or implement with verify loop; create PR or iterate on existing PR.'
 inputs:
   anthropic_api_key:
-    description: 'API key for Claude (assessment and implement step)'
+    description: 'API key for Claude (assessment uses it; implement passes it to Claude Code CLI as AUTO_IMPLEMENT_ANTHROPIC_API_KEY)'
     required: true
   github_token:
     description: 'GitHub token (contents, issues, pull-requests, read:org)'
@@ -20,7 +20,7 @@ inputs:
     required: false
     default: 'automation'
   verify_commands:
-    description: 'Shell commands to run for verification (e.g. go test ./..., go build)'
+    description: 'Shell commands to run for verification. Should run tests and ensure the application builds (e.g. go test ./... && go build ./..., or npm test && npm run build). Repo-specific.'
     required: false
     default: 'go test ./...'
   max_implement_retries:
@@ -149,6 +149,10 @@ runs:
         else
           git checkout -b "$BRANCH" origin/main
         fi
+    - name: Install Claude Code CLI
+      if: steps.assess.outputs.action == 'implement'
+      shell: bash
+      run: npm install -g @anthropic-ai/claude-code
     - id: implement_verify_loop
       name: Implement and verify (loop)
       if: steps.assess.outputs.action == 'implement'
@@ -238,13 +242,18 @@ runs:
         POST_PR_COMMENT: ${{ inputs.post_pr_comment }}
       run: |
         BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
-        TITLE="Auto-implement issue #${ISSUE_NUMBER}"
-        BODY="Closes #${ISSUE_NUMBER}"
+        PR_DIR=".github/actions/issue-auto-implement"
+        if [ -f "$PR_DIR/.pr_title" ]; then TITLE=$(cat "$PR_DIR/.pr_title"); else TITLE="Implement issue #${ISSUE_NUMBER}"; fi
+        if [ -f "$PR_DIR/.pr_body" ]; then
+          PAYLOAD=$(jq -n --arg t "$TITLE" --rawfile b "$PR_DIR/.pr_body" --arg h "$BRANCH" '{title: $t, body: $b, head: $h, base: "main"}')
+        else
+          PAYLOAD=$(jq -n --arg t "$TITLE" --arg b "Closes #${ISSUE_NUMBER}" --arg h "$BRANCH" '{title: $t, body: $b, head: $h, base: "main"}')
+        fi
         PR_JSON=$(curl -s -X POST \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github+json" \
           "https://api.github.com/repos/$REPO/pulls" \
-          -d "{\"title\":\"$TITLE\",\"body\":\"$BODY\",\"head\":\"$BRANCH\",\"base\":\"main\"}")
+          -d "$PAYLOAD")
         PR_URL=$(echo "$PR_JSON" | jq -r '.html_url // empty')
         if [ -n "$PR_URL" ]; then
           NEEDS_LABEL="${LABEL_PREFIX}/pr-created"

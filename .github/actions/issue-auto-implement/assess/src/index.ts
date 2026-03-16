@@ -18,7 +18,7 @@ config({ path: resolve(process.cwd(), '.env') });
 const EVENT_PATH = process.env.GITHUB_EVENT_PATH || '';
 const EVENT_NAME = process.env.GITHUB_EVENT_NAME || '';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
-const ANTHROPIC_API_KEY = process.env.AUTO_IMPLEMENT_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '';
+const ANTHROPIC_API_KEY = process.env.AUTO_IMPLEMENT_ANTHROPIC_API_KEY || '';
 const REPO = process.env.GITHUB_REPOSITORY || '';
 const CONTEXT_FILES = process.env.CONTEXT_FILES || '';
 const REPO_ROOT = process.env.GITHUB_WORKSPACE || resolve(process.cwd(), '../../..');
@@ -111,7 +111,7 @@ function buildAssessmentPrompt(
     'Reply with a single JSON object only, no markdown or extra text, with these keys:',
     '- action: either "implement" or "request_info"',
     '- comment_body: (required if action is request_info) a short message to post on the issue asking for the missing information',
-    '- verification_notes: (optional if action is implement) free-form notes for the implementer, e.g. "run go test ./pkg/... and ensure build passes"',
+    '- verification_notes: (optional if action is implement) free-form notes for the implementer. Include running the test suite and ensuring the application builds; infer the repo\'s usual test and build commands from the repository context (e.g. go test ./... && go build ., npm test && npm run build, make test, etc.).',
     '',
     'Issue:',
     `Title: ${issue?.title ?? 'N/A'}`,
@@ -152,7 +152,7 @@ const DEBUG = process.env.ASSESS_DEBUG === '1' || process.env.ASSESS_DEBUG === '
 async function callClaude(prompt: string, client?: Anthropic): Promise<AssessmentOutput> {
   const api = client ?? new Anthropic({ apiKey: ANTHROPIC_API_KEY });
   if (!client && !ANTHROPIC_API_KEY) {
-    throw new Error('AUTO_IMPLEMENT_ANTHROPIC_API_KEY or ANTHROPIC_API_KEY is not set');
+    throw new Error('AUTO_IMPLEMENT_ANTHROPIC_API_KEY is not set');
   }
   if (DEBUG) {
     process.stderr.write('--- ASSESS PROMPT (sent to Claude) ---\n');

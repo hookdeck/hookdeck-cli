@@ -1,26 +1,27 @@
 #!/usr/bin/env -S npx tsx
 /**
- * Implement script: fetch issue, call Claude for file edits, apply and write commit message.
- * Env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN, AUTO_IMPLEMENT_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY),
- *      VERIFICATION_NOTES, GITHUB_WORKSPACE (optional, default: infer from cwd), CONTEXT_FILES.
- *      Writes commit message to IMPLEMENT_COMMIT_MSG_FILE.
+ * Implement script: fetch issue, then run Claude Code CLI in the repo to implement it.
+ *
+ * Env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN; VERIFICATION_NOTES, GITHUB_WORKSPACE (optional), CONTEXT_FILES.
+ *      Claude Code CLI must be on PATH. AUTO_IMPLEMENT_ANTHROPIC_API_KEY is passed to the CLI as ANTHROPIC_API_KEY.
+ *      Writes commit message and PR meta to ACTION_DIR for push-and-open-pr.
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
+import { spawnSync } from 'child_process';
 import { config } from 'dotenv';
-import Anthropic from '@anthropic-ai/sdk';
 
 // Load .env from action root then cwd (cwd is assess/ when run from there). No-op if files missing.
 config({ path: resolve(process.cwd(), '../.env') });
 config({ path: resolve(process.cwd(), '.env') });
 
-// Default repo root: infer from cwd when run from assess/ (e.g. ../../..); set GITHUB_WORKSPACE only if needed
-const REPO_ROOT = process.env.GITHUB_WORKSPACE || resolve(process.cwd(), '../../..');
-const COMMIT_MSG_FILE = process.env.IMPLEMENT_COMMIT_MSG_FILE || resolve(REPO_ROOT, '.github/actions/issue-auto-implement/.commit_msg');
-
-type Edit = { path: string; contents: string };
-type ImplementOutput = { edits: Edit[]; commit_message: string };
+// Default repo root: in CI GITHUB_WORKSPACE is set; when run from assess/ locally, cwd is assess/ so repo root is 4 levels up
+const REPO_ROOT = process.env.GITHUB_WORKSPACE || resolve(process.cwd(), '../../../..');
+const ACTION_DIR = '.github/actions/issue-auto-implement';
+const COMMIT_MSG_FILE = process.env.IMPLEMENT_COMMIT_MSG_FILE || resolve(REPO_ROOT, ACTION_DIR + '/.commit_msg');
+const PR_TITLE_FILE = resolve(REPO_ROOT, ACTION_DIR + '/.pr_title');
+const PR_BODY_FILE = resolve(REPO_ROOT, ACTION_DIR + '/.pr_body');
 
 async function fetchIssue(owner: string, repo: string, issueNumber: number, token: string): Promise<{ title: string; body: string }> {
   const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`;
@@ -49,17 +50,28 @@ function loadContextFiles(): string {
   return chunks.length ? ['Repository context:', '', ...chunks].join('\n') : '';
 }
 
-function buildPrompt(
+/**
+ * Prompt for Claude Code CLI: implement in-repo with Read/Edit/Bash; write meta files when done.
+ */
+function buildClaudeCliPrompt(
   issueTitle: string,
   issueBody: string,
   verificationNotes: string,
   contextBlock: string,
-  previousVerifyOutput: string
+  previousVerifyOutput: string,
+  issueNumber: number
 ): string {
+  const metaDir = ACTION_DIR;
   const parts = [
-    'You are implementing a GitHub issue. Produce a single JSON object with no markdown or extra text.',
-    'Keys: "edits" (array of { "path": "relative/path/from/repo/root", "contents": "full file content" }), "commit_message" (short conventional commit message).',
-    'Only include files you change or create. Paths must be relative to the repo root. Output full file contents for each edited file.',
+    'Implement this GitHub issue in the current repository. You have full access to read and edit files and run commands.',
+    '',
+    'Rules:',
+    '- Only change what is necessary to implement the issue. Preserve existing exported symbols and call sites unless the issue explicitly asks to remove or replace them.',
+    '- Consider the broader codebase—other code may depend on the files you edit; make minimal, targeted edits and keep the public API intact.',
+    '- When you are done, you MUST write three files (create the directory if needed):',
+    `  1. ${metaDir}/.commit_msg — one line, conventional commit message (e.g. "fix: correct version comparison for beta").`,
+    `  2. ${metaDir}/.pr_title — one-line PR title.`,
+    `  3. ${metaDir}/.pr_body — markdown body: brief problem summary, then "How it was solved" or "Solution". Do NOT include "Closes #N" (it will be appended).`,
     '',
     'Issue title:',
     issueTitle,
@@ -69,40 +81,70 @@ function buildPrompt(
     '',
   ];
   if (verificationNotes) {
-    parts.push('Verification notes (e.g. run tests):', verificationNotes, '');
+    parts.push('Verification (run these to confirm):', verificationNotes, '');
   }
   if (previousVerifyOutput.trim()) {
     parts.push(
       '',
-      'The previous implementation was applied but verification failed. Fix the implementation based on the following output:',
+      'The previous implementation was applied but verification failed. Fix based on:',
       '',
       '--- Verification output ---',
       previousVerifyOutput.trim(),
-      '--- End verification output ---',
+      '--- End ---',
       ''
     );
   }
   if (contextBlock) {
     parts.push('', contextBlock);
   }
-  parts.push('', 'Output only the JSON object:');
+  parts.push('', `After implementing, write ${metaDir}/.commit_msg, .pr_title, and .pr_body as above.`);
   return parts.join('\n');
 }
 
-function safePath(relativePath: string): string {
-  const normalized = resolve(REPO_ROOT, relativePath);
-  if (!normalized.startsWith(REPO_ROOT)) {
-    throw new Error(`Path escapes repo root: ${relativePath}`);
+/**
+ * Run Claude Code CLI in REPO_ROOT with prompt on stdin. Throws if CLI is not found or exits non-zero.
+ * Uses AUTO_IMPLEMENT_ANTHROPIC_API_KEY (passed to the CLI as ANTHROPIC_API_KEY).
+ */
+function runClaudeCli(prompt: string): void {
+  const apiKey = process.env.AUTO_IMPLEMENT_ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('AUTO_IMPLEMENT_ANTHROPIC_API_KEY must be set for the Claude Code CLI.');
   }
-  return normalized;
+  const env = { ...process.env, ANTHROPIC_API_KEY: apiKey };
+
+  const result = spawnSync(
+    'claude',
+    ['-p', '--allowedTools', 'Read,Edit,Bash'],
+    {
+      cwd: REPO_ROOT,
+      input: prompt,
+      stdio: ['pipe', 'inherit', 'inherit'],
+      encoding: 'utf-8',
+      timeout: 25 * 60 * 1000, // 25 minutes
+      env,
+    }
+  );
+  if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
+    throw new Error('Claude Code CLI not found (claude not on PATH). Install it and set AUTO_IMPLEMENT_ANTHROPIC_API_KEY.');
+  }
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
 }
 
-function applyEdits(edits: Edit[]): void {
-  for (const { path: rel, contents } of edits) {
-    const full = safePath(rel);
-    const dir = dirname(full);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(full, contents, 'utf-8');
+/** Ensure commit message and PR meta files exist; write defaults if missing. */
+function ensureMetaFiles(issueNumber: number): void {
+  const metaDir = dirname(COMMIT_MSG_FILE);
+  if (!existsSync(metaDir)) mkdirSync(metaDir, { recursive: true });
+  if (!existsSync(COMMIT_MSG_FILE)) {
+    writeFileSync(COMMIT_MSG_FILE, `fix: implement issue #${issueNumber}`, 'utf-8');
+  }
+  if (!existsSync(PR_TITLE_FILE)) {
+    writeFileSync(PR_TITLE_FILE, `Implement issue #${issueNumber}`, 'utf-8');
+  }
+  if (!existsSync(PR_BODY_FILE)) {
+    writeFileSync(PR_BODY_FILE, `Closes #${issueNumber}`, 'utf-8');
   }
 }
 
@@ -110,39 +152,23 @@ async function main(): Promise<void> {
   const issueNumber = process.env.ISSUE_NUMBER;
   const repo = process.env.GITHUB_REPOSITORY;
   const token = process.env.GITHUB_TOKEN;
-  const apiKey = process.env.AUTO_IMPLEMENT_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
   const verificationNotes = process.env.VERIFICATION_NOTES || '';
   const previousVerifyOutput = process.env.PREVIOUS_VERIFY_OUTPUT || '';
 
-  if (!issueNumber || !repo || !token || !apiKey) {
-    throw new Error('Missing required env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN, AUTO_IMPLEMENT_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY)');
+  if (!issueNumber || !repo || !token) {
+    throw new Error('Missing required env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN');
   }
 
   const [owner, repoName] = repo.split('/');
   if (!owner || !repoName) throw new Error('Invalid GITHUB_REPOSITORY');
 
-  const { title, body } = await fetchIssue(owner, repoName, parseInt(issueNumber, 10), token);
+  const issueNum = parseInt(issueNumber, 10);
+  const { title, body } = await fetchIssue(owner, repoName, issueNum, token);
   const contextBlock = loadContextFiles();
-  const prompt = buildPrompt(title, body, verificationNotes, contextBlock, previousVerifyOutput);
 
-  const client = new Anthropic({ apiKey });
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 16384,
-    messages: [{ role: 'user', content: prompt }],
-  });
-  const text = response.content?.[0]?.type === 'text' ? response.content[0].text : '';
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Claude did not return valid JSON: ' + text.slice(0, 300));
-
-  const parsed = JSON.parse(jsonMatch[0]) as ImplementOutput;
-  if (!Array.isArray(parsed.edits)) throw new Error('Missing or invalid "edits" array');
-  const commitMessage = typeof parsed.commit_message === 'string' && parsed.commit_message.trim()
-    ? parsed.commit_message.trim()
-    : `fix: implement issue #${issueNumber}`;
-
-  applyEdits(parsed.edits);
-  writeFileSync(COMMIT_MSG_FILE, commitMessage, 'utf-8');
+  const prompt = buildClaudeCliPrompt(title, body, verificationNotes, contextBlock, previousVerifyOutput, issueNum);
+  runClaudeCli(prompt);
+  ensureMetaFiles(issueNum);
 }
 
 main().catch((err) => {

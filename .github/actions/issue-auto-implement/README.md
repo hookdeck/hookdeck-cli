@@ -22,6 +22,18 @@ Used by `.github/workflows/issue-auto-implement.yml`. Requires `anthropic_api_ke
 
 Secrets and variables use an action-specific prefix (e.g. `AUTO_IMPLEMENT_`) so each action can have its own keys/variables and it's clear which workflow uses which. This also avoids clashing with platform-reserved names (e.g. `GITHUB_*`).
 
+## CI/CD: what you need to run this workflow
+
+To use this action in GitHub Actions:
+
+1. **Workflow** — Call the action from a workflow (e.g. `.github/workflows/issue-auto-implement.yml`) on `issues.labeled`, `issue_comment`, `pull_request_review`, and/or `pull_request_review_comment`. The job needs `contents: write`, `issues: write`, `pull-requests: write`.
+2. **Secrets** — Add **`AUTO_IMPLEMENT_ANTHROPIC_API_KEY`** (repo secret). Used for the assess step and passed to the Claude Code CLI in the implement step.
+3. **Variables** — Add **`AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM`** (repo variable, required): GitHub Team slug (e.g. `org/team-name`) whose members may trigger the run.
+4. **Token** — Pass `github_token` (e.g. `secrets.GITHUB_TOKEN`) to the action. The team check needs `read:org`; if `GITHUB_TOKEN` lacks it, use a PAT with `read:org` and pass it as the token.
+5. **Implement in CI** — The action installs the Claude Code CLI (`@anthropic-ai/claude-code`) when the assess outcome is `implement`, so the workflow does not need to install it. Implement runs in the repo with Read/Edit/Bash; the CLI uses `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`.
+
+No other setup is required. Optionally set `verify_commands` (default `go test ./...`) and `context_files` (default `AGENTS.md,REFERENCE.md`) to match your repo.
+
 ## Secrets and variables (repo setup)
 
 - **`AUTO_IMPLEMENT_ANTHROPIC_API_KEY`** (repo secret) — Claude API key for the assess and implement steps. Add under Settings → Secrets and variables → Actions.
@@ -48,7 +60,7 @@ cd .github/actions/issue-auto-implement/assess && npm ci && npm test
 
 CI runs these in `.github/workflows/issue-auto-implement-test.yml` when you push or open a PR that touches this action.
 
-**Integration tests (Claude API):** Tests in `assess/test/integration/` call the real Anthropic API. They do not run with `npm test`. From the assess directory, run `npm run test:integration` (requires `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` or `ANTHROPIC_API_KEY` in `.env` or env). Unit tests live in `assess/test/unit/`; shared fixtures in `assess/test/fixtures/`. You can add integration tests to CI later with the secret configured.
+**Integration tests (Claude API):** Tests in `assess/test/integration/` call the real Anthropic API. They do not run with `npm test`. From the assess directory, run `npm run test:integration` (requires `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` in `.env` or env). Unit tests live in `assess/test/unit/`; shared fixtures in `assess/test/fixtures/`. You can add integration tests to CI later with the secret configured.
 
 ## Local runs (Claude)
 
@@ -58,7 +70,7 @@ Scripts load a **local `.env`** file so you don't have to pass secrets on the co
 
 | Variable | Required for | How to get it |
 |----------|--------------|----------------|
-| `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` | Assess, Implement | [Anthropic console](https://console.anthropic.com/) → API keys. Or use `ANTHROPIC_API_KEY` (e.g. from Claude CLI). |
+| `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` | Assess, Implement | [Anthropic console](https://console.anthropic.com/) → API keys. Assess uses it directly; implement passes it to Claude Code CLI (`claude` on PATH). |
 | `GITHUB_TOKEN` | Implement; optional for Assess | `gh auth token`, or a PAT with `repo`, `read:org`. |
 | `GITHUB_REPOSITORY` | Implement | `owner/repo` (e.g. `hookdeck/hookdeck-cli`). |
 | `ISSUE_NUMBER` | Implement | The issue number to implement. |
@@ -85,9 +97,9 @@ npm run assess:fixture
 
 With `.env` in place, no need to pass the key on the command line. Optional: set `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to exercise redirect-to-PR and fetch-comments. Set `ASSESS_DEBUG=1` to log the prompt sent to Claude and the raw response to stderr. Other fixtures: `GITHUB_EVENT_PATH=./test/fixtures/issue-comment.json GITHUB_EVENT_NAME=issue_comment npx tsx src/index.ts`.
 
-### Implement (issue → Claude edits → files on disk)
+### Implement (issue → Claude Code CLI → files on disk)
 
-Fetches the issue from the GitHub API, calls Claude for file edits, and **writes changes** under the repo root and a commit message file. Use a branch you can discard or reset.
+Fetches the issue from the GitHub API, then runs **Claude Code CLI** in the repo (`claude` on PATH with Read/Edit/Bash). The CLI implements the issue in-repo and writes commit/PR meta files. Use a branch you can discard or reset. Requires Claude Code CLI installed and `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` set (passed to the CLI).
 
 ```bash
 cd .github/actions/issue-auto-implement/assess
@@ -97,3 +109,7 @@ npm run implement:issue
 With `.env` set (e.g. `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`), no need to pass them inline. Override any var on the command line if needed (e.g. `ISSUE_NUMBER=42 npm run implement:issue`). Then from the repo root inspect `git status` and the commit message at `.github/actions/issue-auto-implement/.commit_msg`. Optionally set `VERIFICATION_NOTES` and `CONTEXT_FILES`.
 
 For implementation details and verification steps, see `AGENTS.md`.
+
+### Local run against a real issue (no workflow events)
+
+To test the full flow locally against a real GitHub issue and create a PR, use the **local assess** script (fetches the issue from the API and runs the same assess logic). With **APPLY=1** the script applies the outcome: posts the request-for-more-info or redirect comment on the issue, or runs implement and push (creates/updates the PR). When the outcome is implement, the script creates or reuses a **worktree** at `.worktrees/auto-implement-issue-<N>` so your current branch is left untouched; implement runs there, then commit/push/PR is done in TypeScript (`assess/src/push-and-open-pr.ts`). The workflow does not need to run; you trigger each step locally and optionally pass **COMMENT_BODY** (after you add a comment on the issue) or **REVIEW_BODY** (after you review the PR). See **[TEST_PLAN.md](TEST_PLAN.md)** for the **Live flow walkthrough** and full test plan.

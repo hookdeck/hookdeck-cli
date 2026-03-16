@@ -36,8 +36,8 @@ From the workflow event payload, derive:
 ## Implement script
 
 - **Path:** `assess/src/implement.ts`, run with `npx tsx src/implement.ts` from the assess directory.
-- **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` (or `ANTHROPIC_API_KEY`) (required); `VERIFICATION_NOTES`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE`, `PREVIOUS_VERIFY_OUTPUT` (optional).
-- **Flow:** Fetches issue title/body from GitHub API, loads context files, calls Claude for JSON `{ edits: [{ path, contents }], commit_message }`, applies edits under repo root, writes commit message to `IMPLEMENT_COMMIT_MSG_FILE`. Paths in edits must be relative; script validates they stay inside repo root. When `PREVIOUS_VERIFY_OUTPUT` is set (e.g. after a failed verify run), it is included in the prompt so Claude can fix the implementation.
+- **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` (required); `VERIFICATION_NOTES`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE`, `PREVIOUS_VERIFY_OUTPUT` (optional).
+- **Flow:** Fetches issue title/body from GitHub API, loads context files, then runs **Claude Code CLI** (`claude` on PATH) in the repo root with a prompt; the script passes `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` to the CLI as `ANTHROPIC_API_KEY`. The CLI implements in-repo (Read/Edit/Bash), then the script ensures commit/PR meta files exist (`.commit_msg`, `.pr_title`, `.pr_body` under the action dir). When `PREVIOUS_VERIFY_OUTPUT` is set (e.g. after a failed verify run), it is included in the prompt so the CLI can fix the implementation. In CI, the action installs the CLI (`npm install -g @anthropic-ai/claude-code`) before the implement step when the assess outcome is `implement`.
 
 ## Implement–verify loop
 
@@ -59,7 +59,7 @@ All automation labels use `label_prefix` (default `automation`): `{prefix}/auto-
 
 ## Local development
 
-Scripts load a `.env` file from the action root or cwd (see README **Local runs**). Key env: `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` (or `ANTHROPIC_API_KEY`), `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `ISSUE_NUMBER` (implement). Copy `.env.example` to `.env` and fill; optional `./scripts/setup-local-env.sh --with-gh` to set `GITHUB_TOKEN` from `gh auth token`.
+Scripts load a `.env` file from the action root or cwd (see README **Local runs**). Key env: `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `ISSUE_NUMBER` (implement). Copy `.env.example` to `.env` and fill; optional `./scripts/setup-local-env.sh --with-gh` to set `GITHUB_TOKEN` from `gh auth token`.
 
 ## Verification
 
@@ -67,19 +67,15 @@ When changing this action or the assess script:
 
 1. **Run the assess unit tests locally** before committing: `cd .github/actions/issue-auto-implement/assess && npm ci && npm test`. Do not rely on CI alone—catch failures locally first, then push.
 2. **CI** runs the same tests in `.github/workflows/issue-auto-implement-test.yml` when you push or open a PR that touches `.github/actions/issue-auto-implement/**`.
-3. **Optional:** Run the assess script with a fixture and `ANTHROPIC_API_KEY` for end-to-end assessment behavior.
+3. **Optional:** Run the assess script with a fixture and `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` for end-to-end assessment behavior.
 4. **Full workflow:** Trigger manually on a test issue (trigger label or comment). Ensure repo secrets/variables are set. Inspect the Actions run and the issue/PR; re-run after changes to the implement or verify loop.
 
 ## Next steps (implementation backlog)
 
-Recommended order:
+Possible future improvements:
 
-1. **Context files in assess** — Pass the `context_files` input into the assess script (e.g. via env) and include those file contents (AGENTS.md, REFERENCE.md, etc.) in the Claude assessment prompt so the model has full repo guidance.
-2. **Fetch all issue comments** — For `issues` and `issue_comment` events, optionally call the GitHub API to list all comments on the issue and include them in the assessment payload (not only the single comment from the event).
-3. **Implement step (real)** — Replace the placeholder with Claude generating and applying code changes. Options: call Anthropic API to produce a patch or file edits from the issue body + verification_notes (and repo context), then apply, commit, and push; or integrate a Claude Code Action / external tool. Branch is already checked out; implement must make commits and push.
-4. **True implement–verify loop** — On verify failure, re-run the **implement** step with the verify failure output in the prompt (then verify again), up to `max_implement_retries`. Currently only the verify command is retried; the plan requires re-implementing with failure context.
-5. **PR review iteration path** — When the trigger is `pull_request_review` or `pull_request_review_comment`: after verify passes, do **not** create a new PR; instead post a comment on the existing PR summarizing the changes in the new commit(s). Detect "PR already exists" (e.g. from event type or by checking for an open PR for this branch) and branch the flow: create PR vs. comment on PR.
-6. **Optional comment when PR is created** — Add an input (e.g. `post_pr_comment`) and, when creating a PR, optionally post a short comment on the issue linking to the new PR.
-7. **Comment when retries exhausted** — When the verify loop fails after all retries, post a comment on the issue so the run is visible and explainable from the issue thread. Add a step that runs on failure (e.g. `if: failure() && steps.assess.outputs.action == 'implement'`) and posts a comment on the issue: e.g. "The auto-implement run could not complete: verification failed after N attempts. See the [workflow run](link) for logs. You can address the failure and re-trigger by adding a comment or re-applying the label."
-8. **Secrets and variables** — Document in README: add `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` as a repo secret; set `AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM` (required) as a repo variable; note that the default `GITHUB_TOKEN` may need to be replaced with a PAT that has `read:org` for the team check.
-9. **Local run with fixture and Claude** — Add an npm script or small wrapper (e.g. `npm run assess:fixture issue-labeled`) to run the assess script with a fixture and real `ANTHROPIC_API_KEY` for manual end-to-end assessment testing.
+1. **Fetch all issue comments** — For `issues` and `issue_comment` events, optionally call the GitHub API to list all comments on the issue and include them in the assessment payload (not only the single comment from the event).
+2. **Optional comment when PR is created** — Input `post_pr_comment` exists; when true, post a short comment on the issue linking to the new PR when one is created.
+3. **Local run with fixture and Claude** — `npm run assess:fixture` exists; optional end-to-end testing with real `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`.
+
+Done: context files in assess, implement step (Claude Code CLI), implement–verify loop with re-implement on failure, PR review iteration (comment on PR, no new PR), comment when retries exhausted, secrets/variables and README docs, local assess script and TEST_PLAN.
