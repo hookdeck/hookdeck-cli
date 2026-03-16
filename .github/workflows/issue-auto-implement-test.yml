@@ -14,6 +14,8 @@ on:
 jobs:
   assess:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_WORKSPACE: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,8 +23,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: .github/actions/issue-auto-implement/assess/package-lock.json
       - name: Install and test assess script
+        working-directory: .github/actions/issue-auto-implement/assess
         run: |
-          cd .github/actions/issue-auto-implement/assess
           npm ci
           npm test
