@@ -70,6 +70,7 @@ The gateway command group provides full access to all Event Gateway resources.`,
   # Start the MCP server for AI agent access
   hookdeck gateway mcp`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			initTelemetry(cmd)
 			return requireGatewayProject(nil)
 		},
 	}
