@@ -1,27 +1,15 @@
 {
-  "name": "hookdeck-cli",
-  "version": "1.9.1",
-  "description": "Hookdeck CLI",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/hookdeck/hookdeck-cli.git"
+  "name": "version-checker",
+  "version": "1.0.0",
+  "description": "Version comparison utility",
+  "main": "src/version.js",
+  "scripts": {
+    "test": "jest"
   },
-  "keywords": [
-    "hookdeck",
-    "webhooks"
-  ],
-  "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/hookdeck/hookdeck-cli/issues"
+  "dependencies": {
+    "semver": "^7.5.4"
   },
-  "homepage": "https://github.com/hookdeck/hookdeck-cli#readme",
-  "bin": {
-    "hookdeck": "./bin/hookdeck.js"
-  },
-  "files": [
-    "bin/",
-    "binaries/"
-  ],
-  "scripts": {},
-  "dependencies": {}
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
 }
