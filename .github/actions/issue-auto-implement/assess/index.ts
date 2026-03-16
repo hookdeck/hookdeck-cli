@@ -212,7 +212,9 @@ export async function assess(
   return result;
 }
 
-if (process.env.GITHUB_EVENT_PATH) {
+// Only run main when invoked as script (not when imported by tests). In CI, the runner sets
+// GITHUB_EVENT_PATH, so we must skip main() when Vitest is running to avoid unhandled process.exit.
+if (process.env.GITHUB_EVENT_PATH && !process.env.VITEST) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);
