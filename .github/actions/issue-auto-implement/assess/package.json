@@ -1,0 +1,22 @@
+{
+  "name": "issue-auto-implement-assess",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "start": "tsx src/index.ts",
+    "assess:fixture": "GITHUB_EVENT_PATH=./test/fixtures/issue-labeled.json GITHUB_EVENT_NAME=issues tsx src/index.ts",
+    "assess:local": "tsx src/run-local-assess.ts",
+    "implement:issue": "tsx src/implement.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.6"
+  }
+}
