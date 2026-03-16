@@ -28,8 +28,11 @@ inputs:
     required: false
     default: '3'
   github_allowed_trigger_team:
-    description: 'GitHub Team slug whose members may trigger the flow (e.g. hookdeck/automation-triggers). Set via repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM.'
-    required: true
+    description: 'GitHub Team slug whose members may trigger (e.g. org/team). Requires token with read:org. Set via repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM. Ignored if github_allowed_trigger_min_permission is set.'
+    required: false
+  github_allowed_trigger_min_permission:
+    description: 'Alternative to team check: require actor has at least this repo permission (triage, push, maintain, admin). Works with default GITHUB_TOKEN. Set via repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION.'
+    required: false
   post_pr_comment:
     description: 'When true, post a comment on the issue linking to the new PR when one is created'
     required: false
@@ -37,25 +40,59 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Check allowed trigger team
+    - name: Check allowed trigger (permission or team)
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        ACTOR: ${{ github.actor }}
+        MIN_PERM: ${{ inputs.github_allowed_trigger_min_permission }}
+        TEAM: ${{ inputs.github_allowed_trigger_team }}
       run: |
-        TEAM="${{ inputs.github_allowed_trigger_team }}"
+        # Option A: Require minimum repo permission (works with default GITHUB_TOKEN, no read:org)
+        if [ -n "$MIN_PERM" ]; then
+          case "$MIN_PERM" in
+            triage|push|maintain|admin) ;;
+            *) echo "::error::github_allowed_trigger_min_permission must be one of: triage, push, maintain, admin"; exit 1 ;;
+          esac
+          RESP=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/collaborators/$ACTOR/permission")
+          HTTP=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | sed '$d')
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::Actor $ACTOR has no collaborator permission on this repo (HTTP $HTTP). Only users with at least $MIN_PERM can trigger."
+            exit 1
+          fi
+          PERM=$(echo "$BODY" | jq -r '.permission // "read"')
+          # Order: read/pull < triage < push < maintain < admin
+          level() { case "$1" in read|pull) echo 1;; triage) echo 2;; push) echo 3;; maintain) echo 4;; admin) echo 5;; *) echo 0;; esac; }
+          ACTOR_LEVEL=$(level "$PERM")
+          MIN_LEVEL=$(level "$MIN_PERM")
+          if [ "$ACTOR_LEVEL" -lt "$MIN_LEVEL" ]; then
+            echo "::error::Actor $ACTOR has permission $PERM; at least $MIN_PERM is required to trigger this workflow."
+            exit 1
+          fi
+          echo "Actor $ACTOR has permission $PERM (>= $MIN_PERM)."
+          exit 0
+        fi
+        # Option B: Require team membership (token needs read:org)
         if [ -z "$TEAM" ]; then
-          echo "::error::github_allowed_trigger_team must be set (e.g. repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM). Only team members can trigger this workflow."
+          echo "::error::Set one of: repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION (e.g. push) or AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM (e.g. org/team)."
           exit 1
         fi
         ORG="${TEAM%/*}"
         SLUG="${TEAM#*/}"
         HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-          -H "Authorization: Bearer ${{ inputs.github_token }}" \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github+json" \
-          "https://api.github.com/orgs/${ORG}/teams/${SLUG}/members/${{ github.actor }}")
+          "https://api.github.com/orgs/${ORG}/teams/${SLUG}/members/$ACTOR")
         if [ "$HTTP" != "204" ]; then
-          echo "::error::Actor ${{ github.actor }} is not in team $TEAM (HTTP $HTTP). Only team members can trigger this workflow."
+          echo "::error::Actor $ACTOR is not in team $TEAM (HTTP $HTTP). Only team members can trigger. Token may need read:org."
           exit 1
         fi
-        echo "Actor ${{ github.actor }} is in team $TEAM."
+        echo "Actor $ACTOR is in team $TEAM."
     - name: Ensure labels exist
       shell: bash
       env:
