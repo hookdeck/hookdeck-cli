@@ -1,0 +1,14 @@
+{
+  "action": "submitted",
+  "pull_request": {
+    "number": 99,
+    "body": "Closes #192",
+    "head": { "ref": "auto-implement-issue-192" },
+    "html_url": "https://github.com/hookdeck/hookdeck-cli/pull/99"
+  },
+  "review": {
+    "body": "Please add a test for the new behavior.",
+    "state": "changes_requested"
+  },
+  "repository": { "full_name": "hookdeck/hookdeck-cli" }
+}

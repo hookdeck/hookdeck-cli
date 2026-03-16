@@ -1,0 +1,28 @@
+# Run issue-auto-implement assess script tests (unit tests, no secrets).
+name: Issue auto-implement (assess tests)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/actions/issue-auto-implement/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/issue-auto-implement/**'
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install and test assess script
+        run: |
+          cd .github/actions/issue-auto-implement/assess
+          npm ci
+          npm test
