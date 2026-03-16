@@ -6,7 +6,7 @@ Reusable composite action for label-triggered issue automation: assess (request 
 
 1. **Workflow** — Ensure `.github/workflows/issue-auto-implement.yml` exists and calls this action (see the workflow in this repo for the exact `on:` and `uses:`).
 2. **Secrets and variable** — In the repo: Settings → Secrets and variables → Actions. Add secret **`AUTO_IMPLEMENT_ANTHROPIC_API_KEY`** (Anthropic API key). Add variable **`AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM`** (e.g. `your-org/your-team`); only members of this team can trigger the action.
-3. **Trigger label** — Create a label **`automation/auto-implement`** (or `{your-prefix}/auto-implement` if you set `label_prefix`) in the repo so you can add it to issues. The action will create the other labels (`needs-info`, `pr-created`) when it runs.
+3. **Trigger label** — Create the labels once so you can add them to issues. Either run the **Issue auto-implement setup** workflow (Actions → Issue auto-implement setup → Run workflow), which creates `automation/auto-implement`, `automation/needs-info`, and `automation/pr-created`; or create the trigger label **`automation/auto-implement`** manually in the repo (Settings or Issues → Labels). The main action also ensures these labels exist when it runs, but the trigger label must exist before you can add it to an issue.
 4. **Trigger** — On an issue, add the label `automation/auto-implement`. The workflow runs: it assesses the issue (request more info vs implement), and if implement, runs the Claude Code CLI and opens a PR. You can also comment on the issue (to add context and re-trigger) or review the PR (to iterate).
 
 ## Usage (reference)

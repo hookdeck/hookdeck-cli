@@ -1,0 +1,36 @@
+# One-time setup: create the labels required by issue-auto-implement.
+# Run manually (Actions → Issue auto-implement setup → Run workflow) once per repo.
+# After this runs, the "automation/auto-implement" label will exist so you can add it to issues.
+name: Issue auto-implement setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-labels:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create labels
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          LABEL_PREFIX: automation
+        run: |
+          for LABEL in auto-implement needs-info pr-created; do
+            NAME="${LABEL_PREFIX}/${LABEL}"
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/labels" \
+              -d "{\"name\":\"$NAME\",\"color\":\"ededed\",\"description\":\"Issue auto-implement: $LABEL\"}")
+            if [ "$CODE" = "201" ]; then
+              echo "Created label: $NAME"
+            elif [ "$CODE" = "422" ]; then
+              echo "Label already exists: $NAME"
+            else
+              echo "::warning::Unexpected response $CODE for $NAME"
+            fi
+          done
+          echo "Done. You can now add the label $LABEL_PREFIX/auto-implement to issues."
