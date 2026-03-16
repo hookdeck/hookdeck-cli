@@ -55,6 +55,16 @@ func TestCLIBasics(t *testing.T) {
 		t.Logf("Whoami output: %s", strings.TrimSpace(stdout))
 	})
 
+	t.Run("WhoamiShowsProjectType", func(t *testing.T) {
+		cli := NewCLIRunner(t)
+		stdout := cli.RunExpectSuccess("whoami")
+		// Output should include project type (Gateway, Outpost, or Console)
+		assert.Contains(t, stdout, "Project type:", "whoami should show project type line")
+		assert.True(t,
+			strings.Contains(stdout, "Gateway") || strings.Contains(stdout, "Outpost") || strings.Contains(stdout, "Console"),
+			"whoami should show one of Gateway, Outpost, Console")
+	})
+
 	t.Run("WhoamiAfterAuth", func(t *testing.T) {
 		cli := NewCLIRunner(t)
 

@@ -109,6 +109,7 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.
 			cfg.Profile.APIKey = response.APIKey
 			cfg.Profile.ProjectId = response.ProjectID
 			cfg.Profile.ProjectMode = response.ProjectMode
+			cfg.Profile.ProjectType = config.ModeToProjectType(response.ProjectMode)
 			cfg.Profile.GuestURL = ""
 
 			if err := cfg.Profile.SaveProfile(); err != nil {

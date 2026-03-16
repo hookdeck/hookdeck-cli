@@ -102,6 +102,29 @@ func getAcceptanceAPIKey(t *testing.T) string {
 	return os.Getenv("HOOKDECK_CLI_TESTING_API_KEY")
 }
 
+// NewCLIRunnerWithKey creates a new CLI runner authenticated with the given CLI key via
+// hookdeck login --api-key. Used only for project list/use tests (HOOKDECK_CLI_TESTING_CLI_KEY);
+// API and CI keys cannot list or switch projects, so those tests require a CLI key and login auth.
+func NewCLIRunnerWithKey(t *testing.T, apiKey string) *CLIRunner {
+	t.Helper()
+	require.NotEmpty(t, apiKey, "api key must be non-empty for NewCLIRunnerWithKey")
+
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
+	runner := &CLIRunner{
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
+		configPath:  getAcceptanceConfigPath(),
+	}
+
+	stdout, stderr, err := runner.Run("login", "--api-key", apiKey)
+	require.NoError(t, err, "Failed to authenticate CLI (login --api-key): stdout=%s, stderr=%s", stdout, stderr)
+
+	return runner
+}
+
 // getAcceptanceConfigPath returns a per-slice config path when ACCEPTANCE_SLICE is set,
 // so parallel runs do not overwrite the same config file. Empty when not in sliced mode.
 func getAcceptanceConfigPath() string {
