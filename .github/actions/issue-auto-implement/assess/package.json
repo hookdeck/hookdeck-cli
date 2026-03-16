@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "start": "tsx src/index.ts",
-    "assess:fixture": "GITHUB_EVENT_PATH=./fixtures/issue-labeled.json GITHUB_EVENT_NAME=issues tsx src/index.ts",
+    "assess:fixture": "GITHUB_EVENT_PATH=./test/fixtures/issue-labeled.json GITHUB_EVENT_NAME=issues tsx src/index.ts",
     "implement:issue": "tsx src/implement.ts"
   },
   "dependencies": {

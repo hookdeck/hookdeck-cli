@@ -4,7 +4,7 @@ import {
   parseIssueNumberFromBranch,
   issueNumberFromPrPayload,
   normalizeEvent,
-} from '../src/normalize.js';
+} from '../../src/normalize.js';
 
 describe('parseClosesIssueNumber', () => {
   it('extracts issue number from Closes #123', () => {

@@ -48,6 +48,8 @@ cd .github/actions/issue-auto-implement/assess && npm ci && npm test
 
 CI runs these in `.github/workflows/issue-auto-implement-test.yml` when you push or open a PR that touches this action.
 
+**Integration tests (Claude API):** Tests in `assess/test/integration/` call the real Anthropic API. They do not run with `npm test`. From the assess directory, run `npm run test:integration` (requires `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` or `ANTHROPIC_API_KEY` in `.env` or env). Unit tests live in `assess/test/unit/`; shared fixtures in `assess/test/fixtures/`. You can add integration tests to CI later with the secret configured.
+
 ## Local runs (Claude)
 
 Scripts load a **local `.env`** file so you don't have to pass secrets on the command line. They look for `.env` in (1) the action root (`.github/actions/issue-auto-implement/.env`) and (2) the current working directory (e.g. `assess/.env`). Later overrides earlier; shell env still wins.
@@ -81,7 +83,7 @@ cd .github/actions/issue-auto-implement/assess
 npm run assess:fixture
 ```
 
-With `.env` in place, no need to pass the key on the command line. Optional: set `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to exercise redirect-to-PR and fetch-comments. Set `ASSESS_DEBUG=1` to log the prompt sent to Claude and the raw response to stderr. Other fixtures: `GITHUB_EVENT_PATH=./fixtures/issue-comment.json GITHUB_EVENT_NAME=issue_comment npx tsx src/index.ts`.
+With `.env` in place, no need to pass the key on the command line. Optional: set `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to exercise redirect-to-PR and fetch-comments. Set `ASSESS_DEBUG=1` to log the prompt sent to Claude and the raw response to stderr. Other fixtures: `GITHUB_EVENT_PATH=./test/fixtures/issue-comment.json GITHUB_EVENT_NAME=issue_comment npx tsx src/index.ts`.
 
 ### Implement (issue → Claude edits → files on disk)
 
