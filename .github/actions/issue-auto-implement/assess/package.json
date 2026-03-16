@@ -11,10 +11,10 @@
     "implement:issue": "tsx src/implement.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1"
+    "@anthropic-ai/sdk": "^0.32.1",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.6"
