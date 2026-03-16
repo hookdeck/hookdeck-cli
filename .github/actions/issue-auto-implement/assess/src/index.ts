@@ -9,7 +9,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { config } from 'dotenv';
 import Anthropic from '@anthropic-ai/sdk';
-import { normalizeEvent } from './normalize.js';
+import { normalizeEvent, issueNumberFromPrPayload } from './normalize.js';
 
 // Load .env from action root then cwd (cwd is assess/ when run from there). No-op if files missing.
 config({ path: resolve(process.cwd(), '../.env') });
@@ -42,6 +42,22 @@ async function checkExistingPr(owner: string, repo: string, issueNumber: number)
   const data = (await res.json()) as { html_url?: string }[];
   const pr = data?.[0];
   return pr?.html_url ? { pr_url: pr.html_url } : null;
+}
+
+/** Fetch PR by number; returns issue number derived from head ref or body (Closes #N). Used when issue_comment is on a PR. */
+async function issueNumberFromPrNumber(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  token: string
+): Promise<number | null> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+  });
+  if (!res.ok) return null;
+  const pr = (await res.json()) as { body?: string | null; head?: { ref?: string } };
+  return issueNumberFromPrPayload(pr);
 }
 
 type IssueComment = { body?: string; user?: { login?: string }; created_at?: string };
@@ -206,11 +222,26 @@ export async function assess(
   const normalized = normalizeEvent(eventName, payload);
   if (!normalized) throw new Error('Could not normalize event');
 
+  /** When issue_comment is on a PR, we fetch comments for the PR (this number); implement uses resolved issue number. */
+  let commentTargetIssueNumber: number | undefined;
+
   if (eventName === 'issue_comment' && opts.repo && opts.token) {
     const [owner, repo] = opts.repo.split('/');
     if (owner && repo) {
-      const existing = await checkExistingPr(owner, repo, normalized.issueNumber);
-      if (existing) return { action: 'redirect_to_pr', issue_number: normalized.issueNumber, pr_url: existing.pr_url };
+      const p = payload as Record<string, unknown>;
+      const issue = p.issue as { pull_request?: unknown } | undefined;
+      const commentOnPr = Boolean(issue?.pull_request);
+      let issueNumber = normalized.issueNumber;
+      if (commentOnPr) {
+        commentTargetIssueNumber = normalized.issueNumber;
+        const resolved = await issueNumberFromPrNumber(owner, repo, normalized.issueNumber, opts.token);
+        if (resolved != null) issueNumber = resolved;
+        // Comment was on the PR: do not redirect — run assess and iterate on existing branch (same issue number).
+      } else {
+        const existing = await checkExistingPr(owner, repo, issueNumber);
+        if (existing) return { action: 'redirect_to_pr', issue_number: issueNumber, pr_url: existing.pr_url };
+      }
+      normalized.issueNumber = issueNumber;
     }
   }
 
@@ -220,7 +251,8 @@ export async function assess(
   if ((eventName === 'issues' || eventName === 'issue_comment') && opts.repo && opts.token) {
     const [owner, repo] = opts.repo.split('/');
     if (owner && repo) {
-      issueComments = await fetchIssueComments(owner, repo, normalized.issueNumber, opts.token);
+      const fetchCommentsFor = commentTargetIssueNumber ?? normalized.issueNumber;
+      issueComments = await fetchIssueComments(owner, repo, fetchCommentsFor, opts.token);
     }
   }
   const prompt = buildAssessmentPrompt(payload, eventName, referenceIssue, contextBlock, issueComments);

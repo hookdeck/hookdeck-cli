@@ -72,6 +72,7 @@ function buildClaudeCliPrompt(
     `  1. ${metaDir}/.commit_msg — one line, conventional commit message (e.g. "fix: correct version comparison for beta").`,
     `  2. ${metaDir}/.pr_title — one-line PR title.`,
     `  3. ${metaDir}/.pr_body — markdown body: brief problem summary, then "How it was solved" or "Solution". Do NOT include "Closes #N" (it will be appended).`,
+    `  These files are workflow-only inputs (consumed by the action to create the commit and PR). Do NOT add or commit them to the repository.`,
     '',
     'Issue title:',
     issueTitle,
