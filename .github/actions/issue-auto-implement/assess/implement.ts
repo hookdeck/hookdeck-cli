@@ -42,7 +42,13 @@ function loadContextFiles(): string {
   return chunks.length ? ['Repository context:', '', ...chunks].join('\n') : '';
 }
 
-function buildPrompt(issueTitle: string, issueBody: string, verificationNotes: string, contextBlock: string): string {
+function buildPrompt(
+  issueTitle: string,
+  issueBody: string,
+  verificationNotes: string,
+  contextBlock: string,
+  previousVerifyOutput: string
+): string {
   const parts = [
     'You are implementing a GitHub issue. Produce a single JSON object with no markdown or extra text.',
     'Keys: "edits" (array of { "path": "relative/path/from/repo/root", "contents": "full file content" }), "commit_message" (short conventional commit message).',
@@ -57,6 +63,17 @@ function buildPrompt(issueTitle: string, issueBody: string, verificationNotes: s
   ];
   if (verificationNotes) {
     parts.push('Verification notes (e.g. run tests):', verificationNotes, '');
+  }
+  if (previousVerifyOutput.trim()) {
+    parts.push(
+      '',
+      'The previous implementation was applied but verification failed. Fix the implementation based on the following output:',
+      '',
+      '--- Verification output ---',
+      previousVerifyOutput.trim(),
+      '--- End verification output ---',
+      ''
+    );
   }
   if (contextBlock) {
     parts.push('', contextBlock);
@@ -88,6 +105,7 @@ async function main(): Promise<void> {
   const token = process.env.GITHUB_TOKEN;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const verificationNotes = process.env.VERIFICATION_NOTES || '';
+  const previousVerifyOutput = process.env.PREVIOUS_VERIFY_OUTPUT || '';
 
   if (!issueNumber || !repo || !token || !apiKey) {
     throw new Error('Missing required env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN, ANTHROPIC_API_KEY');
@@ -98,7 +116,7 @@ async function main(): Promise<void> {
 
   const { title, body } = await fetchIssue(owner, repoName, parseInt(issueNumber, 10), token);
   const contextBlock = loadContextFiles();
-  const prompt = buildPrompt(title, body, verificationNotes, contextBlock);
+  const prompt = buildPrompt(title, body, verificationNotes, contextBlock, previousVerifyOutput);
 
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({

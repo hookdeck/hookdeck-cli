@@ -145,7 +145,8 @@ runs:
         else
           git checkout -b "$BRANCH" origin/main
         fi
-    - name: Implement
+    - id: implement_verify_loop
+      name: Implement and verify (loop)
       if: steps.assess.outputs.action == 'implement'
       shell: bash
       env:
@@ -157,46 +158,41 @@ runs:
         VERIFICATION_NOTES: ${{ steps.assess.outputs.verification_notes }}
         CONTEXT_FILES: ${{ inputs.context_files }}
         IMPLEMENT_COMMIT_MSG_FILE: ${{ github.workspace }}/.github/actions/issue-auto-implement/.commit_msg
-      run: |
-        cd .github/actions/issue-auto-implement/assess && npx tsx implement.ts
-    - name: Commit and push
-      if: steps.assess.outputs.action == 'implement'
-      shell: bash
-      env:
-        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
-      run: |
-        COMMIT_MSG_FILE=".github/actions/issue-auto-implement/.commit_msg"
-        git add -A
-        git reset -- "$COMMIT_MSG_FILE" 2>/dev/null || true
-        if git diff --staged --quiet; then
-          echo "No changes to commit (implement produced no edits)."
-          exit 0
-        fi
-        git commit -F "$COMMIT_MSG_FILE"
-        rm -f "$COMMIT_MSG_FILE"
-        BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
-        git push -u origin "$BRANCH"
-    - id: verify_loop
-      name: Verify (with retries)
-      if: steps.assess.outputs.action == 'implement'
-      shell: bash
-      env:
         MAX_RETRIES: ${{ inputs.max_implement_retries }}
         VERIFY_CMDS: ${{ inputs.verify_commands }}
       run: |
+        set -e
         MAX=${MAX_RETRIES:-3}
+        COMMIT_MSG_FILE=".github/actions/issue-auto-implement/.commit_msg"
+        BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
+        VERIFY_FAILURE=""
         for i in $(seq 1 "$MAX"); do
-          echo "Verify attempt $i of $MAX"
-          if eval "$VERIFY_CMDS"; then
+          echo "Implement–verify attempt $i of $MAX"
+          export PREVIOUS_VERIFY_OUTPUT="$VERIFY_FAILURE"
+          cd .github/actions/issue-auto-implement/assess && npx tsx implement.ts
+          cd "$GITHUB_WORKSPACE"
+          git add -A
+          git reset -- "$COMMIT_MSG_FILE" 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git commit -F "$COMMIT_MSG_FILE"
+            rm -f "$COMMIT_MSG_FILE"
+            git push -u origin "$BRANCH"
+          else
+            echo "No changes to commit (attempt $i)."
+          fi
+          VERIFY_OUTPUT=$(eval "$VERIFY_CMDS" 2>&1); VERIFY_EXIT=$?
+          if [ "$VERIFY_EXIT" -eq 0 ]; then
             echo "verified=true" >> $GITHUB_OUTPUT
             exit 0
           fi
+          VERIFY_FAILURE="$VERIFY_OUTPUT"
+          echo "::warning::Verification failed (attempt $i of $MAX)"
         done
         echo "verified=false" >> $GITHUB_OUTPUT
         echo "::error::Verification failed after $MAX attempts"
         exit 1
     - name: Create PR
-      if: steps.assess.outputs.action == 'implement' && steps.verify_loop.outcome == 'success'
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}

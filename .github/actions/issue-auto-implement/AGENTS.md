@@ -36,8 +36,12 @@ From the workflow event payload, derive:
 ## Implement script
 
 - **Path:** `assess/implement.ts`, run with `npx tsx implement.ts` from the assess directory.
-- **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `ANTHROPIC_API_KEY` (required); `VERIFICATION_NOTES`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE` (optional).
-- **Flow:** Fetches issue title/body from GitHub API, loads context files, calls Claude for JSON `{ edits: [{ path, contents }], commit_message }`, applies edits under repo root, writes commit message to `IMPLEMENT_COMMIT_MSG_FILE`. Paths in edits must be relative; script validates they stay inside repo root.
+- **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `ANTHROPIC_API_KEY` (required); `VERIFICATION_NOTES`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE`, `PREVIOUS_VERIFY_OUTPUT` (optional).
+- **Flow:** Fetches issue title/body from GitHub API, loads context files, calls Claude for JSON `{ edits: [{ path, contents }], commit_message }`, applies edits under repo root, writes commit message to `IMPLEMENT_COMMIT_MSG_FILE`. Paths in edits must be relative; script validates they stay inside repo root. When `PREVIOUS_VERIFY_OUTPUT` is set (e.g. after a failed verify run), it is included in the prompt so Claude can fix the implementation.
+
+## Implement–verify loop
+
+- **Single step** `implement_verify_loop`: for each attempt from 1 to `max_implement_retries`, run implement (with `PREVIOUS_VERIFY_OUTPUT` from the previous failure, if any), commit and push, then run `verify_commands`. If verify passes, exit success. If it fails, set the verify output as `PREVIOUS_VERIFY_OUTPUT` and retry. After all attempts, fail. Create PR only when this step succeeds.
 
 ## Branch and PR
 
