@@ -1,1 +1,1 @@
-fix: correct version comparison for beta and multi-digit minor versions
+fix: correct version comparison for pre-release and multi-digit minor versions

@@ -1,17 +1,17 @@
 ## Problem
 
-The CLI's version update check was incorrect in two ways:
+The CLI's newer-version detection was broken in two ways:
 
-1. **Multi-digit minor versions**: String comparison treated `1.10.0` as less than `1.9.1` because `"0" < "9"` lexicographically, so users on `1.9.x` were never prompted to upgrade to `1.10.x`.
-2. **Pre-release versions**: `1.10.0-beta.4` was incorrectly considered older than `v1.9.1`, triggering a spurious "please upgrade" prompt.
+1. **Numeric minor/patch comparison**: `1.9` was treated as newer than `1.10` because the comparison was done lexicographically (string `"9" > "10"`), so `1.9.1` appeared newer than `1.10.0`.
+2. **Pre-release tag handling**: When a user was on `1.10.0-beta.4` and the latest published release was `1.9.1` (the latest *stable* release via GitHub's "latest release" API), the CLI incorrectly prompted to "upgrade" to the older stable version.
 
 ## Solution
 
-Replaced the ad-hoc string-based version comparison with `golang.org/x/mod/semver`, which implements proper semantic version ordering. Added pre-release–aware logic:
+Replaced the ad-hoc version comparison with `golang.org/x/mod/semver`, which implements proper semantic versioning:
 
-- **Beta/RC → newer beta or stable**: prompt to upgrade.
-- **Stable → newer stable**: prompt to upgrade.
-- **Stable → newer beta/RC**: do not prompt (avoid pushing unstable releases onto stable users).
-- **Beta with higher base version than latest stable** (the reported case): do not prompt.
+- Versions are normalised to include a `v` prefix before comparison.
+- `semver.Compare` correctly orders multi-digit minor/patch numbers (e.g. `1.10 > 1.9`).
+- Pre-release precedence follows semver rules: `1.10.0-beta.4 < 1.10.0` but `1.10.0-beta.4 > 1.9.1`.
+- Added explicit pre-release logic: if the current version is stable and the "latest" is a pre-release, no upgrade is suggested (avoids downgrading from GA to beta).
 
-Unit tests cover all four scenarios plus double-digit minor/patch versions and edge cases.
+A comprehensive test suite was added to `pkg/version/version_test.go` covering same-version, patch, minor, major, beta-to-stable, stable-to-beta, and RC scenarios.
