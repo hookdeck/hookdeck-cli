@@ -177,7 +177,10 @@ runs:
       shell: bash
       env:
         ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        GITHUB_ACTOR: ${{ github.actor }}
       run: |
+        git config user.name "$GITHUB_ACTOR"
+        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
         BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
         git fetch origin main
         if git show-ref --verify --quiet refs/remotes/origin/"$BRANCH"; then
