@@ -235,6 +235,11 @@ runs:
           fi
           VERIFY_FAILURE="$VERIFY_OUTPUT"
           echo "::warning::Verification failed (attempt $i of $MAX)"
+          echo "<details><summary>Verify command output</summary>"
+          echo '```'
+          printf '%s\n' "$VERIFY_OUTPUT"
+          echo '```'
+          echo "</details>"
         done
         echo "verified=false" >> $GITHUB_OUTPUT
         echo "::error::Verification failed after $MAX attempts"
