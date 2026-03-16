@@ -1,0 +1,17 @@
+## Problem
+
+The CLI's version update check was incorrect in two ways:
+
+1. **Multi-digit minor versions**: String comparison treated `1.10.0` as less than `1.9.1` because `"0" < "9"` lexicographically, so users on `1.9.x` were never prompted to upgrade to `1.10.x`.
+2. **Pre-release versions**: `1.10.0-beta.4` was incorrectly considered older than `v1.9.1`, triggering a spurious "please upgrade" prompt.
+
+## Solution
+
+Replaced the ad-hoc string-based version comparison with `golang.org/x/mod/semver`, which implements proper semantic version ordering. Added pre-release–aware logic:
+
+- **Beta/RC → newer beta or stable**: prompt to upgrade.
+- **Stable → newer stable**: prompt to upgrade.
+- **Stable → newer beta/RC**: do not prompt (avoid pushing unstable releases onto stable users).
+- **Beta with higher base version than latest stable** (the reported case): do not prompt.
+
+Unit tests cover all four scenarios plus double-digit minor/patch versions and edge cases.
