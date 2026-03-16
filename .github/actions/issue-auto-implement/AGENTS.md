@@ -26,6 +26,13 @@ From the workflow event payload, derive:
 - **Issue number:** For `issues` or `issue_comment`: `event.issue.number`. For `pull_request_review` or `pull_request_review_comment`: parse PR body for "Closes #N" or "Fixes #N", or PR head branch for `auto-implement-issue-<N>`.
 - **PR exists for issue (issue_comment only):** Check whether an open PR exists for that issue (e.g. head branch `auto-implement-issue-<N>` or body "Closes #<N>").
 
+## Request more info vs comment body from implement
+
+- **Request more info (assess):** The **assess** step decides there is **not enough information** to implement. It returns `action: request_info` and a `comment_body`. The workflow posts that on the issue (or on the PR when the trigger was a PR review/comment), adds the `needs-info` label, and **exits without running implement**.
+- **Comment body from implement (no change or need clarification):** The assess step said **implement**. The **implement** step ran (Claude Code CLI with full repo context). Claude **chose not to make code changes** — e.g. the feedback is a question, the current approach is preferred, or it needs clarification. It writes `.comment_body` with the text to post on the PR (one or two sentences). The workflow posts that on the **PR** (review iteration path). Use for: (a) no-change scenarios (thank the reviewer, briefly explain), or (b) when more information is requested (e.g. "Could you clarify whether you want X or Y?").
+
+If a reviewer's comment is ambiguous, assess might still return **implement** (optimistic). Then implement runs; Claude can either make a best-effort change, or write `.comment_body` asking for clarification. That clarification is posted on the PR.
+
 ## Assess script
 
 - **Path:** `assess/src/index.ts` (TypeScript), run with `npx tsx src/index.ts` from the assess directory (no build).
@@ -37,7 +44,7 @@ From the workflow event payload, derive:
 
 - **Path:** `assess/src/implement.ts`, run with `npx tsx src/implement.ts` from the assess directory.
 - **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` (required); `VERIFICATION_NOTES`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE`, `PREVIOUS_VERIFY_OUTPUT` (optional).
-- **Flow:** Fetches issue title/body from GitHub API, loads context files, then runs **Claude Code CLI** (`claude` on PATH) in the repo root with a prompt; the script passes `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` to the CLI as `ANTHROPIC_API_KEY`. The CLI implements in-repo (Read/Edit/Bash), then the script ensures commit/PR meta files exist (`.commit_msg`, `.pr_title`, `.pr_body` under the action dir). When `PREVIOUS_VERIFY_OUTPUT` is set (e.g. after a failed verify run), it is included in the prompt so the CLI can fix the implementation. In CI, the action installs the CLI (`npm install -g @anthropic-ai/claude-code`) before the implement step when the assess outcome is `implement`.
+- **Flow:** Fetches issue title/body from GitHub API, loads context files, then runs **Claude Code CLI** (`claude` on PATH) in the repo root with a prompt; the script passes `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` to the CLI as `ANTHROPIC_API_KEY`. The CLI implements in-repo (Read/Edit/Bash). When Claude makes code changes it writes `.commit_msg`, `.pr_title`, `.pr_body`; when it makes no code changes it writes `.comment_body` (no-change rationale or request for clarification). The script ensures commit/PR meta files exist only when Claude did not write `.comment_body`. When `PREVIOUS_VERIFY_OUTPUT` is set (e.g. after a failed verify run), it is included in the prompt so the CLI can fix the implementation. In CI, the action installs the CLI (`npm install -g @anthropic-ai/claude-code`) before the implement step when the assess outcome is `implement`.
 
 ## Implement–verify loop
 
