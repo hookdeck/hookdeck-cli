@@ -150,20 +150,32 @@ runs:
       shell: bash
       env:
         ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
-        VERIFICATION_NOTES: ${{ steps.assess.outputs.verification_notes }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_WORKSPACE: ${{ github.workspace }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        VERIFICATION_NOTES: ${{ steps.assess.outputs.verification_notes }}
+        CONTEXT_FILES: ${{ inputs.context_files }}
+        IMPLEMENT_COMMIT_MSG_FILE: ${{ github.workspace }}/.github/actions/issue-auto-implement/.commit_msg
       run: |
-        echo "Implement step: would run Claude Code Action or API here."
-        echo "Verification notes: $VERIFICATION_NOTES"
-        # Placeholder until Claude implement is wired; verify step will run next.
-    - name: Push branch
+        cd .github/actions/issue-auto-implement/assess && npx tsx implement.ts
+    - name: Commit and push
       if: steps.assess.outputs.action == 'implement'
       shell: bash
       env:
         ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
       run: |
+        COMMIT_MSG_FILE=".github/actions/issue-auto-implement/.commit_msg"
+        git add -A
+        git reset -- "$COMMIT_MSG_FILE" 2>/dev/null || true
+        if git diff --staged --quiet; then
+          echo "No changes to commit (implement produced no edits)."
+          exit 0
+        fi
+        git commit -F "$COMMIT_MSG_FILE"
+        rm -f "$COMMIT_MSG_FILE"
         BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
-        git push -u origin "$BRANCH" || true
+        git push -u origin "$BRANCH"
     - id: verify_loop
       name: Verify (with retries)
       if: steps.assess.outputs.action == 'implement'

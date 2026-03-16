@@ -33,6 +33,12 @@ From the workflow event payload, derive:
 - **Output:** JSON with `action` (`implement` | `request_info`), `comment_body` (if request_info), `verification_notes` (optional). Written to file or GITHUB_OUTPUT.
 - **When triggered by PR review:** Include PR review body and review comments in the payload sent to Claude.
 
+## Implement script
+
+- **Path:** `assess/implement.ts`, run with `npx tsx implement.ts` from the assess directory.
+- **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `ANTHROPIC_API_KEY` (required); `VERIFICATION_NOTES`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE` (optional).
+- **Flow:** Fetches issue title/body from GitHub API, loads context files, calls Claude for JSON `{ edits: [{ path, contents }], commit_message }`, applies edits under repo root, writes commit message to `IMPLEMENT_COMMIT_MSG_FILE`. Paths in edits must be relative; script validates they stay inside repo root.
+
 ## Branch and PR
 
 - Branch name: `auto-implement-issue-<issue_number>`.
