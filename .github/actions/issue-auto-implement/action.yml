@@ -266,12 +266,12 @@ runs:
           -d "$(jq -n --arg b "$BODY" '{body: $b}')"
         echo "Posted comment on issue #$ISSUE_NUMBER (verify exhausted)"
     - name: Comment on PR (review iteration)
-      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment')
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment' || (github.event_name == 'issue_comment' && github.event.issue.pull_request))
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         REPO: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
       run: |
         BODY="Addressed review feedback. New commit(s) pushed; verification passed."
         curl -s -X POST \
@@ -281,7 +281,7 @@ runs:
           -d "$(jq -n --arg b "$BODY" '{body: $b}')"
         echo "Posted comment on PR #$PR_NUMBER"
     - name: Create PR
-      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment' && !(github.event_name == 'issue_comment' && github.event.issue.pull_request)
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
