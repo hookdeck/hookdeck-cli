@@ -272,6 +272,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         REPO: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        HEAD_REF: ${{ github.event.pull_request.head.ref || format('auto-implement-issue-{0}', steps.assess.outputs.issue_number) }}
       run: |
         BODY="Addressed review feedback. New commit(s) pushed; verification passed."
         curl -s -X POST \
@@ -280,6 +281,13 @@ runs:
           "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" \
           -d "$(jq -n --arg b "$BODY" '{body: $b}')"
         echo "Posted comment on PR #$PR_NUMBER"
+        # Trigger test workflow so checks appear on the updated PR
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/actions/workflows/test.yml/dispatches" \
+          -d "$(jq -n --arg ref "$HEAD_REF" '{ref: $ref}')"
+        echo "Triggered test workflow on ref $HEAD_REF"
     - name: Create PR
       if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment' && !(github.event_name == 'issue_comment' && github.event.issue.pull_request)
       shell: bash
@@ -320,3 +328,10 @@ runs:
             echo "Posted comment on issue #$ISSUE_NUMBER"
           fi
         fi
+        # Trigger test workflow on this branch so CI checks appear (PRs created by github-actions[bot] often don't trigger pull_request)
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/actions/workflows/test.yml/dispatches" \
+          -d "$(jq -n --arg ref "$BRANCH" '{ref: $ref}')"
+        echo "Triggered test workflow on ref $BRANCH"
