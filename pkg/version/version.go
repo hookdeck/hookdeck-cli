@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-github/v28/github"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/mod/semver"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 )
@@ -38,7 +39,57 @@ func CheckLatestVersion() {
 }
 
 func needsToUpgrade(version, latest string) bool {
-	return latest != "" && (strings.TrimPrefix(latest, "v") != strings.TrimPrefix(version, "v"))
+	if latest == "" {
+		return false
+	}
+
+	// Normalize versions to include 'v' prefix for semver package
+	currentVersion := version
+	if !strings.HasPrefix(currentVersion, "v") {
+		currentVersion = "v" + currentVersion
+	}
+	latestVersion := latest
+	if !strings.HasPrefix(latestVersion, "v") {
+		latestVersion = "v" + latestVersion
+	}
+
+	// Validate versions are valid semver
+	if !semver.IsValid(currentVersion) || !semver.IsValid(latestVersion) {
+		// Fallback to string comparison if not valid semver
+		return strings.TrimPrefix(latest, "v") != strings.TrimPrefix(version, "v")
+	}
+
+	// Use semver.Compare which returns:
+	// -1 if current < latest (upgrade needed)
+	//  0 if current == latest (no upgrade)
+	//  1 if current > latest (no upgrade, user is ahead)
+	comparison := semver.Compare(currentVersion, latestVersion)
+
+	// Upgrade needed if current version is less than latest
+	// Special handling for pre-release versions:
+	// - If on beta/RC and newer stable exists, suggest upgrade
+	// - If on beta/RC and newer beta/RC exists, suggest upgrade
+	// - If on stable and newer beta/RC exists, don't suggest upgrade
+	if comparison < 0 {
+		// Current is older than latest
+		currentPrerelease := semver.Prerelease(currentVersion)
+		latestPrerelease := semver.Prerelease(latestVersion)
+
+		// If current is a prerelease, always suggest upgrade (to newer prerelease or stable)
+		if currentPrerelease != "" {
+			return true
+		}
+
+		// If current is stable and latest is prerelease, don't suggest upgrade
+		if currentPrerelease == "" && latestPrerelease != "" {
+			return false
+		}
+
+		// Both stable, or current stable and latest stable - suggest upgrade
+		return true
+	}
+
+	return false
 }
 
 func getLatestVersion() string {
