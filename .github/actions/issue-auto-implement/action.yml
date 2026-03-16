@@ -220,7 +220,7 @@ runs:
           cd .github/actions/issue-auto-implement/assess && npx tsx src/implement.ts
           cd "$GITHUB_WORKSPACE"
           git add -A
-          git reset -- "$COMMIT_MSG_FILE" 2>/dev/null || true
+          git reset -- "$COMMIT_MSG_FILE" ".github/actions/issue-auto-implement/.pr_title" ".github/actions/issue-auto-implement/.pr_body" 2>/dev/null || true
           if ! git diff --staged --quiet; then
             git commit -F "$COMMIT_MSG_FILE"
             rm -f "$COMMIT_MSG_FILE"
@@ -230,6 +230,10 @@ runs:
           fi
           VERIFY_OUTPUT=$(eval "$VERIFY_CMDS" 2>&1); VERIFY_EXIT=$?
           if [ "$VERIFY_EXIT" -eq 0 ]; then
+            # Pass PR meta to Create PR step via outputs (files are Claude handoff only; do not re-read in next step)
+            PR_DIR=".github/actions/issue-auto-implement"
+            if [ -f "$PR_DIR/.pr_title" ]; then echo "pr_title<<EOF" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_title" >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT; else echo "pr_title=Implement issue #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+            if [ -f "$PR_DIR/.pr_body" ]; then echo "pr_body<<EOF" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_body" >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT; else echo "pr_body=Closes #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
             echo "verified=true" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -285,15 +289,13 @@ runs:
         ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
         LABEL_PREFIX: ${{ inputs.label_prefix }}
         POST_PR_COMMENT: ${{ inputs.post_pr_comment }}
+        PR_TITLE: ${{ steps.implement_verify_loop.outputs.pr_title }}
+        PR_BODY: ${{ steps.implement_verify_loop.outputs.pr_body }}
       run: |
         BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
-        PR_DIR=".github/actions/issue-auto-implement"
-        if [ -f "$PR_DIR/.pr_title" ]; then TITLE=$(cat "$PR_DIR/.pr_title"); else TITLE="Implement issue #${ISSUE_NUMBER}"; fi
-        if [ -f "$PR_DIR/.pr_body" ]; then
-          PAYLOAD=$(jq -n --arg t "$TITLE" --rawfile b "$PR_DIR/.pr_body" --arg h "$BRANCH" '{title: $t, body: $b, head: $h, base: "main"}')
-        else
-          PAYLOAD=$(jq -n --arg t "$TITLE" --arg b "Closes #${ISSUE_NUMBER}" --arg h "$BRANCH" '{title: $t, body: $b, head: $h, base: "main"}')
-        fi
+        TITLE="${PR_TITLE:-Implement issue #${ISSUE_NUMBER}}"
+        BODY="${PR_BODY:-Closes #${ISSUE_NUMBER}}"
+        PAYLOAD=$(jq -n --arg t "$TITLE" --arg b "$BODY" --arg h "$BRANCH" '{title: $t, body: $b, head: $h, base: "main"}')
         PR_JSON=$(curl -s -X POST \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github+json" \

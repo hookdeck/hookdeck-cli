@@ -1,5 +1,7 @@
-# Commit message file written by implement script (never commit)
+# Workflow artifacts written by implement script (read by action, never commit)
 .commit_msg
+.pr_title
+.pr_body
 
 # Local env (secrets); do not commit
 .env
