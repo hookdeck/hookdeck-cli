@@ -23,3 +23,6 @@ test-scripts/.install-test/
 
 # Claude Code temporary worktrees
 .claude/worktrees/
+
+# Auto-implement local worktrees (run-local-assess creates these)
+.worktrees/
