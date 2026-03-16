@@ -2,18 +2,23 @@
 /**
  * Assess script: read GitHub event, normalize, optionally check redirect, call Claude, output JSON.
  * Output: { action: 'implement' | 'request_info' | 'redirect_to_pr', comment_body?, verification_notes?, pr_url? }
- * Run: GITHUB_EVENT_PATH=... GITHUB_EVENT_NAME=... [ANTHROPIC_API_KEY=...] npx tsx index.ts
+ * Run: GITHUB_EVENT_PATH=... GITHUB_EVENT_NAME=... [AUTO_IMPLEMENT_ANTHROPIC_API_KEY=...] npx tsx src/index.ts
  */
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { config } from 'dotenv';
 import Anthropic from '@anthropic-ai/sdk';
 import { normalizeEvent } from './normalize.js';
+
+// Load .env from action root then cwd (cwd is assess/ when run from there). No-op if files missing.
+config({ path: resolve(process.cwd(), '../.env') });
+config({ path: resolve(process.cwd(), '.env') });
 
 const EVENT_PATH = process.env.GITHUB_EVENT_PATH || '';
 const EVENT_NAME = process.env.GITHUB_EVENT_NAME || '';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
+const ANTHROPIC_API_KEY = process.env.AUTO_IMPLEMENT_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '';
 const REPO = process.env.GITHUB_REPOSITORY || '';
 const CONTEXT_FILES = process.env.CONTEXT_FILES || '';
 const REPO_ROOT = process.env.GITHUB_WORKSPACE || resolve(process.cwd(), '../../..');
@@ -142,10 +147,17 @@ function buildAssessmentPrompt(
   return parts.join('\n');
 }
 
+const DEBUG = process.env.ASSESS_DEBUG === '1' || process.env.ASSESS_DEBUG === 'true';
+
 async function callClaude(prompt: string, client?: Anthropic): Promise<AssessmentOutput> {
   const api = client ?? new Anthropic({ apiKey: ANTHROPIC_API_KEY });
   if (!client && !ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not set');
+    throw new Error('AUTO_IMPLEMENT_ANTHROPIC_API_KEY or ANTHROPIC_API_KEY is not set');
+  }
+  if (DEBUG) {
+    process.stderr.write('--- ASSESS PROMPT (sent to Claude) ---\n');
+    process.stderr.write(prompt);
+    process.stderr.write('\n--- END PROMPT ---\n');
   }
   const response = await api.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -153,6 +165,11 @@ async function callClaude(prompt: string, client?: Anthropic): Promise<Assessmen
     messages: [{ role: 'user', content: prompt }],
   });
   const text = response.content?.[0]?.type === 'text' ? response.content[0].text : '';
+  if (DEBUG) {
+    process.stderr.write('--- CLAUDE RAW RESPONSE ---\n');
+    process.stderr.write(text);
+    process.stderr.write('\n--- END RESPONSE ---\n');
+  }
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('Claude did not return valid JSON: ' + text.slice(0, 200));

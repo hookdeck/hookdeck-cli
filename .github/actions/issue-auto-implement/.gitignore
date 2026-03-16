@@ -1,2 +1,5 @@
 # Commit message file written by implement script (never commit)
 .commit_msg
+
+# Local env (secrets); do not commit
+.env

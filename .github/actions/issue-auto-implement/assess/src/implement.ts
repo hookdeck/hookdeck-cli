@@ -1,14 +1,21 @@
 #!/usr/bin/env -S npx tsx
 /**
  * Implement script: fetch issue, call Claude for file edits, apply and write commit message.
- * Env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN, ANTHROPIC_API_KEY, VERIFICATION_NOTES,
- *      GITHUB_WORKSPACE, CONTEXT_FILES. Writes commit message to IMPLEMENT_COMMIT_MSG_FILE.
+ * Env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN, AUTO_IMPLEMENT_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY),
+ *      VERIFICATION_NOTES, GITHUB_WORKSPACE (optional, default: infer from cwd), CONTEXT_FILES.
+ *      Writes commit message to IMPLEMENT_COMMIT_MSG_FILE.
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
+import { config } from 'dotenv';
 import Anthropic from '@anthropic-ai/sdk';
 
+// Load .env from action root then cwd (cwd is assess/ when run from there). No-op if files missing.
+config({ path: resolve(process.cwd(), '../.env') });
+config({ path: resolve(process.cwd(), '.env') });
+
+// Default repo root: infer from cwd when run from assess/ (e.g. ../../..); set GITHUB_WORKSPACE only if needed
 const REPO_ROOT = process.env.GITHUB_WORKSPACE || resolve(process.cwd(), '../../..');
 const COMMIT_MSG_FILE = process.env.IMPLEMENT_COMMIT_MSG_FILE || resolve(REPO_ROOT, '.github/actions/issue-auto-implement/.commit_msg');
 
@@ -103,12 +110,12 @@ async function main(): Promise<void> {
   const issueNumber = process.env.ISSUE_NUMBER;
   const repo = process.env.GITHUB_REPOSITORY;
   const token = process.env.GITHUB_TOKEN;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.AUTO_IMPLEMENT_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
   const verificationNotes = process.env.VERIFICATION_NOTES || '';
   const previousVerifyOutput = process.env.PREVIOUS_VERIFY_OUTPUT || '';
 
   if (!issueNumber || !repo || !token || !apiKey) {
-    throw new Error('Missing required env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN, ANTHROPIC_API_KEY');
+    throw new Error('Missing required env: ISSUE_NUMBER, GITHUB_REPOSITORY, GITHUB_TOKEN, AUTO_IMPLEMENT_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY)');
   }
 
   const [owner, repoName] = repo.split('/');

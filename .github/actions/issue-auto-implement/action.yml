@@ -30,6 +30,10 @@ inputs:
   github_allowed_trigger_team:
     description: 'GitHub Team slug whose members may trigger the flow (e.g. hookdeck/automation-triggers). Set via repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM.'
     required: true
+  post_pr_comment:
+    description: 'When true, post a comment on the issue linking to the new PR when one is created'
+    required: false
+    default: 'false'
 runs:
   using: 'composite'
   steps:
@@ -74,14 +78,14 @@ runs:
       name: Run assess
       shell: bash
       env:
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        AUTO_IMPLEMENT_ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_WORKSPACE: ${{ github.workspace }}
         ASSESSMENT_REFERENCE_ISSUE: ${{ inputs.assessment_reference_issue }}
         CONTEXT_FILES: ${{ inputs.context_files }}
       run: |
-        RESULT=$(cd .github/actions/issue-auto-implement/assess && npx tsx index.ts)
+        RESULT=$(cd .github/actions/issue-auto-implement/assess && npx tsx src/index.ts)
         echo "action=$(echo "$RESULT" | jq -r '.action')" >> $GITHUB_OUTPUT
         echo "issue_number=$(echo "$RESULT" | jq -r '.issue_number // empty')" >> $GITHUB_OUTPUT
         echo "pr_url=$(echo "$RESULT" | jq -r '.pr_url // empty')" >> $GITHUB_OUTPUT
@@ -154,7 +158,7 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_WORKSPACE: ${{ github.workspace }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        AUTO_IMPLEMENT_ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         VERIFICATION_NOTES: ${{ steps.assess.outputs.verification_notes }}
         CONTEXT_FILES: ${{ inputs.context_files }}
         IMPLEMENT_COMMIT_MSG_FILE: ${{ github.workspace }}/.github/actions/issue-auto-implement/.commit_msg
@@ -169,7 +173,7 @@ runs:
         for i in $(seq 1 "$MAX"); do
           echo "Implement–verify attempt $i of $MAX"
           export PREVIOUS_VERIFY_OUTPUT="$VERIFY_FAILURE"
-          cd .github/actions/issue-auto-implement/assess && npx tsx implement.ts
+          cd .github/actions/issue-auto-implement/assess && npx tsx src/implement.ts
           cd "$GITHUB_WORKSPACE"
           git add -A
           git reset -- "$COMMIT_MSG_FILE" 2>/dev/null || true
@@ -191,14 +195,47 @@ runs:
         echo "verified=false" >> $GITHUB_OUTPUT
         echo "::error::Verification failed after $MAX attempts"
         exit 1
+    - name: Comment on issue when verify retries exhausted
+      if: failure() && steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'failure'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        MAX_RETRIES: ${{ inputs.max_implement_retries }}
+      run: |
+        BODY="The auto-implement run could not complete: verification failed after ${MAX_RETRIES} attempts. See the [workflow run]($RUN_URL) for logs. You can address the failure and re-trigger by adding a comment or re-applying the label."
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+          -d "$(jq -n --arg b "$BODY" '{body: $b}')"
+        echo "Posted comment on issue #$ISSUE_NUMBER (verify exhausted)"
+    - name: Comment on PR (review iteration)
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment')
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        BODY="Addressed review feedback. New commit(s) pushed; verification passed."
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" \
+          -d "$(jq -n --arg b "$BODY" '{body: $b}')"
+        echo "Posted comment on PR #$PR_NUMBER"
     - name: Create PR
-      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success'
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         REPO: ${{ github.repository }}
         ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
         LABEL_PREFIX: ${{ inputs.label_prefix }}
+        POST_PR_COMMENT: ${{ inputs.post_pr_comment }}
       run: |
         BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
         TITLE="Auto-implement issue #${ISSUE_NUMBER}"
@@ -210,7 +247,6 @@ runs:
           -d "{\"title\":\"$TITLE\",\"body\":\"$BODY\",\"head\":\"$BRANCH\",\"base\":\"main\"}")
         PR_URL=$(echo "$PR_JSON" | jq -r '.html_url // empty')
         if [ -n "$PR_URL" ]; then
-          PR_NUM=$(echo "$PR_JSON" | jq -r '.number')
           NEEDS_LABEL="${LABEL_PREFIX}/pr-created"
           curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -218,4 +254,13 @@ runs:
             "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/labels" \
             -d "{\"labels\":[\"$NEEDS_LABEL\"]}"
           echo "Created PR: $PR_URL"
+          if [ "$POST_PR_COMMENT" = "true" ]; then
+            COMMENT_BODY="Opened PR: $PR_URL"
+            curl -s -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+              -d "$(jq -n --arg b "$COMMENT_BODY" '{body: $b}')"
+            echo "Posted comment on issue #$ISSUE_NUMBER"
+          fi
         fi
