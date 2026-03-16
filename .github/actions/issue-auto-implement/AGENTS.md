@@ -14,10 +14,10 @@ For agents making changes to this action. This file summarizes flows, design dec
 - **Trigger:** `issue_comment.created` on an issue that **already has an open PR** for that issue.
 - **Flow:** Post a short reply on the issue directing the user to the PR; exit. No assessment or implement.
 
-### 3. PR review → iteration
+### 3. PR review or PR conversation comment → iteration
 
-- **Triggers:** `pull_request_review.submitted`, `pull_request_review_comment.created` when the PR is from an automation branch or body contains "Closes #N".
-- **Flow:** Resolve issue number from PR (body "Closes #N"/"Fixes #N" or head branch `auto-implement-issue-<N>`) → assess with issue + review content → implement ("address review feedback"), push to same branch → verify → on pass: do **not** create PR; post comment on the PR summarizing the new commit(s).
+- **Triggers:** `pull_request_review.submitted`, `pull_request_review_comment.created`, or `issue_comment.created` **on a PR** (when `issue.pull_request` is set) when the PR is from an automation branch or body contains "Closes #N".
+- **Flow:** Resolve issue number from PR (body "Closes #N"/"Fixes #N" or head branch `auto-implement-issue-<N>`) → assess with issue + review/comment content → implement ("address review feedback"), push to same branch → verify → on pass: do **not** create PR; post comment on the PR summarizing the new commit(s).
 
 ## Event normalization
 
@@ -41,7 +41,7 @@ From the workflow event payload, derive:
 
 ## Implement–verify loop
 
-- **Single step** `implement_verify_loop`: for each attempt from 1 to `max_implement_retries`, run implement (with `PREVIOUS_VERIFY_OUTPUT` from the previous failure, if any), commit and push, then run `verify_commands`. If verify passes, exit success. If it fails, set the verify output as `PREVIOUS_VERIFY_OUTPUT` and retry. After all attempts, fail. When this step succeeds: if trigger was `pull_request_review` or `pull_request_review_comment`, post a comment on the existing PR (no new PR); otherwise create PR.
+- **Single step** `implement_verify_loop`: for each attempt from 1 to `max_implement_retries`, run implement (with `PREVIOUS_VERIFY_OUTPUT` from the previous failure, if any), commit and push, then run `verify_commands`. If verify passes, exit success. If it fails, set the verify output as `PREVIOUS_VERIFY_OUTPUT` and retry. After all attempts, fail. When this step succeeds: if trigger was `pull_request_review`, `pull_request_review_comment`, or `issue_comment` on a PR (`issue.pull_request` set), post a comment on the existing PR (no new PR); otherwise create PR.
 
 ## Branch and PR
 

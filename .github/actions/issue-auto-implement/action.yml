@@ -266,13 +266,13 @@ runs:
           -d "$(jq -n --arg b "$BODY" '{body: $b}')"
         echo "Posted comment on issue #$ISSUE_NUMBER (verify exhausted)"
     - name: Comment on PR (review iteration)
-      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment')
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment' || (github.event_name == 'issue_comment' && github.event.issue.pull_request))
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         REPO: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
-        HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        HEAD_REF: ${{ github.event.pull_request.head.ref || format('auto-implement-issue-{0}', steps.assess.outputs.issue_number) }}
       run: |
         BODY="Addressed review feedback. New commit(s) pushed; verification passed."
         curl -s -X POST \
@@ -289,7 +289,7 @@ runs:
           -d "$(jq -n --arg ref "$HEAD_REF" '{ref: $ref}')"
         echo "Triggered test workflow on ref $HEAD_REF"
     - name: Create PR
-      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment' && !(github.event_name == 'issue_comment' && github.event.issue.pull_request)
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
