@@ -15,6 +15,8 @@ const EVENT_NAME = process.env.GITHUB_EVENT_NAME || '';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const REPO = process.env.GITHUB_REPOSITORY || '';
+const CONTEXT_FILES = process.env.CONTEXT_FILES || '';
+const REPO_ROOT = process.env.GITHUB_WORKSPACE || resolve(process.cwd(), '../../..');
 
 export type AssessmentOutput = {
   action: 'implement' | 'request_info' | 'redirect_to_pr';
@@ -57,7 +59,28 @@ function inferEventName(payload: unknown): string {
   return '';
 }
 
-function buildAssessmentPrompt(payload: unknown, eventName: string, referenceIssue: string): string {
+function loadContextFiles(): string {
+  if (!CONTEXT_FILES.trim()) return '';
+  const paths = CONTEXT_FILES.split(',').map((s) => s.trim()).filter(Boolean);
+  const chunks: string[] = [];
+  for (const rel of paths) {
+    try {
+      const full = resolve(REPO_ROOT, rel);
+      const content = readFileSync(full, 'utf-8');
+      chunks.push(`--- ${rel} ---\n${content}`);
+    } catch {
+      // Skip missing files (e.g. REFERENCE.md may not exist in all repos)
+    }
+  }
+  return chunks.length ? ['Repository context:', '', ...chunks].join('\n') : '';
+}
+
+function buildAssessmentPrompt(
+  payload: unknown,
+  eventName: string,
+  referenceIssue: string,
+  contextBlock: string
+): string {
   const p = payload as Record<string, unknown>;
   const issue = p.issue as { title?: string; body?: string; number?: number } | undefined;
   const parts: string[] = [
@@ -73,6 +96,9 @@ function buildAssessmentPrompt(payload: unknown, eventName: string, referenceIss
     '',
     `Reference example of "enough information": GitHub issue #${referenceIssue} (use similar clarity and specificity).`,
   ];
+  if (contextBlock) {
+    parts.push('', contextBlock);
+  }
 
   const comment = p.comment as { body?: string } | undefined;
   if (comment?.body) {
@@ -126,7 +152,13 @@ async function main(): Promise<void> {
 export async function assess(
   eventName: string,
   payload: unknown,
-  opts: { repo?: string; token?: string; referenceIssue?: string; anthropicClient?: Anthropic }
+  opts: {
+    repo?: string;
+    token?: string;
+    referenceIssue?: string;
+    anthropicClient?: Anthropic;
+    contextFilesContent?: string;
+  }
 ): Promise<AssessmentOutput> {
   const normalized = normalizeEvent(eventName, payload);
   if (!normalized) throw new Error('Could not normalize event');
@@ -140,7 +172,8 @@ export async function assess(
   }
 
   const referenceIssue = opts.referenceIssue ?? '192';
-  const prompt = buildAssessmentPrompt(payload, eventName, referenceIssue);
+  const contextBlock = opts.contextFilesContent ?? loadContextFiles();
+  const prompt = buildAssessmentPrompt(payload, eventName, referenceIssue, contextBlock);
   const result = await callClaude(prompt, opts.anthropicClient);
   result.issue_number = normalized.issueNumber;
   return result;
