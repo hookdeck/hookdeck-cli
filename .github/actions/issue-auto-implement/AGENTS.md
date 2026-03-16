@@ -78,4 +78,4 @@ Possible future improvements:
 2. **Optional comment when PR is created** — Input `post_pr_comment` exists; when true, post a short comment on the issue linking to the new PR when one is created.
 3. **Local run with fixture and Claude** — `npm run assess:fixture` exists; optional end-to-end testing with real `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`.
 
-Done: context files in assess, implement step (Claude Code CLI), implement–verify loop with re-implement on failure, PR review iteration (comment on PR, no new PR), comment when retries exhausted, secrets/variables and README docs, local assess script and TEST_PLAN.
+Done: context files in assess, implement step (Claude Code CLI), implement–verify loop with re-implement on failure, PR review iteration (comment on PR, no new PR), comment when retries exhausted, secrets/variables and README docs, local assess script.

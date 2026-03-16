@@ -7,6 +7,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "start": "tsx src/index.ts",
     "assess:fixture": "GITHUB_EVENT_PATH=./test/fixtures/issue-labeled.json GITHUB_EVENT_NAME=issues tsx src/index.ts",
+    "assess:local": "tsx src/run-local-assess.ts",
     "implement:issue": "tsx src/implement.ts"
   },
   "dependencies": {

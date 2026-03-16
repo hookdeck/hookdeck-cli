@@ -2,7 +2,14 @@
 
 Reusable composite action for label-triggered issue automation: assess (request more info or implement), implement-verify loop, then create PR or iterate on an existing PR after review.
 
-## Usage
+## How to use (quick start)
+
+1. **Workflow** — Ensure `.github/workflows/issue-auto-implement.yml` exists and calls this action (see the workflow in this repo for the exact `on:` and `uses:`).
+2. **Secrets and variable** — In the repo: Settings → Secrets and variables → Actions. Add secret **`AUTO_IMPLEMENT_ANTHROPIC_API_KEY`** (Anthropic API key). Add variable **`AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM`** (e.g. `your-org/your-team`); only members of this team can trigger the action.
+3. **Trigger label** — Create a label **`automation/auto-implement`** (or `{your-prefix}/auto-implement` if you set `label_prefix`) in the repo so you can add it to issues. The action will create the other labels (`needs-info`, `pr-created`) when it runs.
+4. **Trigger** — On an issue, add the label `automation/auto-implement`. The workflow runs: it assesses the issue (request more info vs implement), and if implement, runs the Claude Code CLI and opens a PR. You can also comment on the issue (to add context and re-trigger) or review the PR (to iterate).
+
+## Usage (reference)
 
 Used by `.github/workflows/issue-auto-implement.yml`. Requires `anthropic_api_key` (e.g. from repo secret `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`), `github_allowed_trigger_team` (e.g. from repo variable `AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM`), and `github_token` from the workflow.
 
@@ -112,4 +119,4 @@ For implementation details and verification steps, see `AGENTS.md`.
 
 ### Local run against a real issue (no workflow events)
 
-To test the full flow locally against a real GitHub issue and create a PR, use the **local assess** script (fetches the issue from the API and runs the same assess logic). With **APPLY=1** the script applies the outcome: posts the request-for-more-info or redirect comment on the issue, or runs implement and push (creates/updates the PR). When the outcome is implement, the script creates or reuses a **worktree** at `.worktrees/auto-implement-issue-<N>` so your current branch is left untouched; implement runs there, then commit/push/PR is done in TypeScript (`assess/src/push-and-open-pr.ts`). The workflow does not need to run; you trigger each step locally and optionally pass **COMMENT_BODY** (after you add a comment on the issue) or **REVIEW_BODY** (after you review the PR). See **[TEST_PLAN.md](TEST_PLAN.md)** for the **Live flow walkthrough** and full test plan.
+To test the full flow locally against a real GitHub issue and create a PR, use the **local assess** script (fetches the issue from the API and runs the same assess logic). With **APPLY=1** the script applies the outcome: posts the request-for-more-info or redirect comment on the issue, or runs implement and push (creates/updates the PR). When the outcome is implement, the script creates or reuses a **worktree** at `.worktrees/auto-implement-issue-<N>` so your current branch is left untouched; implement runs there, then commit/push/PR is done in TypeScript (`assess/src/push-and-open-pr.ts`). The workflow does not need to run; you trigger each step locally and optionally pass **COMMENT_BODY** (after you add a comment on the issue) or **REVIEW_BODY** (after you review the PR).
