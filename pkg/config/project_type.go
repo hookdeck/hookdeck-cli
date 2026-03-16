@@ -9,21 +9,21 @@ const (
 	ProjectTypeConsole = "Console"
 )
 
-// OutboundMode is the API mode for outbound projects; they are excluded from project list.
+// OutboundMode is the API mode for outbound projects; treated as Gateway (same as inbound).
 const OutboundMode = "outbound"
 
 // ModeToProjectType maps API mode to display project type.
-// Returns empty string for outbound so callers can exclude those projects from the list.
+// Inbound and outbound both map to Gateway. Returns empty string only for unknown modes.
 func ModeToProjectType(mode string) string {
 	switch strings.ToLower(mode) {
 	case "inbound":
 		return ProjectTypeGateway
+	case OutboundMode:
+		return ProjectTypeGateway // same as inbound for gateway purposes
 	case "console":
 		return ProjectTypeConsole
 	case "outpost":
 		return ProjectTypeOutpost
-	case OutboundMode:
-		return "" // excluded from list
 	default:
 		return ""
 	}
@@ -43,10 +43,10 @@ func ProjectTypeToMode(projectType string) string {
 	}
 }
 
-// IsGatewayProject returns true if the given type or mode represents a Gateway project (inbound or console).
+// IsGatewayProject returns true if the given type or mode represents a Gateway project (inbound, outbound, or console).
 func IsGatewayProject(typeOrMode string) bool {
 	switch typeOrMode {
-	case ProjectTypeGateway, ProjectTypeConsole, "inbound", "console":
+	case ProjectTypeGateway, ProjectTypeConsole, "inbound", "outbound", "console":
 		return true
 	default:
 		return false

@@ -16,8 +16,8 @@ func TestModeToProjectType(t *testing.T) {
 		{"console", ProjectTypeConsole},
 		{"Console", ProjectTypeConsole},
 		{"outpost", ProjectTypeOutpost},
-		{"outbound", ""},
-		{"Outbound", ""},
+		{"outbound", ProjectTypeGateway}, // same as inbound
+		{"Outbound", ProjectTypeGateway},
 		{"unknown", ""},
 		{"", ""},
 	}
@@ -49,14 +49,14 @@ func TestProjectTypeToMode(t *testing.T) {
 }
 
 func TestIsGatewayProject(t *testing.T) {
-	// Gateway = inbound or console (type or mode)
-	trueCases := []string{ProjectTypeGateway, "inbound", "console", ProjectTypeConsole}
+	// Gateway = inbound, outbound, or console (type or mode)
+	trueCases := []string{ProjectTypeGateway, "inbound", "outbound", "console", ProjectTypeConsole}
 	for _, v := range trueCases {
 		t.Run("true_"+v, func(t *testing.T) {
 			assert.True(t, IsGatewayProject(v))
 		})
 	}
-	falseCases := []string{"outbound", ProjectTypeOutpost, ""}
+	falseCases := []string{ProjectTypeOutpost, ""}
 	for _, v := range falseCases {
 		t.Run("false_"+v, func(t *testing.T) {
 			assert.False(t, IsGatewayProject(v))

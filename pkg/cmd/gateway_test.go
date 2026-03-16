@@ -55,6 +55,15 @@ func TestRequireGatewayProject(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("outbound mode passes when type empty (same as inbound)", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Profile.APIKey = "sk_xxx"
+		cfg.Profile.ProjectId = "proj_1"
+		cfg.Profile.ProjectMode = "outbound"
+		err := requireGatewayProject(cfg)
+		assert.NoError(t, err)
+	})
+
 	t.Run("Outpost type fails", func(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Profile.APIKey = "sk_xxx"

@@ -17,8 +17,8 @@ func TestNormalizeProjects(t *testing.T) {
 		{Id: "p5", Name: "No brackets", Mode: "inbound"},
 	}
 	items := NormalizeProjects(projects, "p2")
-	// outbound excluded, so 4 items (p4 excluded)
-	require.Len(t, items, 4)
+	// inbound, outbound, console, outpost all have known types; 5 items (p4 outbound -> Gateway)
+	require.Len(t, items, 5)
 
 	// p1: Gateway, Acme, Prod
 	assert.Equal(t, "p1", items[0].Id)
@@ -34,9 +34,15 @@ func TestNormalizeProjects(t *testing.T) {
 	// p3: Outpost
 	assert.Equal(t, "Outpost", items[2].Type)
 
+	// p4: outbound -> Gateway (same as inbound)
+	assert.Equal(t, "p4", items[3].Id)
+	assert.Equal(t, "Org", items[3].Org)
+	assert.Equal(t, "Outbound", items[3].Project)
+	assert.Equal(t, "Gateway", items[3].Type)
+
 	// p5: unparseable name -> org "", project "No brackets"
-	assert.Equal(t, "", items[3].Org)
-	assert.Equal(t, "No brackets", items[3].Project)
+	assert.Equal(t, "", items[4].Org)
+	assert.Equal(t, "No brackets", items[4].Project)
 }
 
 func TestNormalizeProjects_EmptyList(t *testing.T) {
@@ -44,12 +50,16 @@ func TestNormalizeProjects_EmptyList(t *testing.T) {
 	assert.Empty(t, items)
 }
 
-func TestNormalizeProjects_AllOutbound(t *testing.T) {
+// TestNormalizeProjects_OutboundMapsToGateway ensures outbound mode is treated as Gateway (same as inbound).
+func TestNormalizeProjects_OutboundMapsToGateway(t *testing.T) {
 	projects := []hookdeck.Project{
 		{Id: "p1", Name: "[A] P", Mode: "outbound"},
 	}
 	items := NormalizeProjects(projects, "p1")
-	assert.Empty(t, items)
+	require.Len(t, items, 1)
+	assert.Equal(t, "p1", items[0].Id)
+	assert.Equal(t, "Gateway", items[0].Type)
+	assert.True(t, items[0].Current)
 }
 
 func TestFilterByType(t *testing.T) {
