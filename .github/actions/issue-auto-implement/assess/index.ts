@@ -39,6 +39,23 @@ async function checkExistingPr(owner: string, repo: string, issueNumber: number)
   return pr?.html_url ? { pr_url: pr.html_url } : null;
 }
 
+type IssueComment = { body?: string; user?: { login?: string }; created_at?: string };
+
+async function fetchIssueComments(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  token: string
+): Promise<IssueComment[]> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as IssueComment[];
+  return Array.isArray(data) ? data : [];
+}
+
 function loadPayload(): { eventName: string; payload: unknown } {
   if (!EVENT_PATH) {
     throw new Error('GITHUB_EVENT_PATH is not set');
@@ -79,7 +96,8 @@ function buildAssessmentPrompt(
   payload: unknown,
   eventName: string,
   referenceIssue: string,
-  contextBlock: string
+  contextBlock: string,
+  issueComments: IssueComment[] = []
 ): string {
   const p = payload as Record<string, unknown>;
   const issue = p.issue as { title?: string; body?: string; number?: number } | undefined;
@@ -99,12 +117,20 @@ function buildAssessmentPrompt(
   if (contextBlock) {
     parts.push('', contextBlock);
   }
-
-  const comment = p.comment as { body?: string } | undefined;
-  if (comment?.body) {
-    parts.push('', 'Latest comment:', comment.body);
+  if (issueComments.length > 0) {
+    parts.push(
+      '',
+      'All issue comments (from API):',
+      issueComments
+        .map((c) => `[${c.user?.login ?? 'unknown'} @ ${c.created_at ?? 'N/A'}]: ${c.body ?? ''}`)
+        .join('\n\n')
+    );
   }
-  if (Array.isArray(p.comments) && p.comments.length) {
+  const comment = p.comment as { body?: string } | undefined;
+  if (comment?.body && !issueComments.some((c) => c.body === comment.body)) {
+    parts.push('', 'Latest event comment:', comment.body);
+  }
+  if (Array.isArray(p.comments) && p.comments.length && issueComments.length === 0) {
     parts.push('', 'Comments:', JSON.stringify(p.comments, null, 2));
   }
   if (eventName === 'pull_request_review' || eventName === 'pull_request_review_comment') {
@@ -173,7 +199,14 @@ export async function assess(
 
   const referenceIssue = opts.referenceIssue ?? '192';
   const contextBlock = opts.contextFilesContent ?? loadContextFiles();
-  const prompt = buildAssessmentPrompt(payload, eventName, referenceIssue, contextBlock);
+  let issueComments: IssueComment[] = [];
+  if ((eventName === 'issues' || eventName === 'issue_comment') && opts.repo && opts.token) {
+    const [owner, repo] = opts.repo.split('/');
+    if (owner && repo) {
+      issueComments = await fetchIssueComments(owner, repo, normalized.issueNumber, opts.token);
+    }
+  }
+  const prompt = buildAssessmentPrompt(payload, eventName, referenceIssue, contextBlock, issueComments);
   const result = await callClaude(prompt, opts.anthropicClient);
   result.issue_number = normalized.issueNumber;
   return result;
