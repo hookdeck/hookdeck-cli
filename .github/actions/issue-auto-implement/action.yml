@@ -234,8 +234,8 @@ runs:
           if [ "$VERIFY_EXIT" -eq 0 ]; then
             # Pass PR meta to Create PR step via outputs (files are Claude handoff only; do not re-read in next step)
             PR_DIR=".github/actions/issue-auto-implement"
-            if [ -f "$PR_DIR/.pr_title" ]; then echo "pr_title<<EOF" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_title" >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT; else echo "pr_title=Implement issue #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
-            if [ -f "$PR_DIR/.pr_body" ]; then echo "pr_body<<EOF" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_body" >> $GITHUB_OUTPUT; echo "EOF" >> $GITHUB_OUTPUT; else echo "pr_body=Closes #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+            if [ -f "$PR_DIR/.pr_title" ]; then echo "pr_title<<PR_TITLE_DELIM" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_title" >> $GITHUB_OUTPUT; echo "PR_TITLE_DELIM" >> $GITHUB_OUTPUT; else echo "pr_title=Implement issue #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+            if [ -f "$PR_DIR/.pr_body" ]; then echo "pr_body<<PR_BODY_DELIM" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_body" >> $GITHUB_OUTPUT; echo "PR_BODY_DELIM" >> $GITHUB_OUTPUT; else echo "pr_body=Closes #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
             echo "verified=true" >> $GITHUB_OUTPUT
             echo "changes_pushed=$CHANGES_PUSHED" >> $GITHUB_OUTPUT
             exit 0
