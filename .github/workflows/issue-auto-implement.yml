@@ -1,6 +1,6 @@
 # Label-triggered issue automation: assess, implement-verify loop, create PR or iterate on PR.
 # Triggers: issue labeled (automation/auto-implement), issue comment, PR review.
-# Require repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM (org/team slug). Token may need read:org (PAT) for team check.
+# Gate: set one of AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION (e.g. push; works with default token) or AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM (org/team; token needs read:org).
 name: Issue auto-implement
 
 on:
@@ -26,7 +26,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      # Team check requires read:org; use a PAT as github_token if GITHUB_TOKEN lacks it
+      # read:org only needed if using team check (AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,4 +37,5 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.AUTO_IMPLEMENT_ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_allowed_trigger_min_permission: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION }}
           github_allowed_trigger_team: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM }}

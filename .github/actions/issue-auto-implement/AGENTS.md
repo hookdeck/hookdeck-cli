@@ -51,7 +51,12 @@ From the workflow event payload, derive:
 
 ## Restricting who can trigger
 
-Only members of the `github_allowed_trigger_team` (input; set via repo variable `AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM`) may trigger the flow. First step checks `github.actor` against that team; if the variable is unset or the actor is not a member, fail immediately. Token must have `read:org`.
+The first step enforces one of two gates (exactly one must be configured; no bypass):
+
+1. **Permission check** — If `github_allowed_trigger_min_permission` is set (repo variable `AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION`: `triage`, `push`, `maintain`, or `admin`), the action calls the repo collaborator permission API and requires the actor to have at least that permission. Works with the default `GITHUB_TOKEN`.
+2. **Team check** — Otherwise, if `github_allowed_trigger_team` is set (repo variable `AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM`, e.g. `org/team`), the action checks `github.actor` against that team; if unset or not a member, fail. Token must have `read:org` (PAT if `GITHUB_TOKEN` lacks it).
+
+If neither variable is set, the step fails. When both are set, the permission check is used and the team value is ignored.
 
 ## Labels
 
