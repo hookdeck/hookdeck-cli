@@ -1,1 +1,1 @@
-fix: correct version comparison for pre-release and multi-digit minor versions
+fix: correct newer version detection for semver and pre-release versions
