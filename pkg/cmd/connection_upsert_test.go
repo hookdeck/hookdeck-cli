@@ -37,7 +37,7 @@ func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
 		assert.Contains(t, headersMap, "x-shopify-topic")
 	})
 
-	t.Run("non-JSON string (JQ expression) should remain a string", func(t *testing.T) {
+	t.Run("non-JSON string should remain a string", func(t *testing.T) {
 		flags := connectionRuleFlags{
 			RuleFilterHeaders: `.["x-topic"] == "order"`,
 		}
@@ -53,7 +53,7 @@ func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
 
 	t.Run("bare JSON primitives should remain as strings", func(t *testing.T) {
 		// Values like "order", 123, true are valid JSON primitives but should
-		// NOT be parsed — they are likely JQ expressions or literal strings.
+		// NOT be parsed — they should be passed through as plain strings.
 		for _, input := range []string{`"order"`, `123`, `true`} {
 			flags := connectionRuleFlags{
 				RuleFilterHeaders: input,

@@ -77,10 +77,10 @@ func addConnectionRuleFlags(cmd *cobra.Command, f *connectionRuleFlags) {
 	cmd.Flags().IntVar(&f.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
 	cmd.Flags().StringVar(&f.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on")
 
-	cmd.Flags().StringVar(&f.RuleFilterBody, "rule-filter-body", "", "JSON object or JQ expression to filter on request body")
-	cmd.Flags().StringVar(&f.RuleFilterHeaders, "rule-filter-headers", "", "JSON object or JQ expression to filter on request headers")
-	cmd.Flags().StringVar(&f.RuleFilterQuery, "rule-filter-query", "", "JSON object or JQ expression to filter on request query parameters")
-	cmd.Flags().StringVar(&f.RuleFilterPath, "rule-filter-path", "", "JSON object or JQ expression to filter on request path")
+	cmd.Flags().StringVar(&f.RuleFilterBody, "rule-filter-body", "", "Filter on request body using Hookdeck filter syntax (JSON)")
+	cmd.Flags().StringVar(&f.RuleFilterHeaders, "rule-filter-headers", "", "Filter on request headers using Hookdeck filter syntax (JSON)")
+	cmd.Flags().StringVar(&f.RuleFilterQuery, "rule-filter-query", "", "Filter on request query parameters using Hookdeck filter syntax (JSON)")
+	cmd.Flags().StringVar(&f.RuleFilterPath, "rule-filter-path", "", "Filter on request path using Hookdeck filter syntax (JSON)")
 
 	cmd.Flags().StringVar(&f.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
 	cmd.Flags().StringVar(&f.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
@@ -219,7 +219,7 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 // parseJSONOrString attempts to parse s as a JSON object or array. Only values
 // starting with '{' or '[' (after trimming whitespace) are candidates for
 // parsing; bare primitives like "order", 123, or true are returned as-is so
-// that JQ expressions and other plain strings are never misinterpreted.
+// that plain strings are never misinterpreted.
 func parseJSONOrString(s string) interface{} {
 	trimmed := strings.TrimSpace(s)
 	if len(trimmed) == 0 {
