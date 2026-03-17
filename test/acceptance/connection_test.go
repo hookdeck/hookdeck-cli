@@ -1274,8 +1274,8 @@ func TestConnectionWithFilterRule(t *testing.T) {
 
 	rule := getConn.Rules[0]
 	assert.Equal(t, "filter", rule["type"], "Rule type should be filter")
-	assert.Equal(t, `{"type":"payment"}`, rule["body"], "Filter body should match input")
-	assert.Equal(t, `{"content-type":"application/json"}`, rule["headers"], "Filter headers should match input")
+	assertFilterRuleFieldMatches(t, rule["body"], `{"type":"payment"}`, "body")
+	assertFilterRuleFieldMatches(t, rule["headers"], `{"content-type":"application/json"}`, "headers")
 
 	t.Logf("Successfully created and verified connection with filter rule: %s", conn.ID)
 }
@@ -1486,7 +1486,7 @@ func TestConnectionWithMultipleRules(t *testing.T) {
 	assert.Equal(t, "retry", getConn.Rules[2]["type"], "Third rule should be retry (logical order)")
 
 	// Verify filter rule details
-	assert.Equal(t, `{"type":"payment"}`, getConn.Rules[0]["body"], "Filter should have body expression")
+	assertFilterRuleFieldMatches(t, getConn.Rules[0]["body"], `{"type":"payment"}`, "body")
 
 	// Verify delay rule details
 	assert.Equal(t, float64(1000), getConn.Rules[1]["delay"], "Delay should be 1000 milliseconds")
@@ -2069,7 +2069,7 @@ func TestConnectionUpsertReplaceRules(t *testing.T) {
 	replacedRule := upserted.Rules[0]
 	assert.Equal(t, "filter", replacedRule["type"], "Rule should now be filter type")
 	assert.NotEqual(t, "retry", replacedRule["type"], "Retry rule should be replaced")
-	assert.Equal(t, filterBody, replacedRule["body"], "Filter body should match input")
+	assertFilterRuleFieldMatches(t, replacedRule["body"], filterBody, "body")
 
 	// Verify source and destination are preserved
 	assert.Equal(t, sourceName, upserted.Source.Name, "Source should be preserved in upsert output")
@@ -2083,7 +2083,7 @@ func TestConnectionUpsertReplaceRules(t *testing.T) {
 	assert.Len(t, fetched.Rules, 1, "Should have exactly one rule persisted")
 	fetchedRule := fetched.Rules[0]
 	assert.Equal(t, "filter", fetchedRule["type"], "Persisted rule should be filter type")
-	assert.Equal(t, filterBody, fetchedRule["body"], "Persisted filter body should match input")
+	assertFilterRuleFieldMatches(t, fetchedRule["body"], filterBody, "body")
 
 	t.Logf("Successfully replaced rules via upsert: %s", conn.ID)
 }
@@ -2238,9 +2238,9 @@ func TestConnectionCreateRetryResponseStatusCodes(t *testing.T) {
 		if rule["type"] == "retry" {
 			foundRetry = true
 
-			statusCodes, ok := rule["response_status_codes"].([]interface{})
-			require.True(t, ok, "response_status_codes should be an array, got: %T (%v)", rule["response_status_codes"], rule["response_status_codes"])
-			assert.Len(t, statusCodes, 4, "Should have 4 status codes")
+			statusCodes, ok := rule["response_status_codes"]
+			require.True(t, ok, "response_status_codes should be present")
+			assertResponseStatusCodesMatch(t, statusCodes, "500", "502", "503", "504")
 			break
 		}
 	}

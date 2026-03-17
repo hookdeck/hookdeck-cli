@@ -77,10 +77,10 @@ func addConnectionRuleFlags(cmd *cobra.Command, f *connectionRuleFlags) {
 	cmd.Flags().IntVar(&f.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
 	cmd.Flags().StringVar(&f.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on")
 
-	cmd.Flags().StringVar(&f.RuleFilterBody, "rule-filter-body", "", "JQ expression to filter on request body")
-	cmd.Flags().StringVar(&f.RuleFilterHeaders, "rule-filter-headers", "", "JQ expression to filter on request headers")
-	cmd.Flags().StringVar(&f.RuleFilterQuery, "rule-filter-query", "", "JQ expression to filter on request query parameters")
-	cmd.Flags().StringVar(&f.RuleFilterPath, "rule-filter-path", "", "JQ expression to filter on request path")
+	cmd.Flags().StringVar(&f.RuleFilterBody, "rule-filter-body", "", "Filter on request body using Hookdeck filter syntax (JSON)")
+	cmd.Flags().StringVar(&f.RuleFilterHeaders, "rule-filter-headers", "", "Filter on request headers using Hookdeck filter syntax (JSON)")
+	cmd.Flags().StringVar(&f.RuleFilterQuery, "rule-filter-query", "", "Filter on request query parameters using Hookdeck filter syntax (JSON)")
+	cmd.Flags().StringVar(&f.RuleFilterPath, "rule-filter-path", "", "Filter on request path using Hookdeck filter syntax (JSON)")
 
 	cmd.Flags().StringVar(&f.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
 	cmd.Flags().StringVar(&f.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
@@ -103,7 +103,7 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if err := json.Unmarshal([]byte(f.Rules), &rules); err != nil {
 			return nil, fmt.Errorf("invalid JSON for --rules: %w", err)
 		}
-		return rules, nil
+		return normalizeRulesForAPI(rules), nil
 	}
 
 	if f.RulesFile != "" {
@@ -115,7 +115,7 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if err := json.Unmarshal(data, &rules); err != nil {
 			return nil, fmt.Errorf("invalid JSON in rules file: %w", err)
 		}
-		return rules, nil
+		return normalizeRulesForAPI(rules), nil
 	}
 
 	// Build each rule type (order matches create: deduplicate -> transform -> filter -> delay -> retry)
@@ -191,9 +191,10 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if f.RuleRetryInterval > 0 {
 			rule["interval"] = f.RuleRetryInterval
 		}
+		// API expects response_status_codes as []string (RetryRule schema)
 		if f.RuleRetryResponseStatusCode != "" {
 			parts := strings.Split(f.RuleRetryResponseStatusCode, ",")
-			intCodes := make([]int, 0, len(parts))
+			strCodes := make([]string, 0, len(parts))
 			for _, part := range parts {
 				part = strings.TrimSpace(part)
 				if part == "" {
@@ -203,9 +204,12 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 				if err != nil {
 					return nil, fmt.Errorf("invalid HTTP status code %q in --rule-retry-response-status-codes: must be an integer", part)
 				}
-				intCodes = append(intCodes, n)
+				if n < 100 || n > 599 {
+					return nil, fmt.Errorf("invalid HTTP status code %d in --rule-retry-response-status-codes: must be between 100 and 599", n)
+				}
+				strCodes = append(strCodes, part)
 			}
-			rule["response_status_codes"] = intCodes
+			rule["response_status_codes"] = strCodes
 		}
 		rules = append(rules, rule)
 	}
@@ -213,11 +217,49 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 	return rules, nil
 }
 
-// parseJSONOrString attempts to parse s as JSON. If successful it returns the
-// parsed value (object, array, number, bool, etc.); otherwise it returns s as
-// a plain string. This lets filter flags accept both JSON objects and JQ
-// expressions transparently.
+// normalizeRulesForAPI ensures rules match the API schema: RetryRule.response_status_codes
+// must be []string; FilterRule body/headers may be string or object.
+func normalizeRulesForAPI(rules []hookdeck.Rule) []hookdeck.Rule {
+	out := make([]hookdeck.Rule, len(rules))
+	for i, r := range rules {
+		out[i] = make(hookdeck.Rule)
+		for k, v := range r {
+			out[i][k] = v
+		}
+		if r["type"] == "retry" {
+			if codes, ok := r["response_status_codes"].([]interface{}); ok && len(codes) > 0 {
+				strCodes := make([]string, 0, len(codes))
+				for _, c := range codes {
+					switch v := c.(type) {
+					case string:
+						strCodes = append(strCodes, v)
+					case float64:
+						strCodes = append(strCodes, strconv.Itoa(int(v)))
+					case int:
+						strCodes = append(strCodes, strconv.Itoa(v))
+					default:
+						strCodes = append(strCodes, fmt.Sprintf("%v", c))
+					}
+				}
+				out[i]["response_status_codes"] = strCodes
+			}
+		}
+	}
+	return out
+}
+
+// parseJSONOrString attempts to parse s as a JSON object or array. Only values
+// starting with '{' or '[' (after trimming whitespace) are candidates for
+// parsing; bare primitives like "order", 123, or true are returned as-is so
+// that plain strings are never misinterpreted.
 func parseJSONOrString(s string) interface{} {
+	trimmed := strings.TrimSpace(s)
+	if len(trimmed) == 0 {
+		return s
+	}
+	if trimmed[0] != '{' && trimmed[0] != '[' {
+		return s
+	}
 	var v interface{}
 	if err := json.Unmarshal([]byte(s), &v); err == nil {
 		return v

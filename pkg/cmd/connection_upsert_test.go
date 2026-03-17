@@ -13,11 +13,12 @@ func strPtr(s string) *string {
 	return &s
 }
 
-// TestBuildConnectionRulesFilterHeadersJSON verifies that --rule-filter-headers
-// parses JSON values into objects rather than storing them as escaped strings.
+// TestBuildConnectionRulesFilterJSON verifies that all --rule-filter-* flags
+// parse JSON values into objects with exact values preserved, not stored as
+// escaped strings.
 // Regression test for https://github.com/hookdeck/hookdeck-cli/issues/192.
-func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
-	t.Run("JSON object should be parsed, not stored as string", func(t *testing.T) {
+func TestBuildConnectionRulesFilterJSON(t *testing.T) {
+	t.Run("headers JSON parsed with exact nested values", func(t *testing.T) {
 		flags := connectionRuleFlags{
 			RuleFilterHeaders: `{"x-shopify-topic":{"$startsWith":"order/"}}`,
 		}
@@ -28,16 +29,143 @@ func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
 		filterRule := rules[0]
 		assert.Equal(t, "filter", filterRule["type"])
 
-		headers := filterRule["headers"]
-		_, isString := headers.(string)
-		assert.False(t, isString, "headers should be a parsed object, not a string")
+		headersMap, ok := filterRule["headers"].(map[string]interface{})
+		require.True(t, ok, "headers should be map[string]interface{}, got %T", filterRule["headers"])
 
-		headersMap, isMap := headers.(map[string]interface{})
-		assert.True(t, isMap, "headers should be map[string]interface{}, got %T", headers)
-		assert.Contains(t, headersMap, "x-shopify-topic")
+		nestedMap, ok := headersMap["x-shopify-topic"].(map[string]interface{})
+		require.True(t, ok, "x-shopify-topic should be a nested object, got %T", headersMap["x-shopify-topic"])
+		assert.Equal(t, "order/", nestedMap["$startsWith"], "nested $startsWith value should match exactly")
 	})
 
-	t.Run("non-JSON string (JQ expression) should remain a string", func(t *testing.T) {
+	t.Run("body JSON parsed with exact values", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterBody: `{"event_type":"payment","amount":{"$gte":100}}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		bodyMap, ok := rules[0]["body"].(map[string]interface{})
+		require.True(t, ok, "body should be map[string]interface{}, got %T", rules[0]["body"])
+		assert.Equal(t, "payment", bodyMap["event_type"], "event_type value should match exactly")
+
+		amountMap, ok := bodyMap["amount"].(map[string]interface{})
+		require.True(t, ok, "amount should be a nested object, got %T", bodyMap["amount"])
+		assert.Equal(t, float64(100), amountMap["$gte"], "$gte value should match exactly")
+	})
+
+	t.Run("query JSON parsed with exact values", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterQuery: `{"status":"active","page":{"$gte":1}}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		queryMap, ok := rules[0]["query"].(map[string]interface{})
+		require.True(t, ok, "query should be map[string]interface{}, got %T", rules[0]["query"])
+		assert.Equal(t, "active", queryMap["status"], "status value should match exactly")
+
+		pageMap, ok := queryMap["page"].(map[string]interface{})
+		require.True(t, ok, "page should be a nested object, got %T", queryMap["page"])
+		assert.Equal(t, float64(1), pageMap["$gte"], "$gte value should match exactly")
+	})
+
+	t.Run("path JSON parsed with exact values", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterPath: `{"$contains":"/webhooks/"}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		pathMap, ok := rules[0]["path"].(map[string]interface{})
+		require.True(t, ok, "path should be map[string]interface{}, got %T", rules[0]["path"])
+		assert.Equal(t, "/webhooks/", pathMap["$contains"], "$contains value should match exactly")
+	})
+
+	t.Run("all four filter flags combined with exact values", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterHeaders: `{"content-type":"application/json"}`,
+			RuleFilterBody:    `{"action":"created"}`,
+			RuleFilterQuery:   `{"verbose":"true"}`,
+			RuleFilterPath:    `{"$startsWith":"/api/v1"}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		rule := rules[0]
+		assert.Equal(t, "filter", rule["type"])
+
+		headersMap, ok := rule["headers"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "application/json", headersMap["content-type"])
+
+		bodyMap, ok := rule["body"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "created", bodyMap["action"])
+
+		queryMap, ok := rule["query"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "true", queryMap["verbose"])
+
+		pathMap, ok := rule["path"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "/api/v1", pathMap["$startsWith"])
+	})
+
+	t.Run("JSON round-trip preserves exact structure", func(t *testing.T) {
+		input := `{"x-shopify-topic":{"$startsWith":"order/"},"x-api-key":{"$eq":"secret123"}}`
+		flags := connectionRuleFlags{
+			RuleFilterHeaders: input,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		// Marshal the rule to JSON and unmarshal back to verify round-trip
+		jsonBytes, err := json.Marshal(rules[0])
+		require.NoError(t, err)
+
+		var parsed map[string]interface{}
+		require.NoError(t, json.Unmarshal(jsonBytes, &parsed))
+
+		headersMap, ok := parsed["headers"].(map[string]interface{})
+		require.True(t, ok)
+
+		topicMap, ok := headersMap["x-shopify-topic"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "order/", topicMap["$startsWith"])
+
+		apiKeyMap, ok := headersMap["x-api-key"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "secret123", apiKeyMap["$eq"])
+	})
+
+	t.Run("JSON array values parsed correctly", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterBody: `{"tags":["urgent","billing"],"status":{"$in":["active","pending"]}}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		bodyMap, ok := rules[0]["body"].(map[string]interface{})
+		require.True(t, ok)
+
+		tags, ok := bodyMap["tags"].([]interface{})
+		require.True(t, ok, "tags should be an array, got %T", bodyMap["tags"])
+		assert.Equal(t, []interface{}{"urgent", "billing"}, tags)
+
+		statusMap, ok := bodyMap["status"].(map[string]interface{})
+		require.True(t, ok)
+		inArr, ok := statusMap["$in"].([]interface{})
+		require.True(t, ok, "$in should be an array, got %T", statusMap["$in"])
+		assert.Equal(t, []interface{}{"active", "pending"}, inArr)
+	})
+
+	t.Run("non-JSON string should remain a string", func(t *testing.T) {
 		flags := connectionRuleFlags{
 			RuleFilterHeaders: `.["x-topic"] == "order"`,
 		}
@@ -45,37 +173,87 @@ func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rules, 1)
 
-		filterRule := rules[0]
-		headers := filterRule["headers"]
+		headers := rules[0]["headers"]
 		_, isString := headers.(string)
 		assert.True(t, isString, "non-JSON value should remain a string")
+		assert.Equal(t, `.["x-topic"] == "order"`, headers)
 	})
 
-	t.Run("filter body JSON should also be parsed", func(t *testing.T) {
+	t.Run("bare JSON primitives should remain as strings", func(t *testing.T) {
+		for _, input := range []string{`"order"`, `123`, `true`} {
+			flags := connectionRuleFlags{
+				RuleFilterHeaders: input,
+			}
+			rules, err := buildConnectionRules(&flags)
+			require.NoError(t, err)
+			require.Len(t, rules, 1)
+
+			headers := rules[0]["headers"]
+			_, isString := headers.(string)
+			assert.True(t, isString, "input %q should remain a string, got %T", input, headers)
+			assert.Equal(t, input, headers, "value should be unchanged")
+		}
+	})
+}
+
+// TestBuildConnectionRulesTransformEnvJSON verifies that --rule-transform-env
+// parses JSON values into objects with exact values preserved.
+func TestBuildConnectionRulesTransformEnvJSON(t *testing.T) {
+	t.Run("env JSON parsed with exact values", func(t *testing.T) {
 		flags := connectionRuleFlags{
-			RuleFilterBody: `{"event_type":"payment"}`,
+			RuleTransformName: "my-transform",
+			RuleTransformEnv:  `{"API_KEY":"sk-test-123","DEBUG":"true","TIMEOUT":"30"}`,
 		}
 		rules, err := buildConnectionRules(&flags)
 		require.NoError(t, err)
 		require.Len(t, rules, 1)
 
-		filterRule := rules[0]
-		body := filterRule["body"]
-		_, isString := body.(string)
-		assert.False(t, isString, "body should be a parsed object, not a string")
-		_, isMap := body.(map[string]interface{})
-		assert.True(t, isMap, "body should be map[string]interface{}, got %T", body)
+		rule := rules[0]
+		assert.Equal(t, "transform", rule["type"])
+
+		transformation, ok := rule["transformation"].(map[string]interface{})
+		require.True(t, ok, "transformation should be a map")
+		assert.Equal(t, "my-transform", transformation["name"])
+
+		env, ok := transformation["env"].(map[string]interface{})
+		require.True(t, ok, "env should be a map, got %T", transformation["env"])
+		assert.Equal(t, "sk-test-123", env["API_KEY"], "API_KEY should match exactly")
+		assert.Equal(t, "true", env["DEBUG"], "DEBUG should match exactly")
+		assert.Equal(t, "30", env["TIMEOUT"], "TIMEOUT should match exactly")
+	})
+
+	t.Run("env JSON round-trip preserves exact values", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleTransformName: "my-transform",
+			RuleTransformEnv:  `{"SECRET":"abc123","NESTED":{"key":"val"}}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+
+		jsonBytes, err := json.Marshal(rules[0])
+		require.NoError(t, err)
+
+		var parsed map[string]interface{}
+		require.NoError(t, json.Unmarshal(jsonBytes, &parsed))
+
+		transformation := parsed["transformation"].(map[string]interface{})
+		env := transformation["env"].(map[string]interface{})
+		assert.Equal(t, "abc123", env["SECRET"])
+
+		nested, ok := env["NESTED"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "val", nested["key"])
 	})
 }
 
 // TestBuildConnectionRulesRetryStatusCodesArray verifies that buildConnectionRules
-// produces response_status_codes as a []int array (HTTP status codes are integers).
+// produces response_status_codes as a []string array (API RetryRule schema).
 // Regression test for https://github.com/hookdeck/hookdeck-cli/issues/209 Bug 3.
 func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 	tests := []struct {
 		name          string
 		flags         connectionRuleFlags
-		wantCodes     []int
+		wantCodes     []string
 		wantCodeCount int
 		wantRuleCount int
 	}{
@@ -87,7 +265,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryInterval:           5000,
 				RuleRetryResponseStatusCode: "500,502,503,504",
 			},
-			wantCodes:     []int{500, 502, 503, 504},
+			wantCodes:     []string{"500", "502", "503", "504"},
 			wantCodeCount: 4,
 			wantRuleCount: 1,
 		},
@@ -97,7 +275,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryStrategy:           "exponential",
 				RuleRetryResponseStatusCode: "500",
 			},
-			wantCodes:     []int{500},
+			wantCodes:     []string{"500"},
 			wantCodeCount: 1,
 			wantRuleCount: 1,
 		},
@@ -107,7 +285,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryStrategy:           "linear",
 				RuleRetryResponseStatusCode: "500, 502, 503",
 			},
-			wantCodes:     []int{500, 502, 503},
+			wantCodes:     []string{"500", "502", "503"},
 			wantCodeCount: 3,
 			wantRuleCount: 1,
 		},
@@ -145,12 +323,12 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 			statusCodes, ok := retryRule["response_status_codes"]
 			require.True(t, ok, "response_status_codes should be present")
 
-			codesSlice, ok := statusCodes.([]int)
-			require.True(t, ok, "response_status_codes should be []int, got %T", statusCodes)
+			codesSlice, ok := statusCodes.([]string)
+			require.True(t, ok, "response_status_codes should be []string (API schema), got %T", statusCodes)
 			assert.Equal(t, tt.wantCodeCount, len(codesSlice))
 			assert.Equal(t, tt.wantCodes, codesSlice)
 
-			// Verify it serializes to a JSON array of numbers
+			// Verify it serializes to a JSON array of strings
 			jsonBytes, err := json.Marshal(retryRule)
 			require.NoError(t, err)
 
