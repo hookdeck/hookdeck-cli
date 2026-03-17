@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -158,16 +159,16 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 	if f.RuleFilterBody != "" || f.RuleFilterHeaders != "" || f.RuleFilterQuery != "" || f.RuleFilterPath != "" {
 		rule := hookdeck.Rule{"type": "filter"}
 		if f.RuleFilterBody != "" {
-			rule["body"] = f.RuleFilterBody
+			rule["body"] = parseJSONOrString(f.RuleFilterBody)
 		}
 		if f.RuleFilterHeaders != "" {
-			rule["headers"] = f.RuleFilterHeaders
+			rule["headers"] = parseJSONOrString(f.RuleFilterHeaders)
 		}
 		if f.RuleFilterQuery != "" {
-			rule["query"] = f.RuleFilterQuery
+			rule["query"] = parseJSONOrString(f.RuleFilterQuery)
 		}
 		if f.RuleFilterPath != "" {
-			rule["path"] = f.RuleFilterPath
+			rule["path"] = parseJSONOrString(f.RuleFilterPath)
 		}
 		rules = append(rules, rule)
 	}
@@ -191,14 +192,35 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 			rule["interval"] = f.RuleRetryInterval
 		}
 		if f.RuleRetryResponseStatusCode != "" {
-			codes := strings.Split(f.RuleRetryResponseStatusCode, ",")
-			for i := range codes {
-				codes[i] = strings.TrimSpace(codes[i])
+			parts := strings.Split(f.RuleRetryResponseStatusCode, ",")
+			intCodes := make([]int, 0, len(parts))
+			for _, part := range parts {
+				part = strings.TrimSpace(part)
+				if part == "" {
+					continue
+				}
+				n, err := strconv.Atoi(part)
+				if err != nil {
+					return nil, fmt.Errorf("invalid HTTP status code %q in --rule-retry-response-status-codes: must be an integer", part)
+				}
+				intCodes = append(intCodes, n)
 			}
-			rule["response_status_codes"] = codes
+			rule["response_status_codes"] = intCodes
 		}
 		rules = append(rules, rule)
 	}
 
 	return rules, nil
+}
+
+// parseJSONOrString attempts to parse s as JSON. If successful it returns the
+// parsed value (object, array, number, bool, etc.); otherwise it returns s as
+// a plain string. This lets filter flags accept both JSON objects and JQ
+// expressions transparently.
+func parseJSONOrString(s string) interface{} {
+	var v interface{}
+	if err := json.Unmarshal([]byte(s), &v); err == nil {
+		return v
+	}
+	return s
 }

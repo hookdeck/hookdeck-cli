@@ -13,14 +13,69 @@ func strPtr(s string) *string {
 	return &s
 }
 
+// TestBuildConnectionRulesFilterHeadersJSON verifies that --rule-filter-headers
+// parses JSON values into objects rather than storing them as escaped strings.
+// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/192.
+func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
+	t.Run("JSON object should be parsed, not stored as string", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterHeaders: `{"x-shopify-topic":{"$startsWith":"order/"}}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		filterRule := rules[0]
+		assert.Equal(t, "filter", filterRule["type"])
+
+		headers := filterRule["headers"]
+		_, isString := headers.(string)
+		assert.False(t, isString, "headers should be a parsed object, not a string")
+
+		headersMap, isMap := headers.(map[string]interface{})
+		assert.True(t, isMap, "headers should be map[string]interface{}, got %T", headers)
+		assert.Contains(t, headersMap, "x-shopify-topic")
+	})
+
+	t.Run("non-JSON string (JQ expression) should remain a string", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterHeaders: `.["x-topic"] == "order"`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		filterRule := rules[0]
+		headers := filterRule["headers"]
+		_, isString := headers.(string)
+		assert.True(t, isString, "non-JSON value should remain a string")
+	})
+
+	t.Run("filter body JSON should also be parsed", func(t *testing.T) {
+		flags := connectionRuleFlags{
+			RuleFilterBody: `{"event_type":"payment"}`,
+		}
+		rules, err := buildConnectionRules(&flags)
+		require.NoError(t, err)
+		require.Len(t, rules, 1)
+
+		filterRule := rules[0]
+		body := filterRule["body"]
+		_, isString := body.(string)
+		assert.False(t, isString, "body should be a parsed object, not a string")
+		_, isMap := body.(map[string]interface{})
+		assert.True(t, isMap, "body should be map[string]interface{}, got %T", body)
+	})
+}
+
 // TestBuildConnectionRulesRetryStatusCodesArray verifies that buildConnectionRules
-// produces response_status_codes as a []string array, not a single string.
+// produces response_status_codes as a []int array (HTTP status codes are integers).
 // Regression test for https://github.com/hookdeck/hookdeck-cli/issues/209 Bug 3.
 func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 	tests := []struct {
 		name          string
 		flags         connectionRuleFlags
-		wantCodes     []string
+		wantCodes     []int
 		wantCodeCount int
 		wantRuleCount int
 	}{
@@ -32,7 +87,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryInterval:           5000,
 				RuleRetryResponseStatusCode: "500,502,503,504",
 			},
-			wantCodes:     []string{"500", "502", "503", "504"},
+			wantCodes:     []int{500, 502, 503, 504},
 			wantCodeCount: 4,
 			wantRuleCount: 1,
 		},
@@ -42,7 +97,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryStrategy:           "exponential",
 				RuleRetryResponseStatusCode: "500",
 			},
-			wantCodes:     []string{"500"},
+			wantCodes:     []int{500},
 			wantCodeCount: 1,
 			wantRuleCount: 1,
 		},
@@ -52,7 +107,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryStrategy:           "linear",
 				RuleRetryResponseStatusCode: "500, 502, 503",
 			},
-			wantCodes:     []string{"500", "502", "503"},
+			wantCodes:     []int{500, 502, 503},
 			wantCodeCount: 3,
 			wantRuleCount: 1,
 		},
@@ -90,12 +145,12 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 			statusCodes, ok := retryRule["response_status_codes"]
 			require.True(t, ok, "response_status_codes should be present")
 
-			codesSlice, ok := statusCodes.([]string)
-			require.True(t, ok, "response_status_codes should be []string, got %T", statusCodes)
+			codesSlice, ok := statusCodes.([]int)
+			require.True(t, ok, "response_status_codes should be []int, got %T", statusCodes)
 			assert.Equal(t, tt.wantCodeCount, len(codesSlice))
 			assert.Equal(t, tt.wantCodes, codesSlice)
 
-			// Verify it serializes to a JSON array
+			// Verify it serializes to a JSON array of numbers
 			jsonBytes, err := json.Marshal(retryRule)
 			require.NoError(t, err)
 
