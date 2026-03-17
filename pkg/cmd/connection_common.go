@@ -77,10 +77,10 @@ func addConnectionRuleFlags(cmd *cobra.Command, f *connectionRuleFlags) {
 	cmd.Flags().IntVar(&f.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
 	cmd.Flags().StringVar(&f.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on")
 
-	cmd.Flags().StringVar(&f.RuleFilterBody, "rule-filter-body", "", "JQ expression to filter on request body")
-	cmd.Flags().StringVar(&f.RuleFilterHeaders, "rule-filter-headers", "", "JQ expression to filter on request headers")
-	cmd.Flags().StringVar(&f.RuleFilterQuery, "rule-filter-query", "", "JQ expression to filter on request query parameters")
-	cmd.Flags().StringVar(&f.RuleFilterPath, "rule-filter-path", "", "JQ expression to filter on request path")
+	cmd.Flags().StringVar(&f.RuleFilterBody, "rule-filter-body", "", "JSON object or JQ expression to filter on request body")
+	cmd.Flags().StringVar(&f.RuleFilterHeaders, "rule-filter-headers", "", "JSON object or JQ expression to filter on request headers")
+	cmd.Flags().StringVar(&f.RuleFilterQuery, "rule-filter-query", "", "JSON object or JQ expression to filter on request query parameters")
+	cmd.Flags().StringVar(&f.RuleFilterPath, "rule-filter-path", "", "JSON object or JQ expression to filter on request path")
 
 	cmd.Flags().StringVar(&f.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
 	cmd.Flags().StringVar(&f.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
@@ -203,6 +203,9 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 				if err != nil {
 					return nil, fmt.Errorf("invalid HTTP status code %q in --rule-retry-response-status-codes: must be an integer", part)
 				}
+				if n < 100 || n > 599 {
+					return nil, fmt.Errorf("invalid HTTP status code %d in --rule-retry-response-status-codes: must be between 100 and 599", n)
+				}
 				intCodes = append(intCodes, n)
 			}
 			rule["response_status_codes"] = intCodes
@@ -213,11 +216,18 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 	return rules, nil
 }
 
-// parseJSONOrString attempts to parse s as JSON. If successful it returns the
-// parsed value (object, array, number, bool, etc.); otherwise it returns s as
-// a plain string. This lets filter flags accept both JSON objects and JQ
-// expressions transparently.
+// parseJSONOrString attempts to parse s as a JSON object or array. Only values
+// starting with '{' or '[' (after trimming whitespace) are candidates for
+// parsing; bare primitives like "order", 123, or true are returned as-is so
+// that JQ expressions and other plain strings are never misinterpreted.
 func parseJSONOrString(s string) interface{} {
+	trimmed := strings.TrimSpace(s)
+	if len(trimmed) == 0 {
+		return s
+	}
+	if trimmed[0] != '{' && trimmed[0] != '[' {
+		return s
+	}
 	var v interface{}
 	if err := json.Unmarshal([]byte(s), &v); err == nil {
 		return v

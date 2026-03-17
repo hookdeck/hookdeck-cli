@@ -1,7 +1,6 @@
 package acceptance
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -373,14 +372,17 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 				require.True(t, ok, "response_status_codes should be array, got: %T (%v)", rule["response_status_codes"], rule["response_status_codes"])
 				assert.Len(t, statusCodes, 4, "Should have 4 status codes")
 
-				codes := make([]string, len(statusCodes))
+				// After JSON round-trip, numbers are float64
+				codes := make([]float64, len(statusCodes))
 				for i, c := range statusCodes {
-					codes[i] = strings.TrimSpace(c.(string))
+					n, ok := c.(float64)
+					require.True(t, ok, "status code should be a number, got %T", c)
+					codes[i] = n
 				}
-				assert.Contains(t, codes, "500")
-				assert.Contains(t, codes, "502")
-				assert.Contains(t, codes, "503")
-				assert.Contains(t, codes, "504")
+				assert.Contains(t, codes, float64(500))
+				assert.Contains(t, codes, float64(502))
+				assert.Contains(t, codes, float64(503))
+				assert.Contains(t, codes, float64(504))
 				break
 			}
 		}
@@ -504,7 +506,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 				"--rule-filter-headers should store JSON as an object, not an escaped string; got: %v", headers)
 
 			headersMap, isMap := headers.(map[string]interface{})
-			assert.True(t, isMap,
+			require.True(t, isMap,
 				"headers should be a JSON object (map[string]interface{}), got %T", headers)
 			assert.Contains(t, headersMap, "x-shopify-topic",
 				"headers object should contain the expected key")
@@ -564,7 +566,7 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 				"--rule-filter-body should store JSON as an object, not an escaped string; got: %v", body)
 
 			bodyMap, isMap := body.(map[string]interface{})
-			assert.True(t, isMap, "body should be a JSON object, got %T", body)
+			require.True(t, isMap, "body should be a JSON object, got %T", body)
 			assert.Contains(t, bodyMap, "event_type", "body object should contain the expected key")
 			break
 		}

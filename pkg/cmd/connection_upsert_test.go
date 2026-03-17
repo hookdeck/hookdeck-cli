@@ -33,7 +33,7 @@ func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
 		assert.False(t, isString, "headers should be a parsed object, not a string")
 
 		headersMap, isMap := headers.(map[string]interface{})
-		assert.True(t, isMap, "headers should be map[string]interface{}, got %T", headers)
+		require.True(t, isMap, "headers should be map[string]interface{}, got %T", headers)
 		assert.Contains(t, headersMap, "x-shopify-topic")
 	})
 
@@ -51,6 +51,24 @@ func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
 		assert.True(t, isString, "non-JSON value should remain a string")
 	})
 
+	t.Run("bare JSON primitives should remain as strings", func(t *testing.T) {
+		// Values like "order", 123, true are valid JSON primitives but should
+		// NOT be parsed — they are likely JQ expressions or literal strings.
+		for _, input := range []string{`"order"`, `123`, `true`} {
+			flags := connectionRuleFlags{
+				RuleFilterHeaders: input,
+			}
+			rules, err := buildConnectionRules(&flags)
+			require.NoError(t, err)
+			require.Len(t, rules, 1)
+
+			headers := rules[0]["headers"]
+			_, isString := headers.(string)
+			assert.True(t, isString, "input %q should remain a string, got %T", input, headers)
+			assert.Equal(t, input, headers, "value should be unchanged")
+		}
+	})
+
 	t.Run("filter body JSON should also be parsed", func(t *testing.T) {
 		flags := connectionRuleFlags{
 			RuleFilterBody: `{"event_type":"payment"}`,
@@ -64,7 +82,7 @@ func TestBuildConnectionRulesFilterHeadersJSON(t *testing.T) {
 		_, isString := body.(string)
 		assert.False(t, isString, "body should be a parsed object, not a string")
 		_, isMap := body.(map[string]interface{})
-		assert.True(t, isMap, "body should be map[string]interface{}, got %T", body)
+		require.True(t, isMap, "body should be map[string]interface{}, got %T", body)
 	})
 }
 
