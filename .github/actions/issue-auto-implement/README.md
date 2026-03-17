@@ -9,6 +9,12 @@ Reusable composite action for label-triggered issue automation: assess (request 
 3. **Trigger label** — Create the labels once so you can add them to issues. Either run the **Issue auto-implement setup** workflow (Actions → Issue auto-implement setup → Run workflow), which creates `automation/auto-implement`, `automation/needs-info`, and `automation/pr-created`; or create the trigger label **`automation/auto-implement`** manually in the repo (Settings or Issues → Labels). The main action also ensures these labels exist when it runs, but the trigger label must exist before you can add it to an issue.
 4. **Trigger** — On an issue, add the label `automation/auto-implement`. The workflow runs: it assesses the issue (request more info vs implement), and if implement, runs the Claude Code CLI and opens a PR. You can also comment on the issue (to add context and re-trigger) or review the PR (to iterate).
 
+## CI and approval for bot-created PRs
+
+PRs created by the action use `GITHUB_TOKEN`, so GitHub does not trigger `pull_request` workflows on them. This action therefore triggers the **test** workflow via `workflow_dispatch` on the new branch after creating a PR, so CI checks appear. The **test** workflow must include `workflow_dispatch:` in its `on:` block.
+
+To require a human to approve workflow runs before they execute (e.g. for security), set **Settings → Actions → General → Approval for running fork pull request workflows from contributors** to **Require approval for all external contributors**. Then each bot-created PR will show workflow(s) awaiting approval until someone with write access approves.
+
 ## Usage (reference)
 
 Used by `.github/workflows/issue-auto-implement.yml`. Requires `anthropic_api_key` (e.g. from repo secret `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`), one of `github_allowed_trigger_min_permission` or `github_allowed_trigger_team` (repo variables), and `github_token` from the workflow.
