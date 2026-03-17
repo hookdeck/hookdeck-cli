@@ -1,0 +1,46 @@
+# Label-triggered issue automation: assess, implement-verify loop, create PR or iterate on PR.
+# Triggers: issue labeled (automation/auto-implement), issue comment, PR review.
+# Gate: set one of AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION (e.g. push; works with default token) or AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM (org/team; token needs read:org).
+name: Issue auto-implement
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+# Only run the job when the trigger label was added (not when our action adds needs-info/pr-created; those trigger a run but this if skips the job)
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'automation/auto-implement') ||
+      github.event_name == 'issue_comment' ||
+      github.event_name == 'pull_request_review' ||
+      github.event_name == 'pull_request_review_comment'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: write  # trigger test workflow on PR branch so checks appear (PRs created by bot may not trigger pull_request)
+      # To allow push when implement touches .github/workflows/*: repo Settings → Actions → General →
+      # "Allow GitHub Actions to create and approve pull requests" (or use a PAT with workflow scope). No workflows: key in workflow syntax.
+      # read:org only needed if using team check (AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Issue auto-implement
+        uses: ./.github/actions/issue-auto-implement
+        with:
+          anthropic_api_key: ${{ secrets.AUTO_IMPLEMENT_ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_allowed_trigger_min_permission: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION }}
+          github_allowed_trigger_team: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM }}
+          # Skip acceptance tests in verify (they need HOOKDECK_CLI_TESTING_API_KEY); unit tests use -short
+          verify_commands: go test -short ./...

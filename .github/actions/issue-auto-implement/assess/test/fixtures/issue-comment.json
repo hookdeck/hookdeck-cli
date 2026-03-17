@@ -1,0 +1,11 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 42,
+    "title": "Example issue",
+    "body": "Description",
+    "labels": [{ "name": "automation/auto-implement" }]
+  },
+  "comment": { "body": "Here is more context for implementation." },
+  "repository": { "full_name": "hookdeck/hookdeck-cli" }
+}

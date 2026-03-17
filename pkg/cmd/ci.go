@@ -14,6 +14,7 @@ type ciCmd struct {
 	cmd    *cobra.Command
 	apiKey string
 	name   string
+	local  bool
 }
 
 func newCICmd() *ciCmd {
@@ -49,11 +50,16 @@ Events • [↑↓] Navigate ─────────────────
 	}
 	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", os.Getenv("HOOKDECK_API_KEY"), "Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided.")
 	lc.cmd.Flags().StringVar(&lc.name, "name", "", "Name of the CI run (ex: GITHUB_REF) for identification in the dashboard")
+	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to current directory (.hookdeck/config.toml)")
 
 	return lc
 }
 
 func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
+	if lc.local && Config.ConfigFileFlag != "" {
+		return fmt.Errorf("Error: --local and --config flags cannot be used together\n  --local creates config at: .hookdeck/config.toml\n  --config uses custom path: %s", Config.ConfigFileFlag)
+	}
+
 	err := validators.APIKey(lc.apiKey)
 	if err != nil {
 		if err == validators.ErrAPIKeyNotConfigured {
@@ -61,5 +67,14 @@ func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
 		}
 		return err
 	}
-	return login.CILogin(&Config, lc.apiKey, lc.name)
+
+	if err := login.CILogin(&Config, lc.apiKey, lc.name); err != nil {
+		return err
+	}
+
+	if lc.local {
+		return saveLocalConfig()
+	}
+
+	return nil
 }

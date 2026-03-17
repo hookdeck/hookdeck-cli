@@ -1,0 +1,364 @@
+name: 'Issue auto-implement'
+description: 'Assess labeled issues (or PR reviews), request more info or implement with verify loop; create PR or iterate on existing PR.'
+inputs:
+  anthropic_api_key:
+    description: 'API key for Claude (assessment uses it; implement passes it to Claude Code CLI as AUTO_IMPLEMENT_ANTHROPIC_API_KEY)'
+    required: true
+  github_token:
+    description: 'GitHub token (contents, issues, pull-requests, read:org)'
+    required: true
+  context_files:
+    description: 'Comma-separated paths to repo files to include in assessment (e.g. AGENTS.md, REFERENCE.md)'
+    required: false
+    default: 'AGENTS.md,REFERENCE.md'
+  assessment_reference_issue:
+    description: 'Reference issue number for "enough information" example (e.g. 192)'
+    required: false
+    default: '192'
+  label_prefix:
+    description: 'Prefix for automation labels (e.g. automation/auto-implement, automation/needs-info, automation/pr-created)'
+    required: false
+    default: 'automation'
+  verify_commands:
+    description: 'Shell commands to run for verification. Should run tests and ensure the application builds (e.g. go test ./... && go build ./..., or npm test && npm run build). Repo-specific.'
+    required: false
+    default: 'go test ./...'
+  max_implement_retries:
+    description: 'Max retries for implement step on verify failure (default 3, max 5)'
+    required: false
+    default: '3'
+  github_allowed_trigger_team:
+    description: 'GitHub Team slug whose members may trigger (e.g. org/team). Requires token with read:org. Set via repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM. Ignored if github_allowed_trigger_min_permission is set.'
+    required: false
+  github_allowed_trigger_min_permission:
+    description: 'Alternative to team check: require actor has at least this repo permission (triage, push, maintain, admin). Works with default GITHUB_TOKEN. Set via repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION.'
+    required: false
+  post_pr_comment:
+    description: 'When true, post a comment on the issue linking to the new PR when one is created'
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    - name: Check allowed trigger (permission or team)
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        ACTOR: ${{ github.actor }}
+        MIN_PERM: ${{ inputs.github_allowed_trigger_min_permission }}
+        TEAM: ${{ inputs.github_allowed_trigger_team }}
+      run: |
+        # Option A: Require minimum repo permission (works with default GITHUB_TOKEN, no read:org)
+        if [ -n "$MIN_PERM" ]; then
+          case "$MIN_PERM" in
+            triage|push|maintain|admin) ;;
+            *) echo "::error::github_allowed_trigger_min_permission must be one of: triage, push, maintain, admin"; exit 1 ;;
+          esac
+          RESP=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/collaborators/$ACTOR/permission")
+          HTTP=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | sed '$d')
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::Actor $ACTOR has no collaborator permission on this repo (HTTP $HTTP). Only users with at least $MIN_PERM can trigger."
+            exit 1
+          fi
+          PERM=$(echo "$BODY" | jq -r '.permission // "read"')
+          # Order: read/pull < triage < push < maintain < admin
+          level() { case "$1" in read|pull) echo 1;; triage) echo 2;; push) echo 3;; maintain) echo 4;; admin) echo 5;; *) echo 0;; esac; }
+          ACTOR_LEVEL=$(level "$PERM")
+          MIN_LEVEL=$(level "$MIN_PERM")
+          if [ "$ACTOR_LEVEL" -lt "$MIN_LEVEL" ]; then
+            echo "::error::Actor $ACTOR has permission $PERM; at least $MIN_PERM is required to trigger this workflow."
+            exit 1
+          fi
+          echo "Actor $ACTOR has permission $PERM (>= $MIN_PERM)."
+          exit 0
+        fi
+        # Option B: Require team membership (token needs read:org)
+        if [ -z "$TEAM" ]; then
+          echo "::error::Set one of: repo variable AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION (e.g. push) or AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM (e.g. org/team)."
+          exit 1
+        fi
+        ORG="${TEAM%/*}"
+        SLUG="${TEAM#*/}"
+        HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/orgs/${ORG}/teams/${SLUG}/members/$ACTOR")
+        if [ "$HTTP" != "204" ]; then
+          echo "::error::Actor $ACTOR is not in team $TEAM (HTTP $HTTP). Only team members can trigger. Token may need read:org."
+          exit 1
+        fi
+        echo "Actor $ACTOR is in team $TEAM."
+    - name: Ensure labels exist
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        LABEL_PREFIX: ${{ inputs.label_prefix }}
+      run: |
+        for LABEL in auto-implement needs-info pr-created; do
+          NAME="${LABEL_PREFIX}/${LABEL}"
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/labels" \
+            -d "{\"name\":\"$NAME\",\"color\":\"ededed\"}" | grep -q 201 || true
+        done
+    - name: Install assess script dependencies
+      shell: bash
+      run: cd .github/actions/issue-auto-implement/assess && npm ci --omit=dev
+    - id: assess
+      name: Run assess
+      shell: bash
+      env:
+        AUTO_IMPLEMENT_ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_WORKSPACE: ${{ github.workspace }}
+        ASSESSMENT_REFERENCE_ISSUE: ${{ inputs.assessment_reference_issue }}
+        CONTEXT_FILES: ${{ inputs.context_files }}
+      run: |
+        RESULT=$(cd .github/actions/issue-auto-implement/assess && npx tsx src/index.ts)
+        echo "action=$(echo "$RESULT" | jq -r '.action')" >> $GITHUB_OUTPUT
+        echo "issue_number=$(echo "$RESULT" | jq -r '.issue_number // empty')" >> $GITHUB_OUTPUT
+        echo "pr_url=$(echo "$RESULT" | jq -r '.pr_url // empty')" >> $GITHUB_OUTPUT
+        echo "comment_body<<BODY_EOF" >> $GITHUB_OUTPUT
+        echo "$RESULT" | jq -r '.comment_body // empty' >> $GITHUB_OUTPUT
+        echo "BODY_EOF" >> $GITHUB_OUTPUT
+        echo "verification_notes<<NOTES_EOF" >> $GITHUB_OUTPUT
+        echo "$RESULT" | jq -r '.verification_notes // empty' >> $GITHUB_OUTPUT
+        echo "NOTES_EOF" >> $GITHUB_OUTPUT
+        echo "review_feedback<<REVIEW_EOF" >> $GITHUB_OUTPUT
+        echo "$RESULT" | jq -r '.review_feedback // empty' >> $GITHUB_OUTPUT
+        echo "REVIEW_EOF" >> $GITHUB_OUTPUT
+    - name: Handle redirect to PR
+      if: steps.assess.outputs.action == 'redirect_to_pr'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        PR_URL: ${{ steps.assess.outputs.pr_url }}
+      run: |
+        BODY="A PR is open for this issue. Please review and comment on the PR: $PR_URL"
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+          -d "{\"body\":$(echo "$BODY" | jq -Rs .)}"
+        echo "Redirected user to PR. Exiting."
+        exit 0
+    - name: Handle request more info
+      if: steps.assess.outputs.action == 'request_info'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        LABEL_PREFIX: ${{ inputs.label_prefix }}
+      run: |
+        COMMENT_BODY="${{ steps.assess.outputs.comment_body }}"
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+          -d "$(jq -n --arg b "$COMMENT_BODY" '{body: $b}')"
+        NEEDS_LABEL="${LABEL_PREFIX}/needs-info"
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/labels" \
+          -d "{\"labels\":[\"$NEEDS_LABEL\"]}"
+        echo "Posted request for more info. Exiting."
+        exit 0
+    - name: Checkout branch for implement
+      if: steps.assess.outputs.action == 'implement'
+      shell: bash
+      env:
+        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        GITHUB_ACTOR: ${{ github.actor }}
+      run: |
+        git config user.name "$GITHUB_ACTOR"
+        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+        BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
+        git fetch origin main
+        if git show-ref --verify --quiet refs/remotes/origin/"$BRANCH"; then
+          git checkout "$BRANCH"
+          git merge origin/main --no-edit
+        else
+          git checkout -b "$BRANCH" origin/main
+        fi
+    - name: Install Claude Code CLI
+      if: steps.assess.outputs.action == 'implement'
+      shell: bash
+      run: npm install -g @anthropic-ai/claude-code
+    - id: implement_verify_loop
+      name: Implement and verify (loop)
+      if: steps.assess.outputs.action == 'implement'
+      shell: bash
+      env:
+        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_WORKSPACE: ${{ github.workspace }}
+        AUTO_IMPLEMENT_ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        VERIFICATION_NOTES: ${{ steps.assess.outputs.verification_notes }}
+        REVIEW_FEEDBACK: ${{ steps.assess.outputs.review_feedback }}
+        CONTEXT_FILES: ${{ inputs.context_files }}
+        IMPLEMENT_COMMIT_MSG_FILE: ${{ github.workspace }}/.github/actions/issue-auto-implement/.commit_msg
+        MAX_RETRIES: ${{ inputs.max_implement_retries }}
+        VERIFY_CMDS: ${{ inputs.verify_commands }}
+      run: |
+        set -e
+        MAX=${MAX_RETRIES:-3}
+        COMMIT_MSG_FILE=".github/actions/issue-auto-implement/.commit_msg"
+        BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
+        VERIFY_FAILURE=""
+        CHANGES_PUSHED="false"
+        for i in $(seq 1 "$MAX"); do
+          echo "Implement–verify attempt $i of $MAX"
+          export PREVIOUS_VERIFY_OUTPUT="$VERIFY_FAILURE"
+          cd .github/actions/issue-auto-implement/assess && npx tsx src/implement.ts
+          cd "$GITHUB_WORKSPACE"
+          git add -A
+          git reset -- "$COMMIT_MSG_FILE" ".github/actions/issue-auto-implement/.pr_title" ".github/actions/issue-auto-implement/.pr_body" ".github/actions/issue-auto-implement/.comment_body" 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git commit -F "$COMMIT_MSG_FILE"
+            rm -f "$COMMIT_MSG_FILE"
+            git push -u origin "$BRANCH"
+            CHANGES_PUSHED="true"
+          else
+            echo "No changes to commit (attempt $i)."
+            # When Claude wrote only .comment_body (e.g. "already implemented"), skip verify and succeed
+            if [ -f ".github/actions/issue-auto-implement/.comment_body" ]; then
+              echo "No code changes and .comment_body present; skipping verify and exiting success."
+              PR_DIR=".github/actions/issue-auto-implement"
+              if [ -f "$PR_DIR/.pr_title" ]; then echo "pr_title<<__HOOKDECK_PR_TITLE_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_title" >> $GITHUB_OUTPUT; echo "__HOOKDECK_PR_TITLE_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; else echo "pr_title=Implement issue #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+              if [ -f "$PR_DIR/.pr_body" ]; then echo "pr_body<<__HOOKDECK_PR_BODY_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_body" >> $GITHUB_OUTPUT; echo "__HOOKDECK_PR_BODY_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; else echo "pr_body=Closes #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+              echo "verified=true" >> $GITHUB_OUTPUT
+              echo "changes_pushed=$CHANGES_PUSHED" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          VERIFY_OUTPUT=$(eval "$VERIFY_CMDS" 2>&1); VERIFY_EXIT=$?
+          if [ "$VERIFY_EXIT" -eq 0 ]; then
+            # Pass PR meta to Create PR step via outputs (files are Claude handoff only; do not re-read in next step)
+            PR_DIR=".github/actions/issue-auto-implement"
+            if [ -f "$PR_DIR/.pr_title" ]; then echo "pr_title<<__HOOKDECK_PR_TITLE_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_title" >> $GITHUB_OUTPUT; echo "__HOOKDECK_PR_TITLE_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; else echo "pr_title=Implement issue #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+            if [ -f "$PR_DIR/.pr_body" ]; then echo "pr_body<<__HOOKDECK_PR_BODY_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_body" >> $GITHUB_OUTPUT; echo "__HOOKDECK_PR_BODY_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; else echo "pr_body=Closes #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+            echo "verified=true" >> $GITHUB_OUTPUT
+            echo "changes_pushed=$CHANGES_PUSHED" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          VERIFY_FAILURE="$VERIFY_OUTPUT"
+          echo "::warning::Verification failed (attempt $i of $MAX)"
+          echo "<details><summary>Verify command output</summary>"
+          echo '```'
+          printf '%s\n' "$VERIFY_OUTPUT"
+          echo '```'
+          echo "</details>"
+        done
+        echo "verified=false" >> $GITHUB_OUTPUT
+        echo "::error::Verification failed after $MAX attempts"
+        exit 1
+    - name: Comment on issue when verify retries exhausted
+      if: failure() && steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'failure'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        MAX_RETRIES: ${{ inputs.max_implement_retries }}
+      run: |
+        BODY="The auto-implement run could not complete. See the [workflow run]($RUN_URL) for logs. This can happen if the Claude Code CLI timed out or failed, or if verification (e.g. \`go test\`) failed after ${MAX_RETRIES} attempts. Re-trigger by adding a comment or re-applying the label."
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+          -d "$(jq -n --arg b "$BODY" '{body: $b}')"
+        echo "Posted comment on issue #$ISSUE_NUMBER (verify exhausted)"
+    - name: Comment on PR (review iteration)
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment' || (github.event_name == 'issue_comment' && github.event.issue.pull_request))
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        HEAD_REF: ${{ github.event.pull_request.head.ref || format('auto-implement-issue-{0}', steps.assess.outputs.issue_number) }}
+        CHANGES_PUSHED: ${{ steps.implement_verify_loop.outputs.changes_pushed }}
+      run: |
+        if [ "$CHANGES_PUSHED" = "true" ]; then
+          BODY="Addressed review feedback. New commit(s) pushed; verification passed."
+        else
+          COMMENT_BODY_FILE=".github/actions/issue-auto-implement/.comment_body"
+          if [ -f "$COMMENT_BODY_FILE" ]; then
+            BODY="$(cat "$COMMENT_BODY_FILE"). Verification passed."
+          else
+            BODY="Thanks for the suggestion. We reviewed it and are keeping the current implementation; no code changes were made. Verification passed."
+          fi
+        fi
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" \
+          -d "$(jq -n --arg b "$BODY" '{body: $b}')"
+        echo "Posted comment on PR #$PR_NUMBER"
+        # Trigger test workflow so checks appear on the updated PR
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/actions/workflows/test.yml/dispatches" \
+          -d "$(jq -n --arg ref "$HEAD_REF" '{ref: $ref}')"
+        echo "Triggered test workflow on ref $HEAD_REF"
+    - name: Create PR
+      if: steps.assess.outputs.action == 'implement' && steps.implement_verify_loop.outcome == 'success' && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment' && !(github.event_name == 'issue_comment' && github.event.issue.pull_request)
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPO: ${{ github.repository }}
+        ISSUE_NUMBER: ${{ steps.assess.outputs.issue_number }}
+        LABEL_PREFIX: ${{ inputs.label_prefix }}
+        POST_PR_COMMENT: ${{ inputs.post_pr_comment }}
+        PR_TITLE: ${{ steps.implement_verify_loop.outputs.pr_title }}
+        PR_BODY: ${{ steps.implement_verify_loop.outputs.pr_body }}
+      run: |
+        BRANCH="auto-implement-issue-${ISSUE_NUMBER}"
+        TITLE="${PR_TITLE:-Implement issue #${ISSUE_NUMBER}}"
+        BODY="${PR_BODY:-Closes #${ISSUE_NUMBER}}"
+        PAYLOAD=$(jq -n --arg t "$TITLE" --arg b "$BODY" --arg h "$BRANCH" '{title: $t, body: $b, head: $h, base: "main"}')
+        PR_JSON=$(curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/pulls" \
+          -d "$PAYLOAD")
+        PR_URL=$(echo "$PR_JSON" | jq -r '.html_url // empty')
+        if [ -n "$PR_URL" ]; then
+          NEEDS_LABEL="${LABEL_PREFIX}/pr-created"
+          curl -s -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/labels" \
+            -d "{\"labels\":[\"$NEEDS_LABEL\"]}"
+          echo "Created PR: $PR_URL"
+          if [ "$POST_PR_COMMENT" = "true" ]; then
+            COMMENT_BODY="Opened PR: $PR_URL"
+            curl -s -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+              -d "$(jq -n --arg b "$COMMENT_BODY" '{body: $b}')"
+            echo "Posted comment on issue #$ISSUE_NUMBER"
+          fi
+        fi
+        # Trigger test workflow on this branch so CI checks appear (PRs created by github-actions[bot] often don't trigger pull_request)
+        curl -s -X POST \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/actions/workflows/test.yml/dispatches" \
+          -d "$(jq -n --arg ref "$BRANCH" '{ref: $ref}')"
+        echo "Triggered test workflow on ref $BRANCH"

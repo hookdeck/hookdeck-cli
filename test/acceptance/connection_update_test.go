@@ -273,7 +273,7 @@ func TestConnectionUpdateFilterRule(t *testing.T) {
 	for _, rule := range updated.Rules {
 		if rule["type"] == "filter" {
 			foundFilter = true
-			assert.Equal(t, filterBody, rule["body"], "Filter body should match")
+			assertFilterRuleFieldMatches(t, rule["body"], filterBody, "body")
 			break
 		}
 	}
@@ -353,9 +353,9 @@ func TestConnectionUpdateRetryResponseStatusCodes(t *testing.T) {
 		if rule["type"] == "retry" {
 			foundRetry = true
 
-			statusCodes, ok := rule["response_status_codes"].([]interface{})
-			require.True(t, ok, "response_status_codes should be an array, got: %T (%v)", rule["response_status_codes"], rule["response_status_codes"])
-			assert.Len(t, statusCodes, 3, "Should have 3 status codes")
+			statusCodes, ok := rule["response_status_codes"]
+			require.True(t, ok, "response_status_codes should be present")
+			assertResponseStatusCodesMatch(t, statusCodes, "500", "502", "503")
 			break
 		}
 	}
