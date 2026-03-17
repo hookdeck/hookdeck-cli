@@ -103,7 +103,7 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if err := json.Unmarshal([]byte(f.Rules), &rules); err != nil {
 			return nil, fmt.Errorf("invalid JSON for --rules: %w", err)
 		}
-		return rules, nil
+		return normalizeRulesForAPI(rules), nil
 	}
 
 	if f.RulesFile != "" {
@@ -115,7 +115,7 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if err := json.Unmarshal(data, &rules); err != nil {
 			return nil, fmt.Errorf("invalid JSON in rules file: %w", err)
 		}
-		return rules, nil
+		return normalizeRulesForAPI(rules), nil
 	}
 
 	// Build each rule type (order matches create: deduplicate -> transform -> filter -> delay -> retry)
@@ -191,9 +191,10 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if f.RuleRetryInterval > 0 {
 			rule["interval"] = f.RuleRetryInterval
 		}
+		// API expects response_status_codes as []string (RetryRule schema)
 		if f.RuleRetryResponseStatusCode != "" {
 			parts := strings.Split(f.RuleRetryResponseStatusCode, ",")
-			intCodes := make([]int, 0, len(parts))
+			strCodes := make([]string, 0, len(parts))
 			for _, part := range parts {
 				part = strings.TrimSpace(part)
 				if part == "" {
@@ -206,14 +207,45 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 				if n < 100 || n > 599 {
 					return nil, fmt.Errorf("invalid HTTP status code %d in --rule-retry-response-status-codes: must be between 100 and 599", n)
 				}
-				intCodes = append(intCodes, n)
+				strCodes = append(strCodes, part)
 			}
-			rule["response_status_codes"] = intCodes
+			rule["response_status_codes"] = strCodes
 		}
 		rules = append(rules, rule)
 	}
 
 	return rules, nil
+}
+
+// normalizeRulesForAPI ensures rules match the API schema: RetryRule.response_status_codes
+// must be []string; FilterRule body/headers may be string or object.
+func normalizeRulesForAPI(rules []hookdeck.Rule) []hookdeck.Rule {
+	out := make([]hookdeck.Rule, len(rules))
+	for i, r := range rules {
+		out[i] = make(hookdeck.Rule)
+		for k, v := range r {
+			out[i][k] = v
+		}
+		if r["type"] == "retry" {
+			if codes, ok := r["response_status_codes"].([]interface{}); ok && len(codes) > 0 {
+				strCodes := make([]string, 0, len(codes))
+				for _, c := range codes {
+					switch v := c.(type) {
+					case string:
+						strCodes = append(strCodes, v)
+					case float64:
+						strCodes = append(strCodes, strconv.Itoa(int(v)))
+					case int:
+						strCodes = append(strCodes, strconv.Itoa(v))
+					default:
+						strCodes = append(strCodes, fmt.Sprintf("%v", c))
+					}
+				}
+				out[i]["response_status_codes"] = strCodes
+			}
+		}
+	}
+	return out
 }
 
 // parseJSONOrString attempts to parse s as a JSON object or array. Only values

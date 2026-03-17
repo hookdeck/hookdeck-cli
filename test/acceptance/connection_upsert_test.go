@@ -732,17 +732,9 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 			assert.Equal(t, float64(5), rule["count"], "count should be 5")
 			assert.Equal(t, float64(10000), rule["interval"], "interval should be 10000")
 
-			statusCodes, ok := rule["response_status_codes"].([]interface{})
-			require.True(t, ok, "response_status_codes should be an array, got %T: %v",
-				rule["response_status_codes"], rule["response_status_codes"])
-			require.Len(t, statusCodes, 4, "Should have exactly 4 status codes")
-
-			expectedCodes := []float64{500, 502, 503, 504}
-			for i, expected := range expectedCodes {
-				actual, ok := statusCodes[i].(float64)
-				require.True(t, ok, "status code [%d] should be a number, got %T", i, statusCodes[i])
-				assert.Equal(t, expected, actual, "status code [%d] should be %v", i, expected)
-			}
+			statusCodes, ok := rule["response_status_codes"]
+			require.True(t, ok, "response_status_codes should be present")
+			assertResponseStatusCodesMatch(t, statusCodes, "500", "502", "503", "504")
 			break
 		}
 		assert.True(t, foundRetry, "Should have a retry rule")

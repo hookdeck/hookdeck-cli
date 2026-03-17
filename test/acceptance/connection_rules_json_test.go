@@ -127,9 +127,9 @@ func TestConnectionCreateWithRulesJSONExactValues(t *testing.T) {
 				assert.Equal(t, float64(3), rule["count"])
 				assert.Equal(t, float64(10000), rule["interval"])
 
-				statusCodes, ok := rule["response_status_codes"].([]interface{})
-				require.True(t, ok, "response_status_codes should be an array")
-				assert.Equal(t, []interface{}{float64(500), float64(502), float64(503)}, statusCodes)
+				statusCodes, ok := rule["response_status_codes"]
+				require.True(t, ok, "response_status_codes should be present")
+				assertResponseStatusCodesMatch(t, statusCodes, "500", "502", "503")
 			}
 		}
 		assert.True(t, foundFilter, "Should have a filter rule")
@@ -205,10 +205,9 @@ func TestConnectionCreateWithRulesFileExactValues(t *testing.T) {
 			assert.Equal(t, float64(5), rule["count"])
 			assert.Equal(t, float64(30000), rule["interval"])
 
-			statusCodes, ok := rule["response_status_codes"].([]interface{})
-			require.True(t, ok)
-			expectedCodes := []interface{}{float64(500), float64(502), float64(503), float64(504)}
-			assert.Equal(t, expectedCodes, statusCodes)
+			statusCodes, ok := rule["response_status_codes"]
+			require.True(t, ok, "response_status_codes should be present")
+			assertResponseStatusCodesMatch(t, statusCodes, "500", "502", "503", "504")
 		}
 	}
 	assert.True(t, foundFilter, "Should have a filter rule")
