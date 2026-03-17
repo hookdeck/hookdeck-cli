@@ -4,7 +4,7 @@ Reusable composite action for label-triggered issue automation: assess (request 
 
 ## How to use (quick start)
 
-1. **Workflow** — Ensure `.github/workflows/issue-auto-implement.yml` exists and calls this action (see the workflow in this repo for the exact `on:` and `uses:`).
+1. **Workflow** — Ensure `.github/workflows/issue-auto-implement.yml` exists and calls this action (see the workflow in this repo for the exact `on:` and `uses:`). If implement might change workflow files, the job must include `workflows: write` in its `permissions` (see [CI/CD](#cicd-what-you-need-to-run-this-workflow)).
 2. **Secrets and variables** — In the repo: Settings → Secrets and variables → Actions. Add secret **`AUTO_IMPLEMENT_ANTHROPIC_API_KEY`** (Anthropic API key). For who can trigger, set **one** of: **`AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION`** (e.g. `push` or `maintain`; works with default token) or **`AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM`** (e.g. `org/team`; token needs `read:org`).
 3. **Trigger label** — Create the labels once so you can add them to issues. Either run the **Issue auto-implement setup** workflow (Actions → Issue auto-implement setup → Run workflow), which creates `automation/auto-implement`, `automation/needs-info`, and `automation/pr-created`; or create the trigger label **`automation/auto-implement`** manually in the repo (Settings or Issues → Labels). The main action also ensures these labels exist when it runs, but the trigger label must exist before you can add it to an issue.
 4. **Trigger** — On an issue, add the label `automation/auto-implement`. The workflow runs: it assesses the issue (request more info vs implement), and if implement, runs the Claude Code CLI and opens a PR. You can also comment on the issue (to add context and re-trigger) or review the PR (to iterate).
@@ -42,7 +42,7 @@ Secrets and variables use an action-specific prefix (e.g. `AUTO_IMPLEMENT_`) so 
 
 To use this action in GitHub Actions:
 
-1. **Workflow** — Call the action from a workflow (e.g. `.github/workflows/issue-auto-implement.yml`) on `issues.labeled`, `issue_comment`, `pull_request_review`, and/or `pull_request_review_comment`. The job needs `contents: write`, `issues: write`, `pull-requests: write`.
+1. **Workflow** — Call the action from a workflow (e.g. `.github/workflows/issue-auto-implement.yml`) on `issues.labeled`, `issue_comment`, `pull_request_review`, and/or `pull_request_review_comment`. The job needs `contents: write`, `issues: write`, `pull-requests: write`. If the implement step may edit files under `.github/workflows/`, also add **`workflows: write`** so the push is allowed (GitHub rejects workflow file changes without it).
 2. **Secrets** — Add **`AUTO_IMPLEMENT_ANTHROPIC_API_KEY`** (repo secret). Used for the assess step and passed to the Claude Code CLI in the implement step.
 3. **Variables (trigger gate)** — Set **one** of:
    - **`AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION`** (repo variable): `triage`, `push`, `maintain`, or `admin`. Only users with at least this repo permission can trigger. Works with default `GITHUB_TOKEN`.
