@@ -73,6 +73,16 @@ No other setup is required. Optionally set `verify_commands` (default `go test .
 
 The action ensures these labels exist (creates them if missing): `{prefix}/auto-implement`, `{prefix}/needs-info`, `{prefix}/pr-created`.
 
+## Diagnosing run failures (exit code 1)
+
+When a run fails, open the job log and check the **Implement and verify (loop)** step:
+
+- **`Error: spawnSync claude ETIMEDOUT`** — The Claude Code CLI hit the timeout in `implement.ts` (default 35 minutes). The runner killed the subprocess before Claude finished. Increase the timeout in `assess/src/implement.ts` (e.g. to 35–40 min) or simplify the issue scope. The issue comment will say "verification failed" but the real cause is implement timeout.
+- **Other failure right after `npx tsx src/implement.ts`** — The implement script exited 1. Common causes: Claude Code CLI exited non-zero (error) or missing env (e.g. fetch issue failed). Check stderr for the exact error.
+- **"Verification failed (attempt 1 of N)" and eventually "Verification failed after N attempts"** — The verify command (e.g. `go test -short ./...`) failed on every attempt. Fix the failing tests or adjust `verify_commands` in the workflow.
+
+When the issue is **already implemented** and Claude correctly writes only `.comment_body` (no code changes), the loop skips verification and exits success so the run completes and a PR/comment is posted.
+
 ## Testing
 
 From the repo root, run the assess script tests:
@@ -102,6 +112,7 @@ Scripts load a **local `.env`** file so you don't have to pass secrets on the co
 | `GITHUB_WORKSPACE` | Optional | Repo root; default inferred from cwd when run from `assess/`. |
 | `CONTEXT_FILES` | Optional | Comma-separated paths (relative to repo root) for Claude context. |
 | `VERIFICATION_NOTES` | Optional (Implement) | Notes from assess step. |
+| `REVIEW_FEEDBACK` | Optional (Implement) | When the run was triggered by a PR review or comment on a PR, the action passes the review/comment text so the implement step can address it (e.g. "add unit and acceptance tests"). |
 | `PREVIOUS_VERIFY_OUTPUT` | Optional (Implement retries) | Previous verify failure output. |
 
 ### One-time setup: `.env`
@@ -118,7 +129,7 @@ cd .github/actions/issue-auto-implement/assess
 npm run assess:fixture
 ```
 
-With `.env` in place, no need to pass the key on the command line. Optional: set `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to exercise redirect-to-PR and fetch-comments. Set `ASSESS_DEBUG=1` to log the prompt sent to Claude and the raw response to stderr. Other fixtures: `GITHUB_EVENT_PATH=./test/fixtures/issue-comment.json GITHUB_EVENT_NAME=issue_comment npx tsx src/index.ts`.
+With `.env` in place, no need to pass the key on the command line. Optional: set `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to exercise redirect-to-PR and fetch-comments. **Logging:** The script always logs Claude's raw response to stderr (the JSON decision and any surrounding text) and a one-line summary (e.g. `Assess: action=implement issue_number=215 review_feedback=52 chars`), so CI logs show what was decided and what the model returned. Set `ASSESS_DEBUG=1` to also log the full prompt (issue, comments, context files) when debugging. Other fixtures: `GITHUB_EVENT_PATH=./test/fixtures/issue-comment.json GITHUB_EVENT_NAME=issue_comment npx tsx src/index.ts`.
 
 ### Implement (issue → Claude Code CLI → files on disk)
 
@@ -129,7 +140,7 @@ cd .github/actions/issue-auto-implement/assess
 npm run implement:issue
 ```
 
-With `.env` set (e.g. `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`), no need to pass them inline. Override any var on the command line if needed (e.g. `ISSUE_NUMBER=42 npm run implement:issue`). Then from the repo root inspect `git status` and the commit message at `.github/actions/issue-auto-implement/.commit_msg`. Optionally set `VERIFICATION_NOTES` and `CONTEXT_FILES`.
+With `.env` set (e.g. `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`), no need to pass them inline. Override any var on the command line if needed (e.g. `ISSUE_NUMBER=42 npm run implement:issue`). Then from the repo root inspect `git status` and the commit message at `.github/actions/issue-auto-implement/.commit_msg`. Optionally set `VERIFICATION_NOTES`, `REVIEW_FEEDBACK` (reviewer or PR comment text to address), and `CONTEXT_FILES`.
 
 For implementation details and verification steps, see `AGENTS.md`.
 

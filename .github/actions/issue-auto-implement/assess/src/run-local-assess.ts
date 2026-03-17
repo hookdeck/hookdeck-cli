@@ -204,10 +204,15 @@ async function main(): Promise<void> {
       stdio: 'inherit',
     });
 
+    const reviewFeedback =
+      result.review_feedback ||
+      (EVENT_TYPE === 'issue_comment' ? COMMENT_BODY : '') ||
+      (EVENT_TYPE === 'pull_request_review' ? REVIEW_BODY : '');
     const env = {
       ...process.env,
       ISSUE_NUMBER: String(issueNumber),
       VERIFICATION_NOTES: result.verification_notes || '',
+      REVIEW_FEEDBACK: reviewFeedback,
       GITHUB_REPOSITORY: REPO,
       GITHUB_TOKEN: TOKEN,
       GITHUB_WORKSPACE: worktreePath,

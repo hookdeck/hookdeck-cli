@@ -60,4 +60,61 @@ describe('assess', () => {
     expect(['implement', 'request_info', 'redirect_to_pr']).toContain(result.action);
     if (result.action === 'request_info') expect(typeof result.comment_body).toBe('string');
   });
+
+  it('sets review_feedback from PR review body when event is pull_request_review', async () => {
+    const mockClient = {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: '{"action":"implement","verification_notes":"Run go test ./..."}',
+            },
+          ],
+        }),
+      },
+    } as unknown as import('@anthropic-ai/sdk').Anthropic;
+
+    const payload = loadFixture('pull_request_review.json');
+    const result = await assess('pull_request_review', payload, {
+      referenceIssue: '192',
+      anthropicClient: mockClient,
+    });
+
+    expect(result.action).toBe('implement');
+    expect(result.review_feedback).toBe('Please add a test for the new behavior.');
+  });
+
+  it('sets review_feedback from comment when event is issue_comment on PR', async () => {
+    const mockClient = {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [
+            { type: 'text', text: '{"action":"implement","verification_notes":"Run tests."}' },
+          ],
+        }),
+      },
+    } as unknown as import('@anthropic-ai/sdk').Anthropic;
+
+    const payload = {
+      action: 'created',
+      issue: {
+        number: 261,
+        title: 'PR title',
+        body: 'Closes #215',
+        pull_request: {}, // comment on PR
+      },
+      comment: { body: 'Could we add some unit and acceptance test coverage for this change?' },
+      repository: { full_name: 'hookdeck/hookdeck-cli' },
+    };
+    const result = await assess('issue_comment', payload, {
+      referenceIssue: '192',
+      anthropicClient: mockClient,
+    });
+
+    expect(result.action).toBe('implement');
+    expect(result.review_feedback).toBe(
+      'Could we add some unit and acceptance test coverage for this change?'
+    );
+  });
 });

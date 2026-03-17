@@ -61,7 +61,8 @@ function buildClaudeCliPrompt(
   verificationNotes: string,
   contextBlock: string,
   previousVerifyOutput: string,
-  issueNumber: number
+  issueNumber: number,
+  reviewFeedback: string
 ): string {
   const metaDir = ACTION_DIR;
   const parts = [
@@ -85,6 +86,15 @@ function buildClaudeCliPrompt(
     issueBody,
     '',
   ];
+  if (reviewFeedback.trim()) {
+    parts.push(
+      '',
+      '--- Review feedback to address (you must implement this) ---',
+      reviewFeedback.trim(),
+      '--- End review feedback ---',
+      ''
+    );
+  }
   if (verificationNotes) {
     parts.push('Verification (run these to confirm):', verificationNotes, '');
   }
@@ -125,7 +135,7 @@ function runClaudeCli(prompt: string): void {
       input: prompt,
       stdio: ['pipe', 'inherit', 'inherit'],
       encoding: 'utf-8',
-      timeout: 25 * 60 * 1000, // 25 minutes
+      timeout: 35 * 60 * 1000, // 35 minutes (complex issues or "already implemented" analysis may need more than 25)
       env,
     }
   );
@@ -171,10 +181,19 @@ async function main(): Promise<void> {
   if (!owner || !repoName) throw new Error('Invalid GITHUB_REPOSITORY');
 
   const issueNum = parseInt(issueNumber, 10);
+  const reviewFeedback = process.env.REVIEW_FEEDBACK || '';
   const { title, body } = await fetchIssue(owner, repoName, issueNum, token);
   const contextBlock = loadContextFiles();
 
-  const prompt = buildClaudeCliPrompt(title, body, verificationNotes, contextBlock, previousVerifyOutput, issueNum);
+  const prompt = buildClaudeCliPrompt(
+    title,
+    body,
+    verificationNotes,
+    contextBlock,
+    previousVerifyOutput,
+    issueNum,
+    reviewFeedback
+  );
   runClaudeCli(prompt);
   ensureMetaFiles(issueNum);
 }
