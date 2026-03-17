@@ -1,7 +1,6 @@
 package acceptance
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -322,73 +321,6 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		t.Logf("Successfully upserted connection %s with only rule flags, auth preserved", connID)
 	})
 
-	// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/209 Bug 3:
-	// --rule-retry-response-status-codes must be sent as an array, not a string.
-	t.Run("UpsertRetryResponseStatusCodesAsArray", func(t *testing.T) {
-		if testing.Short() {
-			t.Skip("Skipping acceptance test in short mode")
-		}
-
-		cli := NewCLIRunner(t)
-		timestamp := generateTimestamp()
-
-		connName := "test-upsert-statuscodes-" + timestamp
-		sourceName := "test-upsert-src-sc-" + timestamp
-		destName := "test-upsert-dst-sc-" + timestamp
-
-		// Create a connection with full source/dest so the upsert provides all required fields
-		var upsertResp map[string]interface{}
-		err := cli.RunJSON(&upsertResp,
-			"gateway", "connection", "upsert", connName,
-			"--source-name", sourceName,
-			"--source-type", "WEBHOOK",
-			"--destination-name", destName,
-			"--destination-type", "HTTP",
-			"--destination-url", "https://api.example.com/webhook",
-			"--rule-retry-strategy", "linear",
-			"--rule-retry-count", "3",
-			"--rule-retry-interval", "5000",
-			"--rule-retry-response-status-codes", "500,502,503,504",
-		)
-		require.NoError(t, err, "Should upsert with retry response status codes as array")
-
-		connID, _ := upsertResp["id"].(string)
-		t.Cleanup(func() {
-			if connID != "" {
-				deleteConnection(t, cli, connID)
-			}
-		})
-
-		// Verify the retry rule has status codes as an array
-		rules, ok := upsertResp["rules"].([]interface{})
-		require.True(t, ok, "Expected rules array")
-
-		foundRetry := false
-		for _, r := range rules {
-			rule, ok := r.(map[string]interface{})
-			if ok && rule["type"] == "retry" {
-				foundRetry = true
-
-				statusCodes, ok := rule["response_status_codes"].([]interface{})
-				require.True(t, ok, "response_status_codes should be array, got: %T (%v)", rule["response_status_codes"], rule["response_status_codes"])
-				assert.Len(t, statusCodes, 4, "Should have 4 status codes")
-
-				codes := make([]string, len(statusCodes))
-				for i, c := range statusCodes {
-					codes[i] = strings.TrimSpace(c.(string))
-				}
-				assert.Contains(t, codes, "500")
-				assert.Contains(t, codes, "502")
-				assert.Contains(t, codes, "503")
-				assert.Contains(t, codes, "504")
-				break
-			}
-		}
-		assert.True(t, foundRetry, "Should have a retry rule")
-
-		t.Logf("Successfully verified retry status codes sent as array")
-	})
-
 	// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/209 Bug 2:
 	// Upserting with --source-name alone (without --source-type) should work for
 	// existing connections (the existing type is preserved).
@@ -440,5 +372,371 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		assert.Equal(t, newSourceName, upsertSource["name"], "Source name should be updated")
 
 		t.Logf("Successfully upserted connection %s with source-name only", connID)
+	})
+
+	// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/192:
+	// --rule-filter-headers should store JSON as a parsed object with exact values preserved.
+	t.Run("FilterHeadersJSONExactValues", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-filter-headers-" + timestamp
+		sourceName := "test-filter-src-" + timestamp
+		destName := "test-filter-dst-" + timestamp
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-filter-headers", `{"x-shopify-topic":{"$startsWith":"order/"},"content-type":"application/json"}`,
+		)
+		require.NoError(t, err, "Should create connection with --rule-filter-headers JSON")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		source, ok := createResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source object in response")
+		assert.Equal(t, sourceName, source["name"], "Source name should match")
+
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in response")
+		assert.Equal(t, destName, dest["name"], "Destination name should match")
+
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundFilter := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "filter" {
+				continue
+			}
+			foundFilter = true
+
+			headersMap, isMap := rule["headers"].(map[string]interface{})
+			require.True(t, isMap,
+				"headers should be a JSON object, got %T: %v", rule["headers"], rule["headers"])
+
+			// Verify exact nested values
+			topicVal, ok := headersMap["x-shopify-topic"].(map[string]interface{})
+			require.True(t, ok, "x-shopify-topic should be a nested object, got %T", headersMap["x-shopify-topic"])
+			assert.Equal(t, "order/", topicVal["$startsWith"],
+				"$startsWith value should be exactly 'order/'")
+
+			assert.Equal(t, "application/json", headersMap["content-type"],
+				"content-type value should be exactly 'application/json'")
+			break
+		}
+		assert.True(t, foundFilter, "Should have a filter rule")
+	})
+
+	// --rule-filter-body should store JSON as a parsed object with exact values preserved.
+	t.Run("FilterBodyJSONExactValues", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-filter-body-" + timestamp
+		sourceName := "test-filter-body-src-" + timestamp
+		destName := "test-filter-body-dst-" + timestamp
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-filter-body", `{"event_type":"payment","amount":{"$gte":100}}`,
+		)
+		require.NoError(t, err, "Should create connection with --rule-filter-body JSON")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundFilter := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "filter" {
+				continue
+			}
+			foundFilter = true
+
+			bodyMap, isMap := rule["body"].(map[string]interface{})
+			require.True(t, isMap, "body should be a JSON object, got %T: %v", rule["body"], rule["body"])
+
+			assert.Equal(t, "payment", bodyMap["event_type"],
+				"event_type should be exactly 'payment'")
+
+			amountMap, ok := bodyMap["amount"].(map[string]interface{})
+			require.True(t, ok, "amount should be a nested object, got %T", bodyMap["amount"])
+			assert.Equal(t, float64(100), amountMap["$gte"],
+				"$gte value should be exactly 100")
+			break
+		}
+		assert.True(t, foundFilter, "Should have a filter rule")
+	})
+
+	// --rule-filter-query should store JSON as a parsed object with exact values preserved.
+	t.Run("FilterQueryJSONExactValues", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-filter-query-" + timestamp
+		sourceName := "test-filter-query-src-" + timestamp
+		destName := "test-filter-query-dst-" + timestamp
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-filter-query", `{"status":"active","page":{"$gte":1}}`,
+		)
+		require.NoError(t, err, "Should create connection with --rule-filter-query JSON")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundFilter := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "filter" {
+				continue
+			}
+			foundFilter = true
+
+			queryMap, isMap := rule["query"].(map[string]interface{})
+			require.True(t, isMap, "query should be a JSON object, got %T: %v", rule["query"], rule["query"])
+
+			assert.Equal(t, "active", queryMap["status"],
+				"status should be exactly 'active'")
+
+			pageMap, ok := queryMap["page"].(map[string]interface{})
+			require.True(t, ok, "page should be a nested object, got %T", queryMap["page"])
+			assert.Equal(t, float64(1), pageMap["$gte"],
+				"$gte value should be exactly 1")
+			break
+		}
+		assert.True(t, foundFilter, "Should have a filter rule")
+	})
+
+	// --rule-filter-path should store JSON as a parsed object with exact values preserved.
+	t.Run("FilterPathJSONExactValues", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-filter-path-" + timestamp
+		sourceName := "test-filter-path-src-" + timestamp
+		destName := "test-filter-path-dst-" + timestamp
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-filter-path", `{"$contains":"/webhooks/"}`,
+		)
+		require.NoError(t, err, "Should create connection with --rule-filter-path JSON")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundFilter := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "filter" {
+				continue
+			}
+			foundFilter = true
+
+			pathMap, isMap := rule["path"].(map[string]interface{})
+			require.True(t, isMap, "path should be a JSON object, got %T: %v", rule["path"], rule["path"])
+
+			assert.Equal(t, "/webhooks/", pathMap["$contains"],
+				"$contains value should be exactly '/webhooks/'")
+			break
+		}
+		assert.True(t, foundFilter, "Should have a filter rule")
+	})
+
+	// All four filter flags combined should produce a single filter rule with exact values.
+	t.Run("AllFilterFlagsCombinedExactValues", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-filter-all-" + timestamp
+		sourceName := "test-filter-all-src-" + timestamp
+		destName := "test-filter-all-dst-" + timestamp
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-filter-headers", `{"content-type":"application/json"}`,
+			"--rule-filter-body", `{"action":"created"}`,
+			"--rule-filter-query", `{"verbose":"true"}`,
+			"--rule-filter-path", `{"$startsWith":"/api/v1"}`,
+		)
+		require.NoError(t, err, "Should create connection with all four filter flags")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundFilter := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "filter" {
+				continue
+			}
+			foundFilter = true
+
+			// Verify headers
+			headersMap, ok := rule["headers"].(map[string]interface{})
+			require.True(t, ok, "headers should be a JSON object, got %T", rule["headers"])
+			assert.Equal(t, "application/json", headersMap["content-type"])
+
+			// Verify body
+			bodyMap, ok := rule["body"].(map[string]interface{})
+			require.True(t, ok, "body should be a JSON object, got %T", rule["body"])
+			assert.Equal(t, "created", bodyMap["action"])
+
+			// Verify query
+			queryMap, ok := rule["query"].(map[string]interface{})
+			require.True(t, ok, "query should be a JSON object, got %T", rule["query"])
+			assert.Equal(t, "true", queryMap["verbose"])
+
+			// Verify path
+			pathMap, ok := rule["path"].(map[string]interface{})
+			require.True(t, ok, "path should be a JSON object, got %T", rule["path"])
+			assert.Equal(t, "/api/v1", pathMap["$startsWith"])
+			break
+		}
+		assert.True(t, foundFilter, "Should have a filter rule")
+	})
+
+	// Verify retry status codes are returned as integer array with exact values.
+	t.Run("RetryStatusCodesExactValues", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-retry-codes-" + timestamp
+		sourceName := "test-retry-codes-src-" + timestamp
+		destName := "test-retry-codes-dst-" + timestamp
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-retry-strategy", "linear",
+			"--rule-retry-count", "5",
+			"--rule-retry-interval", "10000",
+			"--rule-retry-response-status-codes", "500,502,503,504",
+		)
+		require.NoError(t, err, "Should create connection with retry status codes")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundRetry := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "retry" {
+				continue
+			}
+			foundRetry = true
+
+			assert.Equal(t, "linear", rule["strategy"], "strategy should be 'linear'")
+			assert.Equal(t, float64(5), rule["count"], "count should be 5")
+			assert.Equal(t, float64(10000), rule["interval"], "interval should be 10000")
+
+			statusCodes, ok := rule["response_status_codes"]
+			require.True(t, ok, "response_status_codes should be present")
+			assertResponseStatusCodesMatch(t, statusCodes, "500", "502", "503", "504")
+			break
+		}
+		assert.True(t, foundRetry, "Should have a retry rule")
 	})
 }

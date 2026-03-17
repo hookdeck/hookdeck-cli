@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -192,6 +193,47 @@ func (r *CLIRunner) RunJSON(result interface{}, args ...string) error {
 	}
 
 	return nil
+}
+
+// assertFilterRuleFieldMatches asserts that a filter rule field (body or headers) matches the expected JSON.
+// The API may return the field as either a string or a parsed map; both are accepted.
+func assertFilterRuleFieldMatches(t *testing.T, actual interface{}, expectedJSON string, fieldName string) {
+	t.Helper()
+	var expectedMap map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(expectedJSON), &expectedMap), "expectedJSON should be valid JSON")
+	var actualMap map[string]interface{}
+	switch v := actual.(type) {
+	case string:
+		require.NoError(t, json.Unmarshal([]byte(v), &actualMap), "actual string should be valid JSON")
+	case map[string]interface{}:
+		actualMap = v
+	default:
+		t.Fatalf("%s should be string or map, got %T", fieldName, actual)
+	}
+	assert.Equal(t, expectedMap, actualMap, "%s should match expected JSON", fieldName)
+}
+
+// assertResponseStatusCodesMatch asserts that response_status_codes from the API match expected values.
+// The API may return codes as strings or numbers; both are accepted.
+func assertResponseStatusCodesMatch(t *testing.T, statusCodes interface{}, expected ...string) {
+	t.Helper()
+	slice, ok := statusCodes.([]interface{})
+	require.True(t, ok, "response_status_codes should be an array, got %T", statusCodes)
+	require.Len(t, slice, len(expected), "response_status_codes length")
+	for i, exp := range expected {
+		var actual string
+		switch v := slice[i].(type) {
+		case string:
+			actual = v
+		case float64:
+			actual = fmt.Sprintf("%.0f", v)
+		case int:
+			actual = fmt.Sprintf("%d", v)
+		default:
+			actual = fmt.Sprintf("%v", slice[i])
+		}
+		assert.Equal(t, exp, actual, "response_status_codes[%d]", i)
+	}
 }
 
 // generateTimestamp returns a timestamp string in the format YYYYMMDDHHMMSS plus microseconds
