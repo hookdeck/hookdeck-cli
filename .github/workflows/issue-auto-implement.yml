@@ -27,6 +27,7 @@ jobs:
       issues: write
       pull-requests: write
       actions: write  # trigger test workflow on PR branch so checks appear (PRs created by bot may not trigger pull_request)
+      workflows: write  # allow push when implement touches .github/workflows/* (GitHub rejects workflow file changes without this)
       # read:org only needed if using team check (AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM)
     steps:
       - name: Checkout
