@@ -441,4 +441,135 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 
 		t.Logf("Successfully upserted connection %s with source-name only", connID)
 	})
+
+	// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/192:
+	// --rule-filter-headers (and other filter flags) should store JSON as a parsed
+	// object, not as an escaped string.
+	t.Run("FilterHeadersJSONStoredAsObject", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-filter-headers-" + timestamp
+		sourceName := "test-filter-src-" + timestamp
+		destName := "test-filter-dst-" + timestamp
+
+		// Create a connection using --rule-filter-headers with a JSON object
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-filter-headers", `{"x-shopify-topic":{"$startsWith":"order/"}}`,
+		)
+		require.NoError(t, err, "Should create connection with --rule-filter-headers JSON")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		// Verify source and destination were created correctly
+		source, ok := createResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source object in response")
+		assert.Equal(t, sourceName, source["name"], "Source name should match")
+
+		dest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination object in response")
+		assert.Equal(t, destName, dest["name"], "Destination name should match")
+
+		// Verify the filter rule has headers as a JSON object, not an escaped string
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundFilter := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "filter" {
+				continue
+			}
+			foundFilter = true
+
+			headers := rule["headers"]
+			_, isString := headers.(string)
+			assert.False(t, isString,
+				"--rule-filter-headers should store JSON as an object, not an escaped string; got: %v", headers)
+
+			headersMap, isMap := headers.(map[string]interface{})
+			assert.True(t, isMap,
+				"headers should be a JSON object (map[string]interface{}), got %T", headers)
+			assert.Contains(t, headersMap, "x-shopify-topic",
+				"headers object should contain the expected key")
+			break
+		}
+		assert.True(t, foundFilter, "Should have a filter rule")
+
+		t.Logf("Successfully verified --rule-filter-headers stores JSON as object for connection %s", connID)
+	})
+
+	// Verify that --rule-filter-body JSON is also stored as an object.
+	t.Run("FilterBodyJSONStoredAsObject", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-filter-body-" + timestamp
+		sourceName := "test-filter-body-src-" + timestamp
+		destName := "test-filter-body-dst-" + timestamp
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--destination-name", destName,
+			"--destination-type", "HTTP",
+			"--destination-url", "https://example.com/webhook",
+			"--rule-filter-body", `{"event_type":"payment"}`,
+		)
+		require.NoError(t, err, "Should create connection with --rule-filter-body JSON")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID in response")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		rules, ok := createResp["rules"].([]interface{})
+		require.True(t, ok, "Expected rules array in response")
+
+		foundFilter := false
+		for _, r := range rules {
+			rule, ok := r.(map[string]interface{})
+			if !ok || rule["type"] != "filter" {
+				continue
+			}
+			foundFilter = true
+
+			body := rule["body"]
+			_, isString := body.(string)
+			assert.False(t, isString,
+				"--rule-filter-body should store JSON as an object, not an escaped string; got: %v", body)
+
+			bodyMap, isMap := body.(map[string]interface{})
+			assert.True(t, isMap, "body should be a JSON object, got %T", body)
+			assert.Contains(t, bodyMap, "event_type", "body object should contain the expected key")
+			break
+		}
+		assert.True(t, foundFilter, "Should have a filter rule")
+
+		t.Logf("Successfully verified --rule-filter-body stores JSON as object for connection %s", connID)
+	})
 }
