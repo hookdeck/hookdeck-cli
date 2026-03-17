@@ -1,3 +1,5 @@
+//go:build project_use
+
 package acceptance
 
 import (
