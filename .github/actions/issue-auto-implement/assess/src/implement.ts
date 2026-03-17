@@ -76,7 +76,7 @@ function buildClaudeCliPrompt(
     `  3. ${metaDir}/.pr_body — markdown body: brief problem summary, then "How it was solved" or "Solution". Do NOT include "Closes #N" (it will be appended).`,
     `  These files are workflow-only inputs (consumed by the action to create the commit and PR). Do NOT add or commit them to the repository.`,
     '',
-    `- When you decide NOT to make any code changes, do NOT write .commit_msg. Instead write the PR comment body to ${metaDir}/.comment_body — one or two sentences. Use this for: (a) no-change scenarios (e.g. the feedback is a question or the current approach is preferred; thank the reviewer and briefly explain), or (b) when more information is needed (e.g. "Could you clarify whether you want X or Y?"). This file will be posted on the PR.`,
+    `- When you decide NOT to make any code changes, you MUST NOT write .commit_msg, .pr_title, or .pr_body. You MUST write ${metaDir}/.comment_body instead — one or two sentences that will be posted on the PR. Required for: (a) no-change scenarios (e.g. the feedback is a question or the current approach is preferred; thank the reviewer and briefly explain why no change), or (b) when more information is needed (e.g. "Could you clarify whether you want X or Y?"). Without .comment_body the workflow posts a generic fallback; always write it when you make no code changes so the reviewer gets a useful reply.`,
     '',
     'Issue title:',
     issueTitle,
@@ -102,7 +102,7 @@ function buildClaudeCliPrompt(
   if (contextBlock) {
     parts.push('', contextBlock);
   }
-  parts.push('', 'After implementing, write the appropriate files: .commit_msg, .pr_title, and .pr_body if you made code changes; or .comment_body if you made no code changes (no-change rationale or request for clarification).');
+  parts.push('', 'After implementing, write exactly one of: (A) .commit_msg, .pr_title, and .pr_body if you made code changes; or (B) .comment_body only if you made no code changes. When you make no code changes, writing .comment_body is required so the PR gets a specific reply instead of a generic one.');
   return parts.join('\n');
 }
 
