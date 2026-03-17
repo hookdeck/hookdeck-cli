@@ -73,6 +73,16 @@ No other setup is required. Optionally set `verify_commands` (default `go test .
 
 The action ensures these labels exist (creates them if missing): `{prefix}/auto-implement`, `{prefix}/needs-info`, `{prefix}/pr-created`.
 
+## Diagnosing run failures (exit code 1)
+
+When a run fails, open the job log and check the **Implement and verify (loop)** step:
+
+- **`Error: spawnSync claude ETIMEDOUT`** — The Claude Code CLI hit the timeout in `implement.ts` (default 35 minutes). The runner killed the subprocess before Claude finished. Increase the timeout in `assess/src/implement.ts` (e.g. to 35–40 min) or simplify the issue scope. The issue comment will say "verification failed" but the real cause is implement timeout.
+- **Other failure right after `npx tsx src/implement.ts`** — The implement script exited 1. Common causes: Claude Code CLI exited non-zero (error) or missing env (e.g. fetch issue failed). Check stderr for the exact error.
+- **"Verification failed (attempt 1 of N)" and eventually "Verification failed after N attempts"** — The verify command (e.g. `go test -short ./...`) failed on every attempt. Fix the failing tests or adjust `verify_commands` in the workflow.
+
+When the issue is **already implemented** and Claude correctly writes only `.comment_body` (no code changes), the loop skips verification and exits success so the run completes and a PR/comment is posted.
+
 ## Testing
 
 From the repo root, run the assess script tests:

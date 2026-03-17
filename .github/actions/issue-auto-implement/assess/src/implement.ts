@@ -125,7 +125,7 @@ function runClaudeCli(prompt: string): void {
       input: prompt,
       stdio: ['pipe', 'inherit', 'inherit'],
       encoding: 'utf-8',
-      timeout: 25 * 60 * 1000, // 25 minutes
+      timeout: 35 * 60 * 1000, // 35 minutes (complex issues or "already implemented" analysis may need more than 25)
       env,
     }
   );
