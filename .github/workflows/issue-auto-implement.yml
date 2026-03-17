@@ -13,7 +13,7 @@ on:
   pull_request_review_comment:
     types: [created]
 
-# Only run for the trigger label on issues (action will further filter issue_comment and PR events)
+# Only run the job when the trigger label was added (not when our action adds needs-info/pr-created; those trigger a run but this if skips the job)
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -27,7 +27,8 @@ jobs:
       issues: write
       pull-requests: write
       actions: write  # trigger test workflow on PR branch so checks appear (PRs created by bot may not trigger pull_request)
-      workflows: write  # allow push when implement touches .github/workflows/* (GitHub rejects workflow file changes without this)
+      # To allow push when implement touches .github/workflows/*: repo Settings → Actions → General →
+      # "Allow GitHub Actions to create and approve pull requests" (or use a PAT with workflow scope). No workflows: key in workflow syntax.
       # read:org only needed if using team check (AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM)
     steps:
       - name: Checkout
