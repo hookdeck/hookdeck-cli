@@ -247,13 +247,13 @@ func TestBuildConnectionRulesTransformEnvJSON(t *testing.T) {
 }
 
 // TestBuildConnectionRulesRetryStatusCodesArray verifies that buildConnectionRules
-// produces response_status_codes as a []int array (HTTP status codes are integers).
+// produces response_status_codes as a []string array (API RetryRule schema).
 // Regression test for https://github.com/hookdeck/hookdeck-cli/issues/209 Bug 3.
 func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 	tests := []struct {
 		name          string
 		flags         connectionRuleFlags
-		wantCodes     []int
+		wantCodes     []string
 		wantCodeCount int
 		wantRuleCount int
 	}{
@@ -265,7 +265,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryInterval:           5000,
 				RuleRetryResponseStatusCode: "500,502,503,504",
 			},
-			wantCodes:     []int{500, 502, 503, 504},
+			wantCodes:     []string{"500", "502", "503", "504"},
 			wantCodeCount: 4,
 			wantRuleCount: 1,
 		},
@@ -275,7 +275,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryStrategy:           "exponential",
 				RuleRetryResponseStatusCode: "500",
 			},
-			wantCodes:     []int{500},
+			wantCodes:     []string{"500"},
 			wantCodeCount: 1,
 			wantRuleCount: 1,
 		},
@@ -285,7 +285,7 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 				RuleRetryStrategy:           "linear",
 				RuleRetryResponseStatusCode: "500, 502, 503",
 			},
-			wantCodes:     []int{500, 502, 503},
+			wantCodes:     []string{"500", "502", "503"},
 			wantCodeCount: 3,
 			wantRuleCount: 1,
 		},
@@ -323,12 +323,12 @@ func TestBuildConnectionRulesRetryStatusCodesArray(t *testing.T) {
 			statusCodes, ok := retryRule["response_status_codes"]
 			require.True(t, ok, "response_status_codes should be present")
 
-			codesSlice, ok := statusCodes.([]int)
-			require.True(t, ok, "response_status_codes should be []int, got %T", statusCodes)
+			codesSlice, ok := statusCodes.([]string)
+			require.True(t, ok, "response_status_codes should be []string (API schema), got %T", statusCodes)
 			assert.Equal(t, tt.wantCodeCount, len(codesSlice))
 			assert.Equal(t, tt.wantCodes, codesSlice)
 
-			// Verify it serializes to a JSON array of numbers
+			// Verify it serializes to a JSON array of strings
 			jsonBytes, err := json.Marshal(retryRule)
 			require.NoError(t, err)
 

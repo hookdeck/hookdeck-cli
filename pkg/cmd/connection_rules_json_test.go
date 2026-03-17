@@ -47,9 +47,9 @@ func TestBuildConnectionRulesFromJSONString(t *testing.T) {
 		assert.Equal(t, float64(5), rule["count"])
 		assert.Equal(t, float64(30000), rule["interval"])
 
-		statusCodes, ok := rule["response_status_codes"].([]interface{})
-		require.True(t, ok, "response_status_codes should be an array, got %T", rule["response_status_codes"])
-		assert.Equal(t, []interface{}{float64(500), float64(502), float64(503)}, statusCodes)
+		statusCodes, ok := rule["response_status_codes"].([]string)
+		require.True(t, ok, "response_status_codes should be []string (API schema), got %T", rule["response_status_codes"])
+		assert.Equal(t, []string{"500", "502", "503"}, statusCodes)
 	})
 
 	t.Run("multiple rules JSON preserves all rules with exact values", func(t *testing.T) {
@@ -140,9 +140,9 @@ func TestBuildConnectionRulesFromJSONFile(t *testing.T) {
 		assert.Equal(t, float64(3), retryRule["count"])
 		assert.Equal(t, float64(5000), retryRule["interval"])
 
-		statusCodes, ok := retryRule["response_status_codes"].([]interface{})
-		require.True(t, ok)
-		assert.Equal(t, []interface{}{float64(500), float64(502)}, statusCodes)
+		statusCodes, ok := retryRule["response_status_codes"].([]string)
+		require.True(t, ok, "response_status_codes should be []string (API schema)")
+		assert.Equal(t, []string{"500", "502"}, statusCodes)
 	})
 
 	t.Run("file with deduplicate rule preserves fields", func(t *testing.T) {
