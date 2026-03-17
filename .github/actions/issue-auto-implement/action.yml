@@ -132,6 +132,9 @@ runs:
         echo "verification_notes<<NOTES_EOF" >> $GITHUB_OUTPUT
         echo "$RESULT" | jq -r '.verification_notes // empty' >> $GITHUB_OUTPUT
         echo "NOTES_EOF" >> $GITHUB_OUTPUT
+        echo "review_feedback<<REVIEW_EOF" >> $GITHUB_OUTPUT
+        echo "$RESULT" | jq -r '.review_feedback // empty' >> $GITHUB_OUTPUT
+        echo "REVIEW_EOF" >> $GITHUB_OUTPUT
     - name: Handle redirect to PR
       if: steps.assess.outputs.action == 'redirect_to_pr'
       shell: bash
@@ -204,6 +207,7 @@ runs:
         GITHUB_WORKSPACE: ${{ github.workspace }}
         AUTO_IMPLEMENT_ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         VERIFICATION_NOTES: ${{ steps.assess.outputs.verification_notes }}
+        REVIEW_FEEDBACK: ${{ steps.assess.outputs.review_feedback }}
         CONTEXT_FILES: ${{ inputs.context_files }}
         IMPLEMENT_COMMIT_MSG_FILE: ${{ github.workspace }}/.github/actions/issue-auto-implement/.commit_msg
         MAX_RETRIES: ${{ inputs.max_implement_retries }}

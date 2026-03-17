@@ -29,6 +29,8 @@ export type AssessmentOutput = {
   comment_body?: string;
   verification_notes?: string;
   pr_url?: string;
+  /** When trigger is PR review or comment on PR: exact text for implement step to address. Passed as REVIEW_FEEDBACK. */
+  review_feedback?: string;
 };
 
 async function checkExistingPr(owner: string, repo: string, issueNumber: number): Promise<{ pr_url: string } | null> {
@@ -163,14 +165,23 @@ function buildAssessmentPrompt(
   return parts.join('\n');
 }
 
-const DEBUG = process.env.ASSESS_DEBUG === '1' || process.env.ASSESS_DEBUG === 'true';
+// Logging: we always log Claude's raw response (the decision record; usually one short JSON blob).
+// ASSESS_DEBUG=1 additionally logs the full prompt (can be large: issue, comments, context files).
+const LOG_PROMPT = process.env.ASSESS_DEBUG === '1' || process.env.ASSESS_DEBUG === 'true';
+
+function logAssessSummary(result: AssessmentOutput): void {
+  const rf = result.review_feedback?.length ?? 0;
+  const parts = [`action=${result.action}`, `issue_number=${result.issue_number ?? '?'}`];
+  if (rf > 0) parts.push(`review_feedback=${rf} chars`);
+  process.stderr.write(`Assess: ${parts.join(' ')}\n`);
+}
 
 async function callClaude(prompt: string, client?: Anthropic): Promise<AssessmentOutput> {
   const api = client ?? new Anthropic({ apiKey: ANTHROPIC_API_KEY });
   if (!client && !ANTHROPIC_API_KEY) {
     throw new Error('AUTO_IMPLEMENT_ANTHROPIC_API_KEY is not set');
   }
-  if (DEBUG) {
+  if (LOG_PROMPT) {
     process.stderr.write('--- ASSESS PROMPT (sent to Claude) ---\n');
     process.stderr.write(prompt);
     process.stderr.write('\n--- END PROMPT ---\n');
@@ -181,11 +192,9 @@ async function callClaude(prompt: string, client?: Anthropic): Promise<Assessmen
     messages: [{ role: 'user', content: prompt }],
   });
   const text = response.content?.[0]?.type === 'text' ? response.content[0].text : '';
-  if (DEBUG) {
-    process.stderr.write('--- CLAUDE RAW RESPONSE ---\n');
-    process.stderr.write(text);
-    process.stderr.write('\n--- END RESPONSE ---\n');
-  }
+  process.stderr.write('--- Claude response ---\n');
+  process.stderr.write(text);
+  process.stderr.write('\n--- end response ---\n');
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('Claude did not return valid JSON: ' + text.slice(0, 200));
@@ -258,6 +267,24 @@ export async function assess(
   const prompt = buildAssessmentPrompt(payload, eventName, referenceIssue, contextBlock, issueComments);
   const result = await callClaude(prompt, opts.anthropicClient);
   result.issue_number = normalized.issueNumber;
+
+  // Populate review_feedback so implement step can address reviewer/comment (it only gets issue #N from API otherwise).
+  if (eventName === 'pull_request_review') {
+    const review = (payload as Record<string, unknown>).review as { body?: string } | undefined;
+    result.review_feedback = review?.body?.trim() ?? '';
+  } else if (eventName === 'pull_request_review_comment') {
+    const comment = (payload as Record<string, unknown>).comment as { body?: string } | undefined;
+    result.review_feedback = comment?.body?.trim() ?? '';
+  } else if (eventName === 'issue_comment') {
+    const p = payload as Record<string, unknown>;
+    const issue = p.issue as { pull_request?: unknown } | undefined;
+    if (issue?.pull_request) {
+      const comment = p.comment as { body?: string } | undefined;
+      result.review_feedback = comment?.body?.trim() ?? '';
+    }
+  }
+
+  logAssessSummary(result);
   return result;
 }
 
