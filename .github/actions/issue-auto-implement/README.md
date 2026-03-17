@@ -112,6 +112,7 @@ Scripts load a **local `.env`** file so you don't have to pass secrets on the co
 | `GITHUB_WORKSPACE` | Optional | Repo root; default inferred from cwd when run from `assess/`. |
 | `CONTEXT_FILES` | Optional | Comma-separated paths (relative to repo root) for Claude context. |
 | `VERIFICATION_NOTES` | Optional (Implement) | Notes from assess step. |
+| `REVIEW_FEEDBACK` | Optional (Implement) | When the run was triggered by a PR review or comment on a PR, the action passes the review/comment text so the implement step can address it (e.g. "add unit and acceptance tests"). |
 | `PREVIOUS_VERIFY_OUTPUT` | Optional (Implement retries) | Previous verify failure output. |
 
 ### One-time setup: `.env`
@@ -128,7 +129,7 @@ cd .github/actions/issue-auto-implement/assess
 npm run assess:fixture
 ```
 
-With `.env` in place, no need to pass the key on the command line. Optional: set `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to exercise redirect-to-PR and fetch-comments. Set `ASSESS_DEBUG=1` to log the prompt sent to Claude and the raw response to stderr. Other fixtures: `GITHUB_EVENT_PATH=./test/fixtures/issue-comment.json GITHUB_EVENT_NAME=issue_comment npx tsx src/index.ts`.
+With `.env` in place, no need to pass the key on the command line. Optional: set `GITHUB_TOKEN` and `GITHUB_REPOSITORY` to exercise redirect-to-PR and fetch-comments. **Logging:** The script always logs Claude's raw response to stderr (the JSON decision and any surrounding text) and a one-line summary (e.g. `Assess: action=implement issue_number=215 review_feedback=52 chars`), so CI logs show what was decided and what the model returned. Set `ASSESS_DEBUG=1` to also log the full prompt (issue, comments, context files) when debugging. Other fixtures: `GITHUB_EVENT_PATH=./test/fixtures/issue-comment.json GITHUB_EVENT_NAME=issue_comment npx tsx src/index.ts`.
 
 ### Implement (issue → Claude Code CLI → files on disk)
 
@@ -139,7 +140,7 @@ cd .github/actions/issue-auto-implement/assess
 npm run implement:issue
 ```
 
-With `.env` set (e.g. `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`), no need to pass them inline. Override any var on the command line if needed (e.g. `ISSUE_NUMBER=42 npm run implement:issue`). Then from the repo root inspect `git status` and the commit message at `.github/actions/issue-auto-implement/.commit_msg`. Optionally set `VERIFICATION_NOTES` and `CONTEXT_FILES`.
+With `.env` set (e.g. `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY`), no need to pass them inline. Override any var on the command line if needed (e.g. `ISSUE_NUMBER=42 npm run implement:issue`). Then from the repo root inspect `git status` and the commit message at `.github/actions/issue-auto-implement/.commit_msg`. Optionally set `VERIFICATION_NOTES`, `REVIEW_FEEDBACK` (reviewer or PR comment text to address), and `CONTEXT_FILES`.
 
 For implementation details and verification steps, see `AGENTS.md`.
 
