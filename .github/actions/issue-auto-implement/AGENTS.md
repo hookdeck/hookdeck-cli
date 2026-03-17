@@ -37,14 +37,14 @@ If a reviewer's comment is ambiguous, assess might still return **implement** (o
 
 - **Path:** `assess/src/index.ts` (TypeScript), run with `npx tsx src/index.ts` from the assess directory (no build).
 - **Input:** Reads event from `GITHUB_EVENT_PATH`; optional context files from input.
-- **Output:** JSON with `action` (`implement` | `request_info`), `comment_body` (if request_info), `verification_notes` (optional). Written to file or GITHUB_OUTPUT.
-- **When triggered by PR review:** Include PR review body and review comments in the payload sent to Claude.
+- **Output:** JSON with `action` (`implement` | `request_info`), `comment_body` (if request_info), `verification_notes` (optional), `review_feedback` (when trigger is PR review or comment on PR — exact text for implement to address). Written to file or GITHUB_OUTPUT.
+- **When triggered by PR review:** Include PR review body and review comments in the payload sent to Claude. Assess also sets `review_feedback` from the review/comment so the implement step receives it.
 
 ## Implement script
 
 - **Path:** `assess/src/implement.ts`, run with `npx tsx src/implement.ts` from the assess directory.
-- **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` (required); `VERIFICATION_NOTES`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE`, `PREVIOUS_VERIFY_OUTPUT` (optional).
-- **Flow:** Fetches issue title/body from GitHub API, loads context files, then runs **Claude Code CLI** (`claude` on PATH) in the repo root with a prompt; the script passes `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` to the CLI as `ANTHROPIC_API_KEY`. The CLI implements in-repo (Read/Edit/Bash). When Claude makes code changes it writes `.commit_msg`, `.pr_title`, `.pr_body`; when it makes no code changes it writes `.comment_body` (no-change rationale or request for clarification). The script ensures commit/PR meta files exist only when Claude did not write `.comment_body`. When `PREVIOUS_VERIFY_OUTPUT` is set (e.g. after a failed verify run), it is included in the prompt so the CLI can fix the implementation. In CI, the action installs the CLI (`npm install -g @anthropic-ai/claude-code`) before the implement step when the assess outcome is `implement`.
+- **Env:** `ISSUE_NUMBER`, `GITHUB_REPOSITORY`, `GITHUB_TOKEN`, `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` (required); `VERIFICATION_NOTES`, `REVIEW_FEEDBACK`, `GITHUB_WORKSPACE`, `CONTEXT_FILES`, `IMPLEMENT_COMMIT_MSG_FILE`, `PREVIOUS_VERIFY_OUTPUT` (optional).
+- **Flow:** Fetches issue title/body from GitHub API, loads context files, then runs **Claude Code CLI** (`claude` on PATH) in the repo root with a prompt; the script passes `AUTO_IMPLEMENT_ANTHROPIC_API_KEY` to the CLI as `ANTHROPIC_API_KEY`. When `REVIEW_FEEDBACK` is set (PR review or comment iteration), the prompt includes a "Review feedback to address (you must implement this)" section so the CLI addresses the reviewer's ask (e.g. add tests). The CLI implements in-repo (Read/Edit/Bash). When Claude makes code changes it writes `.commit_msg`, `.pr_title`, `.pr_body`; when it makes no code changes it writes `.comment_body` (no-change rationale or request for clarification). The script ensures commit/PR meta files exist only when Claude did not write `.comment_body`. When `PREVIOUS_VERIFY_OUTPUT` is set (e.g. after a failed verify run), it is included in the prompt so the CLI can fix the implementation. In CI, the action installs the CLI (`npm install -g @anthropic-ai/claude-code`) before the implement step when the assess outcome is `implement`.
 
 ## Implement–verify loop
 

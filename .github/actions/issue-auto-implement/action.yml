@@ -132,6 +132,9 @@ runs:
         echo "verification_notes<<NOTES_EOF" >> $GITHUB_OUTPUT
         echo "$RESULT" | jq -r '.verification_notes // empty' >> $GITHUB_OUTPUT
         echo "NOTES_EOF" >> $GITHUB_OUTPUT
+        echo "review_feedback<<REVIEW_EOF" >> $GITHUB_OUTPUT
+        echo "$RESULT" | jq -r '.review_feedback // empty' >> $GITHUB_OUTPUT
+        echo "REVIEW_EOF" >> $GITHUB_OUTPUT
     - name: Handle redirect to PR
       if: steps.assess.outputs.action == 'redirect_to_pr'
       shell: bash
@@ -204,6 +207,7 @@ runs:
         GITHUB_WORKSPACE: ${{ github.workspace }}
         AUTO_IMPLEMENT_ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         VERIFICATION_NOTES: ${{ steps.assess.outputs.verification_notes }}
+        REVIEW_FEEDBACK: ${{ steps.assess.outputs.review_feedback }}
         CONTEXT_FILES: ${{ inputs.context_files }}
         IMPLEMENT_COMMIT_MSG_FILE: ${{ github.workspace }}/.github/actions/issue-auto-implement/.commit_msg
         MAX_RETRIES: ${{ inputs.max_implement_retries }}
@@ -229,6 +233,16 @@ runs:
             CHANGES_PUSHED="true"
           else
             echo "No changes to commit (attempt $i)."
+            # When Claude wrote only .comment_body (e.g. "already implemented"), skip verify and succeed
+            if [ -f ".github/actions/issue-auto-implement/.comment_body" ]; then
+              echo "No code changes and .comment_body present; skipping verify and exiting success."
+              PR_DIR=".github/actions/issue-auto-implement"
+              if [ -f "$PR_DIR/.pr_title" ]; then echo "pr_title<<__HOOKDECK_PR_TITLE_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_title" >> $GITHUB_OUTPUT; echo "__HOOKDECK_PR_TITLE_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; else echo "pr_title=Implement issue #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+              if [ -f "$PR_DIR/.pr_body" ]; then echo "pr_body<<__HOOKDECK_PR_BODY_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; cat "$PR_DIR/.pr_body" >> $GITHUB_OUTPUT; echo "__HOOKDECK_PR_BODY_END_8a3f2b1c9d4e__" >> $GITHUB_OUTPUT; else echo "pr_body=Closes #${ISSUE_NUMBER}" >> $GITHUB_OUTPUT; fi
+              echo "verified=true" >> $GITHUB_OUTPUT
+              echo "changes_pushed=$CHANGES_PUSHED" >> $GITHUB_OUTPUT
+              exit 0
+            fi
           fi
           VERIFY_OUTPUT=$(eval "$VERIFY_CMDS" 2>&1); VERIFY_EXIT=$?
           if [ "$VERIFY_EXIT" -eq 0 ]; then
@@ -261,7 +275,7 @@ runs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         MAX_RETRIES: ${{ inputs.max_implement_retries }}
       run: |
-        BODY="The auto-implement run could not complete: verification failed after ${MAX_RETRIES} attempts. See the [workflow run]($RUN_URL) for logs. You can address the failure and re-trigger by adding a comment or re-applying the label."
+        BODY="The auto-implement run could not complete. See the [workflow run]($RUN_URL) for logs. This can happen if the Claude Code CLI timed out or failed, or if verification (e.g. \`go test\`) failed after ${MAX_RETRIES} attempts. Re-trigger by adding a comment or re-applying the label."
         curl -s -X POST \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github+json" \
