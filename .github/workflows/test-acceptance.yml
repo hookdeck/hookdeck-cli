@@ -25,6 +25,7 @@ jobs:
     env:
       ACCEPTANCE_SLICE: ${{ matrix.slice }}
       HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets[matrix.api_key_secret] }}
+      HOOKDECK_CLI_TELEMETRY_DISABLED: "1"
     steps:
       - name: Check out code
         uses: actions/checkout@v3
