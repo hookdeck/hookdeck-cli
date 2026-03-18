@@ -57,7 +57,7 @@ Events • [↑↓] Navigate ─────────────────
 
 func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
 	if lc.local && Config.ConfigFileFlag != "" {
-		return fmt.Errorf("Error: --local and --config flags cannot be used together\n  --local creates config at: .hookdeck/config.toml\n  --config uses custom path: %s", Config.ConfigFileFlag)
+		return fmt.Errorf("Error: --local and --hookdeck-config flags cannot be used together\n  --local creates config at: .hookdeck/config.toml\n  --hookdeck-config uses custom path: %s", Config.ConfigFileFlag)
 	}
 
 	err := validators.APIKey(lc.apiKey)

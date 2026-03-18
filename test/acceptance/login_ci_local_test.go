@@ -17,11 +17,11 @@ import (
 // project_use_manual_test.go and would use the //go:build manual tag.
 //
 // Automated tests in this file (run in CI with HOOKDECK_CLI_TESTING_API_KEY):
-// - TestLoginLocalAndConfigFlagConflictAcceptance
-// - TestCILocalAndConfigFlagConflictAcceptance
+// - TestLoginLocalAndConfigFlagConflictAcceptance (--local vs --hookdeck-config)
+// - TestCILocalAndConfigFlagConflictAcceptance (--local vs --hookdeck-config)
 // - TestCILocalCreatesConfig
 
-// TestLoginLocalAndConfigFlagConflictAcceptance tests that login --local and --config cannot be
+// TestLoginLocalAndConfigFlagConflictAcceptance tests that login --local and --hookdeck-config cannot be
 // used together. Flag validation happens before any API call, so no auth is needed for the
 // actual test command (but NewCLIRunner requires HOOKDECK_CLI_TESTING_API_KEY).
 func TestLoginLocalAndConfigFlagConflictAcceptance(t *testing.T) {
@@ -38,17 +38,17 @@ func TestLoginLocalAndConfigFlagConflictAcceptance(t *testing.T) {
 
 	dummyConfigPath := filepath.Join(tempDir, "custom-config.toml")
 
-	stdout, stderr, err := cli.Run("login", "--local", "--config", dummyConfigPath)
+	stdout, stderr, err := cli.Run("login", "--local", "--hookdeck-config", dummyConfigPath)
 
-	require.Error(t, err, "Using both --local and --config should fail")
+	require.Error(t, err, "Using both --local and --hookdeck-config should fail")
 	combinedOutput := stdout + stderr
 	assert.Contains(t, combinedOutput, "cannot be used together",
 		"Error message should indicate flags cannot be used together")
 
-	t.Logf("Successfully verified login --local --config conflict: %s", combinedOutput)
+	t.Logf("Successfully verified login --local --hookdeck-config conflict: %s", combinedOutput)
 }
 
-// TestCILocalAndConfigFlagConflictAcceptance tests that ci --local and --config cannot be
+// TestCILocalAndConfigFlagConflictAcceptance tests that ci --local and --hookdeck-config cannot be
 // used together. Flag validation happens before any API call.
 func TestCILocalAndConfigFlagConflictAcceptance(t *testing.T) {
 	if testing.Short() {
@@ -64,14 +64,14 @@ func TestCILocalAndConfigFlagConflictAcceptance(t *testing.T) {
 
 	dummyConfigPath := filepath.Join(tempDir, "custom-config.toml")
 
-	stdout, stderr, err := cli.Run("ci", "--api-key", "test_key", "--local", "--config", dummyConfigPath)
+	stdout, stderr, err := cli.Run("ci", "--api-key", "test_key", "--local", "--hookdeck-config", dummyConfigPath)
 
-	require.Error(t, err, "Using both --local and --config should fail")
+	require.Error(t, err, "Using both --local and --hookdeck-config should fail")
 	combinedOutput := stdout + stderr
 	assert.Contains(t, combinedOutput, "cannot be used together",
 		"Error message should indicate flags cannot be used together")
 
-	t.Logf("Successfully verified ci --local --config conflict: %s", combinedOutput)
+	t.Logf("Successfully verified ci --local --hookdeck-config conflict: %s", combinedOutput)
 }
 
 // TestCILocalCreatesConfig tests that `hookdeck ci --api-key XXX --local` creates
