@@ -108,10 +108,12 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("unexpected http status code: %d", e.StatusCode)
 }
 
-// IsNotFoundError reports whether the error is an API 404 Not Found response.
+// IsNotFoundError reports whether the error is an API "not found" response.
+// Hookdeck may return 404 (Not Found) or 410 (Gone) for resources that have
+// been deleted.
 func IsNotFoundError(err error) bool {
 	var apiErr *APIError
-	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone)
 }
 
 // PerformRequest sends a request to Hookdeck and returns the response.

@@ -20,7 +20,7 @@ func TranslateAPIError(err error) string {
 	switch apiErr.StatusCode {
 	case http.StatusUnauthorized:
 		return "Authentication failed. Check your API key."
-	case http.StatusNotFound:
+	case http.StatusNotFound, http.StatusGone:
 		return fmt.Sprintf("Resource not found: %s", apiErr.Message)
 	case http.StatusUnprocessableEntity:
 		// Validation errors — pass through the API message directly.

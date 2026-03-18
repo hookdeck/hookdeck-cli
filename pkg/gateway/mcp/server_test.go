@@ -244,6 +244,7 @@ func TestTranslateAPIError(t *testing.T) {
 	}{
 		{"401 Unauthorized", &hookdeck.APIError{StatusCode: 401, Message: "bad key"}, "Authentication failed"},
 		{"404 Not Found", &hookdeck.APIError{StatusCode: 404, Message: "resource xyz"}, "Resource not found"},
+		{"410 Gone", &hookdeck.APIError{StatusCode: 410, Message: "resource xyz"}, "Resource not found"},
 		{"422 Validation", &hookdeck.APIError{StatusCode: 422, Message: "invalid field foo"}, "invalid field foo"},
 		{"429 Rate Limit", &hookdeck.APIError{StatusCode: 429, Message: "slow down"}, "Rate limited"},
 		{"500 Server Error", &hookdeck.APIError{StatusCode: 500, Message: "internal"}, "Hookdeck API error"},
