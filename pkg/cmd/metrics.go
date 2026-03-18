@@ -85,7 +85,7 @@ func addMetricsCommonFlagsEx(cmd *cobra.Command, f *metricsCommonFlags, skipIssu
 	cmd.Flags().StringVar(&f.connectionID, "connection-id", "", "Filter by connection ID")
 	cmd.Flags().StringVar(&f.status, "status", "", "Filter by status (e.g. SUCCESSFUL, FAILED)")
 	if !skipIssueID {
-		cmd.Flags().StringVar(&f.issueID, "issue-id", "", "Filter by issue ID")
+		cmd.Flags().StringVar(&f.issueID, "issue-id", "", "Filter by issue ID (required for per-issue metrics, e.g. when using --dimensions issue_id)")
 	}
 	cmd.Flags().StringVar(&f.output, "output", "", "Output format (json)")
 	_ = cmd.MarkFlagRequired("start")
@@ -139,16 +139,16 @@ func newMetricsCmd() *metricsCmd {
 		Use:   "metrics",
 		Args:  validators.NoArgs,
 		Short: ShortBeta("Query Event Gateway metrics"),
-		Long: LongBeta(`Query metrics for events, requests, attempts, queue depth, pending events, events by issue, and transformations.
-Requires --start and --end (ISO 8601 date-time). Use subcommands to choose the metric type.`),
+		Long: LongBeta(`Query metrics for events, requests, attempts, and transformations.
+Requires --start and --end (ISO 8601 date-time). Use subcommands to choose the metric type.
+
+For event metrics you can query volume, queue depth, pending over time, or per-issue;
+use --measures, --dimensions, and --issue-id on the events subcommand.`),
 	}
 
 	mc.cmd.AddCommand(newMetricsEventsCmd().cmd)
 	mc.cmd.AddCommand(newMetricsRequestsCmd().cmd)
 	mc.cmd.AddCommand(newMetricsAttemptsCmd().cmd)
-	mc.cmd.AddCommand(newMetricsQueueDepthCmd().cmd)
-	mc.cmd.AddCommand(newMetricsPendingCmd().cmd)
-	mc.cmd.AddCommand(newMetricsEventsByIssueCmd().cmd)
 	mc.cmd.AddCommand(newMetricsTransformationsCmd().cmd)
 
 	return mc

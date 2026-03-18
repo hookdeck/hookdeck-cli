@@ -351,6 +351,12 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 - **Always run tests** when changing code. Run unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`). If tests fail due to TLS/network/sandbox (e.g. `x509`, `operation not permitted`), prompt the user and re-run with elevated permissions (e.g. `required_permissions: ["all"]`) so tests can pass.
 - **Create tests for new functionality.** Add unit tests for validation and business logic; add acceptance tests for flows that use the CLI as a user or agent would (success and failure paths). Acceptance tests must pass or fail—no skipping to avoid failures.
 
+### Acceptance Test Setup
+Acceptance tests require a Hookdeck API key. See [`test/acceptance/README.md`](test/acceptance/README.md) for full details. Quick setup: create `test/acceptance/.env` with `HOOKDECK_CLI_TESTING_API_KEY=<key>`. The `.env` file is git-ignored and must never be committed.
+
+### Acceptance tests and feature tags
+Acceptance tests in `test/acceptance/` are partitioned by **feature build tags** so they can run in parallel (two slices in CI and locally). Each test file must have exactly one feature tag (e.g. `//go:build connection`, `//go:build request`). The runner (CI workflow or `run_parallel.sh`) maps features to slices and passes the corresponding `-tags="..."`; see [test/acceptance/README.md](test/acceptance/README.md) for slice mapping and setup. **Every new acceptance test file must have a feature tag**; otherwise it is included in every build and runs in both slices (duplicated). Use tags to balance and parallelize; same commands and env for local and CI.
+
 ### Unit Testing
 - Test validation logic thoroughly
 - Mock API calls for command tests

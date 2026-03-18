@@ -58,6 +58,9 @@ Examples:
 		PreRunE: cu.validateFlags,
 		RunE:    cu.runConnectionUpdateCmd,
 	}
+	cu.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+	}
 
 	// Connection fields
 	cu.cmd.Flags().StringVar(&cu.name, "name", "", "New connection name")

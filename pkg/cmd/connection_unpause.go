@@ -25,6 +25,9 @@ func newConnectionUnpauseCmd() *connectionUnpauseCmd {
 The connection will start processing queued events.`,
 		RunE: cc.runConnectionUnpauseCmd,
 	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+	}
 
 	return cc
 }

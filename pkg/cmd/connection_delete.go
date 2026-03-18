@@ -33,6 +33,9 @@ Examples:
 		PreRunE: cc.validateFlags,
 		RunE:    cc.runConnectionDeleteCmd,
 	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+	}
 
 	cc.cmd.Flags().BoolVar(&cc.force, "force", false, "Force delete without confirmation")
 

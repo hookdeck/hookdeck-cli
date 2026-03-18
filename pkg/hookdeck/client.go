@@ -58,9 +58,33 @@ type Client struct {
 	// rate limiting is expected.
 	SuppressRateLimitErrors bool
 
+	// Per-request telemetry override. When non-nil, this is used instead of
+	// the global telemetry singleton. Used by MCP tool handlers to set
+	// per-invocation context.
+	Telemetry *CLITelemetry
+
+	// TelemetryDisabled mirrors the config-based telemetry opt-out flag.
+	TelemetryDisabled bool
+
 	// Cached HTTP client, lazily created the first time the Client is used to
 	// send a request.
 	httpClient *http.Client
+}
+
+// WithTelemetry returns a shallow clone of the client with the given
+// per-request telemetry override. The underlying http.Client (and its
+// connection pool) is shared.
+func (c *Client) WithTelemetry(t *CLITelemetry) *Client {
+	return &Client{
+		BaseURL:                 c.BaseURL,
+		APIKey:                  c.APIKey,
+		ProjectID:               c.ProjectID,
+		Verbose:                 c.Verbose,
+		SuppressRateLimitErrors: c.SuppressRateLimitErrors,
+		Telemetry:               t,
+		TelemetryDisabled:       c.TelemetryDisabled,
+		httpClient:              c.httpClient,
+	}
 }
 
 type ErrorResponse struct {
@@ -84,10 +108,12 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("unexpected http status code: %d", e.StatusCode)
 }
 
-// IsNotFoundError reports whether the error is an API 404 Not Found response.
+// IsNotFoundError reports whether the error is an API "not found" response.
+// Hookdeck may return 404 (Not Found) or 410 (Gone) for resources that have
+// been deleted.
 func IsNotFoundError(err error) bool {
 	var apiErr *APIError
-	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone)
 }
 
 // PerformRequest sends a request to Hookdeck and returns the response.
@@ -104,10 +130,18 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 		req.Header.Set("X-Project-ID", c.ProjectID)
 	}
 
-	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT")) {
-		telemetryHdr, err := getTelemetryHeader()
-		if err == nil {
-			req.Header.Set("Hookdeck-CLI-Telemetry", telemetryHdr)
+	singletonDisabled := GetTelemetryInstance().Disabled
+	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_DISABLED"), c.TelemetryDisabled || singletonDisabled) {
+		var telemetryHdr string
+		var telErr error
+		if c.Telemetry != nil {
+			b, e := json.Marshal(c.Telemetry)
+			telemetryHdr, telErr = string(b), e
+		} else {
+			telemetryHdr, telErr = getTelemetryHeader()
+		}
+		if telErr == nil {
+			req.Header.Set(TelemetryHeaderName, telemetryHdr)
 		}
 	}
 

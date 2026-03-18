@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/login"
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +37,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nUsing profile %s (use -p flag to use a different config profile)\n\n", color.Bold(Config.Profile.Name))
 
-	response, err := login.ValidateKey(Config.APIBaseURL, Config.Profile.APIKey, Config.Profile.ProjectId)
+	response, err := Config.GetAPIClient().ValidateAPIKey()
 	if err != nil {
 		return err
 	}
@@ -49,6 +49,17 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 		color.Bold(response.ProjectName),
 		color.Bold(response.OrganizationName),
 	)
+
+	projectType := Config.Profile.ProjectType
+	if projectType == "" && Config.Profile.ProjectMode != "" {
+		projectType = config.ModeToProjectType(Config.Profile.ProjectMode)
+	}
+	if projectType == "" && response.ProjectMode != "" {
+		projectType = config.ModeToProjectType(response.ProjectMode)
+	}
+	if projectType != "" {
+		fmt.Printf("Project type: %s\n", projectType)
+	}
 
 	return nil
 }

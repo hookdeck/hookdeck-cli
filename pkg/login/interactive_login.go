@@ -14,13 +14,13 @@ import (
 	"golang.org/x/term"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 // InteractiveLogin lets the user set configuration on the command line
-func InteractiveLogin(config *config.Config) error {
+func InteractiveLogin(config *configpkg.Config) error {
 	apiKey, err := getConfigureAPIKey(os.Stdin)
 	if err != nil {
 		return err
@@ -36,7 +36,8 @@ func InteractiveLogin(config *config.Config) error {
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
+		BaseURL:           parsedBaseURL,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	response, err := client.PollForAPIKeyWithKey(apiKey, 0, 0)
@@ -57,6 +58,7 @@ func InteractiveLogin(config *config.Config) error {
 	config.Profile.APIKey = response.APIKey
 	config.Profile.ProjectMode = response.ProjectMode
 	config.Profile.ProjectId = response.ProjectID
+	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
 	config.Profile.GuestURL = "" // Clear guest URL when logging in with permanent account
 
 	if err = config.Profile.SaveProfile(); err != nil {

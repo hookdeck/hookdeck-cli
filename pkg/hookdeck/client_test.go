@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsNotFoundError_410Gone(t *testing.T) {
+	require.True(t, IsNotFoundError(&APIError{StatusCode: http.StatusGone, Message: "gone"}))
+	require.False(t, IsNotFoundError(&APIError{StatusCode: http.StatusInternalServerError, Message: "err"}))
+}
+
 func TestPerformRequest_ParamsEncoding_Delete(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/delete", r.URL.Path)

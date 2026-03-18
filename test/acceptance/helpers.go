@@ -57,15 +57,16 @@ type CLIRunner struct {
 	t           *testing.T
 	apiKey      string
 	projectRoot string
+	configPath  string // when set (ACCEPTANCE_SLICE), HOOKDECK_CONFIG_FILE is set so each slice uses its own config file
 }
 
 // NewCLIRunner creates a new CLI runner for tests
-// It requires HOOKDECK_CLI_TESTING_API_KEY environment variable to be set
+// It requires HOOKDECK_CLI_TESTING_API_KEY (and optionally HOOKDECK_CLI_TESTING_API_KEY_2 for slice 1, HOOKDECK_CLI_TESTING_API_KEY_3 for slice 2) to be set
 func NewCLIRunner(t *testing.T) *CLIRunner {
 	t.Helper()
 
-	apiKey := os.Getenv("HOOKDECK_CLI_TESTING_API_KEY")
-	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY environment variable must be set")
+	apiKey := getAcceptanceAPIKey(t)
+	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY (or HOOKDECK_CLI_TESTING_API_KEY_2 for slice 1, HOOKDECK_CLI_TESTING_API_KEY_3 for slice 2) must be set")
 
 	// Get and store the absolute project root path before any directory changes
 	projectRoot, err := filepath.Abs("../..")
@@ -75,6 +76,7 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 		t:           t,
 		apiKey:      apiKey,
 		projectRoot: projectRoot,
+		configPath:  getAcceptanceConfigPath(),
 	}
 
 	// Authenticate in CI mode for tests
@@ -82,6 +84,69 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 	require.NoError(t, err, "Failed to authenticate CLI: stdout=%s, stderr=%s", stdout, stderr)
 
 	return runner
+}
+
+// getAcceptanceAPIKey returns the API key for the current acceptance slice.
+// When ACCEPTANCE_SLICE=1 and HOOKDECK_CLI_TESTING_API_KEY_2 is set, use it; when ACCEPTANCE_SLICE=2 and HOOKDECK_CLI_TESTING_API_KEY_3 is set, use that; else HOOKDECK_CLI_TESTING_API_KEY.
+func getAcceptanceAPIKey(t *testing.T) string {
+	t.Helper()
+	switch os.Getenv("ACCEPTANCE_SLICE") {
+	case "1":
+		if k := os.Getenv("HOOKDECK_CLI_TESTING_API_KEY_2"); k != "" {
+			return k
+		}
+	case "2":
+		if k := os.Getenv("HOOKDECK_CLI_TESTING_API_KEY_3"); k != "" {
+			return k
+		}
+	}
+	return os.Getenv("HOOKDECK_CLI_TESTING_API_KEY")
+}
+
+// NewCLIRunnerWithKey creates a new CLI runner authenticated with the given CLI key via
+// hookdeck login --api-key. Used only for project list/use tests (HOOKDECK_CLI_TESTING_CLI_KEY);
+// API and CI keys cannot list or switch projects, so those tests require a CLI key and login auth.
+func NewCLIRunnerWithKey(t *testing.T, apiKey string) *CLIRunner {
+	t.Helper()
+	require.NotEmpty(t, apiKey, "api key must be non-empty for NewCLIRunnerWithKey")
+
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
+	runner := &CLIRunner{
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
+		configPath:  getAcceptanceConfigPath(),
+	}
+
+	stdout, stderr, err := runner.Run("login", "--api-key", apiKey)
+	require.NoError(t, err, "Failed to authenticate CLI (login --api-key): stdout=%s, stderr=%s", stdout, stderr)
+
+	return runner
+}
+
+// getAcceptanceConfigPath returns a per-slice config path when ACCEPTANCE_SLICE is set,
+// so parallel runs do not overwrite the same config file. Empty when not in sliced mode.
+func getAcceptanceConfigPath() string {
+	slice := os.Getenv("ACCEPTANCE_SLICE")
+	if slice == "" {
+		return ""
+	}
+	return filepath.Join(os.TempDir(), "hookdeck-acceptance-slice"+slice+"-config.toml")
+}
+
+// appendEnvOverride returns a copy of env with key=value set, replacing any existing key.
+func appendEnvOverride(env []string, key, value string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env)+1)
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			out = append(out, e)
+		}
+	}
+	out = append(out, prefix+value)
+	return out
 }
 
 // NewManualCLIRunner creates a CLI runner for manual tests that use human authentication.
@@ -106,19 +171,23 @@ func NewManualCLIRunner(t *testing.T) *CLIRunner {
 }
 
 // Run executes the CLI with the given arguments and returns stdout, stderr, and error
-// The CLI is executed via `go run main.go` from the project root
+// The CLI is executed via `go run main.go` from the project root.
+// When configPath is set (parallel slice mode), HOOKDECK_CONFIG_FILE env is set so each slice uses its own config file.
 func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 
 	// Use the stored project root path (set during NewCLIRunner)
 	mainGoPath := filepath.Join(r.projectRoot, "main.go")
 
-	// Build command: go run main.go [args...]
 	cmdArgs := append([]string{"run", mainGoPath}, args...)
 	cmd := exec.Command("go", cmdArgs...)
 
 	// Set working directory to project root
 	cmd.Dir = r.projectRoot
+
+	if r.configPath != "" {
+		cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
+	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -152,6 +221,10 @@ func (r *CLIRunner) RunFromCwd(args ...string) (stdout, stderr string, err error
 	// Run the binary from the current working directory
 	cmd := exec.Command(tmpBinary, args...)
 	// Don't set cmd.Dir - use current working directory
+
+	if r.configPath != "" {
+		cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
+	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -573,6 +646,81 @@ func pollForAttemptsByEventID(t *testing.T, cli *CLIRunner, eventID string) []At
 	}
 	require.Fail(t, "expected at least one attempt after trigger (waited ~20s)")
 	return nil
+}
+
+// Issue is a minimal issue model for acceptance tests.
+type Issue struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Type   string `json:"type"`
+}
+
+// createConnectionWithFailingTransformationAndIssue creates a connection with a
+// transformation that throws, triggers an event, and polls until a transformation
+// issue appears. Returns connID and issueID. Caller must cleanup with
+// deleteConnection(t, cli, connID). Fails the test if no issue appears within ~40s.
+func createConnectionWithFailingTransformationAndIssue(t *testing.T, cli *CLIRunner) (connID, issueID string) {
+	t.Helper()
+
+	timestamp := generateTimestamp()
+	connName := fmt.Sprintf("test-issue-conn-%s", timestamp)
+	sourceName := fmt.Sprintf("test-issue-src-%s", timestamp)
+	destName := fmt.Sprintf("test-issue-dst-%s", timestamp)
+	// Transformation that throws with a unique message so each run produces a distinct issue
+	// (avoids backend deduplication when multiple tests run in sequence).
+	transformCode := fmt.Sprintf(`addHandler("transform", (request, context) => { throw new Error("acceptance test %s"); });`, timestamp)
+
+	var conn Connection
+	err := cli.RunJSON(&conn,
+		"gateway", "connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "MOCK_API",
+		"--rule-transform-name", "fail-transform",
+		"--rule-transform-code", transformCode,
+	)
+	require.NoError(t, err, "Failed to create connection with failing transformation")
+	require.NotEmpty(t, conn.ID, "Connection ID should not be empty")
+
+	var getConn Connection
+	require.NoError(t, cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID))
+	require.NotEmpty(t, getConn.Source.ID, "connection source ID")
+
+	var src Source
+	require.NoError(t, cli.RunJSON(&src, "gateway", "source", "get", getConn.Source.ID))
+	require.NotEmpty(t, src.URL, "source URL")
+
+	triggerTestEvent(t, src.URL)
+
+	type issueListResp struct {
+		Models []Issue `json:"models"`
+	}
+	// After a previous issue is dismissed/resolved, the backend creates a new issue for
+	// a new occurrence; allow enough time for that when running as second test in suite.
+	for i := 0; i < 45; i++ {
+		time.Sleep(2 * time.Second)
+		var resp issueListResp
+		require.NoError(t, cli.RunJSON(&resp, "gateway", "issue", "list", "--type", "transformation", "--status", "OPENED", "--limit", "5", "--order-by", "last_seen_at", "--dir", "desc"))
+		if len(resp.Models) > 0 {
+			return conn.ID, resp.Models[0].ID
+		}
+	}
+	require.Fail(t, "expected at least one transformation issue after trigger (waited ~90s)")
+	return "", ""
+}
+
+// dismissIssue dismisses (deletes) an issue so the slot is freed for the next test.
+// Use in test cleanup after every test that creates an issue.
+func dismissIssue(t *testing.T, cli *CLIRunner, issueID string) {
+	t.Helper()
+	stdout, stderr, err := cli.Run("gateway", "issue", "dismiss", issueID, "--force")
+	if err != nil {
+		t.Logf("Warning: Failed to dismiss issue %s: %v\nstdout: %s\nstderr: %s", issueID, err, stdout, stderr)
+		return
+	}
+	t.Logf("Dismissed issue: %s", issueID)
 }
 
 // assertContains checks if a string contains a substring

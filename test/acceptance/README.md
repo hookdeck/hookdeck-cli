@@ -9,7 +9,7 @@ Tests are divided into two categories:
 ### 1. Automated Tests (CI-Compatible)
 These tests run automatically in CI using API keys from `hookdeck ci`. They don't require human interaction.
 
-**Files:** All test files without build tags (e.g., `basic_test.go`, `connection_test.go`, `project_use_test.go`)
+**Files:** Test files with **feature build tags** (e.g. `//go:build connection`, `//go:build request`). Each automated test file has exactly one feature tag so tests can be split into parallel slices (see [Parallelisation](#parallelisation)).
 
 ### 2. Manual Tests (Require Human Interaction)
 These tests require browser-based authentication via `hookdeck login` and must be run manually by developers.
@@ -27,20 +27,53 @@ For local testing, create a `.env` file in this directory:
 ```bash
 # test/acceptance/.env
 HOOKDECK_CLI_TESTING_API_KEY=your_api_key_here
+# Optional: CLI key (from interactive login) required for project list tests only
+# HOOKDECK_CLI_TESTING_CLI_KEY=your_cli_key_here
 ```
 
 The `.env` file is automatically loaded when tests run. **This file is git-ignored and should never be committed.**
 
+For **parallel local runs**, add a second and third key so each slice uses its own project:
+```bash
+HOOKDECK_CLI_TESTING_API_KEY=key_for_slice0
+HOOKDECK_CLI_TESTING_API_KEY_2=key_for_slice1
+HOOKDECK_CLI_TESTING_API_KEY_3=key_for_slice2
+```
+
 ### CI/CD
 
-In CI environments (GitHub Actions), set the `HOOKDECK_CLI_TESTING_API_KEY` environment variable directly in your workflow configuration or repository secrets.
+CI runs acceptance tests in **three parallel jobs**, each with its own API key (`HOOKDECK_CLI_TESTING_API_KEY`, `HOOKDECK_CLI_TESTING_API_KEY_2`, `HOOKDECK_CLI_TESTING_API_KEY_3`). No test-name list in the workflow—tests are partitioned by **feature tags** (see [Parallelisation](#parallelisation)).
 
 ## Running Tests
 
-### Run all automated (CI) tests:
+### Run all automated tests (one key)
+Pass all feature tags so every automated test file is included:
 ```bash
-go test ./test/acceptance/... -v
+go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event attempt metrics issue transformation" ./test/acceptance/... -v
 ```
+
+### Run one slice (for CI or local)
+Same commands as CI; use when debugging a subset or running in parallel:
+```bash
+# Slice 0 (same tags as CI job 0)
+ACCEPTANCE_SLICE=0 go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
+
+# Slice 1 (same tags as CI job 1)
+ACCEPTANCE_SLICE=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
+
+# Slice 2 (same tags as CI job 2)
+ACCEPTANCE_SLICE=2 go test -tags="attempt metrics issue transformation" ./test/acceptance/... -v -timeout 12m
+```
+For slice 1 set `HOOKDECK_CLI_TESTING_API_KEY_2`; for slice 2 set `HOOKDECK_CLI_TESTING_API_KEY_3` (or set `HOOKDECK_CLI_TESTING_API_KEY` to that key).
+
+**Project list tests** (`TestProjectListShowsType`, `TestProjectListJSONOutput`) require a **CLI key**, not an API or CI key: only keys created via interactive login can list or switch projects. Set `HOOKDECK_CLI_TESTING_CLI_KEY` in your `.env` (or environment) to run these tests; if unset, they are skipped with a clear message.
+
+### Run in parallel locally (three keys)
+From the **repository root**, run the script that runs all three slices in parallel (same as CI):
+```bash
+./test/acceptance/run_parallel.sh
+```
+Requires `HOOKDECK_CLI_TESTING_API_KEY`, `HOOKDECK_CLI_TESTING_API_KEY_2`, and `HOOKDECK_CLI_TESTING_API_KEY_3` in `.env` or the environment.
 
 ### Run manual tests (requires human authentication):
 ```bash
@@ -54,10 +87,21 @@ go test -tags=manual -run TestProjectUseLocalCreatesConfig -v ./test/acceptance/
 
 ### Skip acceptance tests (short mode):
 ```bash
-go test ./test/acceptance/... -short
+go test -short ./test/acceptance/...
 ```
+Use the same `-tags` as "Run all" if you want to skip the full acceptance set. All acceptance tests are skipped when `-short` is used, allowing fast unit test runs.
 
-All acceptance tests are skipped when `-short` flag is used, allowing fast unit test runs.
+## Parallelisation
+
+Tests are partitioned by **feature build tags** so CI and local runs can execute three slices in parallel (each slice uses its own Hookdeck project and config file).
+
+- **Slice 0 features:** `basic`, `connection`, `source`, `destination`, `gateway`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
+- **Slice 1 features:** `request`, `event`
+- **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`
+
+The CI workflow (`.github/workflows/test-acceptance.yml`) runs three jobs with the same `go test -tags="..."` commands and env (`ACCEPTANCE_SLICE`, API keys). No test names or regexes are listed in YAML.
+
+**Untagged files:** A test file with **no** build tag is included in every build and runs in **both** slices (duplicated). **Every new acceptance test file must have exactly one feature tag** so it runs in only one slice.
 
 ## Manual Test Workflow
 
@@ -205,26 +249,28 @@ err := cli.RunJSON(&conn, "connection", "get", connID)
 
 All tests should:
 
-1. **Skip in short mode:**
+1. **Have a feature build tag:** Every new automated test file must have exactly one `//go:build <feature>` at the top (e.g. `//go:build connection`, `//go:build request`). This assigns the file to a slice for parallel runs. Without a tag, the file runs in both slices (duplicated). See existing `*_test.go` files for examples.
+
+2. **Skip in short mode:**
    ```go
    if testing.Short() {
        t.Skip("Skipping acceptance test in short mode")
    }
    ```
 
-2. **Use cleanup for resources:**
+3. **Use cleanup for resources:**
    ```go
    t.Cleanup(func() {
        deleteConnection(t, cli, connID)
    })
    ```
 
-3. **Use descriptive names:**
+4. **Use descriptive names:**
    ```go
    func TestConnectionWithStripeSource(t *testing.T) { ... }
    ```
 
-4. **Log important information:**
+5. **Log important information:**
    ```go
    t.Logf("Created connection: %s (ID: %s)", name, id)
    ```
@@ -280,9 +326,9 @@ All functionality from `test-scripts/test-acceptance.sh` has been successfully p
 
 ### API Key Not Set
 ```
-Error: HOOKDECK_CLI_TESTING_API_KEY environment variable must be set
+Error: HOOKDECK_CLI_TESTING_API_KEY (or HOOKDECK_CLI_TESTING_API_KEY_2 for slice 1) must be set
 ```
-**Solution:** Create a `.env` file in `test/acceptance/` with your API key.
+**Solution:** Create a `.env` file in `test/acceptance/` with `HOOKDECK_CLI_TESTING_API_KEY`. For parallel runs (or slice 1), also set `HOOKDECK_CLI_TESTING_API_KEY_2`.
 
 ### Command Execution Failures
 If commands fail to execute, ensure you're running from the project root or that the working directory is set correctly.

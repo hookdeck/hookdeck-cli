@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestLoginLocalAndConfigFlagConflict verifies that --local and --config cannot be combined.
+// TestLoginLocalAndConfigFlagConflict verifies that --local and --hookdeck-config cannot be combined.
 func TestLoginLocalAndConfigFlagConflict(t *testing.T) {
 	lc := newLoginCmd()
 	lc.local = true
@@ -21,11 +21,11 @@ func TestLoginLocalAndConfigFlagConflict(t *testing.T) {
 	defer func() { Config.ConfigFileFlag = origFlag }()
 
 	err := lc.runLoginCmd(nil, []string{})
-	require.Error(t, err, "--local and --config together should return an error")
+	require.Error(t, err, "--local and --hookdeck-config together should return an error")
 	assert.Contains(t, err.Error(), "cannot be used together")
 }
 
-// TestCILocalAndConfigFlagConflict verifies that --local and --config cannot be combined on ci.
+// TestCILocalAndConfigFlagConflict verifies that --local and --hookdeck-config cannot be combined on ci.
 func TestCILocalAndConfigFlagConflict(t *testing.T) {
 	lc := newCICmd()
 	lc.local = true
@@ -35,7 +35,7 @@ func TestCILocalAndConfigFlagConflict(t *testing.T) {
 	defer func() { Config.ConfigFileFlag = origFlag }()
 
 	err := lc.runCICmd(nil, []string{})
-	require.Error(t, err, "--local and --config together should return an error")
+	require.Error(t, err, "--local and --hookdeck-config together should return an error")
 	assert.Contains(t, err.Error(), "cannot be used together")
 }
 
