@@ -59,12 +59,14 @@ hookdeck login [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `-i, --interactive` | `bool` | Run interactive configuration mode if you cannot open a browser |
+| `--local` | `bool` | Save credentials to current directory (.hookdeck/config.toml) |
 
 **Examples:**
 
 ```bash
 $ hookdeck login
 $ hookdeck login -i  # interactive mode (no browser)
+$ hookdeck login --local  # save credentials to .hookdeck/config.toml
 ```
 ## Logout
 
@@ -103,8 +105,6 @@ hookdeck whoami
 ```bash
 $ hookdeck whoami
 ```
-
-Output includes the current project type (Gateway, Outpost, or Console).
 <!-- GENERATE_END -->
 ## Projects
 
@@ -114,7 +114,7 @@ Output includes the current project type (Gateway, Outpost, or Console).
 
 ### hookdeck project list
 
-List and filter projects by organization and project name substrings. Output shows project type (Gateway, Outpost, Console). Outbound projects are excluded from the list.
+List and filter projects by organization and project name substrings
 
 **Usage:**
 
@@ -126,8 +126,8 @@ hookdeck project list [<organization_substring>] [<project_substring>] [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--output` | `string` | Output format: `json` for machine-readable list (id, org, project, type, current) |
-| `--type` | `string` | Filter by project type: `gateway`, `outpost`, or `console` |
+| `--output` | `string` | Output format: json |
+| `--type` | `string` | Filter by project type: gateway, outpost, console |
 
 **Examples:**
 
@@ -135,7 +135,6 @@ hookdeck project list [<organization_substring>] [<project_substring>] [flags]
 $ hookdeck project list
 Acme / Ecommerce Production (current) | Gateway
 Acme / Ecommerce Staging | Gateway
-
 $ hookdeck project list --output json
 $ hookdeck project list --type gateway
 ```
@@ -161,14 +160,11 @@ hookdeck project use [<organization_name> [<project_name>]] [flags]
 $ hookdeck project use
 Use the arrow keys to navigate: ↓ ↑ → ←
 ? Select Project:
-▸ [Acme] Ecommerce Production
-[Acme] Ecommerce Staging
-[Acme] Ecommerce Development
-
-Selecting project [Acme] Ecommerce Staging
+▸ Acme / Ecommerce Production (current) | Gateway
+Acme / Ecommerce Staging | Gateway
 
 $ hookdeck project use --local
-Pinning project [Acme] Ecommerce Staging to current directory
+Pinning project to current directory
 ```
 <!-- GENERATE_END -->
 ## Local Development
@@ -219,7 +215,6 @@ Commands for managing Event Gateway sources, destinations, connections,
 transformations, events, requests, metrics, and MCP server.
 
 The gateway command group provides full access to all Event Gateway resources.
-**Gateway commands require the current project to be a Gateway project** (inbound or console). If your project type is Outpost or you have no project selected, run `hookdeck project use` to switch to a Gateway project first.
 
 **Usage:**
 
@@ -282,22 +277,22 @@ hookdeck gateway connection list [flags]
 
 ```bash
 # List all connections
-hookdeck connection list
+hookdeck gateway connection list
 
 # Filter by connection name
-hookdeck connection list --name my-connection
+hookdeck gateway connection list --name my-connection
 
 # Filter by source ID
-hookdeck connection list --source-id src_abc123
+hookdeck gateway connection list --source-id src_abc123
 
 # Filter by destination ID
-hookdeck connection list --destination-id dst_def456
+hookdeck gateway connection list --destination-id dst_def456
 
 # Include disabled connections
-hookdeck connection list --disabled
+hookdeck gateway connection list --disabled
 
 # Limit results
-hookdeck connection list --limit 10
+hookdeck gateway connection list --limit 10
 ```
 ### hookdeck gateway connection create
 
@@ -353,10 +348,10 @@ hookdeck gateway connection create [flags]
 | `--rule-deduplicate-include-fields` | `string` | Comma-separated list of fields to include for deduplication |
 | `--rule-deduplicate-window` | `int` | Time window in seconds for deduplication (default "0") |
 | `--rule-delay` | `int` | Delay in milliseconds (default "0") |
-| `--rule-filter-body` | `string` | JQ expression to filter on request body |
-| `--rule-filter-headers` | `string` | JQ expression to filter on request headers |
-| `--rule-filter-path` | `string` | JQ expression to filter on request path |
-| `--rule-filter-query` | `string` | JQ expression to filter on request query parameters |
+| `--rule-filter-body` | `string` | Filter on request body using Hookdeck filter syntax (JSON) |
+| `--rule-filter-headers` | `string` | Filter on request headers using Hookdeck filter syntax (JSON) |
+| `--rule-filter-path` | `string` | Filter on request path using Hookdeck filter syntax (JSON) |
+| `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
 | `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
@@ -386,19 +381,19 @@ hookdeck gateway connection create [flags]
 
 ```bash
 # Create with inline source and destination
-hookdeck connection create \
+hookdeck gateway connection create \
 --name "test-webhooks-to-local" \
 --source-type WEBHOOK --source-name "test-webhooks" \
 --destination-type CLI --destination-name "local-dev"
 
 # Create with existing resources
-hookdeck connection create \
+hookdeck gateway connection create \
 --name "github-to-api" \
 --source-id src_abc123 \
 --destination-id dst_def456
 
 # Create with source configuration options
-hookdeck connection create \
+hookdeck gateway connection create \
 --name "api-webhooks" \
 --source-type WEBHOOK --source-name "api-source" \
 --source-allowed-http-methods "POST,PUT,PATCH" \
@@ -418,6 +413,12 @@ You can specify either a connection ID or name.
 hookdeck gateway connection get <connection-id-or-name> [flags]
 ```
 
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `connection-id-or-name` | `string` | **Required.** Connection ID or name |
+
 **Flags:**
 
 | Flag | Type | Description |
@@ -430,10 +431,10 @@ hookdeck gateway connection get <connection-id-or-name> [flags]
 
 ```bash
 # Get connection by ID
-hookdeck connection get conn_abc123
+hookdeck gateway connection get conn_abc123
 
 # Get connection by name
-hookdeck connection get my-connection
+hookdeck gateway connection get my-connection
 ```
 ### hookdeck gateway connection update
 
@@ -448,6 +449,12 @@ and allows changing any field including the connection name.
 hookdeck gateway connection update <connection-id> [flags]
 ```
 
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `connection-id` | `string` | **Required.** Connection ID |
+
 **Flags:**
 
 | Flag | Type | Description |
@@ -460,10 +467,10 @@ hookdeck gateway connection update <connection-id> [flags]
 | `--rule-deduplicate-include-fields` | `string` | Comma-separated list of fields to include for deduplication |
 | `--rule-deduplicate-window` | `int` | Time window in seconds for deduplication (default "0") |
 | `--rule-delay` | `int` | Delay in milliseconds (default "0") |
-| `--rule-filter-body` | `string` | JQ expression to filter on request body |
-| `--rule-filter-headers` | `string` | JQ expression to filter on request headers |
-| `--rule-filter-path` | `string` | JQ expression to filter on request path |
-| `--rule-filter-query` | `string` | JQ expression to filter on request query parameters |
+| `--rule-filter-body` | `string` | Filter on request body using Hookdeck filter syntax (JSON) |
+| `--rule-filter-headers` | `string` | Filter on request headers using Hookdeck filter syntax (JSON) |
+| `--rule-filter-path` | `string` | Filter on request path using Hookdeck filter syntax (JSON) |
+| `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
 | `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
@@ -504,6 +511,12 @@ Delete a connection.
 hookdeck gateway connection delete <connection-id> [flags]
 ```
 
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `connection-id` | `string` | **Required.** Connection ID |
+
 **Flags:**
 
 | Flag | Type | Description |
@@ -514,10 +527,10 @@ hookdeck gateway connection delete <connection-id> [flags]
 
 ```bash
 # Delete a connection (with confirmation)
-hookdeck connection delete conn_abc123
+hookdeck gateway connection delete conn_abc123
 
 # Force delete without confirmation
-hookdeck connection delete conn_abc123 --force
+hookdeck gateway connection delete conn_abc123 --force
 ```
 ### hookdeck gateway connection upsert
 
@@ -541,6 +554,12 @@ Create a new connection or update an existing one by name (idempotent).
 ```bash
 hookdeck gateway connection upsert <name> [flags]
 ```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | **Required.** Connection name (create or update by name) |
 
 **Flags:**
 
@@ -584,10 +603,10 @@ hookdeck gateway connection upsert <name> [flags]
 | `--rule-deduplicate-include-fields` | `string` | Comma-separated list of fields to include for deduplication |
 | `--rule-deduplicate-window` | `int` | Time window in seconds for deduplication (default "0") |
 | `--rule-delay` | `int` | Delay in milliseconds (default "0") |
-| `--rule-filter-body` | `string` | JQ expression to filter on request body |
-| `--rule-filter-headers` | `string` | JQ expression to filter on request headers |
-| `--rule-filter-path` | `string` | JQ expression to filter on request path |
-| `--rule-filter-query` | `string` | JQ expression to filter on request query parameters |
+| `--rule-filter-body` | `string` | Filter on request body using Hookdeck filter syntax (JSON) |
+| `--rule-filter-headers` | `string` | Filter on request headers using Hookdeck filter syntax (JSON) |
+| `--rule-filter-path` | `string` | Filter on request path using Hookdeck filter syntax (JSON) |
+| `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
 | `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
@@ -617,22 +636,22 @@ hookdeck gateway connection upsert <name> [flags]
 
 ```bash
 # Create or update a connection with inline source and destination
-hookdeck connection upsert "my-connection" \
+hookdeck gateway connection upsert "my-connection" \
 --source-name "stripe-prod" --source-type STRIPE \
 --destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
 
 # Update just the rate limit on an existing connection
-hookdeck connection upsert my-connection \
+hookdeck gateway connection upsert my-connection \
 --destination-rate-limit 100 --destination-rate-limit-period minute
 
 # Update source configuration options
-hookdeck connection upsert my-connection \
+hookdeck gateway connection upsert my-connection \
 --source-allowed-http-methods "POST,PUT,DELETE" \
 --source-custom-response-content-type "json" \
 --source-custom-response-body '{"status":"received"}'
 
 # Preview changes without applying them
-hookdeck connection upsert my-connection \
+hookdeck gateway connection upsert my-connection \
 --destination-rate-limit 200 --destination-rate-limit-period hour \
 --dry-run
 ```
@@ -645,6 +664,12 @@ Enable a disabled connection.
 ```bash
 hookdeck gateway connection enable <connection-id>
 ```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `connection-id` | `string` | **Required.** Connection ID |
 ### hookdeck gateway connection disable
 
 Disable an active connection. It will stop receiving new events until re-enabled.
@@ -654,6 +679,12 @@ Disable an active connection. It will stop receiving new events until re-enabled
 ```bash
 hookdeck gateway connection disable <connection-id>
 ```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `connection-id` | `string` | **Required.** Connection ID |
 ### hookdeck gateway connection pause
 
 Pause a connection temporarily.
@@ -665,6 +696,12 @@ The connection will queue incoming events until unpaused.
 ```bash
 hookdeck gateway connection pause <connection-id>
 ```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `connection-id` | `string` | **Required.** Connection ID |
 ### hookdeck gateway connection unpause
 
 Resume a paused connection.
@@ -676,6 +713,12 @@ The connection will start processing queued events.
 ```bash
 hookdeck gateway connection unpause <connection-id>
 ```
+
+**Arguments:**
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `connection-id` | `string` | **Required.** Connection ID |
 <!-- GENERATE_END -->
 ## Sources
 
@@ -1864,6 +1907,7 @@ hookdeck ci [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--api-key` | `string` | Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided. |
+| `--local` | `bool` | Save credentials to current directory (.hookdeck/config.toml) |
 | `--name` | `string` | Name of the CI run (ex: GITHUB_REF) for identification in the dashboard |
 
 **Examples:**
