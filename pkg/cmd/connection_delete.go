@@ -26,10 +26,10 @@ func newConnectionDeleteCmd() *connectionDeleteCmd {
 
 Examples:
   # Delete a connection (with confirmation)
-  hookdeck connection delete conn_abc123
+  hookdeck gateway connection delete conn_abc123
 
   # Force delete without confirmation
-  hookdeck connection delete conn_abc123 --force`,
+  hookdeck gateway connection delete conn_abc123 --force`,
 		PreRunE: cc.validateFlags,
 		RunE:    cc.runConnectionDeleteCmd,
 	}

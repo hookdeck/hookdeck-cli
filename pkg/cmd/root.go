@@ -51,7 +51,9 @@ func initTelemetry(cmd *cobra.Command) {
 	tel.SetEnvironment(hookdeck.DetectEnvironment())
 	tel.SetCommandContext(cmd)
 	tel.SetDeviceName(Config.DeviceName)
-	tel.SetInvocationID(hookdeck.NewInvocationID())
+	if tel.InvocationID == "" {
+		tel.SetInvocationID(hookdeck.NewInvocationID())
+	}
 }
 
 // RootCmd returns the root command for use by tools (e.g. generate-reference).

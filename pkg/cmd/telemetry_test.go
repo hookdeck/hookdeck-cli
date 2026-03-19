@@ -86,6 +86,39 @@ func TestInitTelemetryResetBetweenCalls(t *testing.T) {
 	require.NotEqual(t, id1, tel2.InvocationID)
 }
 
+// TestInvocationIDPersistsAcrossMultipleInitTelemetryCalls reproduces the v2.0.0 bug: when
+// initTelemetry is called multiple times in one process (e.g. root PreRun, then gateway PreRun,
+// then connection PreRun), the invocation_id must stay the same so all API requests in that run
+// share one ID. Without the fix, each initTelemetry call overwrites with a new ID; this test
+// asserts the ID is unchanged after a second call. On v2.0.0 (repro branch) it fails.
+func TestInvocationIDPersistsAcrossMultipleInitTelemetryCalls(t *testing.T) {
+	hookdeck.ResetTelemetryInstanceForTesting()
+
+	root := &cobra.Command{Use: "hookdeck"}
+	gateway := &cobra.Command{Use: "gateway"}
+	connection := &cobra.Command{Use: "connection"}
+	root.AddCommand(gateway)
+	gateway.AddCommand(connection)
+
+	Config.DeviceName = "test-device"
+	initTelemetry(root)
+	tel := hookdeck.GetTelemetryInstance()
+	firstID := tel.InvocationID
+	require.NotEmpty(t, firstID, "first initTelemetry must set invocation_id")
+
+	// Second call simulates gateway PreRun; must not overwrite invocation_id.
+	initTelemetry(gateway)
+	tel = hookdeck.GetTelemetryInstance()
+	require.Equal(t, firstID, tel.InvocationID,
+		"invocation_id must persist across initTelemetry calls in the same process (fix: set only when empty)")
+
+	// Third call simulates connection PreRun; must still not overwrite.
+	initTelemetry(connection)
+	tel = hookdeck.GetTelemetryInstance()
+	require.Equal(t, firstID, tel.InvocationID,
+		"invocation_id must persist after third initTelemetry call")
+}
+
 // TestInitTelemetryWhenDisabled verifies that initTelemetry always populates the
 // singleton (Source, CommandPath, etc.) even when telemetry is disabled. The
 // call must happen for every command; PerformRequest later skips sending the

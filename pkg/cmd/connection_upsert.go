@@ -42,22 +42,22 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	
 	Examples:
 		 # Create or update a connection with inline source and destination
-		 hookdeck connection upsert "my-connection" \
+		 hookdeck gateway connection upsert "my-connection" \
 		   --source-name "stripe-prod" --source-type STRIPE \
 		   --destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
 	
 		 # Update just the rate limit on an existing connection
-		 hookdeck connection upsert my-connection \
+		 hookdeck gateway connection upsert my-connection \
 		   --destination-rate-limit 100 --destination-rate-limit-period minute
 	
 		 # Update source configuration options
-		 hookdeck connection upsert my-connection \
+		 hookdeck gateway connection upsert my-connection \
 		   --source-allowed-http-methods "POST,PUT,DELETE" \
 		   --source-custom-response-content-type "json" \
 		   --source-custom-response-body '{"status":"received"}'
 	
 		 # Preview changes without applying them
-		 hookdeck connection upsert my-connection \
+		 hookdeck gateway connection upsert my-connection \
 		   --destination-rate-limit 200 --destination-rate-limit-period hour \
 		   --dry-run`,
 		PreRunE: cu.validateUpsertFlags,

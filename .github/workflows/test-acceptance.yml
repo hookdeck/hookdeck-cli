@@ -37,3 +37,25 @@ jobs:
 
       - name: Run Go Acceptance Tests (slice ${{ matrix.slice }})
         run: go test -tags="${{ matrix.tags }}" ./test/acceptance/... -v -timeout 12m
+
+  # Telemetry proxy tests require the real telemetry header; matrix jobs set
+  # HOOKDECK_CLI_TELEMETRY_DISABLED=1. This job runs -tags=telemetry with
+  # HOOKDECK_CLI_TELEMETRY_DISABLED=0 so telemetry is on even if the repo sets a global opt-out.
+  acceptance-telemetry:
+    runs-on: ubuntu-latest
+    env:
+      ACCEPTANCE_SLICE: "0"
+      HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_API_KEY }}
+      # Explicitly allow telemetry: repo/org env may set HOOKDECK_CLI_TELEMETRY_DISABLED=1 globally.
+      HOOKDECK_CLI_TELEMETRY_DISABLED: "0"
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.24.9"
+
+      - name: Run telemetry acceptance tests
+        run: go test -tags=telemetry ./test/acceptance/... -v -timeout 12m
