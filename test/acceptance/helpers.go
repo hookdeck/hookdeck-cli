@@ -24,6 +24,73 @@ import (
 // defaultAPIUpstream is the real Hookdeck API base URL used by the recording proxy.
 const defaultAPIUpstream = "https://api.hookdeck.com"
 
+// acceptance502MaxAttempts is how many times CLIRunner runs a command when the
+// combined output looks like a Hookdeck API HTTP 502 (transient gateway errors).
+const acceptance502MaxAttempts = 4
+
+// acceptance502RetryDelay is the pause between 502 retries.
+const acceptance502RetryDelay = 2 * time.Second
+
+// acceptance502LogExcerpt is the max chars of stdout/stderr to include in retry logs.
+const acceptance502LogExcerpt = 800
+
+// combinedOutputLooksLikeHTTP502 returns true when stdout+stderr match patterns
+// emitted by the CLI/API client for HTTP 502 (only; 503/504 are not retried here).
+func combinedOutputLooksLikeHTTP502(stdout, stderr string) bool {
+	combined := stdout + "\n" + stderr
+	return strings.Contains(combined, "status code: 502") ||
+		strings.Contains(combined, "status=502") ||
+		strings.Contains(combined, "error code: 502")
+}
+
+func excerptFor502Log(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "(empty)"
+	}
+	if len(s) <= max {
+		return s
+	}
+	return "…" + s[len(s)-max:]
+}
+
+func commandSummaryFor502Log(args []string) string {
+	const max = 200
+	s := strings.Join(args, " ")
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
+}
+
+// runWithHTTP502Retry re-runs run() when the process exits with an error and
+// output looks like HTTP 502 from the Hookdeck API. Logs each retry clearly via t.Logf.
+func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, run func() (stdout, stderr string, err error)) (stdout, stderr string, err error) {
+	r.t.Helper()
+	var lastStdout, lastStderr string
+	var lastErr error
+	for attempt := 1; attempt <= acceptance502MaxAttempts; attempt++ {
+		lastStdout, lastStderr, lastErr = run()
+		if lastErr == nil || !combinedOutputLooksLikeHTTP502(lastStdout, lastStderr) {
+			return lastStdout, lastStderr, lastErr
+		}
+		if attempt < acceptance502MaxAttempts {
+			r.t.Logf("acceptance: Hookdeck API HTTP 502 (transient); retrying CLI command [%s] (attempt %d/%d, next retry after %v)\nstderr excerpt:\n%s\nstdout excerpt:\n%s",
+				commandSummary, attempt, acceptance502MaxAttempts, acceptance502RetryDelay,
+				excerptFor502Log(lastStderr, acceptance502LogExcerpt),
+				excerptFor502Log(lastStdout, acceptance502LogExcerpt))
+			time.Sleep(acceptance502RetryDelay)
+		}
+	}
+	if lastErr != nil && combinedOutputLooksLikeHTTP502(lastStdout, lastStderr) {
+		r.t.Logf("acceptance: Hookdeck API HTTP 502 still failing after %d attempts (command [%s]); giving up. stderr excerpt:\n%s\nstdout excerpt:\n%s",
+			acceptance502MaxAttempts, commandSummary,
+			excerptFor502Log(lastStderr, acceptance502LogExcerpt),
+			excerptFor502Log(lastStdout, acceptance502LogExcerpt))
+	}
+	return lastStdout, lastStderr, lastErr
+}
+
 // RecordedRequest holds a single HTTP request as captured by the recording proxy.
 type RecordedRequest struct {
 	Method    string
@@ -360,26 +427,21 @@ func NewManualCLIRunner(t *testing.T) *CLIRunner {
 func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 
-	// Use the stored project root path (set during NewCLIRunner)
-	mainGoPath := filepath.Join(r.projectRoot, "main.go")
-
-	cmdArgs := append([]string{"run", mainGoPath}, args...)
-	cmd := exec.Command("go", cmdArgs...)
-
-	// Set working directory to project root
-	cmd.Dir = r.projectRoot
-
-	if r.configPath != "" {
-		cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
-	}
-
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
-	err = cmd.Run()
-
-	return stdoutBuf.String(), stderrBuf.String(), err
+	summary := commandSummaryFor502Log(args)
+	return r.runWithHTTP502Retry(summary, func() (string, string, error) {
+		mainGoPath := filepath.Join(r.projectRoot, "main.go")
+		cmdArgs := append([]string{"run", mainGoPath}, args...)
+		cmd := exec.Command("go", cmdArgs...)
+		cmd.Dir = r.projectRoot
+		if r.configPath != "" {
+			cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
+		}
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+		runErr := cmd.Run()
+		return stdoutBuf.String(), stderrBuf.String(), runErr
+	})
 }
 
 // RunWithEnv is like Run but merges extraEnv into the process environment (e.g. for HOOKDECK_CLI_USE_SYSTEM_BINARY).
@@ -388,35 +450,38 @@ func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 func (r *CLIRunner) RunWithEnv(extraEnv map[string]string, args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 
-	env := os.Environ()
-	if r.configPath != "" {
-		env = appendEnvOverride(env, "HOOKDECK_CONFIG_FILE", r.configPath)
-	}
-	for k, v := range extraEnv {
-		env = appendEnvOverride(env, k, v)
-	}
-
-	var cmd *exec.Cmd
-	if extraEnv != nil && extraEnv["HOOKDECK_CLI_USE_SYSTEM_BINARY"] == "1" {
-		hookdeckPath, lookErr := exec.LookPath("hookdeck")
-		if lookErr != nil {
-			return "", "", fmt.Errorf("HOOKDECK_CLI_USE_SYSTEM_BINARY=1 but hookdeck not on PATH: %w", lookErr)
+	summary := commandSummaryFor502Log(args)
+	return r.runWithHTTP502Retry(summary, func() (string, string, error) {
+		env := os.Environ()
+		if r.configPath != "" {
+			env = appendEnvOverride(env, "HOOKDECK_CONFIG_FILE", r.configPath)
 		}
-		cmd = exec.Command(hookdeckPath, args...)
-		cmd.Dir = r.projectRoot
-	} else {
-		mainGoPath := filepath.Join(r.projectRoot, "main.go")
-		cmdArgs := append([]string{"run", mainGoPath}, args...)
-		cmd = exec.Command("go", cmdArgs...)
-		cmd.Dir = r.projectRoot
-	}
-	cmd.Env = env
+		for k, v := range extraEnv {
+			env = appendEnvOverride(env, k, v)
+		}
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	err = cmd.Run()
-	return stdoutBuf.String(), stderrBuf.String(), err
+		var cmd *exec.Cmd
+		if extraEnv != nil && extraEnv["HOOKDECK_CLI_USE_SYSTEM_BINARY"] == "1" {
+			hookdeckPath, lookErr := exec.LookPath("hookdeck")
+			if lookErr != nil {
+				return "", "", fmt.Errorf("HOOKDECK_CLI_USE_SYSTEM_BINARY=1 but hookdeck not on PATH: %w", lookErr)
+			}
+			cmd = exec.Command(hookdeckPath, args...)
+			cmd.Dir = r.projectRoot
+		} else {
+			mainGoPath := filepath.Join(r.projectRoot, "main.go")
+			cmdArgs := append([]string{"run", mainGoPath}, args...)
+			cmd = exec.Command("go", cmdArgs...)
+			cmd.Dir = r.projectRoot
+		}
+		cmd.Env = env
+
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+		runErr := cmd.Run()
+		return stdoutBuf.String(), stderrBuf.String(), runErr
+	})
 }
 
 // RunListenWithTimeout starts the CLI with the given args (e.g. "--api-base", proxyURL,
@@ -465,33 +530,30 @@ func (r *CLIRunner) RunListenWithTimeout(args []string, runDuration time.Duratio
 func (r *CLIRunner) RunFromCwd(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 
-	// Build a temporary binary
 	tmpBinary := filepath.Join(r.projectRoot, "hookdeck-test-"+generateTimestamp())
-	defer os.Remove(tmpBinary) // Clean up after
+	defer os.Remove(tmpBinary)
 
-	// Build the binary in the project root
 	buildCmd := exec.Command("go", "build", "-o", tmpBinary, ".")
 	buildCmd.Dir = r.projectRoot
 	if err := buildCmd.Run(); err != nil {
 		return "", "", fmt.Errorf("failed to build CLI binary: %w", err)
 	}
 
-	// Run the binary from the current working directory
-	cmd := exec.Command(tmpBinary, args...)
-	// Don't set cmd.Dir - use current working directory
+	summary := commandSummaryFor502Log(args)
+	return r.runWithHTTP502Retry(summary, func() (string, string, error) {
+		cmd := exec.Command(tmpBinary, args...)
+		if r.configPath != "" {
+			cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
+		}
 
-	if r.configPath != "" {
-		cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
-	}
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+		cmd.Stdin = os.Stdin
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	cmd.Stdin = os.Stdin // Allow interactive input
-
-	err = cmd.Run()
-
-	return stdoutBuf.String(), stderrBuf.String(), err
+		runErr := cmd.Run()
+		return stdoutBuf.String(), stderrBuf.String(), runErr
+	})
 }
 
 // RunExpectSuccess runs the CLI command and fails the test if it returns an error
