@@ -274,6 +274,10 @@ go run cmd/hookdeck/main.go login --help
 - **Always run tests** when changing code: unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`). Do not skip tests to avoid failures.
 - When running commands (build, test, acceptance tests), if you see **TLS/certificate errors** (e.g. `x509: certificate verify failed`, `tls: failed to verify certificate`), **permission errors** (e.g. `operation not permitted` when writing to the Go module cache), or similar failures that look environment-related, the command is likely running inside a **sandbox**. **Prompt the user** and **re-run the command with elevated permissions** (e.g. `required_permissions: ["network"]` for tests that need API access, or `["all"]` to disable the sandbox) so the operation can succeed. Do not treat a build or test as passed if stderr shows these errors, even when the process exit code is 0.
 
+### GitHub CLI (`gh`)
+- Use the **[GitHub CLI](https://cli.github.com/) (`gh`)** to read GitHub data and perform actions from the shell: **workflow runs and job logs** (e.g. `gh run list`, `gh run view <run-id> --log-failed`, `gh run view <run-id> --job <job-id> --log`), **PRs and checks** (`gh pr view`, `gh pr checks`, `gh pr diff`), **API access** (`gh api`), and creating or updating PRs, issues, and releases.
+- Install and authenticate `gh` where needed (e.g. `gh auth login`). If `gh` fails with TLS, network, or permission errors, re-run with **network** or **all** permissions when the agent sandbox may be blocking access.
+
 ## 6. Documentation Standards
 
 ### Command help text (Short and Long)
@@ -355,7 +359,7 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 Acceptance tests require a Hookdeck API key. See [`test/acceptance/README.md`](test/acceptance/README.md) for full details. Quick setup: create `test/acceptance/.env` with `HOOKDECK_CLI_TESTING_API_KEY=<key>`. The `.env` file is git-ignored and must never be committed.
 
 ### Acceptance tests and feature tags
-Acceptance tests in `test/acceptance/` are partitioned by **feature build tags** so they can run in parallel (two slices in CI and locally). Each test file must have exactly one feature tag (e.g. `//go:build connection`, `//go:build request`). The runner (CI workflow or `run_parallel.sh`) maps features to slices and passes the corresponding `-tags="..."`; see [test/acceptance/README.md](test/acceptance/README.md) for slice mapping and setup. **Every new acceptance test file must have a feature tag**; otherwise it is included in every build and runs in both slices (duplicated). Use tags to balance and parallelize; same commands and env for local and CI.
+Acceptance tests in `test/acceptance/` are partitioned by **feature build tags** so they can run in parallel (matrix slices plus a separate `acceptance-telemetry` job in CI; see [test/acceptance/README.md](test/acceptance/README.md)). Each `*_test.go` file must have exactly one feature tag (e.g. `//go:build connection`, `//go:build request`, `//go:build telemetry`). **Untagged test files are included in every `-tags=...` build**, including `-tags=telemetry` only, so non-telemetry tests would run in the telemetry job—do not add untagged `*_test.go` files. Use tags to balance and parallelize; same commands and env for local and CI.
 
 ### Unit Testing
 - Test validation logic thoroughly

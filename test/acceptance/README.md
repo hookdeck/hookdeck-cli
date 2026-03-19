@@ -115,7 +115,7 @@ Tests are partitioned by **feature build tags** so CI and local runs can execute
 
 The CI workflow (`.github/workflows/test-acceptance.yml`) runs three matrix jobs plus `acceptance-telemetry`. Matrix jobs set `HOOKDECK_CLI_TELEMETRY_DISABLED=1`; the telemetry job does not. No test names or regexes are listed in YAML.
 
-**Untagged files:** A test file with **no** build tag is included in every build and runs in **both** slices (duplicated). **Every new acceptance test file must have exactly one feature tag** so it runs in only one slice.
+**Untagged files:** A test file with **no** build tag is included in **every** `go test -tags=...` build, including **`acceptance-telemetry`** (`-tags=telemetry` only), so non-telemetry tests would run there too. **Every new acceptance test file must have exactly one feature tag** so it runs in only one matrix slice and not in the telemetry job.
 
 ## Manual Test Workflow
 
