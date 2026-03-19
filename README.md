@@ -1404,6 +1404,8 @@ Install output is written to `test-scripts/.install-test/` (gitignored).
 
 This section describes the release process for the Hookdeck CLI.
 
+Maintainers using AI assistants: see **[skills/hookdeck-cli-release/](skills/hookdeck-cli-release/)** for the release skill (automation details and release-note workflow).
+
 ## Release Process
 
 The release workflow supports tagging from **ANY branch** - it automatically detects which branch contains the tag. This means you can create beta releases directly from feature branches for testing before merging to `main`.

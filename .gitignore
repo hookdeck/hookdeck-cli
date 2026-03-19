@@ -24,6 +24,3 @@ test-scripts/.install-test/
 
 # Claude Code temporary worktrees
 .claude/worktrees/
-
-# Claude Code project notes (local only)
-CLAUDE.md

@@ -511,4 +511,13 @@ default:
 
 ---
 
+## Agent skills
+
+- **Location:** Repo-specific agent skills live under **`skills/`** at the repository root (e.g. `skills/hookdeck-cli-release/`).
+- **Cursor / Claude Code:** `.cursor/skills` and `.claude/skills` are **symlinks** to `../skills` so both tools load the same tree. Do not replace the whole `.cursor` directory with a symlink—only `skills`, so `.cursor/rules/` and similar can stay as normal files.
+- **Windows:** Git must create symlinks correctly (`core.symlinks` / Developer Mode). If symlinks are missing after clone, recreate them (`mklink /D` on Windows, or copy `skills/` into `.cursor/skills` and `.claude/skills` as a fallback).
+- **Releases:** For cutting GitHub releases, tags, npm/beta publish flow, and drafting release notes, use **`skills/hookdeck-cli-release/SKILL.md`**; human-facing steps remain in **README.md § Releasing**.
+
+---
+
 Following these guidelines ensures consistent, maintainable CLI commands that provide an excellent user experience while maintaining architectural consistency with the existing codebase.
