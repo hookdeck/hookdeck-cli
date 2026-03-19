@@ -3,7 +3,7 @@
 # Requires HOOKDECK_CLI_TESTING_API_KEY, HOOKDECK_CLI_TESTING_API_KEY_2, and HOOKDECK_CLI_TESTING_API_KEY_3 in environment or test/acceptance/.env.
 # Run from the repository root.
 #
-# Matrix slices set HOOKDECK_CLI_TELEMETRY_DISABLED=1. The telemetry slice unsets it and runs
+# Matrix slices set HOOKDECK_CLI_TELEMETRY_DISABLED=1. The telemetry slice sets it to 0 (matches CI).
 # -tags=telemetry (telemetry_test.go and telemetry_listen_test.go).
 #
 # Output: each slice writes to a log file so you can see which run produced what.
@@ -47,8 +47,8 @@ run_slice2() {
 
 run_telemetry() {
   (
-    unset HOOKDECK_CLI_TELEMETRY_DISABLED
     export ACCEPTANCE_SLICE=0
+    export HOOKDECK_CLI_TELEMETRY_DISABLED=0
     go test -tags=telemetry ./test/acceptance/... -v -timeout 12m
   ) > "$TELEMETRY_LOG" 2>&1
 }

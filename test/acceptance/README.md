@@ -50,7 +50,7 @@ HOOKDECK_CLI_TESTING_API_KEY_3=key_for_slice2
 
 CI runs **three parallel matrix jobs**, each with its own API key (`HOOKDECK_CLI_TESTING_API_KEY`, `HOOKDECK_CLI_TESTING_API_KEY_2`, `HOOKDECK_CLI_TESTING_API_KEY_3`). Those jobs set **`HOOKDECK_CLI_TELEMETRY_DISABLED=1`** so the CLI does not send telemetry during normal acceptance tests.
 
-A **fourth job** (`acceptance-telemetry` in `.github/workflows/test-acceptance.yml`) does **not** disable telemetry. It runs `go test -tags=telemetry` only (all proxy tests that assert `X-Hookdeck-CLI-Telemetry`, including listen, live under the `telemetry` build tag). It uses `HOOKDECK_CLI_TESTING_API_KEY` and `ACCEPTANCE_SLICE=0` (same project as slice 0; tests use unique resource names).
+A **fourth job** (`acceptance-telemetry` in `.github/workflows/test-acceptance.yml`) sets **`HOOKDECK_CLI_TELEMETRY_DISABLED=0`** so the CLI sends `X-Hookdeck-CLI-Telemetry` even if the repository or organization defines `HOOKDECK_CLI_TELEMETRY_DISABLED=1` for other jobs. It runs `go test -tags=telemetry` only (all proxy tests that assert that header, including listen, live under the `telemetry` build tag). It uses `HOOKDECK_CLI_TESTING_API_KEY` and `ACCEPTANCE_SLICE=0` (same project as slice 0; tests use unique resource names).
 
 No test-name list in the workflow—tests are partitioned by **feature tags** (see [Parallelisation](#parallelisation)).
 
@@ -74,10 +74,10 @@ ACCEPTANCE_SLICE=1 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="request even
 # Slice 2 (same tags as CI job 2)
 ACCEPTANCE_SLICE=2 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="attempt metrics issue transformation" ./test/acceptance/... -v -timeout 12m
 
-# Telemetry (same as CI acceptance-telemetry: do not set HOOKDECK_CLI_TELEMETRY_DISABLED)
-ACCEPTANCE_SLICE=0 go test -tags=telemetry ./test/acceptance/... -v -timeout 12m
+# Telemetry (same as CI acceptance-telemetry: force telemetry on)
+ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=0 go test -tags=telemetry ./test/acceptance/... -v -timeout 12m
 ```
-For slice 1 set `HOOKDECK_CLI_TESTING_API_KEY_2`; for slice 2 set `HOOKDECK_CLI_TESTING_API_KEY_3` (or set `HOOKDECK_CLI_TESTING_API_KEY` to that key). For telemetry, use the slice 0 key and leave `HOOKDECK_CLI_TELEMETRY_DISABLED` unset.
+For slice 1 set `HOOKDECK_CLI_TESTING_API_KEY_2`; for slice 2 set `HOOKDECK_CLI_TESTING_API_KEY_3` (or set `HOOKDECK_CLI_TESTING_API_KEY` to that key). For telemetry, use the slice 0 key and set `HOOKDECK_CLI_TELEMETRY_DISABLED=0` (overrides a global opt-out).
 
 **Project list tests** (`TestProjectListShowsType`, `TestProjectListJSONOutput`) require a **CLI key**, not an API or CI key: only keys created via interactive login can list or switch projects. Set `HOOKDECK_CLI_TESTING_CLI_KEY` in your `.env` (or environment) to run these tests; if unset, they are skipped with a clear message.
 
@@ -86,7 +86,7 @@ From the **repository root**, run the script that runs three matrix slices plus 
 ```bash
 ./test/acceptance/run_parallel.sh
 ```
-Requires `HOOKDECK_CLI_TESTING_API_KEY`, `HOOKDECK_CLI_TESTING_API_KEY_2`, and `HOOKDECK_CLI_TESTING_API_KEY_3` in `.env` or the environment. The script sets `HOOKDECK_CLI_TELEMETRY_DISABLED=1` for matrix slices only; the telemetry run leaves it unset.
+Requires `HOOKDECK_CLI_TESTING_API_KEY`, `HOOKDECK_CLI_TESTING_API_KEY_2`, and `HOOKDECK_CLI_TESTING_API_KEY_3` in `.env` or the environment. The script sets `HOOKDECK_CLI_TELEMETRY_DISABLED=1` for matrix slices and `HOOKDECK_CLI_TELEMETRY_DISABLED=0` for the telemetry run (same as CI).
 
 ### Run manual tests (requires human authentication):
 ```bash

@@ -157,6 +157,9 @@ func AssertTelemetryConsistent(t *testing.T, recorded []RecordedRequest, expecte
 		require.Equal(t, invocationID, p.InvocationID, "request %d (%s %s): invocation_id should be consistent", i, r.Method, r.Path)
 		require.Equal(t, commandPath, p.CommandPath, "request %d (%s %s): command_path should be consistent", i, r.Method, r.Path)
 	}
+	if invocationID == "" && len(recorded) > 0 {
+		t.Fatalf("telemetry: %d HTTP request(s) recorded but X-Hookdeck-CLI-Telemetry was empty on every one (unset HOOKDECK_CLI_TELEMETRY_DISABLED / config telemetry_disabled for these tests)", len(recorded))
+	}
 	require.Equal(t, expectedCommandPath, commandPath, "command_path should match expected")
 	require.NotEmpty(t, invocationID, "at least one request should have invocation_id")
 }
