@@ -55,7 +55,7 @@ CI runs acceptance tests in **three parallel jobs**, each with its own API key (
 ### Run all automated tests (one key)
 Pass all feature tags so every automated test file is included:
 ```bash
-go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event attempt metrics issue transformation" ./test/acceptance/... -v
+go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation" ./test/acceptance/... -v
 ```
 
 ### Run one slice (for CI or local)
@@ -64,11 +64,12 @@ Same commands as CI; use when debugging a subset or running in parallel:
 # Slice 0 (same tags as CI job 0)
 ACCEPTANCE_SLICE=0 go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
 
-# Slice 1 (same tags as CI job 1)
-ACCEPTANCE_SLICE=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
+# Slice 1 (same tags as CI job 1: request, event, telemetry)
+ACCEPTANCE_SLICE=1 go test -tags="request event telemetry" ./test/acceptance/... -v -timeout 12m
 
 # Slice 2 (same tags as CI job 2)
 ACCEPTANCE_SLICE=2 go test -tags="attempt metrics issue transformation" ./test/acceptance/... -v -timeout 12m
+
 ```
 For slice 1 set `HOOKDECK_CLI_TESTING_API_KEY_2`; for slice 2 set `HOOKDECK_CLI_TESTING_API_KEY_3` (or set `HOOKDECK_CLI_TESTING_API_KEY` to that key).
 
@@ -102,7 +103,7 @@ Use the same `-tags` as "Run all" if you want to skip the full acceptance set. A
 Tests are partitioned by **feature build tags** so CI and local runs can execute three slices in parallel (each slice uses its own Hookdeck project and config file).
 
 - **Slice 0 features:** `basic`, `connection`, `source`, `destination`, `gateway`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
-- **Slice 1 features:** `request`, `event`
+- **Slice 1 features:** `request`, `event`, `telemetry`
 - **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`
 
 The CI workflow (`.github/workflows/test-acceptance.yml`) runs three jobs with the same `go test -tags="..."` commands and env (`ACCEPTANCE_SLICE`, API keys). No test names or regexes are listed in YAML.

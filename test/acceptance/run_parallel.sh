@@ -26,7 +26,7 @@ SLICE1_LOG="$LOG_DIR/slice1.log"
 SLICE2_LOG="$LOG_DIR/slice2.log"
 
 SLICE0_TAGS="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
-SLICE1_TAGS="request event"
+SLICE1_TAGS="request event telemetry"
 SLICE2_TAGS="attempt metrics issue transformation"
 
 run_slice0() {

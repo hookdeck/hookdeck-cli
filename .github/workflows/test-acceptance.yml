@@ -17,7 +17,7 @@ jobs:
             tags: "basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
           - slice: "1"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_2
-            tags: "request event"
+            tags: "request event telemetry"
           - slice: "2"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_3
             tags: "attempt metrics issue transformation"
