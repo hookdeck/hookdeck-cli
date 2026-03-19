@@ -34,22 +34,22 @@ func newConnectionListCmd() *connectionListCmd {
 
 Examples:
   # List all connections
-  hookdeck connection list
+  hookdeck gateway connection list
 
   # Filter by connection name
-  hookdeck connection list --name my-connection
+  hookdeck gateway connection list --name my-connection
 
   # Filter by source ID
-  hookdeck connection list --source-id src_abc123
+  hookdeck gateway connection list --source-id src_abc123
 
   # Filter by destination ID
-  hookdeck connection list --destination-id dst_def456
+  hookdeck gateway connection list --destination-id dst_def456
 
   # Include disabled connections
-  hookdeck connection list --disabled
+  hookdeck gateway connection list --disabled
 
   # Limit results
-  hookdeck connection list --limit 10`,
+  hookdeck gateway connection list --limit 10`,
 		RunE: cc.runConnectionListCmd,
 	}
 

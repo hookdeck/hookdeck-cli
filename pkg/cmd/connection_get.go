@@ -33,10 +33,10 @@ func newConnectionGetCmd() *connectionGetCmd {
 
 Examples:
 	 # Get connection by ID
-	 hookdeck connection get conn_abc123
+	 hookdeck gateway connection get conn_abc123
 	 
 	 # Get connection by name
-	 hookdeck connection get my-connection`,
+	 hookdeck gateway connection get my-connection`,
 		RunE: cc.runConnectionGetCmd,
 	}
 	cc.cmd.Annotations = map[string]string{

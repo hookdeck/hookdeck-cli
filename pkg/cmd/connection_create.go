@@ -112,19 +112,19 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	
 	Examples:
 		 # Create with inline source and destination
-		 hookdeck connection create \
+		 hookdeck gateway connection create \
 		   --name "test-webhooks-to-local" \
 		   --source-type WEBHOOK --source-name "test-webhooks" \
 		   --destination-type CLI --destination-name "local-dev"
 	
 		 # Create with existing resources
-		 hookdeck connection create \
+		 hookdeck gateway connection create \
 		   --name "github-to-api" \
 		   --source-id src_abc123 \
 		   --destination-id dst_def456
 	
 		 # Create with source configuration options
-		 hookdeck connection create \
+		 hookdeck gateway connection create \
 		   --name "api-webhooks" \
 		   --source-type WEBHOOK --source-name "api-source" \
 		   --source-allowed-http-methods "POST,PUT,PATCH" \
