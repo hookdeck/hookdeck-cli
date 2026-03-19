@@ -5,17 +5,161 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// defaultAPIUpstream is the real Hookdeck API base URL used by the recording proxy.
+const defaultAPIUpstream = "https://api.hookdeck.com"
+
+// RecordedRequest holds a single HTTP request as captured by the recording proxy.
+type RecordedRequest struct {
+	Method    string
+	Path      string
+	Telemetry string
+}
+
+// RecordingProxy is an HTTP server that forwards requests to the real API and
+// records each request (including X-Hookdeck-CLI-Telemetry). Use it to run the
+// CLI with --api-base pointing at the proxy so all API traffic is captured
+// while still hitting the real backend.
+type RecordingProxy struct {
+	t        *testing.T
+	server   *httptest.Server
+	upstream string
+	mu       sync.Mutex
+	recorded []RecordedRequest
+}
+
+// URL returns the proxy base URL (e.g. http://127.0.0.1:port). Pass this to
+// the CLI as --api-base so requests go through the proxy.
+func (p *RecordingProxy) URL() string {
+	return p.server.URL
+}
+
+// Recorded returns a copy of the slice of recorded requests. Safe to call
+// after the CLI command has finished.
+func (p *RecordingProxy) Recorded() []RecordedRequest {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]RecordedRequest, len(p.recorded))
+	copy(out, p.recorded)
+	return out
+}
+
+// Close shuts down the proxy server.
+func (p *RecordingProxy) Close() {
+	p.server.Close()
+}
+
+// StartRecordingProxy starts an httptest.Server that acts as a reverse proxy to
+// upstreamBase (e.g. https://api.hookdeck.com). Every request is recorded
+// (method, path, X-Hookdeck-CLI-Telemetry) and then forwarded to the upstream;
+// the upstream response is returned to the client. Use with CLIRunner.Run("--api-base", proxy.URL(), "gateway", ...).
+func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
+	t.Helper()
+	upstream, err := url.Parse(strings.TrimSuffix(upstreamBase, "/"))
+	require.NoError(t, err, "parse upstream URL")
+
+	p := &RecordingProxy{
+		t:        t,
+		upstream: upstream.String(),
+		recorded: make([]RecordedRequest, 0),
+	}
+
+	p.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Record before forwarding
+		p.mu.Lock()
+		p.recorded = append(p.recorded, RecordedRequest{
+			Method:    r.Method,
+			Path:      r.URL.Path,
+			Telemetry: r.Header.Get("X-Hookdeck-CLI-Telemetry"),
+		})
+		p.mu.Unlock()
+
+		// Build upstream request: same method, path, query, body
+		targetPath := r.URL.Path
+		if r.URL.RawQuery != "" {
+			targetPath += "?" + r.URL.RawQuery
+		}
+		dest, err := url.Parse(upstream.String() + targetPath)
+		require.NoError(p.t, err)
+
+		var bodyReader io.Reader
+		if r.Body != nil {
+			bodyReader = r.Body
+		}
+
+		req, err := http.NewRequest(r.Method, dest.String(), bodyReader)
+		require.NoError(p.t, err)
+
+		// Copy headers that the API cares about
+		for _, k := range []string{
+			"Authorization", "Content-Type", "X-Team-ID", "X-Project-ID",
+			"X-Hookdeck-CLI-Telemetry", "X-Hookdeck-Client-User-Agent", "User-Agent",
+		} {
+			if v := r.Header.Get(k); v != "" {
+				req.Header.Set(k, v)
+			}
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(p.t, err)
+		defer resp.Body.Close()
+
+		// Copy response back
+		for k, v := range resp.Header {
+			for _, vv := range v {
+				w.Header().Add(k, vv)
+			}
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}))
+
+	return p
+}
+
+// telemetryPayload is the structure of the X-Hookdeck-CLI-Telemetry header (JSON).
+type telemetryPayload struct {
+	CommandPath  string `json:"command_path"`
+	InvocationID string `json:"invocation_id"`
+}
+
+// AssertTelemetryConsistent checks that every recorded request that has a
+// telemetry header shares the same invocation_id and command_path, and that
+// command_path equals expectedCommandPath.
+func AssertTelemetryConsistent(t *testing.T, recorded []RecordedRequest, expectedCommandPath string) {
+	t.Helper()
+	var invocationID, commandPath string
+	for i, r := range recorded {
+		if r.Telemetry == "" {
+			continue
+		}
+		var p telemetryPayload
+		require.NoError(t, json.Unmarshal([]byte(r.Telemetry), &p), "request %d: invalid telemetry JSON: %s", i, r.Telemetry)
+		if invocationID == "" {
+			invocationID = p.InvocationID
+			commandPath = p.CommandPath
+		}
+		require.Equal(t, invocationID, p.InvocationID, "request %d (%s %s): invocation_id should be consistent", i, r.Method, r.Path)
+		require.Equal(t, commandPath, p.CommandPath, "request %d (%s %s): command_path should be consistent", i, r.Method, r.Path)
+	}
+	require.Equal(t, expectedCommandPath, commandPath, "command_path should match expected")
+	require.NotEmpty(t, invocationID, "at least one request should have invocation_id")
+}
 
 func init() {
 	// Attempt to load .env file from test/acceptance/.env for local development
@@ -84,6 +228,43 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 	require.NoError(t, err, "Failed to authenticate CLI: stdout=%s, stderr=%s", stdout, stderr)
 
 	return runner
+}
+
+// NewCLIRunnerWithConfigPath creates a CLI runner that uses the given config file path.
+// It runs "ci --api-key" so the config is populated (api_key, project_id, project_mode, etc.).
+// Use this when a test needs a known config path (e.g. to write a minimal variant for another run).
+func NewCLIRunnerWithConfigPath(t *testing.T, configPath string) *CLIRunner {
+	t.Helper()
+	apiKey := getAcceptanceAPIKey(t)
+	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY must be set")
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+	runner := &CLIRunner{
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
+		configPath:  configPath,
+	}
+	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
+	require.NoError(t, err, "Failed to authenticate CLI with config at %s: stdout=%s stderr=%s", configPath, stdout, stderr)
+	return runner
+}
+
+// NewCLIRunnerWithConfigPathNoCI creates a CLI runner that uses the given config file path,
+// without running "ci". Use when the config file is already populated (e.g. a minimal config
+// written by the test). The runner will pass HOOKDECK_CONFIG_FILE to all Run() calls.
+func NewCLIRunnerWithConfigPathNoCI(t *testing.T, configPath string) *CLIRunner {
+	t.Helper()
+	apiKey := getAcceptanceAPIKey(t)
+	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY must be set")
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+	return &CLIRunner{
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
+		configPath:  configPath,
+	}
 }
 
 // getAcceptanceAPIKey returns the API key for the current acceptance slice.
@@ -196,6 +377,80 @@ func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	err = cmd.Run()
 
 	return stdoutBuf.String(), stderrBuf.String(), err
+}
+
+// RunWithEnv is like Run but merges extraEnv into the process environment (e.g. for HOOKDECK_CLI_USE_SYSTEM_BINARY).
+// When extraEnv["HOOKDECK_CLI_USE_SYSTEM_BINARY"] == "1", runs the installed "hookdeck" binary on PATH instead of "go run main.go"
+// (e.g. to run tests against 2.0.0 or another installed version).
+func (r *CLIRunner) RunWithEnv(extraEnv map[string]string, args ...string) (stdout, stderr string, err error) {
+	r.t.Helper()
+
+	env := os.Environ()
+	if r.configPath != "" {
+		env = appendEnvOverride(env, "HOOKDECK_CONFIG_FILE", r.configPath)
+	}
+	for k, v := range extraEnv {
+		env = appendEnvOverride(env, k, v)
+	}
+
+	var cmd *exec.Cmd
+	if extraEnv != nil && extraEnv["HOOKDECK_CLI_USE_SYSTEM_BINARY"] == "1" {
+		hookdeckPath, lookErr := exec.LookPath("hookdeck")
+		if lookErr != nil {
+			return "", "", fmt.Errorf("HOOKDECK_CLI_USE_SYSTEM_BINARY=1 but hookdeck not on PATH: %w", lookErr)
+		}
+		cmd = exec.Command(hookdeckPath, args...)
+		cmd.Dir = r.projectRoot
+	} else {
+		mainGoPath := filepath.Join(r.projectRoot, "main.go")
+		cmdArgs := append([]string{"run", mainGoPath}, args...)
+		cmd = exec.Command("go", cmdArgs...)
+		cmd.Dir = r.projectRoot
+	}
+	cmd.Env = env
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	err = cmd.Run()
+	return stdoutBuf.String(), stderrBuf.String(), err
+}
+
+// RunListenWithTimeout starts the CLI with the given args (e.g. "--api-base", proxyURL,
+// "listen", port, sourceName, "--output", "compact"), lets it run for runDuration, then
+// kills the process. Uses a pre-built binary so we terminate the actual listen process
+// (not a "go run" parent). Returns stdout, stderr, and the error from Wait (often
+// non-nil because the process was killed). Uses the same project root and config env as Run().
+func (r *CLIRunner) RunListenWithTimeout(args []string, runDuration time.Duration) (stdout, stderr string, err error) {
+	r.t.Helper()
+	tmpBinary := filepath.Join(r.projectRoot, "hookdeck-listen-test-"+generateTimestamp())
+	defer os.Remove(tmpBinary)
+
+	buildCmd := exec.Command("go", "build", "-o", tmpBinary, ".")
+	buildCmd.Dir = r.projectRoot
+	if err := buildCmd.Run(); err != nil {
+		return "", "", fmt.Errorf("build CLI for listen test: %w", err)
+	}
+
+	cmd := exec.Command(tmpBinary, args...)
+	cmd.Dir = r.projectRoot
+	if r.configPath != "" {
+		cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
+	}
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	if err := cmd.Start(); err != nil {
+		return "", "", err
+	}
+	timer := time.AfterFunc(runDuration, func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	})
+	defer timer.Stop()
+	waitErr := cmd.Wait()
+	return stdoutBuf.String(), stderrBuf.String(), waitErr
 }
 
 // RunFromCwd executes the CLI from the current working directory.
