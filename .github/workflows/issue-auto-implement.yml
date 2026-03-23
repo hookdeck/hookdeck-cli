@@ -39,7 +39,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.AUTO_IMPLEMENT_ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          push_token: ${{ secrets.AUTO_IMPLEMENT_PUSH_TOKEN }}
+          push_token: ${{ secrets.AUTO_IMPLEMENT_GITHUB_PUSH_TOKEN }}
           github_allowed_trigger_min_permission: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION }}
           github_allowed_trigger_team: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM }}
           # Skip acceptance tests in verify (they need HOOKDECK_CLI_TESTING_API_KEY); unit tests use -short
