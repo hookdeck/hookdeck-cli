@@ -26,7 +26,6 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      actions: write  # trigger test workflow on PR branch so checks appear (PRs created by bot may not trigger pull_request)
       # To allow push when implement touches .github/workflows/*: repo Settings → Actions → General →
       # "Allow GitHub Actions to create and approve pull requests" (or use a PAT with workflow scope). No workflows: key in workflow syntax.
       # read:org only needed if using team check (AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM)
@@ -40,6 +39,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.AUTO_IMPLEMENT_ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          push_token: ${{ secrets.AUTO_IMPLEMENT_PUSH_TOKEN }}
           github_allowed_trigger_min_permission: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_MIN_PERMISSION }}
           github_allowed_trigger_team: ${{ vars.AUTO_IMPLEMENT_ALLOWED_TRIGGER_TEAM }}
           # Skip acceptance tests in verify (they need HOOKDECK_CLI_TESTING_API_KEY); unit tests use -short
