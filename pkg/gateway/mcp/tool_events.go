@@ -57,7 +57,7 @@ func eventsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultWithProjectID(result, client.ProjectID)
 }
 
 func eventsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {

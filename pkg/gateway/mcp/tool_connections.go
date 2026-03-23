@@ -55,7 +55,7 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in input) (*m
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultWithProjectID(result, client.ProjectID)
 }
 
 func connectionsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {

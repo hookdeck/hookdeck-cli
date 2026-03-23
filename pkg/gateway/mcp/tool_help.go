@@ -35,6 +35,9 @@ func helpOverview(client *hookdeck.Client) *mcpsdk.CallToolResult {
 
 Current project: %s
 
+All tools operate on the active project. Call hookdeck_projects first when the user
+references a project by name, or when unsure which project is active.
+
 hookdeck_projects        — List or switch projects (actions: list, use)
 hookdeck_connections     — Inspect connections and control delivery flow (actions: list, get, pause, unpause)
 hookdeck_sources         — Inspect inbound sources (actions: list, get)
@@ -55,6 +58,12 @@ Use hookdeck_help with topic="<tool_name>" for detailed help on a specific tool.
 var toolHelp = map[string]string{
 	"hookdeck_projects": `hookdeck_projects — List or switch the active project
 
+Always call this first when the user references a specific project by name. List available
+projects to find the matching project ID, then use the "use" action to switch to it before
+calling any other tools. All queries (events, issues, connections, metrics, requests) are
+scoped to the active project — if the wrong project is active, all results will be wrong.
+Also use this when unsure which project is currently active.
+
 Actions:
   list  — List all projects. Returns id, org, project, type (gateway/outpost/console), and which is current. Outbound projects are excluded.
   use   — Switch the active project for this session (in-memory only).
@@ -64,6 +73,8 @@ Parameters:
   project_id  (string)           — Required for "use" action`,
 
 	"hookdeck_connections": `hookdeck_connections — Inspect connections and control delivery flow
+
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
 Actions:
   list    — List connections with optional filters
@@ -122,6 +133,8 @@ Parameters:
 
 	"hookdeck_requests": `hookdeck_requests — Query inbound requests
 
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
+
 Actions:
   list           — List requests with optional filters
   get            — Get a single request by ID
@@ -140,6 +153,8 @@ Parameters:
   next/prev       (string)           — Pagination cursors (list)`,
 
 	"hookdeck_events": `hookdeck_events — Query events (processed deliveries)
+
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
 Actions:
   list     — List events with optional filters
@@ -180,6 +195,8 @@ Parameters:
 
 	"hookdeck_issues": `hookdeck_issues — Inspect aggregated failure signals
 
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
+
 Actions:
   list — List issues with optional filters
   get  — Get a single issue by ID
@@ -196,6 +213,8 @@ Parameters:
   next/prev        (string)           — Pagination cursors (list)`,
 
 	"hookdeck_metrics": `hookdeck_metrics — Query aggregate metrics
+
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
 Actions:
   events          — Event metrics (auto-routes to queue-depth, pending, or by-issue as needed)
@@ -217,6 +236,9 @@ Parameters:
   issue_id       (string)             — Filter by issue (events only)`,
 
 	"hookdeck_help": `hookdeck_help — Get an overview of available tools or detailed help for a specific tool
+
+Note: all tools operate on the active project — use hookdeck_projects to verify or switch
+project context before querying.
 
 Parameters:
   topic  (string) — Tool name for detailed help (e.g. "hookdeck_events"). Omit for overview.`,
