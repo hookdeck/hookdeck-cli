@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
@@ -122,6 +124,15 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.
 			// Update the shared client so all resource tools start working.
 			client.APIKey = response.APIKey
 			client.ProjectID = response.ProjectID
+			org, proj, err := project.ParseProjectName(response.ProjectName)
+			if err != nil {
+				org, proj = "", response.ProjectName
+			}
+			if o := strings.TrimSpace(response.OrganizationName); o != "" {
+				org = o
+			}
+			client.ProjectOrg = org
+			client.ProjectName = proj
 
 			// Remove the login tool now that auth is complete.
 			mcpServer.RemoveTools("hookdeck_login")

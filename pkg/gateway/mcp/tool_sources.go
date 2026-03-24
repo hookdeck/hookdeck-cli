@@ -43,7 +43,7 @@ func sourcesList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsd
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func sourcesGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -55,5 +55,5 @@ func sourcesGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(source)
+	return JSONResultEnvelopeForClient(source, client)
 }

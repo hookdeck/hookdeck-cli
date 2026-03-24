@@ -95,7 +95,7 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResultWithProjectID(result, client.ProjectID)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func metricsRequests(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -107,7 +107,7 @@ func metricsRequests(ctx context.Context, client *hookdeck.Client, in input) (*m
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResultWithProjectID(result, client.ProjectID)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func metricsAttempts(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -119,7 +119,7 @@ func metricsAttempts(ctx context.Context, client *hookdeck.Client, in input) (*m
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResultWithProjectID(result, client.ProjectID)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func metricsTransformations(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -131,5 +131,5 @@ func metricsTransformations(ctx context.Context, client *hookdeck.Client, in inp
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResultWithProjectID(result, client.ProjectID)
+	return JSONResultEnvelopeForClient(result, client)
 }

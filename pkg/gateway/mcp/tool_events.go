@@ -57,7 +57,7 @@ func eventsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResultWithProjectID(result, client.ProjectID)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func eventsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -69,7 +69,7 @@ func eventsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(event)
+	return JSONResultEnvelopeForClient(event, client)
 }
 
 func eventsRawBody(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -85,6 +85,6 @@ func eventsRawBody(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 	if len(body) > maxRawBodyBytes {
 		text = string(body[:maxRawBodyBytes]) + "\n... [truncated]"
 	}
-	return JSONResult(map[string]string{"raw_body": text})
+	return JSONResultEnvelopeForClient(map[string]string{"raw_body": text}, client)
 }
 
