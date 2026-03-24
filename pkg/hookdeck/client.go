@@ -49,6 +49,14 @@ type Client struct {
 
 	ProjectID string
 
+	// ProjectOrg is the organization segment for the active project (MCP meta),
+	// when applicable. Not sent on API requests.
+	ProjectOrg string
+
+	// ProjectName is the short project name (not including org). Used for MCP
+	// meta and display composition with ProjectOrg. Not sent on API requests.
+	ProjectName string
+
 	// When this is enabled, request and response headers will be printed to
 	// stdout.
 	Verbose bool
@@ -79,6 +87,8 @@ func (c *Client) WithTelemetry(t *CLITelemetry) *Client {
 		BaseURL:                 c.BaseURL,
 		APIKey:                  c.APIKey,
 		ProjectID:               c.ProjectID,
+		ProjectOrg:              c.ProjectOrg,
+		ProjectName:             c.ProjectName,
 		Verbose:                 c.Verbose,
 		SuppressRateLimitErrors: c.SuppressRateLimitErrors,
 		Telemetry:               t,
