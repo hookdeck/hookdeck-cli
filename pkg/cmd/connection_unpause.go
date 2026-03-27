@@ -22,7 +22,14 @@ func newConnectionUnpauseCmd() *connectionUnpauseCmd {
 		Short: "Resume a paused connection",
 		Long: `Resume a paused connection.
 
-The connection will start processing queued events.`,
+The connection will start processing queued events.
+
+Examples:
+	 # Unpause by connection ID
+	 hookdeck gateway connection unpause web_abc123
+
+	 # Unpause by connection name
+	 hookdeck gateway connection unpause my-connection`,
 		RunE: cc.runConnectionUnpauseCmd,
 	}
 	cc.cmd.Annotations = map[string]string{

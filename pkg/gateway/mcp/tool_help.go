@@ -67,7 +67,7 @@ Parameters:
 
 Actions:
   list    — List connections with optional filters
-  get     — Get a single connection by ID
+  get     — Get a single connection by ID or name
   pause   — Pause a connection (stops event delivery)
   unpause — Resume a paused connection
 

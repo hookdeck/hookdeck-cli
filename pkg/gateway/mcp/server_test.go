@@ -82,8 +82,9 @@ func callTool(t *testing.T, session *mcpsdk.ClientSession, name string, args map
 // listResponse returns a standard paginated API response.
 func listResponse(models ...map[string]any) map[string]any {
 	return map[string]any{
-		"models":     models,
-		"pagination": map[string]any{},
+		"models": models,
+		// limit must be non-zero so connection name resolution (ListConnections) is not treated as empty
+		"pagination": map[string]any{"limit": 100},
 	}
 }
 
@@ -377,16 +378,38 @@ func TestConnectionsGet_Success(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "web_conn1")
 }
 
+func TestConnectionsGet_ByName(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "GET", r.Method)
+			assert.Equal(t, "stripe-to-backend", r.URL.Query().Get("name"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
+		},
+		"/2025-07-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "GET", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "get", "id": "stripe-to-backend"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "web_conn1")
+}
+
 func TestConnectionsGet_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "get"})
 	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
+	assert.Contains(t, textContent(t, result), "id or name is required")
 }
 
 func TestConnectionsPause_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "GET", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
+		},
 		"/2025-07-01/connections/web_conn1/pause": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "PUT", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "paused_at": "2025-01-01T00:00:00Z"})
@@ -398,16 +421,38 @@ func TestConnectionsPause_Success(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "web_conn1")
 }
 
+func TestConnectionsPause_ByName(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "GET", r.Method)
+			assert.Equal(t, "stripe-to-backend", r.URL.Query().Get("name"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
+		},
+		"/2025-07-01/connections/web_conn1/pause": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "PUT", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "paused_at": "2025-01-01T00:00:00Z"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "pause", "id": "stripe-to-backend"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "web_conn1")
+}
+
 func TestConnectionsPause_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "pause"})
 	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
+	assert.Contains(t, textContent(t, result), "id or name is required")
 }
 
 func TestConnectionsUnpause_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "GET", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
+		},
 		"/2025-07-01/connections/web_conn1/unpause": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "PUT", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1"})
@@ -419,12 +464,30 @@ func TestConnectionsUnpause_Success(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "web_conn1")
 }
 
+func TestConnectionsUnpause_ByName(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/connections": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "GET", r.Method)
+			assert.Equal(t, "stripe-to-backend", r.URL.Query().Get("name"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
+		},
+		"/2025-07-01/connections/web_conn1/unpause": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "PUT", r.Method)
+			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "unpause", "id": "stripe-to-backend"})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "web_conn1")
+}
+
 func TestConnectionsUnpause_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "unpause"})
 	assert.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "id is required")
+	assert.Contains(t, textContent(t, result), "id or name is required")
 }
 
 func TestConnectionsTool_UnknownAction(t *testing.T) {

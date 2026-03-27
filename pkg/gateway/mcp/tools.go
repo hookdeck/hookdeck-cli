@@ -33,7 +33,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_connections",
-				Description: "Inspect connections (routes linking sources to destinations). List connections with filters, get details by ID, or pause/unpause a connection's delivery pipeline.",
+				Description: "Inspect connections (routes linking sources to destinations). List connections with filters, get details by ID or name, or pause/unpause a connection's delivery pipeline.",
 				InputSchema: schema(map[string]prop{
 					"action":         {Type: "string", Desc: "Action: list, get, pause, or unpause", Enum: []string{"list", "get", "pause", "unpause"}},
 					"id":             {Type: "string", Desc: "Connection ID or name (required for get/pause/unpause)"},

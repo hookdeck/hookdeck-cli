@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -60,9 +61,13 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in input) (*m
 }
 
 func connectionsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return ErrorResult("id is required for the get action"), nil
+	idOrName := in.String("id")
+	if idOrName == "" {
+		return ErrorResult("id or name is required for the get action"), nil
+	}
+	id, err := resolveMCPConnectionID(ctx, client, idOrName)
+	if err != nil {
+		return ErrorResult(err.Error()), nil
 	}
 	conn, err := client.GetConnection(ctx, id)
 	if err != nil {
@@ -74,7 +79,7 @@ func connectionsGet(ctx context.Context, client *hookdeck.Client, in input) (*mc
 func connectionsPause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
 	idOrName := in.String("id")
 	if idOrName == "" {
-		return ErrorResult("id is required for the pause action (connection ID or name)"), nil
+		return ErrorResult("id or name is required for the pause action"), nil
 	}
 	id, err := resolveMCPConnectionID(ctx, client, idOrName)
 	if err != nil {
@@ -90,7 +95,7 @@ func connectionsPause(ctx context.Context, client *hookdeck.Client, in input) (*
 func connectionsUnpause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
 	idOrName := in.String("id")
 	if idOrName == "" {
-		return ErrorResult("id is required for the unpause action (connection ID or name)"), nil
+		return ErrorResult("id or name is required for the unpause action"), nil
 	}
 	id, err := resolveMCPConnectionID(ctx, client, idOrName)
 	if err != nil {
@@ -113,14 +118,14 @@ func resolveMCPConnectionID(ctx context.Context, client *hookdeck.Client, idOrNa
 			return idOrName, nil
 		}
 		if !hookdeck.IsNotFoundError(err) {
-			return "", fmt.Errorf("failed to get connection: %w", err)
+			return "", errors.New(TranslateAPIError(err))
 		}
 	}
 
 	params := map[string]string{"name": idOrName}
 	result, err := client.ListConnections(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("failed to lookup connection by name '%s': %w", idOrName, err)
+		return "", errors.New(TranslateAPIError(err))
 	}
 	if result.Pagination.Limit == 0 || len(result.Models) == 0 {
 		return "", fmt.Errorf("connection not found: '%s'", idOrName)

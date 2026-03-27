@@ -22,7 +22,14 @@ func newConnectionPauseCmd() *connectionPauseCmd {
 		Short: "Pause a connection temporarily",
 		Long: `Pause a connection temporarily.
 
-The connection will queue incoming events until unpaused.`,
+The connection will queue incoming events until unpaused.
+
+Examples:
+	 # Pause by connection ID
+	 hookdeck gateway connection pause web_abc123
+
+	 # Pause by connection name
+	 hookdeck gateway connection pause my-connection`,
 		RunE: cc.runConnectionPauseCmd,
 	}
 	cc.cmd.Annotations = map[string]string{
