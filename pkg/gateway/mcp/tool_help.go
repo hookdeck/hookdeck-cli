@@ -117,13 +117,13 @@ Results are scoped to the active project — call hookdeck_projects first if the
 
 Actions:
   list    — List connections with optional filters
-  get     — Get a single connection by ID
+  get     — Get a single connection by ID or name
   pause   — Pause a connection (stops event delivery)
   unpause — Resume a paused connection
 
 Parameters:
   action         (string, required) — list, get, pause, or unpause
-  id             (string)           — Required for get/pause/unpause
+  id             (string)           — Connection ID or name (required for get/pause/unpause)
   name           (string)           — Filter by name (list)
   source_id      (string)           — Filter by source (list)
   destination_id (string)           — Filter by destination (list)

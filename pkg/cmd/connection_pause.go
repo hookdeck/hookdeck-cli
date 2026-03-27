@@ -17,16 +17,23 @@ func newConnectionPauseCmd() *connectionPauseCmd {
 	cc := &connectionPauseCmd{}
 
 	cc.cmd = &cobra.Command{
-		Use:   "pause <connection-id>",
+		Use:   "pause <connection-id-or-name>",
 		Args:  validators.ExactArgs(1),
 		Short: "Pause a connection temporarily",
 		Long: `Pause a connection temporarily.
 
-The connection will queue incoming events until unpaused.`,
+The connection will queue incoming events until unpaused.
+
+Examples:
+	 # Pause by connection ID
+	 hookdeck gateway connection pause web_abc123
+
+	 # Pause by connection name
+	 hookdeck gateway connection pause my-connection`,
 		RunE: cc.runConnectionPauseCmd,
 	}
 	cc.cmd.Annotations = map[string]string{
-		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+		"cli.arguments": `[{"name":"connection-id-or-name","type":"string","description":"Connection ID or name","required":true}]`,
 	}
 
 	return cc
@@ -40,7 +47,12 @@ func (cc *connectionPauseCmd) runConnectionPauseCmd(cmd *cobra.Command, args []s
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	conn, err := client.PauseConnection(ctx, args[0])
+	id, err := resolveConnectionID(ctx, client, args[0])
+	if err != nil {
+		return err
+	}
+
+	conn, err := client.PauseConnection(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to pause connection: %w", err)
 	}

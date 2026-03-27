@@ -115,6 +115,65 @@ func TestConnectionGetByName(t *testing.T) {
 	t.Logf("Successfully tested connection get by both ID (%s) and name (%s)", createResp.ID, connName)
 }
 
+// TestConnectionPauseUnpauseByName tests pause and unpause using connection name (same resolution as get).
+func TestConnectionPauseUnpauseByName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	connName := "test-pause-by-name-" + timestamp
+	sourceName := "test-src-pause-" + timestamp
+	destName := "test-dst-pause-" + timestamp
+
+	var createResp Connection
+	err := cli.RunJSON(&createResp,
+		"gateway", "connection", "create",
+		"--name", connName,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", destName,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+	)
+	require.NoError(t, err, "Should create test connection")
+	require.NotEmpty(t, createResp.ID, "Connection should have an ID")
+
+	t.Cleanup(func() {
+		deleteConnection(t, cli, createResp.ID)
+	})
+
+	// Pause by name
+	stdout, stderr, err := cli.Run("gateway", "connection", "pause", connName)
+	require.NoError(t, err, "pause by name should succeed: stderr=%s", stderr)
+	assert.Contains(t, stdout+stderr, "paused", "output should indicate paused state")
+
+	var afterPause map[string]interface{}
+	err = cli.RunJSON(&afterPause, "gateway", "connection", "get", connName)
+	require.NoError(t, err, "get after pause should succeed")
+	if v, ok := afterPause["paused_at"]; ok && v != nil {
+		assert.NotNil(t, v, "paused_at should be set when connection is paused")
+	} else {
+		t.Fatal("expected paused_at in get JSON after pause")
+	}
+
+	// Unpause by name
+	stdout, stderr, err = cli.Run("gateway", "connection", "unpause", connName)
+	require.NoError(t, err, "unpause by name should succeed: stderr=%s", stderr)
+	assert.Contains(t, stdout+stderr, "unpaused", "output should indicate unpaused state")
+
+	var afterUnpause map[string]interface{}
+	err = cli.RunJSON(&afterUnpause, "gateway", "connection", "get", connName)
+	require.NoError(t, err, "get after unpause should succeed")
+	if v, ok := afterUnpause["paused_at"]; ok && v != nil {
+		t.Fatalf("expected paused_at cleared after unpause, got %v", v)
+	}
+
+	t.Logf("Successfully paused and unpaused connection by name: %s", connName)
+}
+
 // TestConnectionGetNotFound tests error handling for non-existent connections
 func TestConnectionGetNotFound(t *testing.T) {
 	if testing.Short() {
