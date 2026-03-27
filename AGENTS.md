@@ -249,6 +249,12 @@ Commands that need network (e.g. `git push`, `gh pr create`, `npm install`) or f
 
 **Prefer requesting elevated permissions** (e.g. `required_permissions: ["all"]` or `["network"]`) and asking the user to approve so the agent can retry the command. Do not default to prompting the user to run commands themselves when elevation is available. Only fall back to copy-pasteable commands when elevated permissions are not an option.
 
+### Git commits (GPG)
+
+**Always use GPG-signed commits** (`git commit -S`, or `commit.gpgsign=true` in git config). **Do not** use `--no-gpg-sign` to bypass signing.
+
+In restricted environments, signing may fail with errors like “No agent running” or “Operation not permitted” on `~/.gnupg`. **Re-run the commit with full permissions** so `gpg-agent` is reachable, or sign from a normal local terminal. Unsigned commits should not be pushed as a shortcut.
+
 ### Linting and Formatting
 ```bash
 # Format code

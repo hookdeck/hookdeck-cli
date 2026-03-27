@@ -45,7 +45,7 @@ func attemptsList(ctx context.Context, client *hookdeck.Client, in input) (*mcps
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func attemptsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -57,5 +57,5 @@ func attemptsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsd
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(attempt)
+	return JSONResultEnvelopeForClient(attempt, client)
 }

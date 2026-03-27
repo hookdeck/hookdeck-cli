@@ -61,7 +61,7 @@ func requestsList(ctx context.Context, client *hookdeck.Client, in input) (*mcps
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func requestsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -73,7 +73,7 @@ func requestsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsd
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(r)
+	return JSONResultEnvelopeForClient(r, client)
 }
 
 func requestsRawBody(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -89,7 +89,7 @@ func requestsRawBody(ctx context.Context, client *hookdeck.Client, in input) (*m
 	if len(body) > maxRawBodyBytes {
 		text = string(body[:maxRawBodyBytes]) + "\n... [truncated]"
 	}
-	return JSONResult(map[string]string{"raw_body": text})
+	return JSONResultEnvelopeForClient(map[string]string{"raw_body": text}, client)
 }
 
 func requestsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -101,7 +101,7 @@ func requestsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mc
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func requestsIgnoredEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -113,6 +113,6 @@ func requestsIgnoredEvents(ctx context.Context, client *hookdeck.Client, in inpu
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultEnvelopeForClient(result, client)
 }
 

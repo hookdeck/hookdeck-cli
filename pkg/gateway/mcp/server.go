@@ -105,6 +105,8 @@ func (s *Server) wrapWithTelemetry(toolName string, handler mcpsdk.ToolHandler) 
 		}
 		defer func() { s.client.Telemetry = nil }()
 
+		fillProjectDisplayNameIfNeeded(s.client)
+
 		return handler(ctx, req)
 	}
 }
