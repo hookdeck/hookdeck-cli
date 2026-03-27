@@ -17,7 +17,7 @@ func newConnectionUnpauseCmd() *connectionUnpauseCmd {
 	cc := &connectionUnpauseCmd{}
 
 	cc.cmd = &cobra.Command{
-		Use:   "unpause <connection-id>",
+		Use:   "unpause <connection-id-or-name>",
 		Args:  validators.ExactArgs(1),
 		Short: "Resume a paused connection",
 		Long: `Resume a paused connection.
@@ -26,7 +26,7 @@ The connection will start processing queued events.`,
 		RunE: cc.runConnectionUnpauseCmd,
 	}
 	cc.cmd.Annotations = map[string]string{
-		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
+		"cli.arguments": `[{"name":"connection-id-or-name","type":"string","description":"Connection ID or name","required":true}]`,
 	}
 
 	return cc
@@ -40,7 +40,12 @@ func (cc *connectionUnpauseCmd) runConnectionUnpauseCmd(cmd *cobra.Command, args
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	conn, err := client.UnpauseConnection(ctx, args[0])
+	id, err := resolveConnectionID(ctx, client, args[0])
+	if err != nil {
+		return err
+	}
+
+	conn, err := client.UnpauseConnection(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to unpause connection: %w", err)
 	}

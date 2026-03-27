@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -71,9 +72,13 @@ func connectionsGet(ctx context.Context, client *hookdeck.Client, in input) (*mc
 }
 
 func connectionsPause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return ErrorResult("id is required for the pause action"), nil
+	idOrName := in.String("id")
+	if idOrName == "" {
+		return ErrorResult("id is required for the pause action (connection ID or name)"), nil
+	}
+	id, err := resolveMCPConnectionID(ctx, client, idOrName)
+	if err != nil {
+		return ErrorResult(err.Error()), nil
 	}
 	conn, err := client.PauseConnection(ctx, id)
 	if err != nil {
@@ -83,13 +88,45 @@ func connectionsPause(ctx context.Context, client *hookdeck.Client, in input) (*
 }
 
 func connectionsUnpause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return ErrorResult("id is required for the unpause action"), nil
+	idOrName := in.String("id")
+	if idOrName == "" {
+		return ErrorResult("id is required for the unpause action (connection ID or name)"), nil
+	}
+	id, err := resolveMCPConnectionID(ctx, client, idOrName)
+	if err != nil {
+		return ErrorResult(err.Error()), nil
 	}
 	conn, err := client.UnpauseConnection(ctx, id)
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
 	return JSONResult(conn)
+}
+
+// resolveMCPConnectionID resolves a connection ID or name to an ID.
+// If the value looks like an ID (starts with conn_ or web_), it is returned as-is after
+// verifying it exists; otherwise a name lookup is performed.
+func resolveMCPConnectionID(ctx context.Context, client *hookdeck.Client, idOrName string) (string, error) {
+	if strings.HasPrefix(idOrName, "conn_") || strings.HasPrefix(idOrName, "web_") {
+		_, err := client.GetConnection(ctx, idOrName)
+		if err == nil {
+			return idOrName, nil
+		}
+		if !hookdeck.IsNotFoundError(err) {
+			return "", fmt.Errorf("failed to get connection: %w", err)
+		}
+	}
+
+	params := map[string]string{"name": idOrName}
+	result, err := client.ListConnections(ctx, params)
+	if err != nil {
+		return "", fmt.Errorf("failed to lookup connection by name '%s': %w", idOrName, err)
+	}
+	if result.Pagination.Limit == 0 || len(result.Models) == 0 {
+		return "", fmt.Errorf("connection not found: '%s'", idOrName)
+	}
+	if len(result.Models) > 1 {
+		return "", fmt.Errorf("multiple connections found with name '%s', please use the connection ID instead", idOrName)
+	}
+	return result.Models[0].ID, nil
 }

@@ -36,7 +36,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 				Description: "Inspect connections (routes linking sources to destinations). List connections with filters, get details by ID, or pause/unpause a connection's delivery pipeline.",
 				InputSchema: schema(map[string]prop{
 					"action":         {Type: "string", Desc: "Action: list, get, pause, or unpause", Enum: []string{"list", "get", "pause", "unpause"}},
-					"id":             {Type: "string", Desc: "Connection ID (required for get/pause/unpause)"},
+					"id":             {Type: "string", Desc: "Connection ID or name (required for get/pause/unpause)"},
 					"name":           {Type: "string", Desc: "Filter by name (list)"},
 					"source_id":      {Type: "string", Desc: "Filter by source ID (list)"},
 					"destination_id": {Type: "string", Desc: "Filter by destination ID (list)"},
