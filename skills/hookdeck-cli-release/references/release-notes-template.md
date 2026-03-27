@@ -2,29 +2,31 @@
 
 Copy and fill in for the GitHub release description (e.g. write into the temp file used with `gh release create --notes-file`). Adjust heading levels (`##` vs `###`) to match recent GA style (v2.0.0 used `###` subsections) or smaller patch style (v1.9.x used `##`).
 
+**Do not include a section if there is nothing to say** — omit the heading entirely (do not add “Breaking changes” with “None”, empty “Fixes”, etc.). Typical releases only need a subset of the sections below.
+
 ## Summary
 
 <!-- 2–4 sentences: who benefits, scope since previous tag (e.g. since `v1.9.1`). -->
 
 ## Breaking changes / migration
 
-<!-- Omit or state "None" for patch releases if accurate. For each item: what changed, why, what users must update (scripts, flags, CI). -->
+<!-- Include only when users must change scripts, configs, or habits. For each item: what changed, why, what to update (scripts, flags, CI). Omit this whole section when there are no breaking changes. -->
 
 ## New features
 
-<!-- Group by area/command. User-facing language; mention important flags. -->
+<!-- Include when shipping user-visible capability. Group by area/command; mention important flags. Omit if nothing applies. -->
 
 ## Fixes
 
-<!-- Optional: merge into "Improvements" for tiny releases. -->
+<!-- Omit if no fixes, or merge into Improvements for tiny releases. -->
 
 ## Improvements / behavior changes
 
-<!-- UX, defaults, performance, reliability visible to users. -->
+<!-- UX, defaults, performance, reliability visible to users. Omit if nothing applies. -->
 
 ## Internal / reliability / infrastructure
 
-<!-- Optional: refactors, test/CI, dependency bumps with low user-visible impact. -->
+<!-- Refactors, test/CI, dependency bumps with low user-visible impact. Omit if nothing worth mentioning. -->
 
 ## Contributors (optional)
 

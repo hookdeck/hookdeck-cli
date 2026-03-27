@@ -136,11 +136,13 @@ The user may suggest a tag (e.g. `v2.0.1`). **Always sanity-check it** against w
 
 Use **[references/release-notes-template.md](references/release-notes-template.md)** as a starting skeleton.
 
+**Sections:** Include only headings that have real content — **omit** empty sections (e.g. do not add “Breaking changes” with “None”).
+
 **Patterns observed in this repo:**
 
-- **Large GA (e.g. v2.0.0):** `Summary` → `Breaking changes / migration` → `New features` (subsections per area) → `Improvements / behavior changes` → optional `Internal`.
+- **Large GA (e.g. v2.0.0):** `Summary`, then as needed: `Breaking changes / migration`, `New features` (subsections per area), `Improvements / behavior changes`, `Internal` — skip any block with nothing to say.
 - **Feature release (e.g. v1.9.0):** `## Features` with detailed bullets + **Full Changelog** compare link.
-- **Patch (e.g. v1.9.1):** `## Fixes`, `## Updates`, PR links with authors + **Full Changelog**.
+- **Patch (e.g. v1.9.1):** `## Fixes`, `## Updates`, PR links with authors + **Full Changelog** — omit unused sections.
 
 Always include a **Full Changelog** line:
 
