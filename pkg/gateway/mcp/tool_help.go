@@ -25,15 +25,56 @@ func handleHelp(client *hookdeck.Client) mcpsdk.ToolHandler {
 	}
 }
 
-func helpOverview(client *hookdeck.Client) *mcpsdk.CallToolResult {
-	projectInfo := "not set"
-	if client.ProjectID != "" {
-		projectInfo = client.ProjectID
+// formatCurrentProject builds a display label from org + short name (or a legacy
+// combined ProjectName), and appends the project id in parentheses when set.
+func formatCurrentProject(client *hookdeck.Client) string {
+	if client.ProjectID == "" && client.ProjectName == "" && client.ProjectOrg == "" {
+		return "not set"
 	}
+	var label string
+	switch {
+	case client.ProjectOrg != "" && client.ProjectName != "":
+		label = client.ProjectOrg + " / " + client.ProjectName
+	case client.ProjectName != "":
+		label = client.ProjectName
+	case client.ProjectOrg != "":
+		label = client.ProjectOrg
+	}
+	if client.ProjectID != "" {
+		if label != "" {
+			return fmt.Sprintf("%s (%s)", label, client.ProjectID)
+		}
+		return client.ProjectID
+	}
+	return label
+}
+
+// mcpJSONSuccessResponseHelp documents the envelope returned by every resource tool.
+// Keep in sync with JSONResultEnvelope in response.go.
+const mcpJSONSuccessResponseHelp = `Common JSON response shape (all resource tools)
+Successful tool calls that return JSON share one envelope. Parse the tool result body as JSON:
+
+  • "data" — Domain payload for this tool and action (same shapes as Hookdeck list/get APIs,
+    or { "raw_body": "..." } for raw_body actions, or { "projects": [...] } for hookdeck_projects list).
+  • "meta" — Cross-cutting fields. When a Hookdeck project is in scope: "active_project_id" (string)
+    and "active_project_name" (string, short name without org) are always present; name may be "" if
+    unresolved. "active_project_org" (string) is included when known; omitted when empty.
+    If no project id is set, "meta" is {}.
+
+Plain text (not this shape): hookdeck_help text, hookdeck_login prompts, and error messages.
+Errors use the host error flag; bodies are plain text, not JSON envelopes.`
+
+func helpOverview(client *hookdeck.Client) *mcpsdk.CallToolResult {
+	projectInfo := formatCurrentProject(client)
 
 	text := fmt.Sprintf(`Hookdeck MCP Server — Available Tools
 
 Current project: %s
+
+%s
+
+All tools operate on the active project. Call hookdeck_projects first when the user
+references a project by name, or when unsure which project is active.
 
 hookdeck_projects        — List or switch projects (actions: list, use)
 hookdeck_connections     — Inspect connections and control delivery flow (actions: list, get, pause, unpause)
@@ -47,7 +88,8 @@ hookdeck_issues          — Inspect aggregated failure signals (actions: list, 
 hookdeck_metrics         — Query aggregate metrics (actions: events, requests, attempts, transformations)
 hookdeck_help            — This help text
 
-Use hookdeck_help with topic="<tool_name>" for detailed help on a specific tool.`, projectInfo)
+Use hookdeck_help with topic="<tool_name>" for detailed help on a specific tool; each topic
+repeats the common JSON response shape above for convenience.`, projectInfo, mcpJSONSuccessResponseHelp)
 
 	return TextResult(text)
 }
@@ -55,8 +97,14 @@ Use hookdeck_help with topic="<tool_name>" for detailed help on a specific tool.
 var toolHelp = map[string]string{
 	"hookdeck_projects": `hookdeck_projects — List or switch the active project
 
+Always call this first when the user references a specific project by name. List available
+projects to find the matching project ID, then use the "use" action to switch to it before
+calling any other tools. All queries (events, issues, connections, metrics, requests) are
+scoped to the active project — if the wrong project is active, all results will be wrong.
+Also use this when unsure which project is currently active.
+
 Actions:
-  list  — List all projects. Returns id, org, project, type (gateway/outpost/console), and which is current. Outbound projects are excluded.
+  list  — List all projects. data.projects is the array (id, org, project, type gateway/outpost/console, current). meta includes active_project_id, active_project_name (short), and active_project_org when known. Outbound projects are excluded.
   use   — Switch the active project for this session (in-memory only).
 
 Parameters:
@@ -64,6 +112,8 @@ Parameters:
   project_id  (string)           — Required for "use" action`,
 
 	"hookdeck_connections": `hookdeck_connections — Inspect connections and control delivery flow
+
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
 Actions:
   list    — List connections with optional filters
@@ -122,6 +172,8 @@ Parameters:
 
 	"hookdeck_requests": `hookdeck_requests — Query inbound requests
 
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
+
 Actions:
   list           — List requests with optional filters
   get            — Get a single request by ID
@@ -140,6 +192,8 @@ Parameters:
   next/prev       (string)           — Pagination cursors (list)`,
 
 	"hookdeck_events": `hookdeck_events — Query events (processed deliveries)
+
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
 Actions:
   list     — List events with optional filters
@@ -180,6 +234,8 @@ Parameters:
 
 	"hookdeck_issues": `hookdeck_issues — Inspect aggregated failure signals
 
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
+
 Actions:
   list — List issues with optional filters
   get  — Get a single issue by ID
@@ -196,6 +252,8 @@ Parameters:
   next/prev        (string)           — Pagination cursors (list)`,
 
 	"hookdeck_metrics": `hookdeck_metrics — Query aggregate metrics
+
+Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
 Actions:
   events          — Event metrics (auto-routes to queue-depth, pending, or by-issue as needed)
@@ -218,6 +276,9 @@ Parameters:
 
 	"hookdeck_help": `hookdeck_help — Get an overview of available tools or detailed help for a specific tool
 
+Note: all tools operate on the active project — use hookdeck_projects to verify or switch
+project context before querying.
+
 Parameters:
   topic  (string) — Tool name for detailed help (e.g. "hookdeck_events"). Omit for overview.`,
 }
@@ -229,7 +290,7 @@ func helpTopic(topic string) *mcpsdk.CallToolResult {
 	}
 	text, ok := toolHelp[topic]
 	if ok {
-		return TextResult(text)
+		return TextResult(text + "\n\n" + mcpJSONSuccessResponseHelp)
 	}
 
 	// If the topic doesn't match a tool name exactly, it may be a natural

@@ -17,6 +17,8 @@ func TestWithTelemetry(t *testing.T) {
 		BaseURL:                 baseURL,
 		APIKey:                  "test-key",
 		ProjectID:               "proj-123",
+		ProjectOrg:              "Acme",
+		ProjectName:             "prod",
 		Verbose:                 true,
 		SuppressRateLimitErrors: true,
 		TelemetryDisabled:       false,
@@ -43,6 +45,8 @@ func TestWithTelemetry(t *testing.T) {
 	require.Equal(t, original.BaseURL, cloned.BaseURL)
 	require.Equal(t, original.APIKey, cloned.APIKey)
 	require.Equal(t, original.ProjectID, cloned.ProjectID)
+	require.Equal(t, original.ProjectOrg, cloned.ProjectOrg)
+	require.Equal(t, original.ProjectName, cloned.ProjectName)
 	require.Equal(t, original.Verbose, cloned.Verbose)
 	require.Equal(t, original.SuppressRateLimitErrors, cloned.SuppressRateLimitErrors)
 	require.Equal(t, original.TelemetryDisabled, cloned.TelemetryDisabled)

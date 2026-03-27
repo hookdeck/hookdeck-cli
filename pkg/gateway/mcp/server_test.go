@@ -375,7 +375,11 @@ func TestConnectionsGet_Success(t *testing.T) {
 
 	result := callTool(t, session, "hookdeck_connections", map[string]any{"action": "get", "id": "web_conn1"})
 	assert.False(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "web_conn1")
+	text := textContent(t, result)
+	assert.Contains(t, text, "web_conn1")
+	assert.Contains(t, text, `"data"`)
+	assert.Contains(t, text, `"meta"`)
+	assert.Contains(t, text, `"active_project_id"`)
 }
 
 func TestConnectionsGet_ByName(t *testing.T) {
@@ -880,10 +884,15 @@ func TestProjectsList_Success(t *testing.T) {
 	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "list"})
 	assert.False(t, result.IsError)
 	text := textContent(t, result)
+	assert.Contains(t, text, `"data"`)
+	assert.Contains(t, text, `"meta"`)
+	assert.Contains(t, text, `"projects"`)
 	assert.Contains(t, text, "Production")
 	assert.Contains(t, text, "Staging")
 	// Current project should be marked
 	assert.Contains(t, text, "proj_test123")
+	// newTestClient sets ProjectID — scope lives in meta.active_project_*
+	assert.Contains(t, text, `"active_project_id"`)
 }
 
 func TestProjectsUse_Success(t *testing.T) {
@@ -902,6 +911,7 @@ func TestProjectsUse_Success(t *testing.T) {
 	assert.Contains(t, text, "proj_new")
 	assert.Contains(t, text, "Staging")
 	assert.Contains(t, text, "ok")
+	assert.Contains(t, text, `"active_project_id"`)
 }
 
 func TestProjectsUse_MissingProjectID(t *testing.T) {

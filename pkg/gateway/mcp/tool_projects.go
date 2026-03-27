@@ -60,7 +60,9 @@ func projectsList(client *hookdeck.Client) (*mcpsdk.CallToolResult, error) {
 			Current: it.Current,
 		}
 	}
-	return JSONResult(entries)
+	return JSONResultEnvelopeForClient(map[string]any{
+		"projects": entries,
+	}, client)
 }
 
 func projectsUse(client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -87,15 +89,17 @@ func projectsUse(client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, err
 	}
 
 	client.ProjectID = id
+	client.ProjectOrg = found.Org
+	client.ProjectName = found.Project
 
-	displayName := found.Project
-	if found.Org != "" {
-		displayName = found.Org + " / " + found.Project
-	}
-	return JSONResult(map[string]string{
+	out := map[string]string{
 		"project_id":   id,
-		"project_name": displayName,
+		"project_name": found.Project,
 		"type":         config.ProjectTypeToJSON(found.Type),
 		"status":       "ok",
-	})
+	}
+	if found.Org != "" {
+		out["project_org"] = found.Org
+	}
+	return JSONResultEnvelopeForClient(out, client)
 }

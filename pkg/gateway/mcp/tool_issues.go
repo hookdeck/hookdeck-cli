@@ -47,7 +47,7 @@ func issuesList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func issuesGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -59,6 +59,6 @@ func issuesGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(issue)
+	return JSONResultEnvelopeForClient(issue, client)
 }
 

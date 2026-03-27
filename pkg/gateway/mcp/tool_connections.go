@@ -57,7 +57,7 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in input) (*m
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(result)
+	return JSONResultEnvelopeForClient(result, client)
 }
 
 func connectionsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -73,7 +73,7 @@ func connectionsGet(ctx context.Context, client *hookdeck.Client, in input) (*mc
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(conn)
+	return JSONResultEnvelopeForClient(conn, client)
 }
 
 func connectionsPause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -89,7 +89,7 @@ func connectionsPause(ctx context.Context, client *hookdeck.Client, in input) (*
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(conn)
+	return JSONResultEnvelopeForClient(conn, client)
 }
 
 func connectionsUnpause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
@@ -105,7 +105,7 @@ func connectionsUnpause(ctx context.Context, client *hookdeck.Client, in input) 
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
-	return JSONResult(conn)
+	return JSONResultEnvelopeForClient(conn, client)
 }
 
 // resolveMCPConnectionID resolves a connection ID or name to an ID.
