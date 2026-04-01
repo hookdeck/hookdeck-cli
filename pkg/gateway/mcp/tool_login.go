@@ -40,6 +40,8 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 	var stateMu sync.Mutex
 	var state *loginState
 
+	// TODO: pass ctx to the polling goroutine so it cancels on session close
+	// instead of running for up to loginMaxAttempts after the client disconnects.
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		in, err := parseInput(req.Params.Arguments)
 		if err != nil {
