@@ -55,11 +55,7 @@ func InteractiveLogin(config *configpkg.Config) error {
 		return err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ProjectMode = response.ProjectMode
-	config.Profile.ProjectId = response.ProjectID
-	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
-	config.Profile.GuestURL = "" // Clear guest URL when logging in with permanent account
+	config.Profile.ApplyPollAPIKeyResponse(response, "")
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		ansi.StopSpinner(s, "", os.Stdout)

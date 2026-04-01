@@ -133,9 +133,28 @@ func (c *Client) PollForAPIKeyWithKey(apiKey string, interval time.Duration, max
 	return pollForAPIKey(pollURL, interval, maxAttempts)
 }
 
+// clientForCLIAuthValidate returns a shallow copy of the client that omits
+// X-Team-ID / X-Project-ID on requests. Stale project_id in config must not
+// be sent to /cli-auth/validate — the server may prefer headers over the key's
+// bound team and reject a valid key with 401.
+func (c *Client) clientForCLIAuthValidate() *Client {
+	return &Client{
+		BaseURL:                 c.BaseURL,
+		APIKey:                  c.APIKey,
+		ProjectID:               "",
+		ProjectOrg:              c.ProjectOrg,
+		ProjectName:             c.ProjectName,
+		Verbose:                 c.Verbose,
+		SuppressRateLimitErrors: c.SuppressRateLimitErrors,
+		Telemetry:               c.Telemetry,
+		TelemetryDisabled:       c.TelemetryDisabled,
+		httpClient:              c.httpClient,
+	}
+}
+
 // ValidateAPIKey validates an API key and returns user/project information
 func (c *Client) ValidateAPIKey() (*ValidateAPIKeyResponse, error) {
-	res, err := c.Get(context.Background(), APIPathPrefix+"/cli-auth/validate", "", nil)
+	res, err := c.clientForCLIAuthValidate().Get(context.Background(), APIPathPrefix+"/cli-auth/validate", "", nil)
 	if err != nil {
 		return nil, err
 	}

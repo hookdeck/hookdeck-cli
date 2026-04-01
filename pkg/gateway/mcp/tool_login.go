@@ -13,7 +13,6 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
@@ -161,11 +160,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			}
 
 			// Persist credentials so future MCP sessions start authenticated.
-			cfg.Profile.APIKey = response.APIKey
-			cfg.Profile.ProjectId = response.ProjectID
-			cfg.Profile.ProjectMode = response.ProjectMode
-			cfg.Profile.ProjectType = config.ModeToProjectType(response.ProjectMode)
-			cfg.Profile.GuestURL = ""
+			cfg.Profile.ApplyPollAPIKeyResponse(response, "")
 
 			cfg.SaveActiveProfileAfterLogin()
 

@@ -39,6 +39,8 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 		ansi.StopSpinner(s, message, os.Stdout)
 
+		config.Profile.ApplyValidateAPIKeyResponse(response, true)
+
 		if err = config.Profile.SaveProfile(); err != nil {
 			return err
 		}
@@ -92,11 +94,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		return err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ProjectId = response.ProjectID
-	config.Profile.ProjectMode = response.ProjectMode
-	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
-	config.Profile.GuestURL = "" // Clear guest URL when logging in with permanent account
+	config.Profile.ApplyPollAPIKeyResponse(response, "")
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err
@@ -138,11 +136,7 @@ func GuestLogin(config *configpkg.Config) (string, error) {
 		return "", err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ProjectId = response.ProjectID
-	config.Profile.ProjectMode = response.ProjectMode
-	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
-	config.Profile.GuestURL = session.GuestURL
+	config.Profile.ApplyPollAPIKeyResponse(response, session.GuestURL)
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return "", err
@@ -181,10 +175,7 @@ func CILogin(config *configpkg.Config, apiKey string, name string) error {
 		return err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ProjectId = response.ProjectID
-	config.Profile.ProjectMode = response.ProjectMode
-	config.Profile.ProjectType = configpkg.ModeToProjectType(response.ProjectMode)
+	config.Profile.ApplyCIClient(response)
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err

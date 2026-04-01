@@ -51,14 +51,14 @@ func requireGatewayProject(cfg *config.Config) error {
 		projectType = config.ModeToProjectType(cfg.Profile.ProjectMode)
 	}
 	if projectType == "" {
-		// Resolve from API
+		// Resolve team/project/mode/type from API (authoritative for the key). Do not clear
+		// guest_url here — gateway PreRun may run for users who still have a guest upgrade link.
 		response, err := cfg.GetAPIClient().ValidateAPIKey()
 		if err != nil {
 			return err
 		}
-		projectType = config.ModeToProjectType(response.ProjectMode)
-		cfg.Profile.ProjectType = projectType
-		cfg.Profile.ProjectMode = response.ProjectMode
+		cfg.Profile.ApplyValidateAPIKeyResponse(response, false)
+		projectType = cfg.Profile.ProjectType
 		_ = cfg.Profile.SaveProfile()
 	}
 	if !config.IsGatewayProject(projectType) {
