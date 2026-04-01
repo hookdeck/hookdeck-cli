@@ -228,12 +228,21 @@ pkg/hookdeck/
 
 ## 5. Development Workflow
 
+### Agent command execution (Cursor / AI)
+
+**Strong preference:** When a command needs more than the default sandbox (network, full filesystem, real module cache, TLS to external services, `gpg-agent`, etc.), **prompt the user for permission to run that command outside the sandbox** (e.g. approve **`required_permissions: ["all"]`**, **network**, or the product’s “run outside sandbox” control)—and **execute it yourself** after approval.
+
+- **Do not** default to “please run this in your terminal” or long copy-paste-only instructions when the environment can elevate the **same** command.
+- **Do** use copy-paste or “run locally” guidance only when elevation is **refused**, **unavailable**, or the user explicitly prefers it.
+
+This applies to **`go test`**, **`go mod download`**, **`git`**, **`gh`**, builds, and acceptance tests—not only network calls.
+
 ### Building and Testing
 ```bash
 # Build the CLI
 go build -o hookdeck cmd/hookdeck/main.go
 
-# Run tests
+# Run all unit tests (default packages; run from repo root)
 go test ./...
 
 # Run specific package tests
@@ -243,17 +252,55 @@ go test ./pkg/cmd/
 go test -race ./...
 ```
 
+### Running `go test` after code changes (required for agents)
+
+**Whenever you change Go code in this repo, run tests from the repository root** and treat the run as failed if compilation or any test fails.
+
+**Recommended command in Cursor (module cache + full permissions):**
+
+```bash
+cd /path/to/hookdeck-cli   # repo root containing go.mod
+GOMODCACHE="$(go env GOPATH)/pkg/mod" go test ./...
+```
+
+**Prompt the user** to approve running that command **outside the sandbox** with **`required_permissions: ["all"]`** and **`["network"]`** when the module cache may need to fetch (first run or new dependencies). Plain `go test ./...` is fine on a normal developer machine where `GOMODCACHE` is unset or already populated.
+
+**Cursor / agent environments — prompt for out-of-sandbox, fix module cache, do not skip tests**
+
+1. **Prompt the user** for permission, then run `go test ./...` with **`required_permissions: ["all"]`** (disable sandbox for that command). Do **not** use the default sandbox for `go test` here.
+
+2. **If you still see `no required module provides package github.com/...`**, the shell often has **`GOMODCACHE`** set to an **empty** Cursor temp directory (even with `all`). That is **not** a broken `go.mod`. **Re-run tests with an explicit cache path** (pick one):
+
+```bash
+GOMODCACHE="$(go env GOPATH)/pkg/mod" go mod download
+GOMODCACHE="$(go env GOPATH)/pkg/mod" go test ./...
+```
+
+Or unset the variable so Go uses its default (`$GOPATH/pkg/mod`):
+
+```bash
+env -u GOMODCACHE go mod download
+env -u GOMODCACHE go test ./...
+```
+
+Use **`go mod download`** with **`required_permissions: ["network"]` or `["all"]`** the first time the cache is cold (after **prompting** for that permission).
+
+- **`["network"]` alone is often not enough** for `go test` because compilation still needs a **readable** module cache.
+- **Prompt for out-of-sandbox / full permissions**, then re-run with **`["all"]`** and the **`GOMODCACHE`** / **`env -u`** fix above—**do not** skip tests or push the user to run commands manually unless they decline elevation.
+
+**Acceptance tests** live under `test/acceptance/` with **build tags** (they are **not** included in plain `go test ./...`). See **`test/acceptance/README.md`** for tags, env vars, and CI parity. When you change CLI-facing behavior, **prompt for out-of-sandbox permissions** and run them the same way, with **`required_permissions: ["all"]`** (and network) when using an agent shell.
+
 ### Sandbox and permissions
 
 Commands that need network (e.g. `git push`, `gh pr create`, `npm install`) or full system access often fail in the sandbox with **TLS/certificate errors** (e.g. `x509: OSStatus -26276`) or auth prompts. These are sandbox restrictions, not broken tooling.
 
-**Prefer requesting elevated permissions** (e.g. `required_permissions: ["all"]` or `["network"]`) and asking the user to approve so the agent can retry the command. Do not default to prompting the user to run commands themselves when elevation is available. Only fall back to copy-pasteable commands when elevated permissions are not an option.
+**Prompt the user for permission to run outside the sandbox** (e.g. **`required_permissions: ["all"]`** or **`["network"]`**) and **re-run the same command** after they approve. See **Agent command execution** above. Only fall back to copy-pasteable “run this locally” instructions when elevation is refused or unavailable.
 
 ### Git commits (GPG)
 
 **Always use GPG-signed commits** (`git commit -S`, or `commit.gpgsign=true` in git config). **Do not** use `--no-gpg-sign` to bypass signing.
 
-In restricted environments, signing may fail with errors like “No agent running” or “Operation not permitted” on `~/.gnupg`. **Re-run the commit with full permissions** so `gpg-agent` is reachable, or sign from a normal local terminal. Unsigned commits should not be pushed as a shortcut.
+In restricted environments, signing may fail with errors like “No agent running” or “Operation not permitted” on `~/.gnupg`. **Prompt for permission to run the commit outside the sandbox** (full permissions) so `gpg-agent` is reachable; only if that still fails, suggest the user sign from a normal local terminal. Unsigned commits should not be pushed as a shortcut.
 
 ### Linting and Formatting
 ```bash
@@ -277,12 +324,13 @@ go run cmd/hookdeck/main.go login --help
 ```
 
 ### Sandbox and command execution
-- **Always run tests** when changing code: unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`). Do not skip tests to avoid failures.
-- When running commands (build, test, acceptance tests), if you see **TLS/certificate errors** (e.g. `x509: certificate verify failed`, `tls: failed to verify certificate`), **permission errors** (e.g. `operation not permitted` when writing to the Go module cache), or similar failures that look environment-related, the command is likely running inside a **sandbox**. **Prompt the user** and **re-run the command with elevated permissions** (e.g. `required_permissions: ["network"]` for tests that need API access, or `["all"]` to disable the sandbox) so the operation can succeed. Do not treat a build or test as passed if stderr shows these errors, even when the process exit code is 0.
+- **Always run tests** when changing code: **`go test ./...`** from the repo root (see **Running `go test` after code changes** above), and for CLI-facing changes, acceptance tests with the appropriate **`-tags=...`** (see `test/acceptance/README.md`). Do not skip tests to avoid failures.
+- For **`go test`** in this repo, **prompt for out-of-sandbox execution** and use **`required_permissions: ["all"]`** (and **`["network"]`** when needed) so the Go module cache works (see **Running `go test` after code changes**). Same for acceptance tests that call the real API.
+- When you see **TLS/certificate errors**, **`no required module provides package`** during `go test`, **permission errors** on the module cache, or similar environment-related failures, **prompt for full/out-of-sandbox permissions** and **re-run** (with **`GOMODCACHE=...`** if needed)—**do not** treat the run as passed, and **do not** default to asking the user to run the command manually unless they declined elevation.
 
 ### GitHub CLI (`gh`)
 - Use the **[GitHub CLI](https://cli.github.com/) (`gh`)** to read GitHub data and perform actions from the shell: **workflow runs and job logs** (e.g. `gh run list`, `gh run view <run-id> --log-failed`, `gh run view <run-id> --job <job-id> --log`), **PRs and checks** (`gh pr view`, `gh pr checks`, `gh pr diff`), **API access** (`gh api`), and creating or updating PRs, issues, and releases.
-- Install and authenticate `gh` where needed (e.g. `gh auth login`). If `gh` fails with TLS, network, or permission errors, re-run with **network** or **all** permissions when the agent sandbox may be blocking access.
+- Install and authenticate `gh` where needed (e.g. `gh auth login`). If `gh` fails with TLS, network, or permission errors, **prompt for permission** to re-run with **network** or **all** permissions when the agent sandbox may be blocking access.
 
 ## 6. Documentation Standards
 
@@ -358,7 +406,7 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 
 ## 9. Testing Guidelines
 
-- **Always run tests** when changing code. Run unit tests (`go test ./pkg/...`) and, for CLI-facing changes, acceptance tests (`go test ./test/acceptance/...`). If tests fail due to TLS/network/sandbox (e.g. `x509`, `operation not permitted`), prompt the user and re-run with elevated permissions (e.g. `required_permissions: ["all"]`) so tests can pass.
+- **Always run tests** when changing code. Run **`go test ./...`** from the repo root (see **§5 Running `go test` after code changes**). For CLI-facing changes, run acceptance tests with the correct **`-tags=...`** per `test/acceptance/README.md`. **Agents:** **prompt for out-of-sandbox / full permissions**, then run `go test` with **`required_permissions: ["all"]`** (and network if needed) so the module cache works—**do not** push the user to run tests manually unless elevation is refused.
 - **Create tests for new functionality.** Add unit tests for validation and business logic; add acceptance tests for flows that use the CLI as a user or agent would (success and failure paths). Acceptance tests must pass or fail—no skipping to avoid failures.
 
 ### Acceptance Test Setup
@@ -384,7 +432,8 @@ Acceptance tests in `test/acceptance/` are partitioned by **feature build tags**
 |---------|---------|
 | `go run cmd/hookdeck/main.go --help` | View CLI help |
 | `go build -o hookdeck cmd/hookdeck/main.go` | Build CLI binary |
-| `go test ./pkg/cmd/` | Test command implementations |
+| `go test ./...` | All unit tests (repo root; agents: run with `required_permissions: ["all"]`) |
+| `go test ./pkg/cmd/` | Test command implementations only |
 | `go generate ./...` | Run code generation (if used) |
 | `golangci-lint run` | Run comprehensive linting |
 
