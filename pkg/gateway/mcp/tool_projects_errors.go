@@ -26,9 +26,11 @@ func shouldSuggestReauthAfterListProjectsFailure(err error) bool {
 		}
 		return strings.Contains(strings.ToLower(apiErr.Message), "fatal")
 	}
-	// ListProjects wraps some failures as plain fmt.Errorf with status in the text.
+	// ListProjects wraps some failures as plain fmt.Errorf with the status code
+	// in the text (e.g. "unexpected http status code: 403 <nil>").
+	// Match "status code: 4xx" to avoid false positives on IDs containing "401"/"403".
 	msg := strings.ToLower(err.Error())
-	if strings.Contains(msg, "403") || strings.Contains(msg, "401") {
+	if strings.Contains(msg, "status code: 403") || strings.Contains(msg, "status code: 401") {
 		return true
 	}
 	return strings.Contains(msg, "fatal")

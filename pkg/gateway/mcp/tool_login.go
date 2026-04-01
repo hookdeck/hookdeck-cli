@@ -26,6 +26,10 @@ const (
 
 // loginState tracks a background login poll so that repeated calls to
 // hookdeck_login don't start duplicate auth flows.
+//
+// Synchronization: err is written by the goroutine before close(done).
+// The handler only reads err after receiving from done, so the channel
+// close provides the happens-before guarantee — no separate mutex needed.
 type loginState struct {
 	browserURL string        // URL the user must open
 	done       chan struct{} // closed when polling finishes
@@ -36,8 +40,9 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 	var stateMu sync.Mutex
 	var state *loginState
 
+	// TODO: pass ctx to the polling goroutine so it cancels on session close
+	// instead of running for up to loginMaxAttempts after the client disconnects.
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		_ = ctx
 		in, err := parseInput(req.Params.Arguments)
 		if err != nil {
 			return ErrorResult(err.Error()), nil

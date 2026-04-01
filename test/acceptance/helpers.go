@@ -759,10 +759,10 @@ type Request struct {
 
 // Attempt represents a Hookdeck attempt for testing
 type Attempt struct {
-	ID            string `json:"id"`
-	EventID       string `json:"event_id"`
-	AttemptNumber int    `json:"attempt_number"`
-	Status        string `json:"status"`
+	ID           string `json:"id"`
+	EventID      string `json:"event_id"`
+	AttemptNumber int   `json:"attempt_number"`
+	Status       string `json:"status"`
 }
 
 // createTestConnection creates a basic test connection and returns its ID
