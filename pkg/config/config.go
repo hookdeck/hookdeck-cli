@@ -293,7 +293,13 @@ func (c *Config) RemoveAllProfiles() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(c.viper.ConfigFileUsed())
 	c.viper = runtimeViper
-	return c.writeConfig()
+	if err := c.writeConfig(); err != nil {
+		return err
+	}
+	// Match single-profile logout: clear credential fields in memory so a long-lived
+	// process does not keep using stale keys after the file was wiped.
+	zeroProfileCredentialFields(&c.Profile)
+	return nil
 }
 
 func (c *Config) writeConfig() error {
@@ -359,30 +365,39 @@ func (c *Config) SetTelemetryDisabled(disabled bool) error {
 	return c.writeConfig()
 }
 
-// ClearMCPProfileCredentials clears the active profile API key and project fields for an MCP
-// reauth flow. When viper is initialized (normal CLI config), the profile block is removed
-// from disk; otherwise only in-memory fields are cleared (e.g. tests).
-func (c *Config) ClearMCPProfileCredentials() error {
+// ClearActiveProfileCredentials removes stored credentials for the active profile without
+// printing.
+//
+// Two paths:
+//   - Persisted config (viper set): removes the active profile section from the config file
+//     (same as RemoveProfile) and clears api_key / project_* / guest_url on the in-memory
+//     Profile. This is what the real CLI and MCP server use after InitConfig.
+//   - No viper (e.g. some tests): only clears those Profile fields in memory; nothing is
+//     written to disk.
+//
+// MCP reauth uses the persisted path in production. The shared *hookdeck.Client is also
+// cleared separately in the MCP handler so API calls stop using the old key immediately.
+func (c *Config) ClearActiveProfileCredentials() error {
 	if c == nil || c.Profile.APIKey == "" {
 		return nil
 	}
 	if c.viper == nil {
-		c.Profile.APIKey = ""
-		c.Profile.ProjectId = ""
-		c.Profile.ProjectMode = ""
-		c.Profile.ProjectType = ""
-		c.Profile.GuestURL = ""
+		zeroProfileCredentialFields(&c.Profile)
 		return nil
 	}
 	if err := c.Profile.RemoveProfile(); err != nil {
 		return err
 	}
-	c.Profile.APIKey = ""
-	c.Profile.ProjectId = ""
-	c.Profile.ProjectMode = ""
-	c.Profile.ProjectType = ""
-	c.Profile.GuestURL = ""
+	zeroProfileCredentialFields(&c.Profile)
 	return nil
+}
+
+func zeroProfileCredentialFields(p *Profile) {
+	p.APIKey = ""
+	p.ProjectId = ""
+	p.ProjectMode = ""
+	p.ProjectType = ""
+	p.GuestURL = ""
 }
 
 // getConfigPath returns the path for the config file.

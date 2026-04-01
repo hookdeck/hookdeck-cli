@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClearMCPProfileCredentials_MemoryOnly(t *testing.T) {
+func TestClearActiveProfileCredentials_MemoryOnly(t *testing.T) {
 	c := &Config{}
 	c.Profile.APIKey = "sk_test_123456789012"
 	c.Profile.ProjectId = "proj_1"
 	c.Profile.ProjectMode = "inbound"
 	c.Profile.ProjectType = ProjectTypeGateway
-	require.NoError(t, c.ClearMCPProfileCredentials())
+	require.NoError(t, c.ClearActiveProfileCredentials())
 	assert.Empty(t, c.Profile.APIKey)
 	assert.Empty(t, c.Profile.ProjectId)
 }

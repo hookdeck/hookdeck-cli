@@ -58,7 +58,7 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 					), nil
 				}
 			}
-			if err := cfg.ClearMCPProfileCredentials(); err != nil {
+			if err := cfg.ClearActiveProfileCredentials(); err != nil {
 				return ErrorResult(fmt.Sprintf("reauth: could not clear stored credentials: %v", err)), nil
 			}
 			client.APIKey = ""
