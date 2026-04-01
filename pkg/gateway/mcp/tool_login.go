@@ -36,7 +36,9 @@ type loginState struct {
 	err        error         // non-nil if polling failed
 }
 
-func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler {
+func handleLogin(srv *Server) mcpsdk.ToolHandler {
+	client := srv.client
+	cfg := srv.cfg
 	var stateMu sync.Mutex
 	var state *loginState
 
@@ -121,9 +123,11 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 		}
 
 		// Poll in the background so we return the URL to the agent immediately.
-		// WaitForAPIKey blocks with time.Sleep; run it in a goroutine and
-		// select on ctx so we abandon the attempt when the session closes.
-		go func(s *loginState, ctx context.Context) {
+		// WaitForAPIKey blocks with time.Sleep internally, so we run it in an
+		// inner goroutine and select on the session-level context (not the
+		// per-request ctx, which is cancelled when this handler returns).
+		sessionCtx := srv.sessionCtx
+		go func(s *loginState) {
 			defer close(s.done)
 
 			type pollResult struct {
@@ -138,7 +142,7 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 
 			var response *hookdeck.PollAPIKeyResponse
 			select {
-			case <-ctx.Done():
+			case <-sessionCtx.Done():
 				s.err = fmt.Errorf("login cancelled: MCP session closed")
 				log.Debug("Login polling cancelled — MCP session closed")
 				return
@@ -187,7 +191,7 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 				"user":    response.UserName,
 				"project": response.ProjectName,
 			}).Info("MCP login completed successfully")
-		}(state, ctx)
+		}(state)
 
 		// Return the URL immediately so the agent can show it to the user.
 		return TextResult(fmt.Sprintf(
