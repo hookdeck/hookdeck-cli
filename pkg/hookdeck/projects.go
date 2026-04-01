@@ -2,8 +2,6 @@ package hookdeck
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 )
 
 type Project struct {
@@ -17,8 +15,8 @@ func (c *Client) ListProjects() ([]Project, error) {
 	if err != nil {
 		return []Project{}, err
 	}
-	if res.StatusCode != http.StatusOK {
-		return []Project{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
+	if err := checkAndPrintError(res); err != nil {
+		return []Project{}, err
 	}
 	projects := []Project{}
 	postprocessJsonResponse(res, &projects)
