@@ -130,7 +130,7 @@ func TestListTools_Authenticated(t *testing.T) {
 		toolNames[i] = tool.Name
 	}
 
-	assert.NotContains(t, toolNames, "hookdeck_login")
+	assert.Contains(t, toolNames, "hookdeck_login")
 
 	expectedTools := []string{
 		"hookdeck_projects", "hookdeck_connections", "hookdeck_sources",
@@ -895,6 +895,21 @@ func TestProjectsList_Success(t *testing.T) {
 	assert.Contains(t, text, `"active_project_id"`)
 }
 
+func TestProjectsList_ForbiddenIncludesReauthHint(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/teams": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]any{"message": "not allowed"})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "list"})
+	assert.True(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, strings.ToLower(text), "reauth")
+	assert.Contains(t, text, "hookdeck_login")
+}
+
 func TestProjectsUse_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/teams": func(w http.ResponseWriter, r *http.Request) {
@@ -1100,34 +1115,46 @@ func TestMetricsTool_UnknownAction(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLoginTool_AlreadyAuthenticated(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key") // already has API key
-	// Login tool is only registered for unauthenticated, so we test via unauthenticated
-	// then manually set key to simulate already-authenticated scenario.
-	// Actually, login tool is only present when unauthenticated, so we need to
-	// create an unauthenticated server first, then set the key before calling.
-	unauthClient := newTestClient("https://api.hookdeck.com", "")
-	cfg := &config.Config{}
-	srv := NewServer(unauthClient, cfg)
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "Already authenticated")
+}
+
+func TestLoginTool_ReauthStartsFreshLogin(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=reauth",
+				"poll_url":    "http://" + r.Host + "/2025-07-01/cli-auth/poll?key=reauth",
+			})
+		},
+		"/2025-07-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+
+	client := newTestClient(api.URL, "sk_test_123456789012")
+	cfg := &config.Config{APIBaseURL: api.URL}
+	srv := NewServer(client, cfg)
 
 	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	go func() {
-		_ = srv.mcpServer.Run(ctx, serverTransport)
-	}()
+	go func() { _ = srv.mcpServer.Run(ctx, serverTransport) }()
 
 	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
 	session, err := mcpClient.Connect(ctx, clientTransport, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = session.Close() })
 
-	// Now set the API key before calling login — simulates already-auth scenario.
-	unauthClient.APIKey = "test-key"
-
-	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	result := callTool(t, session, "hookdeck_login", map[string]any{"reauth": true})
 	assert.False(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "Already authenticated")
-	_ = client // suppress unused warning
+	text := textContent(t, result)
+	assert.Contains(t, text, "https://hookdeck.com/auth?code=reauth")
+	assert.Empty(t, client.APIKey)
 }
 
 func TestLoginTool_ReturnsURLImmediately(t *testing.T) {

@@ -72,17 +72,24 @@ func addConnectionCmdTo(parent *cobra.Command) {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	gatewayMCP := argvContainsGatewayMCP(os.Args)
 	if err := rootCmd.Execute(); err != nil {
 		errString := err.Error()
 		isLoginRequiredError := errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error()
 
 		switch {
 		case isLoginRequiredError:
-			// capitalize first letter of error because linter
 			errRunes := []rune(errString)
 			errRunes[0] = unicode.ToUpper(errRunes[0])
+			capitalized := string(errRunes)
 
-			fmt.Printf("%s. Running `hookdeck login`...\n", string(errRunes))
+			if gatewayMCP {
+				// MCP uses JSON-RPC on stdout; do not run interactive login or print recovery text there.
+				fmt.Fprintf(os.Stderr, "%s. Use hookdeck_login in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized)
+				os.Exit(1)
+			}
+
+			fmt.Printf("%s. Running `hookdeck login`...\n", capitalized)
 			loginCommand, _, err := rootCmd.Find([]string{"login"})
 
 			if err != nil {
@@ -103,16 +110,97 @@ func Execute() {
 				suggStr = fmt.Sprintf(" Did you mean \"%s\"?\nIf not, s", suggestions[0])
 			}
 
-			fmt.Println(fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
+			msg := fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
 				"ee \"hookdeck --help\" for a list of available commands.",
-				os.Args[1], rootCmd.CommandPath(), suggStr))
+				os.Args[1], rootCmd.CommandPath(), suggStr)
+			if gatewayMCP {
+				fmt.Fprintln(os.Stderr, msg)
+			} else {
+				fmt.Println(msg)
+			}
 
 		default:
-			fmt.Println(err)
+			if gatewayMCP {
+				fmt.Fprintln(os.Stderr, err)
+			} else {
+				fmt.Println(err)
+			}
 		}
 
 		os.Exit(1)
 	}
+}
+
+// argvContainsGatewayMCP reports whether argv invokes `hookdeck gateway mcp`, ignoring
+// global flags and flag values (e.g. --profile name, -p name) so detection stays accurate.
+func argvContainsGatewayMCP(argv []string) bool {
+	if len(argv) < 3 {
+		return false
+	}
+	pos := globalPositionalArgs(argv[1:])
+	for i := 0; i < len(pos)-1; i++ {
+		if pos[i] == "gateway" && pos[i+1] == "mcp" {
+			return true
+		}
+	}
+	return false
+}
+
+var flagNeedsNextArg = map[string]bool{
+	"profile":         true,
+	"p":               true,
+	"cli-key":         true,
+	"api-key":         true,
+	"hookdeck-config": true,
+	"device-name":     true,
+	"log-level":       true,
+	"color":           true,
+	"api-base":        true,
+	"dashboard-base":  true,
+	"console-base":    true,
+	"ws-base":         true,
+}
+
+// globalPositionalArgs returns argv arguments that are not global flags or flag values,
+// stopping at `--` (which ends flag parsing; remaining tokens are positional).
+func globalPositionalArgs(args []string) []string {
+	var out []string
+	i := 0
+	for i < len(args) {
+		a := args[i]
+		if a == "--" {
+			return append(out, args[i+1:]...)
+		}
+		if !strings.HasPrefix(a, "-") {
+			return append(out, args[i:]...)
+		}
+		if strings.HasPrefix(a, "--") {
+			body := strings.TrimPrefix(a, "--")
+			name := body
+			hasEq := false
+			if j := strings.IndexByte(body, '='); j >= 0 {
+				name = body[:j]
+				hasEq = true
+			}
+			i++
+			if flagNeedsNextArg[name] && !hasEq {
+				if i < len(args) && !strings.HasPrefix(args[i], "-") {
+					i++
+				}
+			}
+			continue
+		}
+		// Short flags: support -p <profile> only; other shorts consume one token.
+		if a == "-p" {
+			i++
+			if i < len(args) && !strings.HasPrefix(args[i], "-") {
+				i++
+			}
+			continue
+		}
+		i++
+	}
+	return out
 }
 
 func init() {

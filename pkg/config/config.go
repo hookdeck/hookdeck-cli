@@ -359,6 +359,32 @@ func (c *Config) SetTelemetryDisabled(disabled bool) error {
 	return c.writeConfig()
 }
 
+// ClearMCPProfileCredentials clears the active profile API key and project fields for an MCP
+// reauth flow. When viper is initialized (normal CLI config), the profile block is removed
+// from disk; otherwise only in-memory fields are cleared (e.g. tests).
+func (c *Config) ClearMCPProfileCredentials() error {
+	if c == nil || c.Profile.APIKey == "" {
+		return nil
+	}
+	if c.viper == nil {
+		c.Profile.APIKey = ""
+		c.Profile.ProjectId = ""
+		c.Profile.ProjectMode = ""
+		c.Profile.ProjectType = ""
+		c.Profile.GuestURL = ""
+		return nil
+	}
+	if err := c.Profile.RemoveProfile(); err != nil {
+		return err
+	}
+	c.Profile.APIKey = ""
+	c.Profile.ProjectId = ""
+	c.Profile.ProjectMode = ""
+	c.Profile.ProjectType = ""
+	c.Profile.GuestURL = ""
+	return nil
+}
+
 // getConfigPath returns the path for the config file.
 // Precedence:
 // - path (if path is provided, e.g. from --hookdeck-config flag)

@@ -86,3 +86,29 @@ func TestRequireGatewayProject(t *testing.T) {
 		assert.True(t, strings.Contains(err.Error(), "requires a Gateway project") || strings.Contains(err.Error(), "Outpost"))
 	})
 }
+
+func TestGatewayPersistentPreRunE_MCP(t *testing.T) {
+	old := Config
+	t.Cleanup(func() { Config = old })
+
+	gw := newGatewayCmd().cmd
+	mcpLeaf, _, err := gw.Find([]string{"mcp"})
+	require.NoError(t, err)
+	require.True(t, isGatewayMCPLeafCommand(mcpLeaf))
+
+	t.Run("no API key skips requireGatewayProject", func(t *testing.T) {
+		Config = config.Config{}
+		Config.Profile.ProjectId = ""
+		err := gatewayPersistentPreRunE(mcpLeaf, nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("with API key and no project fails", func(t *testing.T) {
+		Config = config.Config{}
+		Config.Profile.APIKey = "sk_test_123456789012"
+		Config.Profile.ProjectId = ""
+		err := gatewayPersistentPreRunE(mcpLeaf, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no project selected")
+	})
+}

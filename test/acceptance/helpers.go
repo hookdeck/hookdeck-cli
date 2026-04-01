@@ -521,6 +521,72 @@ func (r *CLIRunner) RunListenWithTimeout(args []string, runDuration time.Duratio
 	return stdoutBuf.String(), stderrBuf.String(), waitErr
 }
 
+// RunGatewayMCPSubprocess builds the CLI binary, runs `gateway mcp` with optional stdin,
+// lets it run for runDuration, then kills the process. Returns stdout, stderr, and the
+// error from Wait (often non-nil because the process was killed). configPath, when non-empty,
+// is passed as HOOKDECK_CONFIG_FILE. extraEnv entries override the process environment.
+func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
+	t.Helper()
+	tmpBinary := filepath.Join(projectRoot, "hookdeck-mcp-test-"+generateTimestamp())
+	defer os.Remove(tmpBinary)
+
+	buildCmd := exec.Command("go", "build", "-o", tmpBinary, ".")
+	buildCmd.Dir = projectRoot
+	if buildErr := buildCmd.Run(); buildErr != nil {
+		return "", "", fmt.Errorf("build CLI for gateway mcp test: %w", buildErr)
+	}
+
+	cmd := exec.Command(tmpBinary, "gateway", "mcp")
+	cmd.Dir = projectRoot
+	env := os.Environ()
+	if configPath != "" {
+		env = appendEnvOverride(env, "HOOKDECK_CONFIG_FILE", configPath)
+	}
+	for k, v := range extraEnv {
+		env = appendEnvOverride(env, k, v)
+	}
+	cmd.Env = env
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	closeStdin := func() {}
+	if stdin != "" {
+		pr, pw, pipeErr := os.Pipe()
+		if pipeErr != nil {
+			return "", "", pipeErr
+		}
+		cmd.Stdin = pr
+		if _, werr := io.WriteString(pw, stdin); werr != nil {
+			_ = pr.Close()
+			_ = pw.Close()
+			return "", "", werr
+		}
+		if !strings.HasSuffix(stdin, "\n") {
+			_, _ = pw.Write([]byte("\n"))
+		}
+		closeStdin = func() {
+			_ = pw.Close()
+			_ = pr.Close()
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		closeStdin()
+		return "", "", err
+	}
+	timer := time.AfterFunc(runDuration, func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	})
+	defer timer.Stop()
+	waitErr := cmd.Wait()
+	closeStdin()
+	return stdoutBuf.String(), stderrBuf.String(), waitErr
+}
+
 // RunFromCwd executes the CLI from the current working directory.
 // This is useful for tests that need to test --local flag behavior,
 // which creates config in the current directory.
@@ -693,10 +759,10 @@ type Request struct {
 
 // Attempt represents a Hookdeck attempt for testing
 type Attempt struct {
-	ID           string `json:"id"`
-	EventID      string `json:"event_id"`
-	AttemptNumber int   `json:"attempt_number"`
-	Status       string `json:"status"`
+	ID            string `json:"id"`
+	EventID       string `json:"event_id"`
+	AttemptNumber int    `json:"attempt_number"`
+	Status        string `json:"status"`
 }
 
 // createTestConnection creates a basic test connection and returns its ID

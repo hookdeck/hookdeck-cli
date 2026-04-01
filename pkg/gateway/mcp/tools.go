@@ -22,7 +22,7 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_projects",
-				Description: "Always call this first when the user references a specific project by name. List available projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. All queries (events, issues, connections, metrics, requests) are scoped to the active project — if the wrong project is active, all results will be wrong. Also use this when unsure which project is currently active. JSON successes use a standard data/meta envelope; see hookdeck_help (overview or any tool topic).",
+				Description: "Always call this first when the user references a specific project by name. List available projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. All queries (events, issues, connections, metrics, requests) are scoped to the active project — if the wrong project is active, all results will be wrong. Also use this when unsure which project is currently active. If list or use fails (especially 401/403), the error may suggest hookdeck_login with reauth: true. JSON successes use a standard data/meta envelope; see hookdeck_help (overview or any tool topic).",
 				InputSchema: schema(map[string]prop{
 					"action":     {Type: "string", Desc: "Action to perform: list or use", Enum: []string{"list", "use"}},
 					"project_id": {Type: "string", Desc: "Project ID (required for use action)"},

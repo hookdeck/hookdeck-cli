@@ -27,16 +27,46 @@ const (
 // loginState tracks a background login poll so that repeated calls to
 // hookdeck_login don't start duplicate auth flows.
 type loginState struct {
-	mu         sync.Mutex
 	browserURL string        // URL the user must open
 	done       chan struct{} // closed when polling finishes
 	err        error         // non-nil if polling failed
 }
 
-func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.Server) mcpsdk.ToolHandler {
+func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler {
+	var stateMu sync.Mutex
 	var state *loginState
 
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		_ = ctx
+		in, err := parseInput(req.Params.Arguments)
+		if err != nil {
+			return ErrorResult(err.Error()), nil
+		}
+		reauth := in.Bool("reauth")
+
+		stateMu.Lock()
+		defer stateMu.Unlock()
+
+		if reauth && client.APIKey != "" {
+			if state != nil {
+				select {
+				case <-state.done:
+					state = nil
+				default:
+					return ErrorResult(
+						"A login flow is already in progress. Call hookdeck_login again after it completes, then use reauth: true if you still need to sign in again.",
+					), nil
+				}
+			}
+			if err := cfg.ClearMCPProfileCredentials(); err != nil {
+				return ErrorResult(fmt.Sprintf("reauth: could not clear stored credentials: %v", err)), nil
+			}
+			client.APIKey = ""
+			client.ProjectID = ""
+			client.ProjectOrg = ""
+			client.ProjectName = ""
+		}
+
 		// Already authenticated — nothing to do.
 		if client.APIKey != "" {
 			return TextResult("Already authenticated. All Hookdeck tools are available."), nil
@@ -93,17 +123,13 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.
 
 			response, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
 			if err != nil {
-				s.mu.Lock()
 				s.err = err
-				s.mu.Unlock()
 				log.WithError(err).Debug("Login polling failed")
 				return
 			}
 
 			if err := validators.APIKey(response.APIKey); err != nil {
-				s.mu.Lock()
 				s.err = fmt.Errorf("received invalid API key: %s", err)
-				s.mu.Unlock()
 				return
 			}
 
@@ -133,9 +159,6 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.
 			}
 			client.ProjectOrg = org
 			client.ProjectName = proj
-
-			// Remove the login tool now that auth is complete.
-			mcpServer.RemoveTools("hookdeck_login")
 
 			log.WithFields(log.Fields{
 				"user":    response.UserName,
