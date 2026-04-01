@@ -40,8 +40,6 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 	var stateMu sync.Mutex
 	var state *loginState
 
-	// TODO: pass ctx to the polling goroutine so it cancels on session close
-	// instead of running for up to loginMaxAttempts after the client disconnects.
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		in, err := parseInput(req.Params.Arguments)
 		if err != nil {
@@ -123,14 +121,34 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 		}
 
 		// Poll in the background so we return the URL to the agent immediately.
-		go func(s *loginState) {
+		// WaitForAPIKey blocks with time.Sleep; run it in a goroutine and
+		// select on ctx so we abandon the attempt when the session closes.
+		go func(s *loginState, ctx context.Context) {
 			defer close(s.done)
 
-			response, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
-			if err != nil {
-				s.err = err
-				log.WithError(err).Debug("Login polling failed")
+			type pollResult struct {
+				resp *hookdeck.PollAPIKeyResponse
+				err  error
+			}
+			ch := make(chan pollResult, 1)
+			go func() {
+				resp, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
+				ch <- pollResult{resp, err}
+			}()
+
+			var response *hookdeck.PollAPIKeyResponse
+			select {
+			case <-ctx.Done():
+				s.err = fmt.Errorf("login cancelled: MCP session closed")
+				log.Debug("Login polling cancelled — MCP session closed")
 				return
+			case r := <-ch:
+				if r.err != nil {
+					s.err = r.err
+					log.WithError(r.err).Debug("Login polling failed")
+					return
+				}
+				response = r.resp
 			}
 
 			if err := validators.APIKey(response.APIKey); err != nil {
@@ -169,7 +187,7 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 				"user":    response.UserName,
 				"project": response.ProjectName,
 			}).Info("MCP login completed successfully")
-		}(state)
+		}(state, ctx)
 
 		// Return the URL immediately so the agent can show it to the user.
 		return TextResult(fmt.Sprintf(
