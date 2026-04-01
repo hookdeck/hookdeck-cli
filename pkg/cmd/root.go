@@ -146,6 +146,8 @@ func argvContainsGatewayMCP(argv []string) bool {
 	return false
 }
 
+// flagNeedsNextArg lists global flags that consume the next argv token as their value.
+// Keep in sync with the PersistentFlags registered in init() below.
 var flagNeedsNextArg = map[string]bool{
 	"profile":         true,
 	"p":               true,

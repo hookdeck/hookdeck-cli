@@ -26,6 +26,10 @@ const (
 
 // loginState tracks a background login poll so that repeated calls to
 // hookdeck_login don't start duplicate auth flows.
+//
+// Synchronization: err is written by the goroutine before close(done).
+// The handler only reads err after receiving from done, so the channel
+// close provides the happens-before guarantee — no separate mutex needed.
 type loginState struct {
 	browserURL string        // URL the user must open
 	done       chan struct{} // closed when polling finishes
@@ -37,7 +41,6 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 	var state *loginState
 
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		_ = ctx
 		in, err := parseInput(req.Params.Arguments)
 		if err != nil {
 			return ErrorResult(err.Error()), nil
@@ -118,14 +121,34 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 		}
 
 		// Poll in the background so we return the URL to the agent immediately.
-		go func(s *loginState) {
+		// WaitForAPIKey blocks with time.Sleep; run it in a goroutine and
+		// select on ctx so we abandon the attempt when the session closes.
+		go func(s *loginState, ctx context.Context) {
 			defer close(s.done)
 
-			response, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
-			if err != nil {
-				s.err = err
-				log.WithError(err).Debug("Login polling failed")
+			type pollResult struct {
+				resp *hookdeck.PollAPIKeyResponse
+				err  error
+			}
+			ch := make(chan pollResult, 1)
+			go func() {
+				resp, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
+				ch <- pollResult{resp, err}
+			}()
+
+			var response *hookdeck.PollAPIKeyResponse
+			select {
+			case <-ctx.Done():
+				s.err = fmt.Errorf("login cancelled: MCP session closed")
+				log.Debug("Login polling cancelled — MCP session closed")
 				return
+			case r := <-ch:
+				if r.err != nil {
+					s.err = r.err
+					log.WithError(r.err).Debug("Login polling failed")
+					return
+				}
+				response = r.resp
 			}
 
 			if err := validators.APIKey(response.APIKey); err != nil {
@@ -164,7 +187,7 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config) mcpsdk.ToolHandler
 				"user":    response.UserName,
 				"project": response.ProjectName,
 			}).Info("MCP login completed successfully")
-		}(state)
+		}(state, ctx)
 
 		// Return the URL immediately so the agent can show it to the user.
 		return TextResult(fmt.Sprintf(
