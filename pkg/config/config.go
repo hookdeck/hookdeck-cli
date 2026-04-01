@@ -400,6 +400,22 @@ func zeroProfileCredentialFields(p *Profile) {
 	p.GuestURL = ""
 }
 
+// SaveActiveProfileAfterLogin persists cfg.Profile credential fields and the active profile
+// name when viper is configured. It is a no-op when c is nil or viper is nil (e.g. MCP unit
+// tests with a minimal Config). The shared hookdeck client is updated separately by the caller.
+func (c *Config) SaveActiveProfileAfterLogin() {
+	if c == nil || c.viper == nil {
+		return
+	}
+	c.Profile.Config = c
+	if err := c.Profile.SaveProfile(); err != nil {
+		log.WithError(err).Error("Login succeeded but failed to save profile")
+	}
+	if err := c.Profile.UseProfile(); err != nil {
+		log.WithError(err).Error("Login succeeded but failed to activate profile")
+	}
+}
+
 // getConfigPath returns the path for the config file.
 // Precedence:
 // - path (if path is provided, e.g. from --hookdeck-config flag)

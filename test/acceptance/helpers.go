@@ -25,22 +25,26 @@ import (
 const defaultAPIUpstream = "https://api.hookdeck.com"
 
 // acceptance502MaxAttempts is how many times CLIRunner runs a command when the
-// combined output looks like a Hookdeck API HTTP 502 (transient gateway errors).
+// combined output looks like a transient Hookdeck API error (HTTP 502 gateway or
+// occasional HTTP 500 from upstream).
 const acceptance502MaxAttempts = 4
 
-// acceptance502RetryDelay is the pause between 502 retries.
+// acceptance502RetryDelay is the pause between transient-error retries.
 const acceptance502RetryDelay = 2 * time.Second
 
 // acceptance502LogExcerpt is the max chars of stdout/stderr to include in retry logs.
 const acceptance502LogExcerpt = 800
 
 // combinedOutputLooksLikeHTTP502 returns true when stdout+stderr match patterns
-// emitted by the CLI/API client for HTTP 502 (only; 503/504 are not retried here).
+// emitted by the CLI/API client for transient HTTP 502/500 (503/504 are not retried here).
 func combinedOutputLooksLikeHTTP502(stdout, stderr string) bool {
 	combined := stdout + "\n" + stderr
 	return strings.Contains(combined, "status code: 502") ||
 		strings.Contains(combined, "status=502") ||
-		strings.Contains(combined, "error code: 502")
+		strings.Contains(combined, "error code: 502") ||
+		strings.Contains(combined, "status code: 500") ||
+		strings.Contains(combined, "status=500") ||
+		strings.Contains(combined, "error code: 500")
 }
 
 func excerptFor502Log(s string, max int) string {
@@ -64,7 +68,7 @@ func commandSummaryFor502Log(args []string) string {
 }
 
 // runWithHTTP502Retry re-runs run() when the process exits with an error and
-// output looks like HTTP 502 from the Hookdeck API. Logs each retry clearly via t.Logf.
+// output looks like a transient Hookdeck API HTTP 502/500. Logs each retry clearly via t.Logf.
 func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, run func() (stdout, stderr string, err error)) (stdout, stderr string, err error) {
 	r.t.Helper()
 	var lastStdout, lastStderr string
@@ -75,7 +79,7 @@ func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, run func() (stdou
 			return lastStdout, lastStderr, lastErr
 		}
 		if attempt < acceptance502MaxAttempts {
-			r.t.Logf("acceptance: Hookdeck API HTTP 502 (transient); retrying CLI command [%s] (attempt %d/%d, next retry after %v)\nstderr excerpt:\n%s\nstdout excerpt:\n%s",
+			r.t.Logf("acceptance: Hookdeck API transient HTTP 502/500; retrying CLI command [%s] (attempt %d/%d, next retry after %v)\nstderr excerpt:\n%s\nstdout excerpt:\n%s",
 				commandSummary, attempt, acceptance502MaxAttempts, acceptance502RetryDelay,
 				excerptFor502Log(lastStderr, acceptance502LogExcerpt),
 				excerptFor502Log(lastStdout, acceptance502LogExcerpt))
@@ -83,7 +87,7 @@ func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, run func() (stdou
 		}
 	}
 	if lastErr != nil && combinedOutputLooksLikeHTTP502(lastStdout, lastStderr) {
-		r.t.Logf("acceptance: Hookdeck API HTTP 502 still failing after %d attempts (command [%s]); giving up. stderr excerpt:\n%s\nstdout excerpt:\n%s",
+		r.t.Logf("acceptance: Hookdeck API transient HTTP 502/500 still failing after %d attempts (command [%s]); giving up. stderr excerpt:\n%s\nstdout excerpt:\n%s",
 			acceptance502MaxAttempts, commandSummary,
 			excerptFor502Log(lastStderr, acceptance502LogExcerpt),
 			excerptFor502Log(lastStdout, acceptance502LogExcerpt))

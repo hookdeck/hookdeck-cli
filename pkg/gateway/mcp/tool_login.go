@@ -167,12 +167,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			cfg.Profile.ProjectType = config.ModeToProjectType(response.ProjectMode)
 			cfg.Profile.GuestURL = ""
 
-			if err := cfg.Profile.SaveProfile(); err != nil {
-				log.WithError(err).Error("Login succeeded but failed to save profile")
-			}
-			if err := cfg.Profile.UseProfile(); err != nil {
-				log.WithError(err).Error("Login succeeded but failed to activate profile")
-			}
+			cfg.SaveActiveProfileAfterLogin()
 
 			// Update the shared client so all resource tools start working.
 			client.APIKey = response.APIKey

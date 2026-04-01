@@ -18,9 +18,9 @@ These tests require browser-based authentication via `hookdeck login` and must b
 
 **Why Manual?** These tests access endpoints (like `/teams`) that require CLI authentication keys obtained through interactive browser login, which aren't available to CI service accounts.
 
-### Transient HTTP 502 from the API
+### Transient HTTP 502 / 500 from the API
 
-`CLIRunner.Run`, `RunWithEnv`, and `RunFromCwd` retry the same command up to **4** times when combined stdout/stderr looks like a Hookdeck API **HTTP 502** (matching CLI error text such as `unexpected http status code: 502`). **503** and **504** are not treated specially. Each retry is logged with `t.Logf` (attempt number, command summary, output excerpts); if all attempts fail, a final log line notes that the run is giving up.
+`CLIRunner.Run`, `RunWithEnv`, and `RunFromCwd` retry the same command up to **4** times when combined stdout/stderr looks like a transient Hookdeck API **HTTP 502** or **HTTP 500** (matching CLI log text such as `status=502` / `status=500`). **503** and **504** are not treated specially. Each retry is logged with `t.Logf` (attempt number, command summary, output excerpts); if all attempts fail, a final log line notes that the run is giving up.
 
 ### Recording proxy (telemetry tests)
 

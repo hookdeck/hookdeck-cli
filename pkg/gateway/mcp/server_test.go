@@ -1289,9 +1289,9 @@ func TestLoginTool_PollSurvivesAcrossToolCalls(t *testing.T) {
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "https://hookdeck.com/auth?code=survive")
 
-	// Wait briefly for the polling goroutine to complete (poll interval is 2s
-	// in production, but the mock returns instantly so it completes quickly).
-	time.Sleep(500 * time.Millisecond)
+	// Wait for the background poll loop: first unclaimed response is followed by
+	// loginPollInterval sleep inside pollForAPIKey before the second poll succeeds.
+	time.Sleep(loginPollInterval + 300*time.Millisecond)
 
 	// Second call — if the goroutine survived, the client is now authenticated.
 	result2 := callTool(t, session, "hookdeck_login", map[string]any{})
