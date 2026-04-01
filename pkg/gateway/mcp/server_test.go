@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ func connectInMemory(t *testing.T, client *hookdeck.Client) *mcpsdk.ClientSessio
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() {
-		_ = srv.mcpServer.Run(ctx, serverTransport)
+		_ = srv.Run(ctx, serverTransport)
 	}()
 
 	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{
@@ -1143,7 +1144,7 @@ func TestLoginTool_ReauthStartsFreshLogin(t *testing.T) {
 	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	go func() { _ = srv.mcpServer.Run(ctx, serverTransport) }()
+	go func() { _ = srv.Run(ctx, serverTransport) }()
 
 	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
 	session, err := mcpClient.Connect(ctx, clientTransport, nil)
@@ -1182,7 +1183,7 @@ func TestLoginTool_ReturnsURLImmediately(t *testing.T) {
 	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	go func() { _ = srv.mcpServer.Run(ctx, serverTransport) }()
+	go func() { _ = srv.Run(ctx, serverTransport) }()
 
 	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
 	session, err := mcpClient.Connect(ctx, clientTransport, nil)
@@ -1218,7 +1219,7 @@ func TestLoginTool_InProgressShowsURL(t *testing.T) {
 	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	go func() { _ = srv.mcpServer.Run(ctx, serverTransport) }()
+	go func() { _ = srv.Run(ctx, serverTransport) }()
 
 	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
 	session, err := mcpClient.Connect(ctx, clientTransport, nil)
@@ -1234,6 +1235,70 @@ func TestLoginTool_InProgressShowsURL(t *testing.T) {
 	text := textContent(t, result)
 	assert.Contains(t, text, "already in progress")
 	assert.Contains(t, text, "https://hookdeck.com/auth?code=xyz")
+}
+
+func TestLoginTool_PollSurvivesAcrossToolCalls(t *testing.T) {
+	// Regression: the login polling goroutine must use the session-level
+	// context, not the per-request ctx (which is cancelled when the handler
+	// returns). If the goroutine selected on per-request ctx, it would be
+	// cancelled immediately and the second hookdeck_login call would see a
+	// "login cancelled" error instead of "Already authenticated".
+	pollCount := 0
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=survive",
+				"poll_url":    "http://" + r.Host + "/2025-07-01/cli-auth/poll?key=survive",
+			})
+		},
+		"/2025-07-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			pollCount++
+			if pollCount >= 2 {
+				// Simulate user completing browser auth on 2nd poll.
+				json.NewEncoder(w).Encode(map[string]any{
+					"claimed":           true,
+					"key":               "sk_test_survive12345",
+					"team_id":           "proj_survive",
+					"team_name":         "Survive Project",
+					"team_mode":         "console",
+					"user_name":         "test-user",
+					"organization_name": "test-org",
+				})
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+
+	unauthClient := newTestClient(api.URL, "")
+	cfg := &config.Config{APIBaseURL: api.URL}
+	srv := NewServer(unauthClient, cfg)
+
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = srv.Run(ctx, serverTransport) }()
+
+	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	// First call initiates the flow — handler returns immediately.
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.False(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "https://hookdeck.com/auth?code=survive")
+
+	// Wait briefly for the polling goroutine to complete (poll interval is 2s
+	// in production, but the mock returns instantly so it completes quickly).
+	time.Sleep(500 * time.Millisecond)
+
+	// Second call — if the goroutine survived, the client is now authenticated.
+	result2 := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.False(t, result2.IsError)
+	text := textContent(t, result2)
+	assert.Contains(t, text, "Already authenticated")
+	assert.Equal(t, "sk_test_survive12345", unauthClient.APIKey)
 }
 
 // ---------------------------------------------------------------------------

@@ -18,6 +18,12 @@ type Server struct {
 	client    *hookdeck.Client
 	cfg       *config.Config
 	mcpServer *mcpsdk.Server
+
+	// sessionCtx is the context passed to RunStdio. It is cancelled when the
+	// MCP transport closes (stdin EOF). Background goroutines (e.g. login
+	// polling) should select on this — NOT on the per-request ctx passed to
+	// tool handlers, which is cancelled when the handler returns.
+	sessionCtx context.Context
 }
 
 // NewServer creates an MCP server with all Hookdeck tools registered.
@@ -56,7 +62,7 @@ func (s *Server) registerTools() {
 				"reauth": {Type: "boolean", Desc: "If true, clear stored credentials and start a new browser login. Use when project listing fails — complete login in the browser, then retry hookdeck_projects."},
 			}),
 		},
-		s.wrapWithTelemetry("hookdeck_login", handleLogin(s.client, s.cfg)),
+		s.wrapWithTelemetry("hookdeck_login", handleLogin(s)),
 	)
 }
 
@@ -126,5 +132,13 @@ func extractAction(req *mcpsdk.CallToolRequest) string {
 // RunStdio starts the MCP server on stdin/stdout and blocks until the
 // connection is closed (i.e. stdin reaches EOF).
 func (s *Server) RunStdio(ctx context.Context) error {
-	return s.mcpServer.Run(ctx, &mcpsdk.StdioTransport{})
+	return s.Run(ctx, &mcpsdk.StdioTransport{})
+}
+
+// Run starts the MCP server on the given transport. It stores ctx as the
+// session-level context so background goroutines (e.g. login polling) can
+// detect when the session ends.
+func (s *Server) Run(ctx context.Context, transport mcpsdk.Transport) error {
+	s.sessionCtx = ctx
+	return s.mcpServer.Run(ctx, transport)
 }
