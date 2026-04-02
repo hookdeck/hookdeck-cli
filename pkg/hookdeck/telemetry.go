@@ -5,10 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 //
@@ -32,6 +34,8 @@ type CLITelemetry struct {
 	DeviceName        string `json:"device_name"`
 	GeneratedResource bool   `json:"generated_resource,omitempty"`
 	MCPClient         string `json:"mcp_client,omitempty"`
+	// CommandFlags lists flag names (not values) explicitly set on the CLI for this invocation.
+	CommandFlags []string `json:"command_flags,omitempty"`
 
 	// Disabled is set from the user's config (telemetry_disabled).
 	// It is checked by PerformRequest as a fallback so that clients
@@ -56,6 +60,11 @@ func (t *CLITelemetry) SetCommandContext(cmd *cobra.Command) {
 // SetDeviceName puts the device name into telemetry
 func (t *CLITelemetry) SetDeviceName(deviceName string) {
 	t.DeviceName = deviceName
+}
+
+// SetCommandFlagsFromCobra records which flags the user explicitly set (names only).
+func (t *CLITelemetry) SetCommandFlagsFromCobra(cmd *cobra.Command) {
+	t.CommandFlags = CollectChangedFlagNames(cmd)
 }
 
 // SetSource sets the telemetry source (e.g. "cli" or "mcp").
@@ -98,6 +107,38 @@ func NewInvocationID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return "inv_" + hex.EncodeToString(b)
+}
+
+// CollectChangedFlagNames returns sorted unique names of flags the user explicitly
+// set on the command line (pflag Changed), walking from cmd up to the root. Values
+// are not included.
+func CollectChangedFlagNames(cmd *cobra.Command) []string {
+	if cmd == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var names []string
+	add := func(fs *pflag.FlagSet) {
+		if fs == nil {
+			return
+		}
+		fs.VisitAll(func(f *pflag.Flag) {
+			if !f.Changed {
+				return
+			}
+			if _, ok := seen[f.Name]; ok {
+				return
+			}
+			seen[f.Name] = struct{}{}
+			names = append(names, f.Name)
+		})
+	}
+	for c := cmd; c != nil; c = c.Parent() {
+		add(c.Flags())
+		add(c.PersistentFlags())
+	}
+	sort.Strings(names)
+	return names
 }
 
 // DetectEnvironment returns "ci" if a CI environment is detected,

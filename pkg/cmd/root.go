@@ -50,6 +50,7 @@ func initTelemetry(cmd *cobra.Command) {
 	tel.SetSource("cli")
 	tel.SetEnvironment(hookdeck.DetectEnvironment())
 	tel.SetCommandContext(cmd)
+	tel.SetCommandFlagsFromCobra(cmd)
 	tel.SetDeviceName(Config.DeviceName)
 	if tel.InvocationID == "" {
 		tel.SetInvocationID(hookdeck.NewInvocationID())
