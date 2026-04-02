@@ -77,6 +77,7 @@ All tools operate on the active project. Call hookdeck_projects first when the u
 references a project by name, or when unsure which project is active.
 
 hookdeck_projects        — List or switch projects (actions: list, use)
+hookdeck_login           — Sign in or reauth: true for a fresh browser session when listing projects fails
 hookdeck_connections     — Inspect connections and control delivery flow (actions: list, get, pause, unpause)
 hookdeck_sources         — Inspect inbound sources (actions: list, get)
 hookdeck_destinations    — Inspect delivery destinations: HTTP, CLI, MOCK (actions: list, get)
@@ -107,9 +108,19 @@ Actions:
   list  — List all projects. data.projects is the array (id, org, project, type gateway/outpost/console, current). meta includes active_project_id, active_project_name (short), and active_project_org when known. Outbound projects are excluded.
   use   — Switch the active project for this session (in-memory only).
 
+If list or use fails with 401/403 (or similar), the error may mention hookdeck_login with reauth: true — the stored key may be a narrow dashboard API key.
+
 Parameters:
   action      (string, required) — "list" or "use"
   project_id  (string)           — Required for "use" action`,
+
+	"hookdeck_login": `hookdeck_login — Browser sign-in for the Hookdeck CLI inside MCP
+
+Without arguments when already authenticated: confirms the session is active.
+When not authenticated: returns a URL the user opens in a browser; poll by calling this tool again.
+
+Parameters:
+  reauth  (boolean, optional) — If true, clears stored credentials and starts a new browser login. Use when hookdeck_projects list fails and the key may be a single-project or dashboard API key that cannot list teams.`,
 
 	"hookdeck_connections": `hookdeck_connections — Inspect connections and control delivery flow
 

@@ -293,7 +293,13 @@ func (c *Config) RemoveAllProfiles() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(c.viper.ConfigFileUsed())
 	c.viper = runtimeViper
-	return c.writeConfig()
+	if err := c.writeConfig(); err != nil {
+		return err
+	}
+	// Match single-profile logout: clear credential fields in memory so a long-lived
+	// process does not keep using stale keys after the file was wiped.
+	zeroProfileCredentialFields(&c.Profile)
+	return nil
 }
 
 func (c *Config) writeConfig() error {
@@ -357,6 +363,57 @@ func (c *Config) SetTelemetryDisabled(disabled bool) error {
 	c.TelemetryDisabled = disabled
 	c.viper.Set("telemetry_disabled", disabled)
 	return c.writeConfig()
+}
+
+// ClearActiveProfileCredentials removes stored credentials for the active profile without
+// printing.
+//
+// Two paths:
+//   - Persisted config (viper set): removes the active profile section from the config file
+//     (same as RemoveProfile) and clears api_key / project_* / guest_url on the in-memory
+//     Profile. This is what the real CLI and MCP server use after InitConfig.
+//   - No viper (e.g. some tests): only clears those Profile fields in memory; nothing is
+//     written to disk.
+//
+// MCP reauth uses the persisted path in production. The shared *hookdeck.Client is also
+// cleared separately in the MCP handler so API calls stop using the old key immediately.
+func (c *Config) ClearActiveProfileCredentials() error {
+	if c == nil || c.Profile.APIKey == "" {
+		return nil
+	}
+	if c.viper == nil {
+		zeroProfileCredentialFields(&c.Profile)
+		return nil
+	}
+	if err := c.Profile.RemoveProfile(); err != nil {
+		return err
+	}
+	zeroProfileCredentialFields(&c.Profile)
+	return nil
+}
+
+func zeroProfileCredentialFields(p *Profile) {
+	p.APIKey = ""
+	p.ProjectId = ""
+	p.ProjectMode = ""
+	p.ProjectType = ""
+	p.GuestURL = ""
+}
+
+// SaveActiveProfileAfterLogin persists cfg.Profile credential fields and the active profile
+// name when viper is configured. It is a no-op when c is nil or viper is nil (e.g. MCP unit
+// tests with a minimal Config). The shared hookdeck client is updated separately by the caller.
+func (c *Config) SaveActiveProfileAfterLogin() {
+	if c == nil || c.viper == nil {
+		return
+	}
+	c.Profile.Config = c
+	if err := c.Profile.SaveProfile(); err != nil {
+		log.WithError(err).Error("Login succeeded but failed to save profile")
+	}
+	if err := c.Profile.UseProfile(); err != nil {
+		log.WithError(err).Error("Login succeeded but failed to activate profile")
+	}
 }
 
 // getConfigPath returns the path for the config file.

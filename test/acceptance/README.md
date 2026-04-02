@@ -18,15 +18,15 @@ These tests require browser-based authentication via `hookdeck login` and must b
 
 **Why Manual?** These tests access endpoints (like `/teams`) that require CLI authentication keys obtained through interactive browser login, which aren't available to CI service accounts.
 
-### Transient HTTP 502 from the API
+### Transient HTTP 502 / 500 from the API
 
-`CLIRunner.Run`, `RunWithEnv`, and `RunFromCwd` retry the same command up to **4** times when combined stdout/stderr looks like a Hookdeck API **HTTP 502** (matching CLI error text such as `unexpected http status code: 502`). **503** and **504** are not treated specially. Each retry is logged with `t.Logf` (attempt number, command summary, output excerpts); if all attempts fail, a final log line notes that the run is giving up.
+`CLIRunner.Run`, `RunWithEnv`, and `RunFromCwd` retry the same command up to **4** times when combined stdout/stderr looks like a transient Hookdeck API **HTTP 502** or **HTTP 500** (matching CLI log text such as `status=502` / `status=500`). **503** and **504** are not treated specially. Each retry is logged with `t.Logf` (attempt number, command summary, output excerpts); if all attempts fail, a final log line notes that the run is giving up.
 
 ### Recording proxy (telemetry tests)
 
 Some tests (e.g. `TestTelemetryGatewayConnectionListProxy` in `telemetry_test.go`, `TestTelemetryListenProxy` in `telemetry_listen_test.go`) use a **recording proxy**: the CLI is run with `--api-base` pointing at a local HTTP server that forwards every request to the real Hookdeck API and records method, path, and the `X-Hookdeck-CLI-Telemetry` header. The same `CLIRunner` and `go run main.go` flow are used as in other acceptance tests; only the API base URL is overridden so traffic goes through the proxy. This verifies that a single CLI run sends consistent telemetry (same `invocation_id` and `command_path`) on all API calls. Helpers: `StartRecordingProxy`, `AssertTelemetryConsistent`.
 
-**Login telemetry test (TestTelemetryLoginProxy)** uses the same proxy approach: it runs `hookdeck login --api-key KEY` with `--api-base` set to the proxy, and asserts exactly one recorded request (GET `/2025-07-01/cli-auth/validate`) with consistent telemetry. It uses **HOOKDECK_CLI_TESTING_CLI_KEY** (not the API/CI key), because the validate endpoint accepts CLI keys from interactive login; if unset, the test is skipped. Other telemetry tests still use the normal API key via `NewCLIRunner`.
+**Login telemetry tests** use the same proxy approach with **HOOKDECK_CLI_TESTING_CLI_KEY** (not the API/CI key), because the validate endpoint accepts CLI keys from interactive login; if unset, those tests are skipped. **TestTelemetryLoginProxy** runs `hookdeck login --api-key KEY` with `--api-base` set to the proxy and asserts exactly one recorded request (GET `/2025-07-01/cli-auth/validate`) with consistent telemetry. **TestTelemetryLoginCommandFlagsProxy** additionally asserts the telemetry JSON includes **`command_flags`** containing **`api-key`** or **`cli-key`** on the wire when that flag is passed. Other telemetry tests still use the normal API key via `NewCLIRunner`.
 
 ## Setup
 

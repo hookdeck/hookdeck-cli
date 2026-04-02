@@ -45,7 +45,7 @@ type projectEntry struct {
 func projectsList(client *hookdeck.Client) (*mcpsdk.CallToolResult, error) {
 	projects, err := client.ListProjects()
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return ErrorResult(listProjectsFailureMessage(err)), nil
 	}
 
 	items := project.NormalizeProjects(projects, client.ProjectID)
@@ -73,7 +73,7 @@ func projectsUse(client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, err
 
 	projects, err := client.ListProjects()
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return ErrorResult(listProjectsFailureMessage(err)), nil
 	}
 
 	items := project.NormalizeProjects(projects, client.ProjectID)

@@ -13,7 +13,6 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
@@ -26,17 +25,52 @@ const (
 
 // loginState tracks a background login poll so that repeated calls to
 // hookdeck_login don't start duplicate auth flows.
+//
+// Synchronization: err is written by the goroutine before close(done).
+// The handler only reads err after receiving from done, so the channel
+// close provides the happens-before guarantee — no separate mutex needed.
 type loginState struct {
-	mu         sync.Mutex
 	browserURL string        // URL the user must open
 	done       chan struct{} // closed when polling finishes
 	err        error         // non-nil if polling failed
 }
 
-func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.Server) mcpsdk.ToolHandler {
+func handleLogin(srv *Server) mcpsdk.ToolHandler {
+	client := srv.client
+	cfg := srv.cfg
+	var stateMu sync.Mutex
 	var state *loginState
 
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		in, err := parseInput(req.Params.Arguments)
+		if err != nil {
+			return ErrorResult(err.Error()), nil
+		}
+		reauth := in.Bool("reauth")
+
+		stateMu.Lock()
+		defer stateMu.Unlock()
+
+		if reauth && client.APIKey != "" {
+			if state != nil {
+				select {
+				case <-state.done:
+					state = nil
+				default:
+					return ErrorResult(
+						"A login flow is already in progress. Call hookdeck_login again after it completes, then use reauth: true if you still need to sign in again.",
+					), nil
+				}
+			}
+			if err := cfg.ClearActiveProfileCredentials(); err != nil {
+				return ErrorResult(fmt.Sprintf("reauth: could not clear stored credentials: %v", err)), nil
+			}
+			client.APIKey = ""
+			client.ProjectID = ""
+			client.ProjectOrg = ""
+			client.ProjectName = ""
+		}
+
 		// Already authenticated — nothing to do.
 		if client.APIKey != "" {
 			return TextResult("Already authenticated. All Hookdeck tools are available."), nil
@@ -88,38 +122,47 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.
 		}
 
 		// Poll in the background so we return the URL to the agent immediately.
+		// WaitForAPIKey blocks with time.Sleep internally, so we run it in an
+		// inner goroutine and select on the session-level context (not the
+		// per-request ctx, which is cancelled when this handler returns).
+		sessionCtx := srv.sessionCtx
 		go func(s *loginState) {
 			defer close(s.done)
 
-			response, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
-			if err != nil {
-				s.mu.Lock()
-				s.err = err
-				s.mu.Unlock()
-				log.WithError(err).Debug("Login polling failed")
+			type pollResult struct {
+				resp *hookdeck.PollAPIKeyResponse
+				err  error
+			}
+			ch := make(chan pollResult, 1)
+			go func() {
+				resp, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
+				ch <- pollResult{resp, err}
+			}()
+
+			var response *hookdeck.PollAPIKeyResponse
+			select {
+			case <-sessionCtx.Done():
+				s.err = fmt.Errorf("login cancelled: MCP session closed")
+				log.Debug("Login polling cancelled — MCP session closed")
 				return
+			case r := <-ch:
+				if r.err != nil {
+					s.err = r.err
+					log.WithError(r.err).Debug("Login polling failed")
+					return
+				}
+				response = r.resp
 			}
 
 			if err := validators.APIKey(response.APIKey); err != nil {
-				s.mu.Lock()
 				s.err = fmt.Errorf("received invalid API key: %s", err)
-				s.mu.Unlock()
 				return
 			}
 
 			// Persist credentials so future MCP sessions start authenticated.
-			cfg.Profile.APIKey = response.APIKey
-			cfg.Profile.ProjectId = response.ProjectID
-			cfg.Profile.ProjectMode = response.ProjectMode
-			cfg.Profile.ProjectType = config.ModeToProjectType(response.ProjectMode)
-			cfg.Profile.GuestURL = ""
+			cfg.Profile.ApplyPollAPIKeyResponse(response, "")
 
-			if err := cfg.Profile.SaveProfile(); err != nil {
-				log.WithError(err).Error("Login succeeded but failed to save profile")
-			}
-			if err := cfg.Profile.UseProfile(); err != nil {
-				log.WithError(err).Error("Login succeeded but failed to activate profile")
-			}
+			cfg.SaveActiveProfileAfterLogin()
 
 			// Update the shared client so all resource tools start working.
 			client.APIKey = response.APIKey
@@ -133,9 +176,6 @@ func handleLogin(client *hookdeck.Client, cfg *config.Config, mcpServer *mcpsdk.
 			}
 			client.ProjectOrg = org
 			client.ProjectName = proj
-
-			// Remove the login tool now that auth is complete.
-			mcpServer.RemoveTools("hookdeck_login")
 
 			log.WithFields(log.Fields{
 				"user":    response.UserName,

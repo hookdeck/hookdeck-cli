@@ -18,7 +18,7 @@ func Logout(config *config.Config) error {
 	fmt.Println("Logging out...")
 
 	profileName := config.Profile.Name
-	if err := config.Profile.RemoveProfile(); err != nil {
+	if err := config.ClearActiveProfileCredentials(); err != nil {
 		return err
 	}
 

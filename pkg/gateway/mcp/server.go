@@ -18,6 +18,12 @@ type Server struct {
 	client    *hookdeck.Client
 	cfg       *config.Config
 	mcpServer *mcpsdk.Server
+
+	// sessionCtx is the context passed to RunStdio. It is cancelled when the
+	// MCP transport closes (stdin EOF). Background goroutines (e.g. login
+	// polling) should select on this — NOT on the per-request ctx passed to
+	// tool handlers, which is cancelled when the handler returns.
+	sessionCtx context.Context
 }
 
 // NewServer creates an MCP server with all Hookdeck tools registered.
@@ -25,9 +31,8 @@ type Server struct {
 // ProjectID (e.g. via the projects.use action) affects subsequent calls
 // within the same session.
 //
-// When the client has no API key (unauthenticated), the server additionally
-// registers a hookdeck_login tool that initiates browser-based device auth.
-// Resource tool handlers will return an auth error until login completes.
+// hookdeck_login is always registered: it signs in when unauthenticated, or
+// with reauth: true clears stored credentials and starts a fresh browser login.
 func NewServer(client *hookdeck.Client, cfg *config.Config) *Server {
 	s := &Server{client: client, cfg: cfg}
 
@@ -44,23 +49,21 @@ func NewServer(client *hookdeck.Client, cfg *config.Config) *Server {
 }
 
 // registerTools adds all tool definitions to the MCP server.
-// If the client is not yet authenticated, the hookdeck_login tool is also
-// registered so that AI agents can initiate authentication in-band.
 func (s *Server) registerTools() {
 	for _, td := range toolDefs(s.client) {
 		s.mcpServer.AddTool(td.tool, s.wrapWithTelemetry(td.tool.Name, td.handler))
 	}
 
-	if s.client.APIKey == "" {
-		s.mcpServer.AddTool(
-			&mcpsdk.Tool{
-				Name:        "hookdeck_login",
-				Description: "Authenticate the Hookdeck CLI. Returns a URL that the user must open in their browser to complete login. The tool will wait for the user to complete authentication before returning.",
-				InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
-			},
-			s.wrapWithTelemetry("hookdeck_login", handleLogin(s.client, s.cfg, s.mcpServer)),
-		)
-	}
+	s.mcpServer.AddTool(
+		&mcpsdk.Tool{
+			Name:        "hookdeck_login",
+			Description: "Authenticate the Hookdeck CLI or sign in again. Without arguments, returns a URL for browser login when not yet authenticated, or confirms if already signed in. Set reauth: true to clear the current session and start a new browser login (use when hookdeck_projects list fails and the stored key may be a single-project or dashboard API key).",
+			InputSchema: schema(map[string]prop{
+				"reauth": {Type: "boolean", Desc: "If true, clear stored credentials and start a new browser login. Use when project listing fails — complete login in the browser, then retry hookdeck_projects."},
+			}),
+		},
+		s.wrapWithTelemetry("hookdeck_login", handleLogin(s)),
+	)
 }
 
 // mcpClientInfo extracts the MCP client name/version string from the
@@ -129,5 +132,13 @@ func extractAction(req *mcpsdk.CallToolRequest) string {
 // RunStdio starts the MCP server on stdin/stdout and blocks until the
 // connection is closed (i.e. stdin reaches EOF).
 func (s *Server) RunStdio(ctx context.Context) error {
-	return s.mcpServer.Run(ctx, &mcpsdk.StdioTransport{})
+	return s.Run(ctx, &mcpsdk.StdioTransport{})
+}
+
+// Run starts the MCP server on the given transport. It stores ctx as the
+// session-level context so background goroutines (e.g. login polling) can
+// detect when the session ends.
+func (s *Server) Run(ctx context.Context, transport mcpsdk.Transport) error {
+	s.sessionCtx = ctx
+	return s.mcpServer.Run(ctx, transport)
 }

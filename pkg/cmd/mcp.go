@@ -25,8 +25,13 @@ destinations, events, requests, and more — as MCP tools that AI agents and
 LLM-based clients can invoke.
 
 If the CLI is already authenticated, all tools are available immediately.
-If not, a hookdeck_login tool is provided that initiates browser-based
-authentication so the user can log in without leaving the MCP session.`),
+If not, gateway MCP still starts: project selection is skipped until you
+authenticate, and hookdeck_login initiates browser-based sign-in. Protocol
+traffic uses stdout only (JSON-RPC); status and errors from the CLI before
+the server runs go to stderr.
+
+hookdeck_login stays registered after sign-in so you can call it with reauth: true
+to replace credentials (e.g. when project listing fails with a narrow API key).`),
 		Example: `  # Start the MCP server (stdio transport)
   hookdeck gateway mcp
 

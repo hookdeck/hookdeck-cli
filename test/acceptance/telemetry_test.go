@@ -74,6 +74,51 @@ func TestTelemetryLoginProxy(t *testing.T) {
 	AssertTelemetryConsistent(t, recorded, "hookdeck login")
 }
 
+// TestTelemetryLoginCommandFlagsProxy asserts X-Hookdeck-CLI-Telemetry JSON includes
+// command_flags (flag names only) on the wire for hookdeck login when --api-key or
+// --cli-key is passed. Same env and proxy pattern as TestTelemetryLoginProxy.
+func TestTelemetryLoginCommandFlagsProxy(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping: HOOKDECK_CLI_TESTING_CLI_KEY must be set (same as login telemetry test)")
+	}
+	cli := NewCLIRunner(t)
+
+	t.Run("api-key", func(t *testing.T) {
+		proxy := StartRecordingProxy(t, defaultAPIUpstream)
+		defer proxy.Close()
+		stdout, stderr, err := cli.Run("--api-base", proxy.URL(), "login", "--api-key", cliKey)
+		require.NoError(t, err, "stdout=%q stderr=%q", stdout, stderr)
+		recorded := proxy.Recorded()
+		require.Len(t, recorded, 1)
+		assertTelemetryCommandFlagsContain(t, recorded[0].Telemetry, "api-key")
+	})
+
+	t.Run("cli-key", func(t *testing.T) {
+		proxy := StartRecordingProxy(t, defaultAPIUpstream)
+		defer proxy.Close()
+		stdout, stderr, err := cli.Run("--api-base", proxy.URL(), "login", "--cli-key", cliKey)
+		require.NoError(t, err, "stdout=%q stderr=%q", stdout, stderr)
+		recorded := proxy.Recorded()
+		require.Len(t, recorded, 1)
+		assertTelemetryCommandFlagsContain(t, recorded[0].Telemetry, "cli-key")
+	})
+}
+
+func assertTelemetryCommandFlagsContain(t *testing.T, telemetryJSON, wantFlag string) {
+	t.Helper()
+	require.NotEmpty(t, telemetryJSON, "X-Hookdeck-CLI-Telemetry should be present when telemetry is enabled")
+	var p struct {
+		CommandFlags []string `json:"command_flags"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(telemetryJSON), &p), "telemetry JSON: %s", telemetryJSON)
+	require.Contains(t, p.CommandFlags, wantFlag,
+		"command_flags on the wire should include %q (got %v)", wantFlag, p.CommandFlags)
+}
+
 func TestTelemetryGatewayConnectionListProxy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
