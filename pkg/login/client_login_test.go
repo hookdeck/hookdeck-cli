@@ -17,7 +17,7 @@ import (
 // TestLogin_validateNonUnauthorizedStillFails verifies that credential
 // verification errors other than 401 are returned immediately (no browser flow).
 func TestLogin_validateNonUnauthorizedStillFails(t *testing.T) {
-	configpkg.ResetAPIClient()
+	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +49,7 @@ func TestLogin_validateNonUnauthorizedStillFails(t *testing.T) {
 // TestLogin_unauthorizedValidateStartsBrowserFlow checks that a 401 from
 // validate is followed by POST /cli-auth (browser login), then a successful poll.
 func TestLogin_unauthorizedValidateStartsBrowserFlow(t *testing.T) {
-	configpkg.ResetAPIClient()
+	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)
 
 	oldCan := canOpenBrowser

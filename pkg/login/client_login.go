@@ -110,7 +110,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		return err
 	}
 
-	configpkg.ResetAPIClient()
+	config.RefreshCachedAPIClient()
 
 	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 	ansi.StopSpinner(s, message, os.Stdout)

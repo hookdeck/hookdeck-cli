@@ -164,7 +164,9 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 
 			cfg.SaveActiveProfileAfterLogin()
 
-			// Update the shared client so all resource tools start working.
+			// Update the server-held client (in production this is the same pointer as
+			// config.GetAPIClient(); tests inject a separate *hookdeck.Client, so we must
+			// mutate this handle — RefreshCachedAPIClient only touches the global singleton).
 			client.APIKey = response.APIKey
 			client.ProjectID = response.ProjectID
 			org, proj, err := project.ParseProjectName(response.ProjectName)
