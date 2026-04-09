@@ -10,11 +10,17 @@ import (
 var apiClient *hookdeck.Client
 var apiClientOnce sync.Once
 
+// ResetAPIClient clears the cached API client singleton. The next GetAPIClient
+// call builds a fresh client from the current config (used after login updates credentials).
+func ResetAPIClient() {
+	apiClient = nil
+	apiClientOnce = sync.Once{}
+}
+
 // ResetAPIClientForTesting resets the global API client singleton so that
 // tests can start with a fresh instance. Must only be called from tests.
 func ResetAPIClientForTesting() {
-	apiClient = nil
-	apiClientOnce = sync.Once{}
+	ResetAPIClient()
 }
 
 // GetAPIClient returns the internal API client instance

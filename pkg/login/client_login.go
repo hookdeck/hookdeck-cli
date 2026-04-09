@@ -33,22 +33,29 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
 		response, err := config.GetAPIClient().ValidateAPIKey()
 		if err != nil {
-			return err
+			ansi.StopSpinner(s, "", os.Stdout)
+			if !hookdeck.IsUnauthorizedError(err) {
+				return err
+			}
+			// Rejected key: continue into browser login below (must clear key first
+			// or we would re-enter this branch only).
+			fmt.Fprintln(os.Stdout, "Your saved API key is no longer valid. Starting browser sign-in...")
+			config.Profile.APIKey = ""
+		} else {
+			message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
+			ansi.StopSpinner(s, message, os.Stdout)
+
+			config.Profile.ApplyValidateAPIKeyResponse(response, true)
+
+			if err = config.Profile.SaveProfile(); err != nil {
+				return err
+			}
+			if err = config.Profile.UseProfile(); err != nil {
+				return err
+			}
+
+			return nil
 		}
-
-		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
-		ansi.StopSpinner(s, message, os.Stdout)
-
-		config.Profile.ApplyValidateAPIKeyResponse(response, true)
-
-		if err = config.Profile.SaveProfile(); err != nil {
-			return err
-		}
-		if err = config.Profile.UseProfile(); err != nil {
-			return err
-		}
-
-		return nil
 	}
 
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
@@ -102,6 +109,8 @@ func Login(config *configpkg.Config, input io.Reader) error {
 	if err = config.Profile.UseProfile(); err != nil {
 		return err
 	}
+
+	configpkg.ResetAPIClient()
 
 	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 	ansi.StopSpinner(s, message, os.Stdout)
