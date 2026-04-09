@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/useragent"
@@ -126,6 +127,22 @@ func IsNotFoundError(err error) bool {
 	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone)
 }
 
+// IsUnauthorizedError reports whether err is an HTTP 401 from the Hookdeck API
+// (invalid or rejected credentials). Non-JSON 401 bodies still become *APIError
+// with StatusCode 401; a plain error string containing "status code: 401" is
+// treated as unauthorized for wrapped failures.
+func IsUnauthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "status code: 401")
+}
+
 // PerformRequest sends a request to Hookdeck and returns the response.
 func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if req.Header == nil {
@@ -208,6 +225,14 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 				"url":    req.URL.String(),
 				"status": resp.StatusCode,
 			}).Debug("Rate limited")
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			// Invalid or expired keys are common; avoid ERROR-level noise (e.g. whoami, agents).
+			log.WithFields(log.Fields{
+				"prefix": "client.Client.PerformRequest",
+				"method": req.Method,
+				"url":    req.URL.String(),
+				"status": resp.StatusCode,
+			}).Debug("Unauthorized response")
 		} else {
 			log.WithFields(log.Fields{
 				"prefix": "client.Client.PerformRequest 2",

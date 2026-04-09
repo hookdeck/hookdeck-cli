@@ -121,7 +121,16 @@ func Execute() {
 			}
 
 		default:
-			if gatewayMCP {
+			if hookdeck.IsUnauthorizedError(err) {
+				msg := "Authentication failed: your API key is invalid or expired.\n\n" +
+					"Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`.\n\n" +
+					"MCP: use hookdeck_login with reauth: true."
+				if gatewayMCP {
+					fmt.Fprintln(os.Stderr, msg)
+				} else {
+					fmt.Println(msg)
+				}
+			} else if gatewayMCP {
 				fmt.Fprintln(os.Stderr, err)
 			} else {
 				fmt.Println(err)
