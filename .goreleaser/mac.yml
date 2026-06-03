@@ -13,7 +13,7 @@ builds:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     binary: hookdeck
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     main: ./main.go
     goos:
       - darwin
@@ -23,6 +23,8 @@ builds:
     ldflags:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     binary: hookdeck
+    env:
+      - CGO_ENABLED=0
     main: ./main.go
     goos:
       - darwin

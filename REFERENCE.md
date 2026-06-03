@@ -694,14 +694,24 @@ The connection will queue incoming events until unpaused.
 **Usage:**
 
 ```bash
-hookdeck gateway connection pause <connection-id>
+hookdeck gateway connection pause <connection-id-or-name>
 ```
 
 **Arguments:**
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `connection-id` | `string` | **Required.** Connection ID |
+| `connection-id-or-name` | `string` | **Required.** Connection ID or name |
+
+**Examples:**
+
+```bash
+# Pause by connection ID
+hookdeck gateway connection pause web_abc123
+
+# Pause by connection name
+hookdeck gateway connection pause my-connection
+```
 ### hookdeck gateway connection unpause
 
 Resume a paused connection.
@@ -711,14 +721,24 @@ The connection will start processing queued events.
 **Usage:**
 
 ```bash
-hookdeck gateway connection unpause <connection-id>
+hookdeck gateway connection unpause <connection-id-or-name>
 ```
 
 **Arguments:**
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `connection-id` | `string` | **Required.** Connection ID |
+| `connection-id-or-name` | `string` | **Required.** Connection ID or name |
+
+**Examples:**
+
+```bash
+# Unpause by connection ID
+hookdeck gateway connection unpause web_abc123
+
+# Unpause by connection name
+hookdeck gateway connection unpause my-connection
+```
 <!-- GENERATE_END -->
 ## Sources
 
@@ -1872,7 +1892,21 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 
 ## Completion
 
-Generate bash and zsh completion scripts. This command runs on install when using Homebrew or Scoop. You can optionally run it when using binaries directly or without a package manager.
+Generate a shell completion script for hookdeck.
+
+The script is written to standard output. To enable completions in the
+current shell session, source the output:
+
+  $ source <(hookdeck completion `--shell` bash)
+  $ source <(hookdeck completion `--shell` zsh)
+
+To install completions permanently, redirect the output to your shell's
+completion directory:
+
+  bash:  hookdeck completion `--shell` bash > /usr/local/etc/bash_completion.d/hookdeck
+  zsh:   hookdeck completion `--shell` zsh > "${fpath[1]}/_hookdeck"
+
+When installed via Homebrew or Scoop, completions are installed automatically.
 
 **Usage:**
 

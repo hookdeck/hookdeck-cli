@@ -460,11 +460,19 @@ hookdeck version
 
 ### Completion
 
-Configure auto-completion for Hookdeck CLI. It is run on install when using Homebrew or Scoop. You can optionally run this command when using the binaries directly or without a package manager.
+Generate a shell completion script for the Hookdeck CLI. When installed via Homebrew or Scoop, completions are configured automatically.
+
+To enable completions for the current shell session:
 
 ```sh
-hookdeck completion
+# bash
+source <(hookdeck completion --shell bash)
+
+# zsh
+source <(hookdeck completion --shell zsh)
 ```
+
+To install completions permanently, redirect the output to your shell's completion directory. See `hookdeck completion --help` for examples.
 
 ### Running in CI
 
