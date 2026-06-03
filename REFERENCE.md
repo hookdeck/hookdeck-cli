@@ -1892,7 +1892,21 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 
 ## Completion
 
-Generate bash and zsh completion scripts. This command runs on install when using Homebrew or Scoop. You can optionally run it when using binaries directly or without a package manager.
+Generate a shell completion script for hookdeck.
+
+The script is written to standard output. To enable completions in the
+current shell session, source the output:
+
+  $ source <(hookdeck completion `--shell` bash)
+  $ source <(hookdeck completion `--shell` zsh)
+
+To install completions permanently, redirect the output to your shell's
+completion directory:
+
+  bash:  hookdeck completion `--shell` bash > /usr/local/etc/bash_completion.d/hookdeck
+  zsh:   hookdeck completion `--shell` zsh > "${fpath[1]}/_hookdeck"
+
+When installed via Homebrew or Scoop, completions are installed automatically.
 
 **Usage:**
 
