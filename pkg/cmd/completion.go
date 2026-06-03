@@ -2,12 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"runtime"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -24,12 +23,32 @@ func newCompletionCmd() *completionCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "completion",
 		Short: "Generate bash and zsh completion scripts",
-		Long:  "Generate bash and zsh completion scripts. This command runs on install when using Homebrew or Scoop. You can optionally run it when using binaries directly or without a package manager.",
-		Args:  validators.NoArgs,
+		Long: `Generate bash and zsh completion scripts.
+
+The completion script is written to stdout. Source it directly in your current
+shell session, or redirect it to a file loaded by your shell's startup config.
+
+To load completions in your current session:
+
+  source <(hookdeck completion --shell bash)
+  source <(hookdeck completion --shell zsh)
+
+To load completions for every session, write the script to the location your
+shell loads completions from, for example:
+
+  # bash (Linux)
+  hookdeck completion --shell bash > /etc/bash_completion.d/hookdeck
+
+  # zsh
+  hookdeck completion --shell zsh > "${fpath[1]}/_hookdeck"
+
+This command also runs on install when using Homebrew or Scoop.`,
+		Args: validators.NoArgs,
 		Example: `  $ hookdeck completion --shell zsh
-  $ hookdeck completion --shell bash`,
+  $ hookdeck completion --shell bash
+  $ source <(hookdeck completion --shell bash)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return selectShell(cc.shell)
+			return selectShell(cc.shell, cmd.OutOrStdout())
 		},
 	}
 
@@ -38,56 +57,7 @@ func newCompletionCmd() *completionCmd {
 	return cc
 }
 
-const (
-	instructionsHeader = `
-Suggested next steps:
----------------------`
-
-	zshCompletionInstructions = `
-1. Move ` + "`hookdeck-completion.zsh`" + ` to the correct location:
-    mkdir -p ~/.hookdeck
-    mv hookdeck-completion.zsh ~/.hookdeck
-
-2. Add the following lines to your ` + "`.zshrc`" + ` enabling shell completion for Hookdeck:
-    fpath=(~/.hookdeck $fpath)
-    autoload -Uz compinit && compinit -i
-
-3. Source your ` + "`.zshrc`" + ` or open a new terminal session:
-    source ~/.zshrc`
-
-	bashCompletionInstructionsMac = `
-Set up bash autocompletion on your system:
-1. Install the bash autocompletion package:
-     brew install bash-completion
-2. Follow the post-install instructions displayed by Homebrew; add a line like the following to your bash profile:
-     [[ -r "/usr/local/etc/profile.d/bash_completion.sh" ]] && . "/usr/local/etc/profile.d/bash_completion.sh"
-
-Set up Hookdeck autocompletion:
-3. Move ` + "`hookdeck-completion.bash`" + ` to the correct location:
-    mkdir -p ~/.hookdeck
-    mv hookdeck-completion.bash ~/.hookdeck
-
-4. Add the following line to your bash profile, so that Hookdeck autocompletion will be enabled every time you start a new terminal session:
-    source ~/.hookdeck/hookdeck-completion.bash
-
-5. Either restart your terminal, or run the following command in your current session to enable immediately:
-    source ~/.hookdeck/hookdeck-completion.bash`
-
-	bashCompletionInstructionsLinux = `
-1. Ensure bash autocompletion is installed on your system. Often, this means verifying that ` + "`/etc/profile.d/bash_completion.sh`" + ` exists, and is sourced by your bash profile; the location of this file varies across distributions of Linux.
-
-2. Move ` + "`hookdeck-completion.bash`" + ` to the correct location:
-    mkdir -p ~/.hookdeck
-    mv hookdeck-completion.bash ~/.hookdeck
-
-3. Add the following line to your bash profile, so that Hookdeck autocompletion will be enabled every time you start a new terminal session:
-    source ~/.hookdeck/hookdeck-completion.bash
-
-4. Either restart your terminal, or run the following command in your current session to enable immediately:
-    source ~/.hookdeck/hookdeck-completion.bash`
-)
-
-func selectShell(shell string) error {
+func selectShell(shell string, out io.Writer) error {
 	selected := shell
 	if selected == "" {
 		selected = detectShell()
@@ -95,23 +65,9 @@ func selectShell(shell string) error {
 
 	switch {
 	case selected == "zsh":
-		fmt.Println("Detected `zsh`, generating zsh completion file: hookdeck-completion.zsh")
-		err := rootCmd.GenZshCompletionFile("hookdeck-completion.zsh")
-		if err == nil {
-			fmt.Printf("%s%s\n", instructionsHeader, zshCompletionInstructions)
-		}
-		return err
+		return rootCmd.GenZshCompletion(out)
 	case selected == "bash":
-		fmt.Println("Detected `bash`, generating bash completion file: hookdeck-completion.bash")
-		err := rootCmd.GenBashCompletionFile("hookdeck-completion.bash")
-		if err == nil {
-			if runtime.GOOS == "darwin" {
-				fmt.Printf("%s%s\n", instructionsHeader, bashCompletionInstructionsMac)
-			} else if runtime.GOOS == "linux" {
-				fmt.Printf("%s%s\n", instructionsHeader, bashCompletionInstructionsLinux)
-			}
-		}
-		return err
+		return rootCmd.GenBashCompletion(out)
 	default:
 		return fmt.Errorf("could not automatically detect your shell. Please run the command with the `--shell` flag for either bash or zsh")
 	}
