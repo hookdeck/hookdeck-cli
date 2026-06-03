@@ -694,14 +694,24 @@ The connection will queue incoming events until unpaused.
 **Usage:**
 
 ```bash
-hookdeck gateway connection pause <connection-id>
+hookdeck gateway connection pause <connection-id-or-name>
 ```
 
 **Arguments:**
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `connection-id` | `string` | **Required.** Connection ID |
+| `connection-id-or-name` | `string` | **Required.** Connection ID or name |
+
+**Examples:**
+
+```bash
+# Pause by connection ID
+hookdeck gateway connection pause web_abc123
+
+# Pause by connection name
+hookdeck gateway connection pause my-connection
+```
 ### hookdeck gateway connection unpause
 
 Resume a paused connection.
@@ -711,14 +721,24 @@ The connection will start processing queued events.
 **Usage:**
 
 ```bash
-hookdeck gateway connection unpause <connection-id>
+hookdeck gateway connection unpause <connection-id-or-name>
 ```
 
 **Arguments:**
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `connection-id` | `string` | **Required.** Connection ID |
+| `connection-id-or-name` | `string` | **Required.** Connection ID or name |
+
+**Examples:**
+
+```bash
+# Unpause by connection ID
+hookdeck gateway connection unpause web_abc123
+
+# Unpause by connection name
+hookdeck gateway connection unpause my-connection
+```
 <!-- GENERATE_END -->
 ## Sources
 
