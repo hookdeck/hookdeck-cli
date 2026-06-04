@@ -78,7 +78,7 @@ npm install hookdeck-cli@beta -g
 Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/):
 
 ```sh
-brew install hookdeck/hookdeck/hookdeck
+brew install hookdeck
 ```
 
 To install a beta (pre-release) version:
