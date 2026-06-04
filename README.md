@@ -75,17 +75,26 @@ npm install hookdeck-cli@beta -g
 
 ### macOS
 
-Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/):
+Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/) in [homebrew-core](https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/h/hookdeck.rb):
 
 ```sh
-brew install hookdeck/hookdeck/hookdeck
+brew install hookdeck
 ```
 
-To install a beta (pre-release) version:
+New stable versions are picked up automatically by Homebrew's autobump after each release — `brew upgrade` will pull them in.
+
+To install a beta (pre-release) version from our tap:
 
 ```sh
 brew install hookdeck/hookdeck/hookdeck-beta
 ```
+
+> [!NOTE]
+> When [`HOMEBREW_REQUIRE_TAP_TRUST`](https://docs.brew.sh/Taps) becomes the default in Homebrew 5.2.0 / 6.0.0, installing the beta formula from a third-party tap will require an explicit trust step:
+> ```sh
+> brew trust --formula hookdeck/hookdeck/hookdeck-beta
+> ```
+> The stable `hookdeck` formula lives in homebrew-core and is not affected.
 
 ### Windows
 
@@ -1218,21 +1227,40 @@ There are also some hidden flags that are mainly used for development and debugg
 
 ## Troubleshooting
 
-### Homebrew: Binary Already Exists Error
+### Homebrew: migrating from the third-party tap to homebrew-core
 
-If you previously installed Hookdeck via the Homebrew formula and are upgrading to the cask version, you may see:
+The stable `hookdeck` formula now lives in [homebrew-core](https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/h/hookdeck.rb). The third-party `hookdeck/hookdeck` tap publishes only the beta formula.
 
-```
-Warning: It seems there is already a Binary at '/opt/homebrew/bin/hookdeck'
-from formula hookdeck; skipping link.
-```
+If you installed via the tap, the move is automatic: `brew update && brew upgrade` will pull the next stable version from homebrew-core. No action needed.
 
-To resolve this, uninstall the old formula version first, then install the cask:
+If you want to switch immediately:
 
 ```sh
-brew uninstall hookdeck
-brew install --cask hookdeck/hookdeck/hookdeck
+brew update
+brew upgrade hookdeck
 ```
+
+### Homebrew: `hookdeck` and `hookdeck-beta` conflict on link
+
+Both formulae install a binary called `hookdeck`, so only one can be linked at a time. Switching between them requires `--overwrite`:
+
+```sh
+# Switch from beta to stable
+brew link --overwrite hookdeck
+
+# Switch from stable to beta
+brew link --overwrite hookdeck-beta
+```
+
+### Homebrew: beta install asks for a `brew trust` step
+
+Once [`HOMEBREW_REQUIRE_TAP_TRUST`](https://docs.brew.sh/Taps) becomes the default in Homebrew 5.2.0 / 6.0.0, installing the beta from the third-party tap requires:
+
+```sh
+brew trust --formula hookdeck/hookdeck/hookdeck-beta
+```
+
+The stable formula lives in homebrew-core and is unaffected.
 
 
 ## Developing
@@ -1433,7 +1461,7 @@ The GitHub Actions workflow will automatically:
 - Create a stable GitHub release
 - Publish to NPM with the `latest` tag
 - Update package managers:
-  - Homebrew: `hookdeck` formula
+  - Homebrew: stable formula in [homebrew-core](https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/h/hookdeck.rb) is auto-bumped by Homebrew's BrewTestBot (no action from us; runs every ~3 hours after the tag is published). The `hookdeck-beta` formula in our third-party tap is updated only on pre-release tags.
   - Scoop: `hookdeck` package
   - Docker: Updates both the version tag and `latest`
 
