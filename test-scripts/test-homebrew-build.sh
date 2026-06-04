@@ -8,7 +8,6 @@
 # It validates that:
 #   - GoReleaser snapshot build completes successfully
 #   - Homebrew formula file is generated
-#   - Formula contains deprecation warning
 #   - Formula references completion files correctly
 #   - Completion files are bundled in the tarball
 # NOTE: Cask validation is currently commented out - focusing on formula only
@@ -528,7 +527,6 @@ main() {
         echo_info "What was validated:"
         echo "  ✓ GoReleaser configuration generates correct Homebrew formula"
         echo "  ✓ Completion files are bundled in archives"
-        echo "  ✓ Formula has deprecation warnings"
         echo "  ✓ Formula has proper completion directives"
         # echo "  ✓ Cask has proper completion directives"  # Commented out - not testing cask
         
