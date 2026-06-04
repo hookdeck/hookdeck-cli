@@ -170,9 +170,11 @@ run_goreleaser_build() {
 
 # Validate Homebrew formula file
 validate_formula() {
-    echo_section "Validating Formula (dist/homebrew/Formula/hookdeck.rb)"
-    
-    local formula_file="dist/homebrew/Formula/hookdeck.rb"
+    echo_section "Validating Formula (dist/homebrew/Formula/hookdeck-beta.rb)"
+
+    # Stable releases of `hookdeck` now go to homebrew-core; the third-party
+    # tap publishes only `hookdeck-beta` on pre-release tags.
+    local formula_file="dist/homebrew/Formula/hookdeck-beta.rb"
     
     if [ ! -f "$formula_file" ]; then
         echo_error "Formula file not found at $formula_file"
@@ -298,7 +300,7 @@ setup_local_tap() {
     
     # Patch formula to use local file:// URLs for testing
     echo_info "Patching formula to use local file URLs for testing..."
-    local formula_file="$LOCAL_TAP_PATH/Formula/hookdeck.rb"
+    local formula_file="$LOCAL_TAP_PATH/Formula/hookdeck-beta.rb"
     local current_dir="$(pwd)"
     
     # Replace GitHub URLs with local file:// URLs
@@ -320,8 +322,8 @@ setup_local_tap() {
 test_formula_installation() {
     echo_section "Testing Formula Installation"
     
-    local tap_name="hookdeck-test/hookdeck-test/hookdeck"
-    
+    local tap_name="hookdeck-test/hookdeck-test/hookdeck-beta"
+
     echo_info "Installing formula: brew install $tap_name"
     if brew install "$tap_name"; then
         echo_success "Formula installed successfully"
