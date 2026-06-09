@@ -96,17 +96,27 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_requests",
-				Description: "Query inbound requests (raw HTTP data received by Hookdeck before routing). List with filters, get details, inspect the raw body, or view the events and ignored events generated from a request. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
+				Description: "Query inbound requests (raw HTTP data received by Hookdeck before routing). List supports the same filters as `hookdeck gateway request list` (metadata, date range, payload search, sort). Get details, inspect raw body, or view events and ignored events from a request. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
 				InputSchema: schema(map[string]prop{
-					"action":         {Type: "string", Desc: "Action: list, get, raw_body, events, or ignored_events", Enum: []string{"list", "get", "raw_body", "events", "ignored_events"}},
-					"id":             {Type: "string", Desc: "Request ID (required for get/raw_body/events/ignored_events)"},
-					"source_id":      {Type: "string", Desc: "Filter by source (list)"},
-					"status":         {Type: "string", Desc: "Filter by status (list)"},
+					"action":          {Type: "string", Desc: "Action: list, get, raw_body, events, or ignored_events", Enum: []string{"list", "get", "raw_body", "events", "ignored_events"}},
+					"id":              {Type: "string", Desc: "Request ID: filter by ID(s) on list (comma-separated), or required for get/raw_body/events/ignored_events"},
+					"source_id":       {Type: "string", Desc: "Filter by source (list)"},
+					"status":          {Type: "string", Desc: "Filter by status: accepted or rejected (list)"},
 					"rejection_cause": {Type: "string", Desc: "Filter by rejection cause (list)"},
-					"verified":       {Type: "boolean", Desc: "Filter by verification status (list)"},
-					"limit":          {Type: "integer", Desc: "Max results (list)"},
-					"next":           {Type: "string", Desc: "Next page cursor"},
-					"prev":           {Type: "string", Desc: "Previous page cursor"},
+					"verified":        {Type: "boolean", Desc: "Filter by verification status (list)"},
+					"created_after":   {Type: "string", Desc: "created_at lower bound. " + descDateAfter},
+					"created_before":  {Type: "string", Desc: "created_at upper bound. " + descDateBefore},
+					"ingested_after":  {Type: "string", Desc: "ingested_at lower bound. " + descDateAfter},
+					"ingested_before": {Type: "string", Desc: "ingested_at upper bound. " + descDateBefore},
+					"body":            {Type: "string", Desc: "Filter by request body. " + descJSONFilter},
+					"headers":         {Type: "string", Desc: "Filter by request headers. " + descJSONFilter},
+					"parsed_query":    {Type: "string", Desc: "Filter by parsed query string as JSON. " + descJSONFilter},
+					"path":            {Type: "string", Desc: descPathFilter},
+					"order_by":        {Type: "string", Desc: "Sort field (list), e.g. created_at"},
+					"dir":             {Type: "string", Desc: "Sort direction: asc or desc (list)"},
+					"limit":           {Type: "integer", Desc: "Max results (list)"},
+					"next":            {Type: "string", Desc: "Next page cursor"},
+					"prev":            {Type: "string", Desc: "Previous page cursor"},
 				}, "action"),
 			},
 			handler: handleRequests(client),
@@ -114,24 +124,34 @@ func toolDefs(client *hookdeck.Client) []struct {
 		{
 			tool: &mcpsdk.Tool{
 				Name:        "hookdeck_events",
-				Description: "Query events (processed deliveries routed through connections to destinations). List with filters by status, source, destination, or date range. Get event details (get) or the event payload (raw_body). Use action raw_body with the event id to get the payload directly — do not use hookdeck_requests for the payload when you already have an event id. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
+				Description: "Query events (processed deliveries routed through connections to destinations). List supports the same filters as `hookdeck gateway event list` (metadata, date range, payload search, sort). Get event details (get) or the event payload (raw_body). Use action raw_body with the event id to get the payload directly — do not use hookdeck_requests for the payload when you already have an event id. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
 				InputSchema: schema(map[string]prop{
-					"action":          {Type: "string", Desc: "Action: list, get, or raw_body. Use raw_body to get the event payload (body); get returns metadata and headers only.", Enum: []string{"list", "get", "raw_body"}},
-					"id":              {Type: "string", Desc: "Event ID (required for get/raw_body). Use with raw_body to fetch the event payload without querying the request."},
-					"connection_id":   {Type: "string", Desc: "Filter by connection (list, maps to webhook_id)"},
-					"source_id":       {Type: "string", Desc: "Filter by source (list)"},
-					"destination_id":  {Type: "string", Desc: "Filter by destination (list)"},
-					"status":          {Type: "string", Desc: "Event status: SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED"},
-					"issue_id":        {Type: "string", Desc: "Filter by issue (list)"},
-					"error_code":      {Type: "string", Desc: "Filter by error code (list)"},
-					"response_status": {Type: "string", Desc: "Filter by HTTP response status (list)"},
-					"created_after":   {Type: "string", Desc: "ISO datetime lower bound (list)"},
-					"created_before":  {Type: "string", Desc: "ISO datetime upper bound (list)"},
-					"limit":           {Type: "integer", Desc: "Max results (list)"},
-					"order_by":        {Type: "string", Desc: "Sort field (list)"},
-					"dir":             {Type: "string", Desc: "Sort direction: asc or desc (list)"},
-					"next":            {Type: "string", Desc: "Next page cursor"},
-					"prev":            {Type: "string", Desc: "Previous page cursor"},
+					"action":             {Type: "string", Desc: "Action: list, get, or raw_body. Use raw_body to get the event payload (body); get returns metadata and headers only.", Enum: []string{"list", "get", "raw_body"}},
+					"id":                 {Type: "string", Desc: "Event ID: filter by ID(s) on list (comma-separated), or required for get/raw_body"},
+					"connection_id":      {Type: "string", Desc: "Filter by connection (list, maps to webhook_id)"},
+					"source_id":          {Type: "string", Desc: "Filter by source (list)"},
+					"destination_id":     {Type: "string", Desc: "Filter by destination (list)"},
+					"status":             {Type: "string", Desc: "Event status: SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED"},
+					"attempts":           {Type: "string", Desc: "Filter by attempt count (list). Integer or API operator syntax; pass through as string."},
+					"issue_id":           {Type: "string", Desc: "Filter by issue (list)"},
+					"error_code":         {Type: "string", Desc: "Filter by error code (list)"},
+					"response_status":    {Type: "string", Desc: "Filter by HTTP response status (list)"},
+					"cli_id":             {Type: "string", Desc: "Filter by CLI listen session ID (list)"},
+					"created_after":      {Type: "string", Desc: "created_at lower bound. " + descDateAfter},
+					"created_before":     {Type: "string", Desc: "created_at upper bound. " + descDateBefore},
+					"successful_after":   {Type: "string", Desc: "successful_at lower bound. " + descDateAfter},
+					"successful_before":  {Type: "string", Desc: "successful_at upper bound. " + descDateBefore},
+					"last_attempt_after": {Type: "string", Desc: "last_attempt_at lower bound. " + descDateAfter},
+					"last_attempt_before": {Type: "string", Desc: "last_attempt_at upper bound. " + descDateBefore},
+					"body":               {Type: "string", Desc: "Filter by event payload body. " + descJSONFilter},
+					"headers":            {Type: "string", Desc: "Filter by event headers. " + descJSONFilter},
+					"parsed_query":       {Type: "string", Desc: "Filter by parsed query as JSON. " + descJSONFilter},
+					"path":               {Type: "string", Desc: descPathFilter},
+					"limit":              {Type: "integer", Desc: "Max results (list)"},
+					"order_by":           {Type: "string", Desc: "Sort field (list)"},
+					"dir":                {Type: "string", Desc: "Sort direction: asc or desc (list)"},
+					"next":               {Type: "string", Desc: "Next page cursor"},
+					"prev":               {Type: "string", Desc: "Previous page cursor"},
 				}, "action"),
 			},
 			handler: handleEvents(client),
@@ -212,6 +232,13 @@ type prop struct {
 	Enum  []string `json:"enum,omitempty"`
 	Items *prop    `json:"items,omitempty"`
 }
+
+const (
+	descDateAfter = "ISO 8601 datetime lower bound (list). Maps to API field[gte]; do not pass bracket keys in MCP args. Combinable with the matching *_before param."
+	descDateBefore = "ISO 8601 datetime upper bound (list). Maps to API field[lte]; do not pass bracket keys in MCP args."
+	descJSONFilter = "Hookdeck JSON filter (object or string). Same syntax as hookdeck listen --filter-body."
+	descPathFilter = "Partial URL path match (string)."
+)
 
 // schema builds a JSON Schema object with the given properties and required fields.
 func schema(properties map[string]prop, required ...string) json.RawMessage {

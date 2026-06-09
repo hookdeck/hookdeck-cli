@@ -191,6 +191,35 @@ func TestHelpTool_SpecificTopic(t *testing.T) {
 	assert.Contains(t, text, "raw_body")
 }
 
+func TestHelpEventsTopic_DocumentsDateRangeFilters(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_help", map[string]any{"topic": "hookdeck_events"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "Date range filters")
+	assert.Contains(t, text, "created_after")
+	assert.Contains(t, text, "successful_after")
+	assert.Contains(t, text, "last_attempt_after")
+	assert.Contains(t, text, "ISO 8601")
+	assert.Contains(t, text, "created_at[gte]")
+}
+
+func TestHelpRequestsTopic_DocumentsDateRangeFilters(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_help", map[string]any{"topic": "hookdeck_requests"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "Date range filters")
+	assert.Contains(t, text, "created_after")
+	assert.Contains(t, text, "ingested_after")
+	assert.Contains(t, text, "ISO 8601")
+	assert.Contains(t, text, "ingested_at[gte]")
+}
+
 func TestHelpTool_ShortTopicName(t *testing.T) {
 	// "events" should resolve to "hookdeck_events"
 	client := newTestClient("https://api.hookdeck.com", "test-key")
@@ -695,6 +724,118 @@ func TestEventsList_ConnectionIDMapsToWebhookID(t *testing.T) {
 	assert.False(t, result.IsError)
 }
 
+func TestEventsList_BodyFilter(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			assert.JSONEq(t, `{"type":"payment"}`, r.URL.Query().Get("body"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{
+		"action": "list",
+		"body":   map[string]any{"type": "payment"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestEventsList_PayloadFilters(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, `{"x-test":"1"}`, r.URL.Query().Get("headers"))
+			assert.JSONEq(t, `{"q":"search"}`, r.URL.Query().Get("parsed_query"))
+			assert.Equal(t, "/webhooks", r.URL.Query().Get("path"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{
+		"action":       "list",
+		"headers":      `{"x-test":"1"}`,
+		"parsed_query": map[string]any{"q": "search"},
+		"path":         "/webhooks",
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestEventsList_MetadataFilters(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "evt_1,evt_2", r.URL.Query().Get("id"))
+			assert.Equal(t, "3", r.URL.Query().Get("attempts"))
+			assert.Equal(t, "cli_abc", r.URL.Query().Get("cli_id"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{
+		"action":   "list",
+		"id":       "evt_1,evt_2",
+		"attempts": "3",
+		"cli_id":   "cli_abc",
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestEventsList_InvalidBodyFilter(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_events", map[string]any{"action": "list", "body": 42})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "body must be a JSON string or object")
+}
+
+func TestEventsList_CreatedAtDateRange(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("created_at[gte]"))
+			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("created_at[lte]"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{
+		"action":         "list",
+		"created_after":  "2026-06-01T00:00:00Z",
+		"created_before": "2026-06-09T23:59:59Z",
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestEventsList_SuccessfulAtDateRange(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("successful_at[gte]"))
+			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("successful_at[lte]"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{
+		"action":            "list",
+		"successful_after":  "2026-06-01T00:00:00Z",
+		"successful_before": "2026-06-09T23:59:59Z",
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestEventsList_LastAttemptAtDateRange(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/events": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("last_attempt_at[gte]"))
+			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("last_attempt_at[lte]"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_events", map[string]any{
+		"action":              "list",
+		"last_attempt_after":  "2026-06-01T00:00:00Z",
+		"last_attempt_before": "2026-06-09T23:59:59Z",
+	})
+	assert.False(t, result.IsError)
+}
+
 // ---------------------------------------------------------------------------
 // Requests tool
 // ---------------------------------------------------------------------------
@@ -821,6 +962,72 @@ func TestRequestsList_VerifiedFilter(t *testing.T) {
 	})
 
 	result := callTool(t, session, "hookdeck_requests", map[string]any{"action": "list", "verified": true})
+	assert.False(t, result.IsError)
+}
+
+func TestRequestsList_BodyFilter(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests": func(w http.ResponseWriter, r *http.Request) {
+			assert.JSONEq(t, `{"event":"test"}`, r.URL.Query().Get("body"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{
+		"action": "list",
+		"body":   map[string]any{"event": "test"},
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestRequestsList_CreatedAtDateRange(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("created_at[gte]"))
+			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("created_at[lte]"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{
+		"action":         "list",
+		"created_after":  "2026-06-01T00:00:00Z",
+		"created_before": "2026-06-09T23:59:59Z",
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestRequestsList_IngestedAtDateRange(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("ingested_at[gte]"))
+			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("ingested_at[lte]"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{
+		"action":          "list",
+		"ingested_after":  "2026-06-01T00:00:00Z",
+		"ingested_before": "2026-06-09T23:59:59Z",
+	})
+	assert.False(t, result.IsError)
+}
+
+func TestRequestsList_OrderByAndDir(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		"/2025-07-01/requests": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "created_at", r.URL.Query().Get("order_by"))
+			assert.Equal(t, "desc", r.URL.Query().Get("dir"))
+			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_requests", map[string]any{
+		"action":   "list",
+		"order_by": "created_at",
+		"dir":      "desc",
+	})
 	assert.False(t, result.IsError)
 }
 
