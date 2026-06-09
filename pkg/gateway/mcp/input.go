@@ -113,3 +113,44 @@ func setInt(params map[string]string, key string, value int) {
 		params[key] = strconv.Itoa(value)
 	}
 }
+
+// JSONFilterParam returns a JSON filter value for API query params (body, headers, etc.).
+// Accepts a JSON string or object from MCP tool arguments.
+func (in input) JSONFilterParam(key string) (string, error) {
+	v, ok := in[key]
+	if !ok {
+		return "", nil
+	}
+	switch val := v.(type) {
+	case string:
+		return val, nil
+	case map[string]interface{}:
+		b, err := json.Marshal(val)
+		if err != nil {
+			return "", fmt.Errorf("%s: invalid JSON object: %w", key, err)
+		}
+		return string(b), nil
+	default:
+		return "", fmt.Errorf("%s must be a JSON string or object", key)
+	}
+}
+
+// setJSONFilter adds a JSON filter param when present and valid.
+func setJSONFilter(params map[string]string, key string, in input) error {
+	value, err := in.JSONFilterParam(key)
+	if err != nil {
+		return err
+	}
+	setIfNonEmpty(params, key, value)
+	return nil
+}
+
+// setPayloadSearchFilters forwards body, headers, parsed_query, and path list filters.
+func setPayloadSearchFilters(params map[string]string, in input) error {
+	for _, key := range []string{"body", "headers", "parsed_query", "path"} {
+		if err := setJSONFilter(params, key, in); err != nil {
+			return err
+		}
+	}
+	return nil
+}

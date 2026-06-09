@@ -596,6 +596,8 @@ The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't a
 | `hookdeck_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
 | `hookdeck_help` | Discover available tools and their actions |
 
+`hookdeck_events` and `hookdeck_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `hookdeck_help` with topic `hookdeck_events` or `hookdeck_requests` for the full parameter list.
+
 #### Example prompts
 
 Once the MCP server is configured, you can ask your agent questions like:
@@ -621,6 +623,12 @@ Once the MCP server is configured, you can ask your agent questions like:
 
 "Compare failure rates across all my destinations this week."
 → Agent uses hookdeck_metrics with dimensions set to destination_id and measures like error_rate.
+
+"Find Stripe charge.succeeded events from the last week."
+→ Agent uses hookdeck_events list with body filter {"type":"charge.succeeded"} and created_after / created_before ISO datetimes.
+
+"Show failed events that had delivery attempts in the last 24 hours."
+→ Agent uses hookdeck_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
 ```
 
 ### Manage connections
