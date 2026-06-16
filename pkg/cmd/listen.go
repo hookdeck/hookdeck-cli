@@ -103,11 +103,15 @@ func newListenCmd() *listenCmd {
 	lc := &listenCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:   "listen [port or forwarding URL] [source] [connection]",
-		Short: "Forward events for a source to your local server",
-		Long: `Forward events for a source to your local server.
+		Use:   "listen [port or forwarding URL] [source(s)] [connection]",
+		Short: "Forward events for one or more sources to your local server",
+		Long: `Forward events for one or more sources to your local server.
 
-This command will create a new Hookdeck Source if it doesn't exist.
+You can listen to a single source, a comma-separated list of sources, or
+"*" to listen to all of your sources at once.
+
+This command will create a new Hookdeck Source if it doesn't exist (single
+source only).
 
 By default the Hookdeck Destination will be named "{source}-cli", and the
 Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
@@ -178,12 +182,12 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	usage = strings.Replace(
 		usage,
 		"{{.UseLine}}",
-		`hookdeck listen [port or forwarding URL] [source] [connection] [flags]
+		`hookdeck listen [port or forwarding URL] [source(s)] [connection] [flags]
 
 Arguments:
 
  - [port or forwarding URL]: Required. The port or forwarding URL to forward the events to e.g., "3000" or "http://localhost:3000"
- - [source]: Required. The name of source to forward the events from e.g., "shopify", "stripe"
+ - [source(s)]: Optional. One source name, a comma-separated list of source names (e.g. "shopify,stripe"), or "*" to listen to all sources. If omitted, the CLI prompts you to choose.
  - [connection]: Optional. The name of the connection linking the Source and the Destination
 	`, 1)
 
@@ -194,6 +198,14 @@ Examples:
   Forward events from a Hookdeck Source named "shopify" to a local server running on port %[1]d:
 
     hookdeck listen %[1]d shopify
+
+  Forward events from multiple sources to a local server running on port %[1]d:
+
+    hookdeck listen %[1]d shopify,stripe
+
+  Forward events from all of your sources:
+
+    hookdeck listen %[1]d '*'
 
   Forward events to a local server running on "http://myapp.test:%[1]d":
 

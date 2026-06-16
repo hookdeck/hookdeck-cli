@@ -172,9 +172,13 @@ Pinning project to current directory
 <!-- GENERATE:listen:START -->
 ## Listen
 
-Forward events for a source to your local server.
+Forward events for one or more sources to your local server.
 
-This command will create a new Hookdeck Source if it doesn't exist.
+You can listen to a single source, a comma-separated list of sources, or
+"*" to listen to all of your sources at once.
+
+This command will create a new Hookdeck Source if it doesn't exist (single
+source only).
 
 By default the Hookdeck Destination will be named "{source}-cli", and the
 Destination CLI path will be "/". To set the CLI path, use the "`--path`" flag.
@@ -182,7 +186,7 @@ Destination CLI path will be "/". To set the CLI path, use the "`--path`" flag.
 **Usage:**
 
 ```bash
-hookdeck listen [port or forwarding URL] [source] [connection] [flags]
+hookdeck listen [port or forwarding URL] [source(s)] [connection] [flags]
 ```
 
 **Arguments:**
