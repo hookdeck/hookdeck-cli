@@ -13,6 +13,8 @@ These tests run automatically in CI using API keys from `hookdeck ci`. They don'
 
 **Login recovery (mock API, `basic` tag):** `login_auth_acceptance_test.go` runs the real CLI with `--api-base` pointing at a local server that returns **401** on `GET .../cli-auth/validate`, then completes a fake device-auth poll — this asserts `hookdeck login` continues into browser/device flow after a stale key (no human, no real Hookdeck key). The same file includes **`TestCIFailsFastWithInvalidAPIKeyAcceptance`**, which runs `hookdeck ci --api-key` with a bogus key against the real API and expects a quick failure with the friendly **Authentication failed** message, and asserts output does **not** contain browser/device-login phrases (`Press Enter to open the browser`, `To authenticate with Hookdeck`, etc.) so CI never enters the interactive `hookdeck login` flow.
 
+**Guest login intents (mock API, `guest` tag):** `guest_login_acceptance_test.go` asserts `POST /cli-auth` receives the correct `auth_intent` and guest credentials for default non-TTY login (`claim_guest`), `--login`, and `--create-account`.
+
 ### 2. Manual Tests (Require Human Interaction)
 These tests require browser-based authentication via `hookdeck login` and must be run manually by developers.
 
@@ -65,14 +67,14 @@ No test-name list in the workflow—tests are partitioned by **feature tags** (s
 ### Run all automated tests (one key)
 Pass all feature tags so every automated test file is included:
 ```bash
-go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation" ./test/acceptance/... -v
+go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation" ./test/acceptance/... -v
 ```
 
 ### Run one slice (for CI or local)
 Same commands as CI; use when debugging a subset or running in parallel:
 ```bash
 # Slice 0 (same tags as CI job 0)
-ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
+ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
 
 # Slice 1 (same tags as CI job 1)
 ACCEPTANCE_SLICE=1 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
@@ -114,7 +116,7 @@ Use the same `-tags` as "Run all" if you want to skip the full acceptance set. A
 
 Tests are partitioned by **feature build tags** so CI and local runs can execute three matrix slices in parallel (each slice uses its own Hookdeck project and config file).
 
-- **Slice 0 features:** `basic`, `connection`, `source`, `destination`, `gateway`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
+- **Slice 0 features:** `basic`, `guest`, `connection`, `source`, `destination`, `gateway`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
 - **Slice 1 features:** `request`, `event`
 - **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`
 - **Telemetry job:** `telemetry` only — separate CI job with telemetry **not** disabled (see [CI/CD](#cicd))
