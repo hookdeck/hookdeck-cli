@@ -16,7 +16,6 @@ type loginCmd struct {
 	cmd         *cobra.Command
 	interactive bool
 	local       bool
-	claim_guest bool
 }
 
 func newLoginCmd() *loginCmd {
@@ -38,7 +37,6 @@ To attach the CLI to an existing Hookdeck Platform account instead, run hookdeck
 	}
 	lc.cmd.Flags().BoolVarP(&lc.interactive, "interactive", "i", false, "Run interactive configuration mode if you cannot open a browser")
 	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to current directory (.hookdeck/config.toml)")
-	lc.cmd.Flags().BoolVar(&lc.claim_guest, "claim-guest", false, "Claim the current guest Console sandbox when signing up (default when a guest profile is present)")
 
 	return lc
 }
@@ -49,13 +47,10 @@ func (lc *loginCmd) runLoginCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	var err error
-	login_opts := login.Options{
-		ClaimGuest: lc.claim_guest,
-	}
 	if lc.interactive {
 		err = login.InteractiveLogin(&Config)
 	} else {
-		err = login.Login(&Config, os.Stdin, login_opts)
+		err = login.Login(&Config, os.Stdin)
 	}
 	if err != nil {
 		return err

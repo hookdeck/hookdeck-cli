@@ -117,10 +117,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			saved_guest_api_key = cfg.Profile.APIKey
 		}
 
-		auth_intent, err := login.ResolveLoginIntent(cfg, strings.NewReader("\n"), login.Options{})
-		if err != nil {
-			return ErrorResult(fmt.Sprintf("Failed to resolve login intent: %s", err)), nil
-		}
+		auth_intent := login.ResolveLoginIntent(cfg)
 
 		// Initiate browser-based device auth flow.
 		authClient := &hookdeck.Client{BaseURL: parsedBaseURL, TelemetryDisabled: cfg.TelemetryDisabled}

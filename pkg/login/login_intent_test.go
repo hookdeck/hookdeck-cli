@@ -1,25 +1,12 @@
 package login
 
 import (
-	"strings"
 	"testing"
 
 	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/stretchr/testify/require"
 )
-
-func TestResolveLoginIntent_explicitClaimGuestFlag(t *testing.T) {
-	cfg := &configpkg.Config{
-		Profile: configpkg.Profile{
-			GuestURL: "https://console.test/signin/guest?token=abc",
-		},
-	}
-
-	intent, err := resolveLoginIntent(cfg, strings.NewReader("\n"), Options{ClaimGuest: true})
-	require.NoError(t, err)
-	require.Equal(t, hookdeck.CLIAuthIntentClaimGuest, intent)
-}
 
 func TestResolveLoginIntent_guestProfileDefaultsClaimGuest(t *testing.T) {
 	cfg := &configpkg.Config{
@@ -30,9 +17,7 @@ func TestResolveLoginIntent_guestProfileDefaultsClaimGuest(t *testing.T) {
 		},
 	}
 
-	intent, err := resolveLoginIntent(cfg, strings.NewReader("\n"), Options{})
-	require.NoError(t, err)
-	require.Equal(t, hookdeck.CLIAuthIntentClaimGuest, intent)
+	require.Equal(t, hookdeck.CLIAuthIntentClaimGuest, resolveLoginIntent(cfg))
 }
 
 func TestResolveLoginIntent_noGuestProfileDefaultsLogin(t *testing.T) {
@@ -40,9 +25,7 @@ func TestResolveLoginIntent_noGuestProfileDefaultsLogin(t *testing.T) {
 		Profile: configpkg.Profile{},
 	}
 
-	intent, err := resolveLoginIntent(cfg, strings.NewReader("\n"), Options{})
-	require.NoError(t, err)
-	require.Equal(t, hookdeck.CLIAuthIntentLogin, intent)
+	require.Equal(t, hookdeck.CLIAuthIntentLogin, resolveLoginIntent(cfg))
 }
 
 func TestBuildStartLoginInput_guestCredentialsOnlyForClaim(t *testing.T) {

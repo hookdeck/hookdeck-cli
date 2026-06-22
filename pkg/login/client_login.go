@@ -21,7 +21,7 @@ var openBrowser = open.Browser
 var canOpenBrowser = open.CanOpenBrowser
 
 // Login function is used to obtain credentials via hookdeck dashboard.
-func Login(config *configpkg.Config, input io.Reader, opts Options) error {
+func Login(config *configpkg.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
 	if config.Profile.APIKey != "" {
@@ -56,10 +56,7 @@ func Login(config *configpkg.Config, input io.Reader, opts Options) error {
 				TelemetryDisabled: config.TelemetryDisabled,
 			}
 
-			auth_intent, intentErr := resolveLoginIntent(config, input, opts)
-			if intentErr != nil {
-				return intentErr
-			}
+			auth_intent := resolveLoginIntent(config)
 
 			session, startErr := client.StartLogin(buildStartLoginInput(config, auth_intent, saved_guest_api_key))
 			if startErr != nil {
@@ -94,10 +91,7 @@ func Login(config *configpkg.Config, input io.Reader, opts Options) error {
 		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
-	auth_intent, err := resolveLoginIntent(config, input, opts)
-	if err != nil {
-		return err
-	}
+	auth_intent := resolveLoginIntent(config)
 
 	session, err := client.StartLogin(buildStartLoginInput(config, auth_intent, ""))
 	if err != nil {

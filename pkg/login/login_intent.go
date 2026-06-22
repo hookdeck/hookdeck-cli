@@ -1,32 +1,20 @@
 package login
 
 import (
-	"io"
-
 	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-// Options configures hookdeck login when guest credentials or intent selection applies.
-type Options struct {
-	ClaimGuest bool
-}
-
-func resolveLoginIntent(config *configpkg.Config, input io.Reader, opts Options) (hookdeck.CLIAuthIntent, error) {
-	if opts.ClaimGuest {
-		return hookdeck.CLIAuthIntentClaimGuest, nil
-	}
-
+func resolveLoginIntent(config *configpkg.Config) hookdeck.CLIAuthIntent {
 	has_guest_profile := config != nil && config.Profile.GuestURL != ""
 	if !has_guest_profile {
-		return hookdeck.CLIAuthIntentLogin, nil
+		return hookdeck.CLIAuthIntentLogin
 	}
-
-	return hookdeck.CLIAuthIntentClaimGuest, nil
+	return hookdeck.CLIAuthIntentClaimGuest
 }
 
-func ResolveLoginIntent(config *configpkg.Config, input io.Reader, opts Options) (hookdeck.CLIAuthIntent, error) {
-	return resolveLoginIntent(config, input, opts)
+func ResolveLoginIntent(config *configpkg.Config) hookdeck.CLIAuthIntent {
+	return resolveLoginIntent(config)
 }
 
 func BuildStartLoginInput(
