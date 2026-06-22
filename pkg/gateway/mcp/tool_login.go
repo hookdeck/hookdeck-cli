@@ -14,6 +14,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -107,12 +108,23 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 		}
 
 		deviceName, _ := os.Hostname()
+		if cfg.DeviceName == "" {
+			cfg.DeviceName = deviceName
+		}
+
+		saved_guest_api_key := ""
+		if cfg.Profile.GuestURL != "" && cfg.Profile.APIKey != "" {
+			saved_guest_api_key = cfg.Profile.APIKey
+		}
+
+		auth_intent, err := login.ResolveLoginIntent(cfg, strings.NewReader("\n"), login.Options{})
+		if err != nil {
+			return ErrorResult(fmt.Sprintf("Failed to resolve login intent: %s", err)), nil
+		}
 
 		// Initiate browser-based device auth flow.
 		authClient := &hookdeck.Client{BaseURL: parsedBaseURL, TelemetryDisabled: cfg.TelemetryDisabled}
-		session, err := authClient.StartLogin(hookdeck.StartLoginInput{
-			DeviceName: deviceName,
-		})
+		session, err := authClient.StartLogin(login.BuildStartLoginInput(cfg, auth_intent, saved_guest_api_key))
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("Failed to start login: %s", err)), nil
 		}

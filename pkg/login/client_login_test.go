@@ -42,7 +42,7 @@ func TestLogin_validateNonUnauthorizedStillFails(t *testing.T) {
 		Config: cfg,
 	}
 
-	err := Login(cfg, strings.NewReader("\n"))
+	err := Login(cfg, strings.NewReader("\n"), Options{})
 	require.Error(t, err)
 }
 
@@ -114,7 +114,7 @@ api_key = "hk_test_oldkey_abcdefghij"
 	cfg.LogLevel = "error"
 	cfg.TelemetryDisabled = true
 
-	err = Login(cfg, strings.NewReader("\n"))
+	err = Login(cfg, strings.NewReader("\n"), Options{})
 	require.NoError(t, err)
 	require.Equal(t, 1, pollHits, "poll should run once with immediate claimed=true")
 	require.Equal(t, "hk_test_newkey_abcdefghij", cfg.Profile.APIKey)

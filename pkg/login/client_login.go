@@ -21,7 +21,7 @@ var openBrowser = open.Browser
 var canOpenBrowser = open.CanOpenBrowser
 
 // Login function is used to obtain credentials via hookdeck dashboard.
-func Login(config *configpkg.Config, input io.Reader) error {
+func Login(config *configpkg.Config, input io.Reader, opts Options) error {
 	var s *spinner.Spinner
 
 	if config.Profile.APIKey != "" {
@@ -40,7 +40,33 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			// Rejected key: continue into browser login below (must clear key first
 			// or we would re-enter this branch only).
 			fmt.Fprintln(os.Stdout, "Your saved API key is no longer valid. Starting browser sign-in...")
+			saved_guest_api_key := ""
+			if config.Profile.GuestURL != "" {
+				saved_guest_api_key = config.Profile.APIKey
+			}
 			config.Profile.APIKey = ""
+
+			parsedBaseURL, parseErr := url.Parse(config.APIBaseURL)
+			if parseErr != nil {
+				return parseErr
+			}
+
+			client := &hookdeck.Client{
+				BaseURL:           parsedBaseURL,
+				TelemetryDisabled: config.TelemetryDisabled,
+			}
+
+			auth_intent, intentErr := resolveLoginIntent(config, input, opts)
+			if intentErr != nil {
+				return intentErr
+			}
+
+			session, startErr := client.StartLogin(buildStartLoginInput(config, auth_intent, saved_guest_api_key))
+			if startErr != nil {
+				return startErr
+			}
+
+			return waitForLoginSession(config, input, session)
 		} else {
 			message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 			ansi.StopSpinner(s, message, os.Stdout)
@@ -68,14 +94,21 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
-	session, err := client.StartLogin(hookdeck.StartLoginInput{
-		DeviceName:  config.DeviceName,
-		GuestUserID: guestAttestationUserID(config),
-		GuestAPIKey: guestAttestationAPIKey(config),
-	})
+	auth_intent, err := resolveLoginIntent(config, input, opts)
 	if err != nil {
 		return err
 	}
+
+	session, err := client.StartLogin(buildStartLoginInput(config, auth_intent, ""))
+	if err != nil {
+		return err
+	}
+
+	return waitForLoginSession(config, input, session)
+}
+
+func waitForLoginSession(config *configpkg.Config, input io.Reader, session *hookdeck.LoginSession) error {
+	var s *spinner.Spinner
 
 	if isSSH() || !canOpenBrowser() {
 		fmt.Printf("To authenticate with Hookdeck, please go to: %s\n", session.BrowserURL)
@@ -87,7 +120,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 
 		s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 
-		err = openBrowser(session.BrowserURL)
+		err := openBrowser(session.BrowserURL)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to open browser, please go to %s manually.", session.BrowserURL)
 			ansi.StopSpinner(s, msg, os.Stdout)
@@ -216,16 +249,19 @@ func isSSH() bool {
 	return false
 }
 
-func guestAttestationUserID(config *configpkg.Config) string {
+func guestCredentialsUserID(config *configpkg.Config) string {
 	if config == nil || config.Profile.GuestURL == "" {
 		return ""
 	}
 	return config.Profile.GuestUserID
 }
 
-func guestAttestationAPIKey(config *configpkg.Config) string {
+func guestCredentialsAPIKey(config *configpkg.Config, saved_guest_api_key string) string {
 	if config == nil || config.Profile.GuestURL == "" {
 		return ""
 	}
-	return config.Profile.APIKey
+	if config.Profile.APIKey != "" {
+		return config.Profile.APIKey
+	}
+	return saved_guest_api_key
 }

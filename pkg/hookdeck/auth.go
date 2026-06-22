@@ -50,10 +50,19 @@ type UpdateClientInput struct {
 }
 
 // StartLoginInput configures POST /cli-auth for browser login.
+type CLIAuthIntent string
+
+const (
+	CLIAuthIntentClaimGuest CLIAuthIntent = "claim_guest"
+	CLIAuthIntentLogin      CLIAuthIntent = "login"
+	CLIAuthIntentCreateNew  CLIAuthIntent = "create_new"
+)
+
 type StartLoginInput struct {
-	DeviceName  string `json:"device_name"`
-	GuestUserID string `json:"guest_user_id,omitempty"`
-	GuestAPIKey string `json:"guest_api_key,omitempty"`
+	DeviceName  string        `json:"device_name"`
+	AuthIntent  CLIAuthIntent `json:"auth_intent,omitempty"`
+	GuestUserID string        `json:"guest_user_id,omitempty"`
+	GuestAPIKey string        `json:"guest_api_key,omitempty"`
 }
 
 // LoginSession represents an in-progress login flow
