@@ -9,35 +9,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolveLoginIntent_explicitFlags(t *testing.T) {
+func TestResolveLoginIntent_explicitClaimGuestFlag(t *testing.T) {
 	cfg := &configpkg.Config{
 		Profile: configpkg.Profile{
 			GuestURL: "https://console.test/signin/guest?token=abc",
 		},
 	}
 
-	intent, err := resolveLoginIntent(cfg, strings.NewReader("\n"), Options{LoginExisting: true})
-	require.NoError(t, err)
-	require.Equal(t, hookdeck.CLIAuthIntentLogin, intent)
-
-	intent, err = resolveLoginIntent(cfg, strings.NewReader("\n"), Options{CreateAccount: true})
-	require.NoError(t, err)
-	require.Equal(t, hookdeck.CLIAuthIntentCreateNew, intent)
-
-	intent, err = resolveLoginIntent(cfg, strings.NewReader("\n"), Options{ClaimGuest: true})
+	intent, err := resolveLoginIntent(cfg, strings.NewReader("\n"), Options{ClaimGuest: true})
 	require.NoError(t, err)
 	require.Equal(t, hookdeck.CLIAuthIntentClaimGuest, intent)
-
-	_, err = resolveLoginIntent(cfg, strings.NewReader("\n"), Options{ClaimGuest: true, LoginExisting: true})
-	require.Error(t, err)
 }
 
-func TestResolveLoginIntent_nonTTYGuestDefaultsClaimGuest(t *testing.T) {
+func TestResolveLoginIntent_guestProfileDefaultsClaimGuest(t *testing.T) {
 	cfg := &configpkg.Config{
 		Profile: configpkg.Profile{
-			GuestURL: "https://console.test/signin/guest?token=abc",
+			GuestURL:    "https://console.test/signin/guest?token=abc",
 			GuestUserID: "usr_guest",
-			APIKey: "hk_guest_key",
+			APIKey:      "hk_guest_key",
 		},
 	}
 
@@ -46,7 +35,17 @@ func TestResolveLoginIntent_nonTTYGuestDefaultsClaimGuest(t *testing.T) {
 	require.Equal(t, hookdeck.CLIAuthIntentClaimGuest, intent)
 }
 
-func TestBuildStartLoginInput_guestCredentialsOnlyForClaimAndCreate(t *testing.T) {
+func TestResolveLoginIntent_noGuestProfileDefaultsLogin(t *testing.T) {
+	cfg := &configpkg.Config{
+		Profile: configpkg.Profile{},
+	}
+
+	intent, err := resolveLoginIntent(cfg, strings.NewReader("\n"), Options{})
+	require.NoError(t, err)
+	require.Equal(t, hookdeck.CLIAuthIntentLogin, intent)
+}
+
+func TestBuildStartLoginInput_guestCredentialsOnlyForClaim(t *testing.T) {
 	cfg := &configpkg.Config{
 		DeviceName: "dev",
 		Profile: configpkg.Profile{

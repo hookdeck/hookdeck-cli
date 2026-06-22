@@ -13,12 +13,10 @@ import (
 )
 
 type loginCmd struct {
-	cmd            *cobra.Command
-	interactive    bool
-	local          bool
-	claim_guest    bool
-	login_existing bool
-	create_account bool
+	cmd         *cobra.Command
+	interactive bool
+	local       bool
+	claim_guest bool
 }
 
 func newLoginCmd() *loginCmd {
@@ -28,17 +26,19 @@ func newLoginCmd() *loginCmd {
 		Use:   "login",
 		Args:  validators.NoArgs,
 		Short: "Login to your Hookdeck account",
-		Long:  `Login to your Hookdeck account to setup the CLI`,
+		Long: `Login to your Hookdeck account to setup the CLI.
+
+With a guest Console profile (after hookdeck listen), login signs you up to keep your sandbox data.
+To attach the CLI to an existing Hookdeck Platform account instead, run hookdeck logout first.`,
 		Example: `  $ hookdeck login
+  $ hookdeck logout && hookdeck login  # existing Platform account
   $ hookdeck login -i  # interactive mode (no browser)
   $ hookdeck login --local  # save credentials to .hookdeck/config.toml`,
 		RunE: lc.runLoginCmd,
 	}
 	lc.cmd.Flags().BoolVarP(&lc.interactive, "interactive", "i", false, "Run interactive configuration mode if you cannot open a browser")
 	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to current directory (.hookdeck/config.toml)")
-	lc.cmd.Flags().BoolVar(&lc.claim_guest, "claim-guest", false, "Claim the current guest Console sandbox when signing up (default for guest profiles)")
-	lc.cmd.Flags().BoolVar(&lc.login_existing, "login", false, "Log in to an existing Hookdeck account and attach the CLI")
-	lc.cmd.Flags().BoolVar(&lc.create_account, "create-account", false, "Create a new Hookdeck account and abandon the guest sandbox")
+	lc.cmd.Flags().BoolVar(&lc.claim_guest, "claim-guest", false, "Claim the current guest Console sandbox when signing up (default when a guest profile is present)")
 
 	return lc
 }
@@ -50,9 +50,7 @@ func (lc *loginCmd) runLoginCmd(cmd *cobra.Command, args []string) error {
 
 	var err error
 	login_opts := login.Options{
-		ClaimGuest:    lc.claim_guest,
-		LoginExisting: lc.login_existing,
-		CreateAccount: lc.create_account,
+		ClaimGuest: lc.claim_guest,
 	}
 	if lc.interactive {
 		err = login.InteractiveLogin(&Config)

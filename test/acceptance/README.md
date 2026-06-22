@@ -13,7 +13,7 @@ These tests run automatically in CI using API keys from `hookdeck ci`. They don'
 
 **Login recovery (mock API, `basic` tag):** `login_auth_acceptance_test.go` runs the real CLI with `--api-base` pointing at a local server that returns **401** on `GET .../cli-auth/validate`, then completes a fake device-auth poll — this asserts `hookdeck login` continues into browser/device flow after a stale key (no human, no real Hookdeck key). The same file includes **`TestCIFailsFastWithInvalidAPIKeyAcceptance`**, which runs `hookdeck ci --api-key` with a bogus key against the real API and expects a quick failure with the friendly **Authentication failed** message, and asserts output does **not** contain browser/device-login phrases (`Press Enter to open the browser`, `To authenticate with Hookdeck`, etc.) so CI never enters the interactive `hookdeck login` flow.
 
-**Guest login intents (mock API, `guest` tag):** `guest_login_acceptance_test.go` asserts `POST /cli-auth` receives the correct `auth_intent` and guest credentials for default non-TTY login (`claim_guest`), `--login`, and `--create-account`.
+**Guest login intents (mock API, `guest` tag):** `guest_login_acceptance_test.go` asserts `POST /cli-auth` receives `claim_guest` with guest credentials when a guest profile is present, and `login` without guest credentials after logout (empty profile).
 
 ### 2. Manual Tests (Require Human Interaction)
 These tests require browser-based authentication via `hookdeck login` and must be run manually by developers.

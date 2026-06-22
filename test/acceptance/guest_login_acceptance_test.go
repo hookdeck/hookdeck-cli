@@ -49,7 +49,6 @@ func runGuestLoginCLI(t *testing.T, projectRoot, configPath, serverURL string, e
 
 func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), browserURL string) (*httptest.Server, string) {
 	t.Helper()
-	pollHits := 0
 	var serverURL string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -78,7 +77,6 @@ func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), br
 			require.NoError(t, encErr)
 			_, _ = w.Write(respBody)
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/cli-auth/poll"):
-			pollHits++
 			resp := map[string]interface{}{
 				"claimed":           true,
 				"key":               "hk_test_guest_claimed",
@@ -113,6 +111,13 @@ guest_url = "https://example.test/signin/guest?token=guest"
 `
 }
 
+func loggedOutProfileConfig() string {
+	return `profile = "default"
+
+[default]
+`
+}
+
 func TestGuestLoginDefaultClaimGuestAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -134,7 +139,7 @@ func TestGuestLoginDefaultClaimGuestAcceptance(t *testing.T) {
 	_ = ts
 }
 
-func TestGuestLoginLoginFlagAcceptance(t *testing.T) {
+func TestGuestLoginAfterLogoutUsesLoginIntentAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
@@ -143,7 +148,7 @@ func TestGuestLoginLoginFlagAcceptance(t *testing.T) {
 	require.NoError(t, err)
 
 	configPath := filepath.Join(t.TempDir(), "config.toml")
-	require.NoError(t, os.WriteFile(configPath, []byte(guestProfileConfig()), 0o600))
+	require.NoError(t, os.WriteFile(configPath, []byte(loggedOutProfileConfig()), 0o600))
 
 	ts, serverURL := newGuestLoginMock(t, func(body map[string]interface{}) {
 		require.Equal(t, "login", body["auth_intent"])
@@ -151,27 +156,6 @@ func TestGuestLoginLoginFlagAcceptance(t *testing.T) {
 		require.NotContains(t, body, "guest_api_key")
 	}, "https://example.test/signin?redirect=%2Fcli-auth%2Fkey")
 
-	runGuestLoginCLI(t, projectRoot, configPath, serverURL, "--login")
-	_ = ts
-}
-
-func TestGuestLoginCreateAccountFlagAcceptance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-
-	projectRoot, err := filepath.Abs("../..")
-	require.NoError(t, err)
-
-	configPath := filepath.Join(t.TempDir(), "config.toml")
-	require.NoError(t, os.WriteFile(configPath, []byte(guestProfileConfig()), 0o600))
-
-	ts, serverURL := newGuestLoginMock(t, func(body map[string]interface{}) {
-		require.Equal(t, "create_new", body["auth_intent"])
-		require.Equal(t, "usr_guest_accept", body["guest_user_id"])
-		require.Equal(t, "hk_test_stale_guest01", body["guest_api_key"])
-	}, "https://example.test/signup?redirect=%2Fcli-auth%2Fkey")
-
-	runGuestLoginCLI(t, projectRoot, configPath, serverURL, "--create-account")
+	runGuestLoginCLI(t, projectRoot, configPath, serverURL)
 	_ = ts
 }
