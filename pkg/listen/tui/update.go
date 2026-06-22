@@ -72,6 +72,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case TickGuestURLRefreshMsg:
+		return m, tea.Batch(refreshGuestURLCmd(m.client), tickGuestURLRefresh())
+
+	case GuestURLRefreshedMsg:
+		if msg.GuestURL != "" && m.cfg != nil {
+			m.cfg.GuestURL = msg.GuestURL
+		}
+		return m, nil
+
 	case retryResultMsg:
 		// Retry completed (new attempt will arrive via websocket as a new event)
 		return m, nil

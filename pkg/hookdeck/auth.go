@@ -49,6 +49,13 @@ type UpdateClientInput struct {
 	DeviceName string `json:"device_name"`
 }
 
+// StartLoginInput configures POST /cli-auth for browser login.
+type StartLoginInput struct {
+	DeviceName  string `json:"device_name"`
+	GuestUserID string `json:"guest_user_id,omitempty"`
+	GuestAPIKey string `json:"guest_api_key,omitempty"`
+}
+
 // LoginSession represents an in-progress login flow
 type LoginSession struct {
 	BrowserURL string
@@ -57,20 +64,15 @@ type LoginSession struct {
 
 // GuestSession represents an in-progress guest login flow
 type GuestSession struct {
-	BrowserURL string
-	GuestURL   string
-	pollURL    string
+	BrowserURL  string
+	GuestURL    string
+	GuestUserID string
+	pollURL     string
 }
 
 // StartLogin initiates the login flow and returns a session to wait for completion
-func (c *Client) StartLogin(deviceName string) (*LoginSession, error) {
-	data := struct {
-		DeviceName string `json:"device_name"`
-	}{
-		DeviceName: deviceName,
-	}
-
-	jsonData, err := json.Marshal(data)
+func (c *Client) StartLogin(input StartLoginInput) (*LoginSession, error) {
+	jsonData, err := json.Marshal(input)
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +113,10 @@ func (c *Client) StartGuestLogin(deviceName string) (*GuestSession, error) {
 	}
 
 	return &GuestSession{
-		BrowserURL: guest.BrowserURL,
-		GuestURL:   guest.Url,
-		pollURL:    guest.PollURL,
+		BrowserURL:  guest.BrowserURL,
+		GuestURL:    guest.Url,
+		GuestUserID: guest.Id,
+		pollURL:     guest.PollURL,
 	}, nil
 }
 

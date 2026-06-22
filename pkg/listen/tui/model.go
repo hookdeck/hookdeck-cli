@@ -16,6 +16,7 @@ import (
 const (
 	maxEvents  = 1000                  // Maximum events to keep in memory (all navigable)
 	timeLayout = "2006-01-02 15:04:05" // Time format for display
+	guestURLRefreshInterval = 50 * time.Minute
 )
 
 // EventInfo represents a single event with all its data
@@ -103,9 +104,11 @@ func NewModel(cfg *Config) Model {
 
 // Init initializes the model (required by Bubble Tea)
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		tickWaitingAnimation(),
-	)
+	cmds := []tea.Cmd{tickWaitingAnimation()}
+	if m.cfg != nil && m.cfg.GuestURL != "" && m.client != nil {
+		cmds = append(cmds, tickGuestURLRefresh())
+	}
+	return tea.Batch(cmds...)
 }
 
 // AddEvent adds a new event to the history
@@ -417,6 +420,33 @@ func tickWaitingAnimation() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return TickWaitingMsg{}
 	})
+}
+
+// TickGuestURLRefreshMsg triggers a guest sign-in link refresh.
+type TickGuestURLRefreshMsg struct{}
+
+// GuestURLRefreshedMsg carries an updated guest sign-in URL.
+type GuestURLRefreshedMsg struct {
+	GuestURL string
+}
+
+func tickGuestURLRefresh() tea.Cmd {
+	return tea.Tick(guestURLRefreshInterval, func(t time.Time) tea.Msg {
+		return TickGuestURLRefreshMsg{}
+	})
+}
+
+func refreshGuestURLCmd(client *hookdeck.Client) tea.Cmd {
+	if client == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		response, err := client.RefreshGuestSigninLink()
+		if err != nil || response.Url == "" {
+			return nil
+		}
+		return GuestURLRefreshedMsg{GuestURL: response.Url}
+	}
 }
 
 // ServerHealthMsg is sent when server health status changes

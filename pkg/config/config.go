@@ -246,6 +246,9 @@ func (c *Config) setProfileFieldsInViper(v *viper.Viper) {
 	if c.Profile.GuestURL != "" {
 		v.Set(c.Profile.getConfigField("guest_url"), c.Profile.GuestURL)
 	}
+	if c.Profile.GuestUserID != "" {
+		v.Set(c.Profile.getConfigField("guest_user_id"), c.Profile.GuestUserID)
+	}
 }
 
 // GetConfigFile returns the path of the currently loaded config file
@@ -352,6 +355,8 @@ func (c *Config) constructConfig() {
 
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
 
+	c.Profile.GuestUserID = stringCoalesce(c.Profile.GuestUserID, c.viper.GetString(c.Profile.getConfigField("guest_user_id")), c.viper.GetString("guest_user_id"), "")
+
 	// Telemetry opt-out: check config file for telemetry_disabled = true
 	if c.viper.IsSet("telemetry_disabled") {
 		c.TelemetryDisabled = c.viper.GetBool("telemetry_disabled")
@@ -398,6 +403,7 @@ func zeroProfileCredentialFields(p *Profile) {
 	p.ProjectMode = ""
 	p.ProjectType = ""
 	p.GuestURL = ""
+	p.GuestUserID = ""
 }
 
 // SaveActiveProfileAfterLogin persists cfg.Profile credential fields and the active profile

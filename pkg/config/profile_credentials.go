@@ -14,12 +14,14 @@ func (p *Profile) ApplyValidateAPIKeyResponse(resp *hookdeck.ValidateAPIKeyRespo
 	p.ProjectType = ModeToProjectType(resp.ProjectMode)
 	if clearGuestURL {
 		p.GuestURL = ""
+		p.GuestUserID = ""
 	}
 }
 
 // ApplyPollAPIKeyResponse applies credentials from a completed CLI auth poll (browser or interactive login).
 // guestURL is the guest upgrade URL when applicable; use "" for a normal account login.
-func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, guestURL string) {
+// guestUserID is the Hookdeck user id when the session is a guest account.
+func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, guestURL string, guestUserID string) {
 	if resp == nil {
 		return
 	}
@@ -28,6 +30,11 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 	p.ProjectMode = resp.ProjectMode
 	p.ProjectType = ModeToProjectType(resp.ProjectMode)
 	p.GuestURL = guestURL
+	if guestUserID != "" {
+		p.GuestUserID = guestUserID
+	} else if guestURL == "" {
+		p.GuestUserID = ""
+	}
 }
 
 // ApplyCIClient applies credentials from hookdeck login --ci.
@@ -37,4 +44,5 @@ func (p *Profile) ApplyCIClient(ci hookdeck.CIClient) {
 	p.ProjectMode = ci.ProjectMode
 	p.ProjectType = ModeToProjectType(ci.ProjectMode)
 	p.GuestURL = ""
+	p.GuestUserID = ""
 }

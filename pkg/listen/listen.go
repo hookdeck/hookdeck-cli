@@ -74,7 +74,7 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		}
 	} else if config.Profile.GuestURL != "" && config.Profile.APIKey != "" {
 		// User is logged in with a guest account (has both GuestURL and APIKey)
-		guestURL = config.Profile.GuestURL
+		guestURL = login.RefreshGuestSigninLink(config)
 	}
 
 	apiClient := config.GetAPIClient()

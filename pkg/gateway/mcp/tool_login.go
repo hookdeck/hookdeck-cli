@@ -110,7 +110,9 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 
 		// Initiate browser-based device auth flow.
 		authClient := &hookdeck.Client{BaseURL: parsedBaseURL, TelemetryDisabled: cfg.TelemetryDisabled}
-		session, err := authClient.StartLogin(deviceName)
+		session, err := authClient.StartLogin(hookdeck.StartLoginInput{
+			DeviceName: deviceName,
+		})
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("Failed to start login: %s", err)), nil
 		}
@@ -160,7 +162,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			}
 
 			// Persist credentials so future MCP sessions start authenticated.
-			cfg.Profile.ApplyPollAPIKeyResponse(response, "")
+			cfg.Profile.ApplyPollAPIKeyResponse(response, "", "")
 
 			cfg.SaveActiveProfileAfterLogin()
 

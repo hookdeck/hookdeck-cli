@@ -68,7 +68,11 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
-	session, err := client.StartLogin(config.DeviceName)
+	session, err := client.StartLogin(hookdeck.StartLoginInput{
+		DeviceName:  config.DeviceName,
+		GuestUserID: guestAttestationUserID(config),
+		GuestAPIKey: guestAttestationAPIKey(config),
+	})
 	if err != nil {
 		return err
 	}
@@ -101,7 +105,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		return err
 	}
 
-	config.Profile.ApplyPollAPIKeyResponse(response, "")
+	config.Profile.ApplyPollAPIKeyResponse(response, "", "")
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err
@@ -145,7 +149,7 @@ func GuestLogin(config *configpkg.Config) (string, error) {
 		return "", err
 	}
 
-	config.Profile.ApplyPollAPIKeyResponse(response, session.GuestURL)
+	config.Profile.ApplyPollAPIKeyResponse(response, session.GuestURL, session.GuestUserID)
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return "", err
@@ -210,4 +214,18 @@ func isSSH() bool {
 	}
 
 	return false
+}
+
+func guestAttestationUserID(config *configpkg.Config) string {
+	if config == nil || config.Profile.GuestURL == "" {
+		return ""
+	}
+	return config.Profile.GuestUserID
+}
+
+func guestAttestationAPIKey(config *configpkg.Config) string {
+	if config == nil || config.Profile.GuestURL == "" {
+		return ""
+	}
+	return config.Profile.APIKey
 }
