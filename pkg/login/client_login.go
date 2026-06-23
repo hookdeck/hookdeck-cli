@@ -29,8 +29,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 	if config.Profile.APIKey != "" {
 		log.WithFields(log.Fields{
 			"prefix": "login.Login",
-			"APIKey": config.Profile.APIKey,
-		}).Debug("Logging in with API key")
+		}).Debug("Logging in with saved API key")
 
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
 		response, err := config.GetAPIClient().ValidateAPIKey()

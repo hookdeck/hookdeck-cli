@@ -186,7 +186,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 			"prefix":  "client.Client.PerformRequest",
 			"method":  req.Method,
 			"url":     req.URL.String(),
-			"headers": req.Header,
+			"headers": redactHeadersForLog(req.Header),
 		}
 
 		if req.Body != nil {
@@ -199,7 +199,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 				// For now, just log and continue.
 			} else {
 				req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-				logFields["body"] = string(bodyBytes)
+				logFields["body"] = redactRequestBodyForLog(string(bodyBytes))
 			}
 		}
 		log.WithFields(logFields).Debug("Performing request")

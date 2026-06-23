@@ -222,9 +222,14 @@ func (c *Config) writeProjectConfig(configPath string, isNewFile bool) error {
 
 	// Write config file using WriteConfigAs which explicitly takes a path
 	// This avoids the viper internal "configPath" issue
+	v.SetConfigPermissions(os.FileMode(0600))
 	writeErr := v.WriteConfigAs(configPath)
 	if writeErr != nil {
 		return fmt.Errorf("failed to write config to %s: %w", configPath, writeErr)
+	}
+
+	if chmodErr := os.Chmod(configPath, os.FileMode(0600)); chmodErr != nil {
+		return fmt.Errorf("failed to set permissions for %s: %w", configPath, chmodErr)
 	}
 
 	return nil
