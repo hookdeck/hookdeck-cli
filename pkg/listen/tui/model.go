@@ -9,7 +9,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
@@ -88,6 +90,7 @@ type Config struct {
 	Connections      []*hookdeck.Connection
 	Filters          interface{} // Session filters (stored as interface{} to avoid circular dependency)
 	APIClient        *hookdeck.Client
+	AppConfig        *configpkg.Config
 }
 
 // NewModel creates a new TUI model
@@ -105,8 +108,8 @@ func NewModel(cfg *Config) Model {
 // Init initializes the model (required by Bubble Tea)
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tickWaitingAnimation()}
-	if m.cfg != nil && m.cfg.GuestURL != "" && m.client != nil {
-		cmds = append(cmds, tickGuestURLRefresh())
+	if m.cfg != nil && m.cfg.AppConfig != nil && m.cfg.AppConfig.Profile.GuestURL != "" {
+		cmds = append(cmds, refreshGuestURLCmd(m.cfg.AppConfig), tickGuestURLRefresh())
 	}
 	return tea.Batch(cmds...)
 }
@@ -436,16 +439,16 @@ func tickGuestURLRefresh() tea.Cmd {
 	})
 }
 
-func refreshGuestURLCmd(client *hookdeck.Client) tea.Cmd {
-	if client == nil {
+func refreshGuestURLCmd(app_config *configpkg.Config) tea.Cmd {
+	if app_config == nil || app_config.Profile.GuestURL == "" || app_config.Profile.APIKey == "" {
 		return nil
 	}
 	return func() tea.Msg {
-		response, err := client.RefreshGuestSigninLink()
-		if err != nil || response.Url == "" {
+		guest_url := login.RefreshGuestSigninLink(app_config)
+		if guest_url == "" {
 			return nil
 		}
-		return GuestURLRefreshedMsg{GuestURL: response.Url}
+		return GuestURLRefreshedMsg{GuestURL: guest_url}
 	}
 }
 

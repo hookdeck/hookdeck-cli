@@ -16,6 +16,7 @@ type GuestUser struct {
 }
 
 type GuestSigninLinkResponse struct {
+	// Id is the guest user id (not the sign-in token id).
 	Id        string `json:"id"`
 	Url       string `json:"link"`
 	ExpiresAt string `json:"expires_at"`
@@ -35,7 +36,7 @@ func (c *Client) CreateGuestUser(input CreateGuestUserInput) (GuestUser, error) 
 		return GuestUser{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return GuestUser{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
+		return GuestUser{}, fmt.Errorf("unexpected http status code: %d", res.StatusCode)
 	}
 	guest_user := GuestUser{}
 	postprocessJsonResponse(res, &guest_user)
@@ -48,7 +49,7 @@ func (c *Client) RefreshGuestSigninLink() (GuestSigninLinkResponse, error) {
 		return GuestSigninLinkResponse{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return GuestSigninLinkResponse{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
+		return GuestSigninLinkResponse{}, fmt.Errorf("unexpected http status code: %d", res.StatusCode)
 	}
 	response := GuestSigninLinkResponse{}
 	postprocessJsonResponse(res, &response)

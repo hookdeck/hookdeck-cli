@@ -112,13 +112,8 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			cfg.DeviceName = deviceName
 		}
 
-		saved_guest_api_key := ""
-		if cfg.Profile.GuestURL != "" && cfg.Profile.APIKey != "" {
-			saved_guest_api_key = cfg.Profile.APIKey
-		}
-
 		authClient := &hookdeck.Client{BaseURL: parsedBaseURL, TelemetryDisabled: cfg.TelemetryDisabled}
-		session, err := authClient.StartLogin(login.BuildStartLoginInput(cfg, saved_guest_api_key))
+		session, err := authClient.StartLogin(login.BuildStartLoginInput(cfg, ""))
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("Failed to start login: %s", err)), nil
 		}

@@ -73,7 +73,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case TickGuestURLRefreshMsg:
-		return m, tea.Batch(refreshGuestURLCmd(m.client), tickGuestURLRefresh())
+		if m.cfg == nil {
+			return m, tickGuestURLRefresh()
+		}
+		return m, tea.Batch(refreshGuestURLCmd(m.cfg.AppConfig), tickGuestURLRefresh())
 
 	case GuestURLRefreshedMsg:
 		if msg.GuestURL != "" && m.cfg != nil {
