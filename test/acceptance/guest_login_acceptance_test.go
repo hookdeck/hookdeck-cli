@@ -130,16 +130,16 @@ func TestGuestLoginDefaultClaimGuestAcceptance(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(guestProfileConfig()), 0o600))
 
 	ts, serverURL := newGuestLoginMock(t, func(body map[string]interface{}) {
-		require.Equal(t, "claim_guest", body["auth_intent"])
 		require.Equal(t, "usr_guest_accept", body["guest_user_id"])
 		require.Equal(t, "hk_test_stale_guest01", body["guest_api_key"])
+		require.NotContains(t, body, "auth_intent")
 	}, "https://example.test/signup?redirect=%2Fcli-auth%2Fkey")
 
 	runGuestLoginCLI(t, projectRoot, configPath, serverURL)
 	_ = ts
 }
 
-func TestGuestLoginAfterLogoutUsesLoginIntentAcceptance(t *testing.T) {
+func TestGuestLoginAfterLogoutOmitsGuestCredentialsAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
@@ -151,7 +151,7 @@ func TestGuestLoginAfterLogoutUsesLoginIntentAcceptance(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(loggedOutProfileConfig()), 0o600))
 
 	ts, serverURL := newGuestLoginMock(t, func(body map[string]interface{}) {
-		require.Equal(t, "login", body["auth_intent"])
+		require.NotContains(t, body, "auth_intent")
 		require.NotContains(t, body, "guest_user_id")
 		require.NotContains(t, body, "guest_api_key")
 	}, "https://example.test/signin?redirect=%2Fcli-auth%2Fkey")
