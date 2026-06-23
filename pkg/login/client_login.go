@@ -24,6 +24,8 @@ var canOpenBrowser = open.CanOpenBrowser
 func Login(config *configpkg.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
+	saved_guest_api_key := ""
+
 	if config.Profile.APIKey != "" {
 		log.WithFields(log.Fields{
 			"prefix": "login.Login",
@@ -40,31 +42,11 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			// Rejected key: continue into browser login below (must clear key first
 			// or we would re-enter this branch only).
 			fmt.Fprintln(os.Stdout, "Your saved API key is no longer valid. Starting browser sign-in...")
-			saved_guest_api_key := ""
 			if config.Profile.GuestURL != "" {
 				saved_guest_api_key = config.Profile.APIKey
 			}
 			config.Profile.APIKey = ""
-
-			parsedBaseURL, parseErr := url.Parse(config.APIBaseURL)
-			if parseErr != nil {
-				return parseErr
-			}
-
-			client := &hookdeck.Client{
-				BaseURL:           parsedBaseURL,
-				TelemetryDisabled: config.TelemetryDisabled,
-			}
-
-			auth_intent := resolveLoginIntent(config)
-
-			session, startErr := client.StartLogin(buildStartLoginInput(config, auth_intent, saved_guest_api_key))
-			if startErr != nil {
-				return startErr
-			}
-
-			return waitForLoginSession(config, input, session)
-		} else {
+		} else if config.Profile.GuestURL == "" {
 			message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 			ansi.StopSpinner(s, message, os.Stdout)
 
@@ -78,6 +60,9 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			}
 
 			return nil
+		} else {
+			// Guest Console profile: valid key still needs browser signup to claim sandbox.
+			ansi.StopSpinner(s, "", os.Stdout)
 		}
 	}
 
@@ -91,9 +76,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
-	auth_intent := resolveLoginIntent(config)
-
-	session, err := client.StartLogin(buildStartLoginInput(config, auth_intent, ""))
+	session, err := client.StartLogin(buildStartLoginInput(config, saved_guest_api_key))
 	if err != nil {
 		return err
 	}
