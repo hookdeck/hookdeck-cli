@@ -30,7 +30,9 @@ These tests require browser-based authentication via `hookdeck login` and must b
 
 Some tests (e.g. `TestTelemetryGatewayConnectionListProxy` in `telemetry_test.go`, `TestTelemetryListenProxy` in `telemetry_listen_test.go`) use a **recording proxy**: the CLI is run with `--api-base` pointing at a local HTTP server that forwards every request to the real Hookdeck API and records method, path, and the `X-Hookdeck-CLI-Telemetry` header. The same `CLIRunner` and `go run main.go` flow are used as in other acceptance tests; only the API base URL is overridden so traffic goes through the proxy. This verifies that a single CLI run sends consistent telemetry (same `invocation_id` and `command_path`) on all API calls. Helpers: `StartRecordingProxy`, `AssertTelemetryConsistent`.
 
-**Login telemetry tests** use the same proxy approach with **HOOKDECK_CLI_TESTING_CLI_KEY** (not the API/CI key), because the validate endpoint accepts CLI keys from interactive login; if unset, those tests are skipped. **TestTelemetryLoginProxy** runs `hookdeck login --api-key KEY` with `--api-base` set to the proxy and asserts exactly one recorded request (GET `/2025-07-01/cli-auth/validate`) with consistent telemetry. **TestTelemetryLoginCommandFlagsProxy** additionally asserts the telemetry JSON includes **`command_flags`** containing **`api-key`** or **`cli-key`** on the wire when that flag is passed. Other telemetry tests still use the normal API key via `NewCLIRunner`.
+**Login telemetry tests** use the same proxy approach with **HOOKDECK_CLI_TESTING_CLI_KEY** (a CLI client key, not a Project API key used with `hookdeck ci`). If unset, those tests are skipped. **TestTelemetryLoginProxy** runs `hookdeck login --api-key KEY` with `--api-base` set to the proxy and asserts exactly one recorded request (GET `/2025-07-01/cli-auth/validate`) with consistent telemetry. **TestTelemetryLoginCommandFlagsProxy** additionally asserts the telemetry JSON includes **`command_flags`** containing **`api-key`** or **`cli-key`** on the wire when that flag is passed. Other telemetry tests still use the normal Project API key via `NewCLIRunner`.
+
+See **README.md § [CLI authentication keys](../README.md#cli-authentication-keys)** for claimed vs unclaimed keys and how Project API keys relate to `hookdeck ci`.
 
 ## Setup
 
@@ -41,8 +43,8 @@ For local testing, create a `.env` file in this directory:
 ```bash
 # test/acceptance/.env
 HOOKDECK_CLI_TESTING_API_KEY=your_api_key_here
-# Optional: CLI key (from interactive login) required for project list tests only
-# HOOKDECK_CLI_TESTING_CLI_KEY=your_cli_key_here
+# Optional: CLI client key for project list tests only (claimed key; see README § CLI authentication keys)
+# HOOKDECK_CLI_TESTING_CLI_KEY=your_cli_client_key_here
 ```
 
 The `.env` file is automatically loaded when tests run. **This file is git-ignored and should never be committed.**
@@ -87,7 +89,7 @@ ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=0 go test -tags=telemetry ./t
 ```
 For slice 1 set `HOOKDECK_CLI_TESTING_API_KEY_2`; for slice 2 set `HOOKDECK_CLI_TESTING_API_KEY_3` (or set `HOOKDECK_CLI_TESTING_API_KEY` to that key). For telemetry, use the slice 0 key and set `HOOKDECK_CLI_TELEMETRY_DISABLED=0` (overrides a global opt-out).
 
-**Project list tests** (`TestProjectListShowsType`, `TestProjectListJSONOutput`) require a **CLI key**, not an API or CI key: only keys created via interactive login can list or switch projects. Set `HOOKDECK_CLI_TESTING_CLI_KEY` in your `.env` (or environment) to run these tests; if unset, they are skipped with a clear message.
+**Project list tests** (`TestProjectListShowsType`, `TestProjectListJSONOutput`, and related filters) require a **CLI client key** (`HOOKDECK_CLI_TESTING_CLI_KEY`), not the Project API key used with `hookdeck ci`. Claimed keys from dashboard onboarding or Console CLI destination setup work; unclaimed device-auth keys are not suitable. If unset, these tests are skipped. See **README.md § [CLI authentication keys](../README.md#cli-authentication-keys)**.
 
 ### Run in parallel locally (three keys)
 From the **repository root**, run the script that runs three matrix slices plus telemetry in parallel (same as CI):

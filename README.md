@@ -48,6 +48,7 @@ For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE
 - [Testing](#testing)
 - [Releasing](#releasing)
 - [Repository Setup](#repository-setup)
+- [CLI authentication keys](#cli-authentication-keys)
 - [License](#license)
 
 **Quick links:** [Local development (Listen)](#listen) · [Resource management (CLI)](#event-gateway) / [Manage connections](#manage-connections) · [AI / agent integration (Event Gateway MCP)](#event-gateway-mcp)
@@ -180,7 +181,15 @@ If you are in an environment without a browser (e.g., a TTY-only terminal), you 
 hookdeck login --interactive
 ```
 
-> Login is optional, if you do not login a temporary guest account will be created for you when you run other commands.
+To authenticate with a **CLI client key** from the Hookdeck product (no browser step when the key is already associated with your account and project):
+
+```sh
+hookdeck login --cli-key <key>
+```
+
+The CLI validates the key via the API and writes your config, replacing a guest Console profile if one exists. For example, Hookdeck may show this command during Event Gateway onboarding or when authorizing the CLI as a Console destination.
+
+> Guest sandbox upgrade (keeping Console data) requires `hookdeck login` without `--cli-key`, not product copy-paste keys. If you do not log in, a temporary **guest** account is created when you run commands such as `hookdeck listen`.
 
 ### Listen
 
@@ -485,7 +494,7 @@ To install completions permanently, redirect the output to your shell's completi
 
 ### Running in CI
 
-If you want to use Hookdeck in CI for tests or any other purposes, you can use your HOOKDECK_API_KEY to authenticate and start forwarding events.
+If you want to use Hookdeck in CI for tests or any other purposes, authenticate with a Project API key from the dashboard. The `ci` command exchanges it for a CLI client key stored in your config.
 
 ```sh
 $ hookdeck ci --api-key $HOOKDECK_API_KEY
@@ -817,11 +826,7 @@ Error: --local and --hookdeck-config flags cannot be used together
 
 ⚠️ **IMPORTANT**: Configuration files contain your Hookdeck credentials and should be treated as sensitive.
 
-**Credential Types:**
-
-- **CLI Key**: Created when you run `hookdeck login` (interactive authentication)
-- **CI Key**: Created in the Hookdeck dashboard for use in CI/CD pipelines
-- Both are stored as `api_key` in config files
+Config files store a **CLI client key** as `api_key` after `hookdeck login`, `hookdeck login --cli-key`, or `hookdeck ci`.
 
 **Recommended practices:**
 
@@ -833,10 +838,9 @@ Error: --local and --hookdeck-config flags cannot be used together
   .hookdeck/
   ```
 
-- **CI/CD environments**: Use the `HOOKDECK_API_KEY` environment variable:
+- **CI/CD environments**: Use a Project API key via `HOOKDECK_API_KEY` and `hookdeck ci` (see [Running in CI](#running-in-ci)):
   ```sh
-  # The ci command automatically reads HOOKDECK_API_KEY
-  export HOOKDECK_API_KEY="your-ci-key"
+  export HOOKDECK_API_KEY="your-project-api-key"
   hookdeck ci
   hookdeck listen 3000
   ```
@@ -1210,7 +1214,6 @@ hookdeck listen 3030 webhooks -p prod
 
 The following flags can be used with any command:
 
-- `--api-key`: Your API key to use for the command.
 - `--color`: Turn on/off color output (on, off, auto).
 - `--hookdeck-config`: Path to the CLI configuration file. You can also set the `HOOKDECK_CONFIG_FILE` environment variable to the config file path.
 - `--device-name`: A unique name for your device.
@@ -1218,7 +1221,9 @@ The following flags can be used with any command:
 - `--log-level`: Set the logging level (debug, info, warn, error).
 - `--profile` or `-p`: Use a specific configuration profile.
 
-There are also some hidden flags that are mainly used for development and debugging:
+Authentication uses command-specific flags (`hookdeck login --cli-key`, `hookdeck ci --api-key`, or `HOOKDECK_API_KEY`), not global flags.
+
+There are also hidden flags for development and debugging (not listed in user-facing help); for example `--api-base` sets the API base URL when testing against a local stack:
 
 *   `--api-base`: Sets the API base URL.
 *   `--dashboard-base`: Sets the web dashboard base URL.
@@ -1581,6 +1586,51 @@ To maintain code quality and protect the main branch, configure the following se
    - **Restrict deletions** (recommended)
 
 These settings ensure that all changes to `main` go through proper review and testing before being merged.
+
+## CLI authentication keys
+
+Reference for how Hookdeck credentials relate to CLI commands. After any successful login or `hookdeck ci`, the CLI stores a **CLI client key** in your config file as `api_key` (see [Configuration files](#configuration-files)). The same field name is used regardless of how the key was obtained.
+
+### CLI client keys (what the CLI runs as)
+
+A **CLI client key** identifies the Hookdeck CLI to the API (`cli` authentication). It powers `hookdeck listen`, `hookdeck gateway …`, and most other commands after you are configured.
+
+| How you get it | Typical command | Server check |
+|----------------|-----------------|--------------|
+| Browser or device login | `hookdeck login` | Validate, or poll until fully associated (see below) |
+| Product UI copy-paste | `hookdeck login --cli-key <key>` | Validate (user and project set at creation) |
+| CI / automation | `hookdeck ci --api-key …` | Creates a team-scoped CLI client key (see below) |
+| Guest sandbox | `hookdeck listen` (no prior login) | Guest user and project set at creation |
+
+Each CLI client key on the server has optional `user_id` and `team_id` fields. There are three association states:
+
+| State | `user_id` | `team_id` | When |
+|-------|-----------|-----------|------|
+| Pending device login | null | null | Start of `hookdeck login` browser flow, before you finish sign-in |
+| CI / automation | null | set | After `hookdeck ci` (`POST /cli-auth/ci`) |
+| Fully associated | set | set | Dashboard/Console UI keys, guest sandboxes, or after device login completes |
+
+- **Pending device login** — The CLI polls `GET /cli-auth/poll` until both `user_id` and `team_id` are set. `GET /cli-auth/validate` does not succeed until association is complete.
+- **CI keys** — Scoped to a project (team) but not tied to a user. Validate works immediately; poll requires both fields, so CI keys are configured via validate, not poll.
+- **Fully associated** — User and project are set. Validate works immediately. Keys from dashboard onboarding or Console CLI destination setup are fully associated when created.
+
+### Project API key (input to `hookdeck ci` only)
+
+A **Project API key** is a long-lived key from the Hookdeck dashboard (project settings). It is **not** what the CLI stores in config for day-to-day use. Pass it once to:
+
+```sh
+hookdeck ci --api-key $HOOKDECK_API_KEY   # or set HOOKDECK_API_KEY
+```
+
+The CLI calls `POST /cli-auth/ci` with that Project API key; the server returns a **CLI client key** scoped to that project. That returned key is saved as `api_key` in your config. Use `hookdeck listen` and gateway commands after `hookdeck ci`, not the original Project API key.
+
+### Guest credentials
+
+If you run `hookdeck listen` without an existing profile, the CLI can create a **guest** sandbox (`POST /cli/guest`). The config may include `guest_url`, `guest_user_id`, and an `api_key` for that sandbox. Guest login and conversion flows are separate from `hookdeck login --cli-key` and from Project API keys.
+
+### `project list` / `project use`
+
+Listing and switching projects requires a **user-associated** CLI client key (for example from `hookdeck login` or `hookdeck login --cli-key`). The server returns all projects your user can access. Keys from `hookdeck ci` are scoped to a single project with no user association—they cannot list or switch projects across your account. A Project API key alone is not sufficient either; use interactive login or a product-issued CLI key instead.
 
 ## License
 

@@ -566,6 +566,21 @@ default:
 
 ---
 
+## CLI authentication keys (agents)
+
+Human-facing detail: **README.md § [CLI authentication keys](README.md#cli-authentication-keys)**.
+
+Summary for code and docs work:
+
+- **CLI client key** — Stored as `api_key` in config after successful `hookdeck login`, `hookdeck login --cli-key`, or `hookdeck ci`. Used for `cli` API auth (`GET /cli-auth/validate`, gateway commands, `listen`, etc.).
+- **Claimed** — Key linked to user + project; validate succeeds. Keys from **Event Gateway dashboard onboarding** and **Console CLI destination** setup (`hookdeck login --cli-key …` in product UI) are claimed when shown.
+- **Unclaimed** — Device/browser login (`POST /cli-auth`) before sign-in completes; poll until claimed. Not the usual case for UI copy-paste `--cli-key`.
+- **Project API key** — Dashboard project settings key; passed to `hookdeck ci --api-key` / `HOOKDECK_API_KEY` only. Server returns a **CI CLI client key**; do not document root hidden `--api-key` / `--cli-key` as user-facing global flags.
+- **Guest** — `listen` without login may call `POST /cli/guest`; separate from `--cli-key` onboarding.
+- **`project list`** — Requires a user-associated CLI client key (`hookdeck login` or `hookdeck login --cli-key`). CI keys from `hookdeck ci` and raw Project API keys cannot list or switch projects (acceptance: `HOOKDECK_CLI_TESTING_CLI_KEY`).
+
+---
+
 ## Agent skills
 
 - **Location:** Repo-specific agent skills live under **`skills/`** at the repository root (e.g. `skills/hookdeck-cli-release/`).
