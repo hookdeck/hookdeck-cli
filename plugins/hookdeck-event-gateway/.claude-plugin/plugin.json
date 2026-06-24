@@ -1,0 +1,5 @@
+{
+  "name": "hookdeck-event-gateway",
+  "description": "Agent plugin with Skills for operating Hookdeck Event Gateway and its MCP server.",
+  "version": "0.1.0"
+}

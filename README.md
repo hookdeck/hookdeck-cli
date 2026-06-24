@@ -580,6 +580,11 @@ Claude Desktop (`claude_desktop_config.json`):
 
 The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool is available to log in via the browser.
 
+Agent workspaces that support installable plugins can also use the packaged
+Hookdeck Event Gateway Skill in
+[`plugins/hookdeck-event-gateway`](plugins/hookdeck-event-gateway). The plugin
+is the installable package; the Skill is the focused workflow guide inside it.
+
 #### Available tools
 
 | Tool | Description |
