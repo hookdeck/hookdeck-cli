@@ -72,6 +72,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 		}
 
 		// Already authenticated with a user-associated key — nothing to do.
+		loginPrefix := ""
 		if client.APIKey != "" {
 			lacks_user, err := project.CredentialsLackUserAssociation(client)
 			if err != nil && !hookdeck.IsUnauthorizedError(err) {
@@ -79,6 +80,9 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			}
 			if err == nil && !lacks_user {
 				return TextResult("Already authenticated. All Hookdeck tools are available."), nil
+			}
+			if err == nil && lacks_user {
+				loginPrefix = "Current credentials are scoped to one project; opening browser sign-in for full access.\n\n"
 			}
 		}
 
@@ -119,11 +123,6 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 		session, err := authClient.StartLogin(deviceName)
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("Failed to start login: %s", err)), nil
-		}
-
-		loginPrefix := ""
-		if client.APIKey != "" {
-			loginPrefix = "Current credentials are scoped to one project; opening browser sign-in for full access.\n\n"
 		}
 
 		// Set up background polling state.
