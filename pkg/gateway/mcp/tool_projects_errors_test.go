@@ -16,13 +16,13 @@ func TestShouldSuggestReauthAfterListProjectsFailure(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "CI scoped credentials",
-			err:  project.ErrCIScopedCredentials,
+			name: "project-scoped credentials",
+			err:  project.ErrProjectScopedCredentials,
 			want: true,
 		},
 		{
-			name: "APIError 403 CLI_USER_REQUIRED",
-			err:  &hookdeck.APIError{StatusCode: 403, Message: "CLI_USER_REQUIRED: listing projects requires login"},
+			name: "APIError 403 CLI_PROJECT_SCOPED",
+			err:  &hookdeck.APIError{StatusCode: 403, Message: "CLI_PROJECT_SCOPED: cannot list all projects"},
 			want: true,
 		},
 		{

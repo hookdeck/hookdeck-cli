@@ -65,7 +65,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		} else {
 			ansi.StopSpinner(s, "", os.Stdout)
 			if !stdinIsTerminal() {
-				return project.ErrCIScopedCredentials
+				return project.ErrProjectScopedCredentials
 			}
 			fmt.Fprintln(os.Stdout, "Your saved key is scoped to a single project (CI). Starting browser sign-in...")
 			config.Profile.APIKey = ""

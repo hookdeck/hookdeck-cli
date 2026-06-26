@@ -20,7 +20,7 @@ func listProjectsFailureMessage(err error) string {
 }
 
 func shouldSuggestReauthAfterListProjectsFailure(err error) bool {
-	if errors.Is(err, project.ErrCIScopedCredentials) {
+	if errors.Is(err, project.ErrProjectScopedCredentials) {
 		return true
 	}
 	var apiErr *hookdeck.APIError
@@ -28,7 +28,8 @@ func shouldSuggestReauthAfterListProjectsFailure(err error) bool {
 		if apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusUnauthorized {
 			return true
 		}
-		if strings.Contains(strings.ToUpper(apiErr.Message), "CLI_USER_REQUIRED") {
+		msg := strings.ToUpper(apiErr.Message)
+		if strings.Contains(msg, "CLI_PROJECT_SCOPED") || strings.Contains(msg, "CLI_USER_REQUIRED") {
 			return true
 		}
 		return strings.Contains(strings.ToLower(apiErr.Message), "fatal")

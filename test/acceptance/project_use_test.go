@@ -346,5 +346,5 @@ func TestProjectListFailsWithCIKeyAcceptance(t *testing.T) {
 	combined := stdout + stderr
 	assert.NotContains(t, combined, "Fatal Error")
 	assert.NotContains(t, combined, "status=500")
-	assert.Contains(t, combined, "user-associated CLI key")
+	assert.Contains(t, combined, "single project")
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEnsureUserAssociatedCredentials_rejectsCIKey(t *testing.T) {
+func TestEnsureUserAssociatedCredentials_rejectsProjectScopedKey(t *testing.T) {
 	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)
 
@@ -40,5 +40,5 @@ func TestEnsureUserAssociatedCredentials_rejectsCIKey(t *testing.T) {
 	}
 
 	err := EnsureUserAssociatedCredentials(cfg)
-	require.ErrorIs(t, err, ErrCIScopedCredentials)
+	require.ErrorIs(t, err, ErrProjectScopedCredentials)
 }

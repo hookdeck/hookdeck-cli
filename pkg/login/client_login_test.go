@@ -164,7 +164,7 @@ api_key = "hk_test_cikey_abcdefghij"
 	cfg.TelemetryDisabled = true
 
 	err = Login(cfg, strings.NewReader("\n"))
-	require.ErrorIs(t, err, project.ErrCIScopedCredentials)
+	require.ErrorIs(t, err, project.ErrProjectScopedCredentials)
 	require.False(t, sawCLIAuthPost)
 }
 
