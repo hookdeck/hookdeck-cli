@@ -43,6 +43,10 @@ type projectEntry struct {
 }
 
 func projectsList(client *hookdeck.Client) (*mcpsdk.CallToolResult, error) {
+	if err := project.EnsureUserAssociatedClient(client); err != nil {
+		return ErrorResult(listProjectsFailureMessage(err)), nil
+	}
+
 	projects, err := client.ListProjects()
 	if err != nil {
 		return ErrorResult(listProjectsFailureMessage(err)), nil
@@ -69,6 +73,10 @@ func projectsUse(client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, err
 	id := in.String("project_id")
 	if id == "" {
 		return ErrorResult("project_id is required for the use action"), nil
+	}
+
+	if err := project.EnsureUserAssociatedClient(client); err != nil {
+		return ErrorResult(listProjectsFailureMessage(err)), nil
 	}
 
 	projects, err := client.ListProjects()

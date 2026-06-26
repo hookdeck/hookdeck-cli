@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,6 +15,16 @@ func TestShouldSuggestReauthAfterListProjectsFailure(t *testing.T) {
 		err  error
 		want bool
 	}{
+		{
+			name: "CI scoped credentials",
+			err:  project.ErrCIScopedCredentials,
+			want: true,
+		},
+		{
+			name: "APIError 403 CLI_USER_REQUIRED",
+			err:  &hookdeck.APIError{StatusCode: 403, Message: "CLI_USER_REQUIRED: listing projects requires login"},
+			want: true,
+		},
 		{
 			name: "APIError 403",
 			err:  &hookdeck.APIError{StatusCode: 403, Message: "not allowed"},

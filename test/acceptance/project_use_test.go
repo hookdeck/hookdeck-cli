@@ -330,3 +330,21 @@ func TestProjectListFilterByOrgAndProject(t *testing.T) {
 		assert.NotEmpty(t, item.Type, "item %d should have type", i)
 	}
 }
+
+// TestProjectListFailsWithCIKeyAcceptance asserts that project list fails with a clear
+// message when the config holds a CI-scoped key (from hookdeck ci), not a 500 Fatal Error.
+func TestProjectListFailsWithCIKeyAcceptance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	stdout, stderr, err := cli.Run("project", "list")
+	require.Error(t, err, "project list should fail with CI-scoped credentials")
+
+	combined := stdout + stderr
+	assert.NotContains(t, combined, "Fatal Error")
+	assert.NotContains(t, combined, "status=500")
+	assert.Contains(t, combined, "user-associated CLI key")
+}

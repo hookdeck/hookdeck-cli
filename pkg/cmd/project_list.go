@@ -47,6 +47,10 @@ func (lc *projectListCmd) runProjectListCmd(cmd *cobra.Command, args []string) e
 		return err
 	}
 
+	if err := project.EnsureUserAssociatedCredentials(&Config); err != nil {
+		return err
+	}
+
 	if lc.typeFilter != "" {
 		ok := false
 		for _, v := range validProjectTypes {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 )
 
 const listProjectsReauthHint = `This may happen if the stored key is a dashboard or single-project API key that cannot list all teams/projects. Try hookdeck_login with reauth: true so the user can sign in via the browser and replace the credential with a full CLI session, then retry hookdeck_projects.`
@@ -19,9 +20,15 @@ func listProjectsFailureMessage(err error) string {
 }
 
 func shouldSuggestReauthAfterListProjectsFailure(err error) bool {
+	if errors.Is(err, project.ErrCIScopedCredentials) {
+		return true
+	}
 	var apiErr *hookdeck.APIError
 	if errors.As(err, &apiErr) {
 		if apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusUnauthorized {
+			return true
+		}
+		if strings.Contains(strings.ToUpper(apiErr.Message), "CLI_USER_REQUIRED") {
 			return true
 		}
 		return strings.Contains(strings.ToLower(apiErr.Message), "fatal")
