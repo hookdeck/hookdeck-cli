@@ -55,7 +55,7 @@ func InteractiveLogin(config *configpkg.Config) error {
 		return err
 	}
 
-	config.Profile.ApplyPollAPIKeyResponse(response, "", "")
+	config.Profile.ApplyPollAPIKeyResponse(response, "")
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		ansi.StopSpinner(s, "", os.Stdout)

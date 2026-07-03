@@ -42,7 +42,7 @@ func TestProfile_ApplyValidateAPIKeyResponse(t *testing.T) {
 func TestProfile_ApplyPollAPIKeyResponse(t *testing.T) {
 	t.Run("nil response is no-op", func(t *testing.T) {
 		p := &Profile{APIKey: "k", ProjectId: "p"}
-		p.ApplyPollAPIKeyResponse(nil, "", "")
+		p.ApplyPollAPIKeyResponse(nil, "")
 		require.Equal(t, "k", p.APIKey)
 		require.Equal(t, "p", p.ProjectId)
 	})
@@ -53,12 +53,11 @@ func TestProfile_ApplyPollAPIKeyResponse(t *testing.T) {
 			APIKey:      "key_from_poll",
 			ProjectID:   "team_p",
 			ProjectMode: "inbound",
-		}, "https://guest", "guest_user_1")
+		}, "https://guest")
 		require.Equal(t, "key_from_poll", p.APIKey)
 		require.Equal(t, "team_p", p.ProjectId)
 		require.Equal(t, ProjectTypeGateway, p.ProjectType)
 		require.Equal(t, "https://guest", p.GuestURL)
-		require.Equal(t, "guest_user_1", p.GuestUserID)
 	})
 
 	t.Run("clears guest URL when empty string passed", func(t *testing.T) {
@@ -67,7 +66,7 @@ func TestProfile_ApplyPollAPIKeyResponse(t *testing.T) {
 			APIKey:      "k123456789012",
 			ProjectID:   "t",
 			ProjectMode: "inbound",
-		}, "", "")
+		}, "")
 		require.Empty(t, p.GuestURL)
 	})
 }

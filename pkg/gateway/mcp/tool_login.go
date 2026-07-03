@@ -14,7 +14,6 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
-	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -113,7 +112,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 		}
 
 		authClient := &hookdeck.Client{BaseURL: parsedBaseURL, TelemetryDisabled: cfg.TelemetryDisabled}
-		session, err := authClient.StartLogin(login.BuildStartLoginInput(cfg, ""))
+		session, err := authClient.StartLogin(cfg.DeviceName)
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("Failed to start login: %s", err)), nil
 		}
@@ -163,7 +162,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			}
 
 			// Persist credentials so future MCP sessions start authenticated.
-			cfg.Profile.ApplyPollAPIKeyResponse(response, "", "")
+			cfg.Profile.ApplyPollAPIKeyResponse(response, "")
 
 			cfg.SaveActiveProfileAfterLogin()
 

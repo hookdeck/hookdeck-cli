@@ -19,10 +19,9 @@ func TestRedactHeadersForLog_redactsAuthorization(t *testing.T) {
 }
 
 func TestRedactRequestBodyForLog_redactsGuestAPIKey(t *testing.T) {
-	body := `{"device_name":"laptop","guest_user_id":"usr_1","guest_api_key":"hk_secret"}`
+	body := `{"device_name":"laptop","guest_api_key":"hk_secret"}`
 	redacted := redactRequestBodyForLog(body)
 	require.Contains(t, redacted, `"guest_api_key":"[redacted]"`)
-	require.Contains(t, redacted, `"guest_user_id":"usr_1"`)
 	require.NotContains(t, redacted, "hk_secret")
 }
 

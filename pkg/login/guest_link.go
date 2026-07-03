@@ -23,11 +23,6 @@ func RefreshGuestSigninLink(config *configpkg.Config) string {
 	}
 
 	config.Profile.GuestURL = response.Url
-	// Id is the guest user id (core POST /cli/guest/signin-link returns req.context.user.id).
-	if response.Id != "" {
-		config.Profile.GuestUserID = response.Id
-	}
-
 	if err := config.Profile.SaveProfile(); err != nil {
 		log.WithError(err).Warn("Refreshed guest sign-in link but failed to save profile")
 	}

@@ -57,8 +57,8 @@ func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), br
 			_, _ = w.Write([]byte("Unauthorized"))
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cli/guest"):
 			body, encErr := json.Marshal(map[string]string{
-				"id":  "usr_guest_accept",
-				"key": "hk_guest_accept_key",
+				"id":   "usr_guest_accept",
+				"key":  "hk_guest_accept_key",
 				"link": "https://example.test/signin/guest?token=guest",
 			})
 			require.NoError(t, encErr)
@@ -106,7 +106,6 @@ func guestProfileConfig() string {
 
 [default]
 api_key = "hk_test_stale_guest01"
-guest_user_id = "usr_guest_accept"
 guest_url = "https://example.test/signin/guest?token=guest"
 `
 }
@@ -129,14 +128,54 @@ func TestGuestLoginDefaultClaimGuestAcceptance(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.toml")
 	require.NoError(t, os.WriteFile(configPath, []byte(guestProfileConfig()), 0o600))
 
-	ts, serverURL := newGuestLoginMock(t, func(body map[string]interface{}) {
-		require.Equal(t, "usr_guest_accept", body["guest_user_id"])
-		require.Equal(t, "hk_test_stale_guest01", body["guest_api_key"])
-		require.NotContains(t, body, "auth_intent")
-	}, "https://example.test/signup?redirect=%2Fcli-auth%2Fkey")
+	validateHits := 0
+	guestRefreshHits := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/cli-auth/validate"):
+			validateHits++
+			body, encErr := json.Marshal(map[string]interface{}{
+				"user_id":           "usr_guest_accept",
+				"user_name":         "Guest",
+				"user_email":        "guest@example.com",
+				"user_is_guest":     validateHits == 1,
+				"organization_name": "GuestOrg",
+				"organization_id":   "org_guest",
+				"team_id":           "tm_guest",
+				"team_name_no_org":  "Guest Sandbox",
+				"team_mode":         "console",
+				"client_id":         "cl_guest",
+			})
+			require.NoError(t, encErr)
+			_, _ = w.Write(body)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cli/guest"):
+			guestRefreshHits++
+			user, pass, ok := r.BasicAuth()
+			require.True(t, ok)
+			require.Equal(t, "hk_test_stale_guest01", user)
+			require.Empty(t, pass)
+
+			var payload map[string]interface{}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+			require.Equal(t, "signup", payload["link_context"])
+
+			body, encErr := json.Marshal(map[string]string{
+				"id":   "usr_guest_accept",
+				"key":  "hk_test_stale_guest01",
+				"link": "https://example.test/signin/guest?token=fresh&redirect=signup",
+			})
+			require.NoError(t, encErr)
+			_, _ = w.Write(body)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	serverURL := ts.URL
+	t.Cleanup(ts.Close)
 
 	runGuestLoginCLI(t, projectRoot, configPath, serverURL)
-	_ = ts
+	require.Equal(t, 2, validateHits)
+	require.Equal(t, 1, guestRefreshHits)
 }
 
 func TestGuestLoginAfterLogoutOmitsGuestCredentialsAcceptance(t *testing.T) {

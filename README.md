@@ -1626,7 +1626,7 @@ The CLI calls `POST /cli-auth/ci` with that Project API key; the server returns 
 
 ### Guest credentials
 
-If you run `hookdeck listen` without an existing profile, the CLI can create a **guest** sandbox (`POST /cli/guest`). The config may include `guest_url`, `guest_user_id`, and an `api_key` for that sandbox. Guest login and conversion flows are separate from `hookdeck login --cli-key` and from Project API keys.
+If you run `hookdeck listen` without an existing profile, the CLI can create a **guest** sandbox (`POST /cli/guest`). The config may include `guest_url` and an `api_key` for that sandbox. `hookdeck login` reuses that existing guest key and waits for the server to upgrade the guest account into a permanent account.
 
 ### `project list` / `project use`
 

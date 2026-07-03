@@ -21,6 +21,7 @@ type ValidateAPIKeyResponse struct {
 	UserID           string `json:"user_id"`
 	UserName         string `json:"user_name"`
 	UserEmail        string `json:"user_email"`
+	UserIsGuest      bool   `json:"user_is_guest"`
 	OrganizationName string `json:"organization_name"`
 	OrganizationID   string `json:"organization_id"`
 	ProjectID        string `json:"team_id"`
@@ -49,13 +50,6 @@ type UpdateClientInput struct {
 	DeviceName string `json:"device_name"`
 }
 
-// StartLoginInput configures POST /cli-auth for browser login.
-type StartLoginInput struct {
-	DeviceName  string `json:"device_name"`
-	GuestUserID string `json:"guest_user_id,omitempty"`
-	GuestAPIKey string `json:"guest_api_key,omitempty"`
-}
-
 // LoginSession represents an in-progress login flow
 type LoginSession struct {
 	BrowserURL string
@@ -64,15 +58,20 @@ type LoginSession struct {
 
 // GuestSession represents an in-progress guest login flow
 type GuestSession struct {
-	BrowserURL  string
-	GuestURL    string
-	GuestUserID string
-	pollURL     string
+	BrowserURL string
+	GuestURL   string
+	pollURL    string
 }
 
 // StartLogin initiates the login flow and returns a session to wait for completion
-func (c *Client) StartLogin(input StartLoginInput) (*LoginSession, error) {
-	jsonData, err := json.Marshal(input)
+func (c *Client) StartLogin(deviceName string) (*LoginSession, error) {
+	data := struct {
+		DeviceName string `json:"device_name"`
+	}{
+		DeviceName: deviceName,
+	}
+
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
@@ -106,17 +105,17 @@ func (c *Client) StartLogin(input StartLoginInput) (*LoginSession, error) {
 // StartGuestLogin initiates a guest login flow and returns a session to wait for completion
 func (c *Client) StartGuestLogin(deviceName string) (*GuestSession, error) {
 	guest, err := c.CreateGuestUser(CreateGuestUserInput{
-		DeviceName: deviceName,
+		DeviceName:  deviceName,
+		LinkContext: "signup",
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &GuestSession{
-		BrowserURL:  guest.BrowserURL,
-		GuestURL:    guest.Url,
-		GuestUserID: guest.Id,
-		pollURL:     guest.PollURL,
+		BrowserURL: guest.BrowserURL,
+		GuestURL:   guest.Url,
+		pollURL:    guest.PollURL,
 	}, nil
 }
 

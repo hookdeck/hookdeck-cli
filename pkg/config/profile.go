@@ -11,7 +11,6 @@ type Profile struct {
 	ProjectMode string
 	ProjectType string // display type: Gateway, Outpost, Console
 	GuestURL    string // URL to create permanent account for guest users
-	GuestUserID string // Hookdeck user id for guest accounts (for signup lineage)
 
 	Config *Config
 }
@@ -31,7 +30,6 @@ func (p *Profile) SaveProfile() error {
 	}
 	p.Config.viper.Set(p.getConfigField("project_type"), projectType)
 	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
-	p.Config.viper.Set(p.getConfigField("guest_user_id"), p.GuestUserID)
 	return p.Config.writeConfig()
 }
 

@@ -47,7 +47,6 @@ func TestConfigureFromClaimedCliKey_guestProfileReplacesCredentials(t *testing.T
 [default]
 api_key = "hk_test_guestkey_abcdefghij"
 guest_url = "https://console.test/signin/guest?token=abc"
-guest_user_id = "usr_guest"
 `), 0o600))
 
 	cfg, err := configpkg.LoadConfigFromFile(configPath)
@@ -61,7 +60,6 @@ guest_user_id = "usr_guest"
 	require.Equal(t, onboardingKey, cfg.Profile.APIKey)
 	require.Equal(t, "tm_gateway", cfg.Profile.ProjectId)
 	require.Empty(t, cfg.Profile.GuestURL)
-	require.Empty(t, cfg.Profile.GuestUserID)
 
 	rewritten, err := os.ReadFile(configPath)
 	require.NoError(t, err)
@@ -87,9 +85,8 @@ func TestConfigureFromClaimedCliKey_validateFailureDoesNotStartDeviceLogin(t *te
 		TelemetryDisabled: true,
 	}
 	cfg.Profile = configpkg.Profile{
-		Name:        "default",
-		GuestURL:    "https://console.test/guest",
-		GuestUserID: "usr_guest",
+		Name:     "default",
+		GuestURL: "https://console.test/guest",
 	}
 
 	err := ConfigureFromClaimedCliKey(cfg, "hk_test_invalid_abcdefghij")
