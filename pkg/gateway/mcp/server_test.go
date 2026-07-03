@@ -39,6 +39,9 @@ func newTestClient(baseURL string, apiKey string) *hookdeck.Client {
 func connectInMemory(t *testing.T, client *hookdeck.Client) *mcpsdk.ClientSession {
 	t.Helper()
 	cfg := &config.Config{}
+	if client != nil && client.BaseURL != nil {
+		cfg.APIBaseURL = client.BaseURL.String()
+	}
 	srv := NewServer(client, cfg)
 
 	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
@@ -92,6 +95,23 @@ func listResponse(models ...map[string]any) map[string]any {
 // mockAPI creates an httptest server that handles specific API paths.
 func mockAPI(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Server {
 	t.Helper()
+	if handlers == nil {
+		handlers = map[string]http.HandlerFunc{}
+	}
+	if _, ok := handlers["/2025-07-01/cli-auth/validate"]; !ok {
+		handlers["/2025-07-01/cli-auth/validate"] = func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"user_id":           "usr_test",
+				"user_name":         "Test User",
+				"user_email":        "u@example.com",
+				"organization_name": "Test Org",
+				"organization_id":   "org_test",
+				"team_id":           "proj_test123",
+				"team_name_no_org":  "Production",
+				"team_mode":         "console",
+			})
+		}
+	}
 	mux := http.NewServeMux()
 	for pattern, handler := range handlers {
 		mux.HandleFunc(pattern, handler)
@@ -1116,12 +1136,84 @@ func TestMetricsTool_UnknownAction(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLoginTool_AlreadyAuthenticated(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"user_id":           "usr_1",
+				"user_name":         "Test User",
+				"user_email":        "u@example.com",
+				"organization_name": "Org",
+				"organization_id":   "org_1",
+				"team_id":           "tm_1",
+				"team_name_no_org":  "Proj",
+				"team_mode":         "inbound",
+			})
+		},
+	})
+	client := newTestClient(api.URL, "test-key")
 	session := connectInMemory(t, client)
 
 	result := callTool(t, session, "hookdeck_login", map[string]any{})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "Already authenticated")
+}
+
+func TestLoginTool_CIScopedKeyStartsLogin(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"organization_name": "Org",
+				"organization_id":   "org_1",
+				"team_id":           "tm_ci",
+				"team_name_no_org":  "CI Project",
+				"team_mode":         "inbound",
+			})
+		},
+		"/2025-07-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=ci-upgrade",
+				"poll_url":    "http://" + r.Host + "/2025-07-01/cli-auth/poll?key=ci-upgrade",
+			})
+		},
+		"/2025-07-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+	client := newTestClient(api.URL, "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.NotContains(t, text, "Already authenticated")
+	assert.Contains(t, text, "Login initiated")
+	assert.Contains(t, text, "scoped to one project")
+}
+
+func TestLoginTool_UnauthorizedKeyNoScopedPrefix(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("Unauthorized"))
+		},
+		"/2025-07-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=revoked",
+				"poll_url":    "http://" + r.Host + "/2025-07-01/cli-auth/poll?key=revoked",
+			})
+		},
+		"/2025-07-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+	client := newTestClient(api.URL, "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "Login initiated")
+	assert.NotContains(t, text, "scoped to one project")
 }
 
 func TestLoginTool_ReauthStartsFreshLogin(t *testing.T) {

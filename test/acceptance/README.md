@@ -72,7 +72,7 @@ go test -tags="basic connection source destination gateway mcp listen project_us
 Same commands as CI; use when debugging a subset or running in parallel:
 ```bash
 # Slice 0 (same tags as CI job 0)
-ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
+ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
 
 # Slice 1 (same tags as CI job 1)
 ACCEPTANCE_SLICE=1 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
@@ -114,9 +114,9 @@ Use the same `-tags` as "Run all" if you want to skip the full acceptance set. A
 
 Tests are partitioned by **feature build tags** so CI and local runs can execute three matrix slices in parallel (each slice uses its own Hookdeck project and config file).
 
-- **Slice 0 features:** `basic`, `connection`, `source`, `destination`, `gateway`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
+- **Slice 0 features:** `basic`, `connection`, `source`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
 - **Slice 1 features:** `request`, `event`
-- **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`
+- **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`, `destination`, `gateway`
 - **Telemetry job:** `telemetry` only — separate CI job with telemetry **not** disabled (see [CI/CD](#cicd))
 
 The CI workflow (`.github/workflows/test-acceptance.yml`) runs three matrix jobs plus `acceptance-telemetry`. Matrix jobs set `HOOKDECK_CLI_TELEMETRY_DISABLED=1`; the telemetry job does not. No test names or regexes are listed in YAML.

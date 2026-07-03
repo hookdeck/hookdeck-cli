@@ -7,6 +7,7 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 
 	"github.com/briandowns/spinner"
 
@@ -14,11 +15,15 @@ import (
 	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/open"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 var openBrowser = open.Browser
 var canOpenBrowser = open.CanOpenBrowser
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
 
 // Login function is used to obtain credentials via hookdeck dashboard.
 func Login(config *configpkg.Config, input io.Reader) error {
@@ -41,7 +46,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			// or we would re-enter this branch only).
 			fmt.Fprintln(os.Stdout, "Your saved API key is no longer valid. Starting browser sign-in...")
 			config.Profile.APIKey = ""
-		} else {
+		} else if response.UserID != "" {
 			message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 			ansi.StopSpinner(s, message, os.Stdout)
 
@@ -54,7 +59,16 @@ func Login(config *configpkg.Config, input io.Reader) error {
 				return err
 			}
 
+			config.RefreshCachedAPIClient()
+
 			return nil
+		} else {
+			ansi.StopSpinner(s, "", os.Stdout)
+			if !stdinIsTerminal() {
+				return project.ErrProjectScopedCredentials
+			}
+			fmt.Fprintln(os.Stdout, "Your saved key is scoped to a single project (CI). Starting browser sign-in...")
+			config.Profile.APIKey = ""
 		}
 	}
 

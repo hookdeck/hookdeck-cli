@@ -30,7 +30,32 @@ func (p *Profile) SaveProfile() error {
 	}
 	p.Config.viper.Set(p.getConfigField("project_type"), projectType)
 	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
+
+	if err := p.removeLegacyConfigKeys(); err != nil {
+		return err
+	}
+
 	return p.Config.writeConfig()
+}
+
+func (p *Profile) removeLegacyConfigKeys() error {
+	legacyKeys := []string{"workspace_id", "workspace_mode", "team_id", "team_mode"}
+	configFile := p.Config.viper.ConfigFileUsed()
+	var err error
+	for _, key := range legacyKeys {
+		p.Config.viper, err = removeKey(p.Config.viper, p.getConfigField(key))
+		if err != nil {
+			return err
+		}
+		p.Config.viper, err = removeKey(p.Config.viper, key)
+		if err != nil {
+			return err
+		}
+	}
+	if configFile != "" {
+		p.Config.viper.SetConfigFile(configFile)
+	}
+	return nil
 }
 
 func (p *Profile) RemoveProfile() error {

@@ -29,9 +29,9 @@ SLICE1_LOG="$LOG_DIR/slice1.log"
 SLICE2_LOG="$LOG_DIR/slice2.log"
 TELEMETRY_LOG="$LOG_DIR/telemetry.log"
 
-SLICE0_TAGS="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
+SLICE0_TAGS="basic connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
 SLICE1_TAGS="request event"
-SLICE2_TAGS="attempt metrics issue transformation"
+SLICE2_TAGS="attempt metrics issue transformation destination gateway"
 
 run_slice0() {
   ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="$SLICE0_TAGS" ./test/acceptance/... -v -timeout 12m > "$SLICE0_LOG" 2>&1
