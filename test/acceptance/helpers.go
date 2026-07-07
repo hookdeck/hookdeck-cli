@@ -726,6 +726,12 @@ type Connection struct {
 	Rules []map[string]interface{} `json:"rules"`
 }
 
+// ConnectionListResponse wraps the list response with pagination.
+type ConnectionListResponse struct {
+	Models     []Connection           `json:"models"`
+	Pagination map[string]interface{} `json:"pagination"`
+}
+
 // Source represents a Hookdeck source for testing
 type Source struct {
 	ID   string `json:"id"`

@@ -76,13 +76,13 @@ go test -tags="basic guest connection source destination gateway mcp listen proj
 Same commands as CI; use when debugging a subset or running in parallel:
 ```bash
 # Slice 0 (same tags as CI job 0)
-ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
+ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic guest connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
 
 # Slice 1 (same tags as CI job 1)
 ACCEPTANCE_SLICE=1 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
 
 # Slice 2 (same tags as CI job 2)
-ACCEPTANCE_SLICE=2 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="attempt metrics issue transformation" ./test/acceptance/... -v -timeout 12m
+ACCEPTANCE_SLICE=2 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="attempt metrics issue transformation destination gateway" ./test/acceptance/... -v -timeout 12m
 
 # Telemetry (same as CI acceptance-telemetry: force telemetry on)
 ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=0 go test -tags=telemetry ./test/acceptance/... -v -timeout 12m
@@ -118,9 +118,9 @@ Use the same `-tags` as "Run all" if you want to skip the full acceptance set. A
 
 Tests are partitioned by **feature build tags** so CI and local runs can execute three matrix slices in parallel (each slice uses its own Hookdeck project and config file).
 
-- **Slice 0 features:** `basic`, `guest`, `connection`, `source`, `destination`, `gateway`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
+- **Slice 0 features:** `basic`, `guest`, `connection`, `source`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
 - **Slice 1 features:** `request`, `event`
-- **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`
+- **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`, `destination`, `gateway`
 - **Telemetry job:** `telemetry` only — separate CI job with telemetry **not** disabled (see [CI/CD](#cicd))
 
 The CI workflow (`.github/workflows/test-acceptance.yml`) runs three matrix jobs plus `acceptance-telemetry`. Matrix jobs set `HOOKDECK_CLI_TELEMETRY_DISABLED=1`; the telemetry job does not. No test names or regexes are listed in YAML.

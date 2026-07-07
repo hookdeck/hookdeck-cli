@@ -7,6 +7,7 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 
 	"github.com/briandowns/spinner"
 
@@ -14,11 +15,15 @@ import (
 	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/open"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 var openBrowser = open.Browser
 var canOpenBrowser = open.CanOpenBrowser
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
 
 // Login function is used to obtain credentials via hookdeck dashboard.
 func Login(config *configpkg.Config, input io.Reader) error {
@@ -45,23 +50,33 @@ func Login(config *configpkg.Config, input io.Reader) error {
 				saved_guest_api_key = config.Profile.APIKey
 			}
 			config.Profile.APIKey = ""
-		} else if config.Profile.GuestURL == "" {
-			message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
-			ansi.StopSpinner(s, message, os.Stdout)
+		} else if response.UserID != "" {
+			if config.Profile.GuestURL == "" {
+				message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
+				ansi.StopSpinner(s, message, os.Stdout)
 
-			config.Profile.ApplyValidateAPIKeyResponse(response, true)
+				config.Profile.ApplyValidateAPIKeyResponse(response, true)
 
-			if err = config.Profile.SaveProfile(); err != nil {
-				return err
+				if err = config.Profile.SaveProfile(); err != nil {
+					return err
+				}
+				if err = config.Profile.UseProfile(); err != nil {
+					return err
+				}
+
+				config.RefreshCachedAPIClient()
+
+				return nil
 			}
-			if err = config.Profile.UseProfile(); err != nil {
-				return err
-			}
-
-			return nil
-		} else {
 			// Guest Console profile: valid key still needs browser signup to claim sandbox.
 			ansi.StopSpinner(s, "", os.Stdout)
+		} else {
+			ansi.StopSpinner(s, "", os.Stdout)
+			if !stdinIsTerminal() {
+				return project.ErrProjectScopedCredentials
+			}
+			fmt.Fprintln(os.Stdout, "Your saved key is scoped to a single project (CI). Starting browser sign-in...")
+			config.Profile.APIKey = ""
 		}
 	}
 

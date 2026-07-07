@@ -52,6 +52,10 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		return err
 	}
 
+	if err := project.EnsureUserAssociatedCredentials(&Config); err != nil {
+		return err
+	}
+
 	projects, err := project.ListProjects(&Config)
 	if err != nil {
 		return err

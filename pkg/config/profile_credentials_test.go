@@ -1,9 +1,12 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,4 +86,40 @@ func TestProfile_ApplyCIClient(t *testing.T) {
 	require.Equal(t, "team_ci", p.ProjectId)
 	require.Equal(t, ProjectTypeGateway, p.ProjectType)
 	require.Empty(t, p.GuestURL)
+}
+
+func TestSaveProfile_RemovesLegacyWorkspaceKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `profile = "default"
+workspace_id = "legacy_team"
+workspace_mode = "inbound"
+team_id = "legacy_team"
+team_mode = "inbound"
+
+[default]
+api_key = "hk_test_123456789012"
+project_id = "proj_new"
+project_mode = "inbound"
+workspace_id = "legacy_profile_team"
+workspace_mode = "inbound"
+team_id = "legacy_profile_team"
+team_mode = "inbound"
+`
+	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+
+	c, err := LoadConfigFromFile(path)
+	require.NoError(t, err)
+	c.Profile.Config = c
+
+	require.NoError(t, c.Profile.SaveProfile())
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	tomlText := string(raw)
+	assert.NotContains(t, tomlText, "workspace_id")
+	assert.NotContains(t, tomlText, "workspace_mode")
+	assert.NotContains(t, tomlText, "team_id")
+	assert.NotContains(t, tomlText, "team_mode")
+	assert.Contains(t, tomlText, "project_id")
 }

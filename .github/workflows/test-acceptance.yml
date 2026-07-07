@@ -14,13 +14,13 @@ jobs:
         include:
           - slice: "0"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY
-            tags: "basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
+            tags: "basic guest connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
           - slice: "1"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_2
             tags: "request event"
           - slice: "2"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_3
-            tags: "attempt metrics issue transformation"
+            tags: "attempt metrics issue transformation destination gateway"
     runs-on: ubuntu-latest
     env:
       ACCEPTANCE_SLICE: ${{ matrix.slice }}
