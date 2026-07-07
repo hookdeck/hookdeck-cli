@@ -23,7 +23,7 @@ type GuestSigninLinkResponse struct {
 }
 
 type CreateGuestUserInput struct {
-	DeviceName  string `json:"device_name"`
+	DeviceName  string `json:"device_name,omitempty"`
 	LinkContext string `json:"link_context,omitempty"`
 }
 

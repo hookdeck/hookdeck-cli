@@ -28,6 +28,7 @@ func TestRefreshGuestSigninLink_updatesProfileOnSuccess(t *testing.T) {
 			var input map[string]string
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
 			require.Equal(t, "signup", input["link_context"])
+			require.NotContains(t, input, "device_name")
 			body, err := json.Marshal(map[string]string{
 				"id":   "usr_guest_refresh",
 				"key":  "hk_test_guest_refresh_key12",

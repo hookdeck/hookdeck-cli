@@ -158,6 +158,7 @@ func TestGuestLoginDefaultClaimGuestAcceptance(t *testing.T) {
 			var payload map[string]interface{}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
 			require.Equal(t, "signup", payload["link_context"])
+			require.NotContains(t, payload, "device_name")
 
 			body, encErr := json.Marshal(map[string]string{
 				"id":   "usr_guest_accept",
