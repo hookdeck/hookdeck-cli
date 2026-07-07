@@ -8,7 +8,7 @@ on:
   pull_request:
     branches:
       - main
-  # Allow triggering CI on a branch (e.g. after auto-implement creates a PR, so checks appear)
+  # Allow manually triggering CI on a branch
   workflow_dispatch: {}
 
 jobs:

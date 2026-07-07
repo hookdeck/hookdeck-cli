@@ -71,9 +71,19 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			client.ProjectName = ""
 		}
 
-		// Already authenticated — nothing to do.
+		// Already authenticated with a user-associated key — nothing to do.
+		loginPrefix := ""
 		if client.APIKey != "" {
-			return TextResult("Already authenticated. All Hookdeck tools are available."), nil
+			lacks_user, err := project.CredentialsLackUserAssociation(client)
+			if err != nil && !hookdeck.IsUnauthorizedError(err) {
+				return ErrorResult(fmt.Sprintf("Failed to verify credentials: %s", err)), nil
+			}
+			if err == nil && !lacks_user {
+				return TextResult("Already authenticated. All Hookdeck tools are available."), nil
+			}
+			if err == nil && lacks_user {
+				loginPrefix = "Current credentials are scoped to one project; opening browser sign-in for full access.\n\n"
+			}
 		}
 
 		// If a login flow is already in progress, check its status.
@@ -189,7 +199,8 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 
 		// Return the URL immediately so the agent can show it to the user.
 		return TextResult(fmt.Sprintf(
-			"Login initiated. The user must open the following URL in their browser to authenticate:\n\n%s\n\nOnce the user completes authentication in the browser, all Hookdeck tools will become available.\nCall hookdeck_login again to check if authentication has completed.",
+			"%sLogin initiated. The user must open the following URL in their browser to authenticate:\n\n%s\n\nOnce the user completes authentication in the browser, all Hookdeck tools will become available.\nCall hookdeck_login again to check if authentication has completed.",
+			loginPrefix,
 			session.BrowserURL,
 		)), nil
 	}

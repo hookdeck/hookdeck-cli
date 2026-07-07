@@ -11,12 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ConnectionListResponse wraps the list response with pagination
-type ConnectionListResponse struct {
-	Models     []Connection           `json:"models"`
-	Pagination map[string]interface{} `json:"pagination"`
-}
-
 // TestConnectionListFilters tests the various filtering flags for connection list
 func TestConnectionListFilters(t *testing.T) {
 	if testing.Short() {
