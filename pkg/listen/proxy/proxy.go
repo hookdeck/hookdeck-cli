@@ -120,6 +120,15 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		log.WithFields(log.Fields{
 			"prefix": "proxy.Proxy.Run",
 		}).Debug("Ctrl+C received, cleaning up...")
+
+		// Send a clean WebSocket close (1000) before the context is
+		// cancelled. This lets the server tombstone the session
+		// immediately instead of holding it for the 2-minute grace
+		// window, so subsequent events don't get routed to a
+		// disconnected CLI and old sessions don't pile up.
+		if p.webSocketClient != nil {
+			p.webSocketClient.Stop()
+		}
 	})
 
 	// Notify renderer we're connecting
@@ -138,6 +147,20 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		return fmt.Errorf("error while starting a new session")
 	}
 
+	// Build session data to send on every connect/reconnect so the server
+	// can recreate the session if it expired in Redis.
+	var connectionIDs []string
+	for _, connection := range p.connections {
+		connectionIDs = append(connectionIDs, connection.Id)
+	}
+
+	var filtersJSON string
+	if p.cfg.Filters != nil {
+		if b, err := json.Marshal(p.cfg.Filters); err == nil {
+			filtersJSON = string(b)
+		}
+	}
+
 	// Main loop to keep attempting to connect to Hookdeck once
 	// we have created a session.
 	for canConnect() {
@@ -146,6 +169,8 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			session.Id,
 			p.cfg.Key,
 			p.cfg.ProjectID,
+			connectionIDs,
+			filtersJSON,
 			&websocket.Config{
 				Log:          p.cfg.Log,
 				NoWSS:        p.cfg.NoWSS,
@@ -182,6 +207,9 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		// Block until ctrl+c, renderer quit, or websocket connection is interrupted
 		select {
 		case <-signalCtx.Done():
+			if p.webSocketClient != nil {
+				p.webSocketClient.Stop()
+			}
 			return nil
 		case <-p.renderer.Done():
 			// Renderer wants to quit (user pressed q or similar)

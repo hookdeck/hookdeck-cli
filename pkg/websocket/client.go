@@ -69,8 +69,22 @@ type Client struct {
 
 	TeamID string
 
-	// ID sent by the client in the `Websocket-Id` header when connecting
+	// WebSocketID is the CLI session ID (e.g., "cses_DPlA9BeXxNT2rT").
+	// Sent as the `Websocket-Id` header. The server uses this to look up
+	// the session in Redis. This is NOT the same as ConnectionIDs below.
 	WebSocketID string
+
+	// ConnectionIDs are the webhook/connection IDs (e.g., ["web_abc", "web_def"])
+	// that this CLI session is listening on. Sent as the `X-Webhook-Ids` header
+	// on every connect/reconnect so the server can recreate the session in Redis
+	// if it expired. These map to `webhook_ids` on the session and are used for
+	// routing events to this CLI.
+	ConnectionIDs []string
+
+	// FiltersJSON is the JSON-encoded session filters (e.g., '{"body":{"action":"opened"}}').
+	// Sent as the `X-Session-Filters` header on every connect/reconnect.
+	// Empty string means no filters.
+	FiltersJSON string
 
 	// Feature that the websocket is specified for
 	//WebSocketAuthorizedFeature string
@@ -80,6 +94,7 @@ type Client struct {
 
 	conn        *ws.Conn
 	done        chan struct{}
+	doneOnce    sync.Once
 	isConnected bool
 
 	NotifyExpired chan struct{}
@@ -162,9 +177,27 @@ func (c *Client) ConnectionLost() {
 	c.NotifyExpired <- struct{}{}
 }
 
-// Stop stops listening for incoming webhook events.
+// Stop stops listening for incoming webhook events. It is safe to call
+// multiple times. When called while connected, it sends a clean WebSocket
+// close (code 1000) so the server can distinguish an intentional shutdown
+// from an abnormal disconnect (network drop, crash). The server treats a
+// 1000 close as a final tombstone and removes the session immediately
+// instead of holding it open for the reconnect grace window.
 func (c *Client) Stop() {
-	close(c.done)
+	c.doneOnce.Do(func() {
+		// If we have an active connection, send a clean close frame BEFORE
+		// tearing down the pumps. This guarantees the server sees code 1000
+		// rather than the abnormal 1006 it gets when the TCP socket dies.
+		if c.isConnected && c.conn != nil {
+			deadline := time.Now().Add(c.cfg.WriteWait)
+			_ = c.conn.WriteControl(
+				ws.CloseMessage,
+				ws.FormatCloseMessage(ws.CloseNormalClosure, "client_shutdown"),
+				deadline,
+			)
+		}
+		close(c.done)
+	})
 }
 
 // SendMessage sends a message to Hookdeck through the websocket.
@@ -221,6 +254,15 @@ func (c *Client) connect(ctx context.Context) error {
 	header.Set("Websocket-Id", c.WebSocketID)
 	header.Set("X-Team-Id", c.TeamID)
 	header.Set("Authorization", "Basic "+basicAuth(c.CLIKey, ""))
+
+	// Send session data on every connect/reconnect so the server can
+	// recreate the session if it expired in Redis between reconnects.
+	if len(c.ConnectionIDs) > 0 {
+		header.Set("X-Webhook-Ids", strings.Join(c.ConnectionIDs, ","))
+	}
+	if c.FiltersJSON != "" {
+		header.Set("X-Session-Filters", c.FiltersJSON)
+	}
 
 	url := c.URL
 	if c.cfg.NoWSS && strings.HasPrefix(url, "wss") {
@@ -433,7 +475,7 @@ func (c *Client) writePump() {
 //
 
 // NewClient returns a new Client.
-func NewClient(url string, webSocketID string, CLIKey string, teamID string, cfg *Config) *Client {
+func NewClient(url string, webSocketID string, CLIKey string, teamID string, connectionIDs []string, filtersJSON string, cfg *Config) *Client {
 	if cfg == nil {
 		cfg = &Config{}
 	}
@@ -469,11 +511,12 @@ func NewClient(url string, webSocketID string, CLIKey string, teamID string, cfg
 	// Note that this client is not configured for websocket communications
 	// and you must call c.changeConnection
 	return &Client{
-		URL:         url,
-		WebSocketID: webSocketID,
-		// WebSocketAuthorizedFeature: websocketAuthorizedFeature,
+		URL:           url,
+		WebSocketID:   webSocketID,
 		CLIKey:        CLIKey,
 		TeamID:        teamID,
+		ConnectionIDs: connectionIDs,
+		FiltersJSON:   filtersJSON,
 		cfg:           cfg,
 		done:          make(chan struct{}),
 		send:          make(chan *OutgoingMessage),
