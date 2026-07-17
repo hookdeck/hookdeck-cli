@@ -82,7 +82,7 @@ type Client struct {
 	ConnectionIDs []string
 
 	// FiltersJSON is the JSON-encoded session filters (e.g., '{"body":{"action":"opened"}}').
-	// Sent as the `X-Session-Filters` header on every connect/reconnect.
+	// Sent base64-encoded as the `X-Session-Filters` header on every connect/reconnect.
 	// Empty string means no filters.
 	FiltersJSON string
 
@@ -96,6 +96,9 @@ type Client struct {
 	done        chan struct{}
 	doneOnce    sync.Once
 	isConnected bool
+	// stateMu guards conn and isConnected: they are written by the connect goroutine and
+	// read by Stop(), which can run on the signal-handler goroutine.
+	stateMu sync.Mutex
 
 	NotifyExpired chan struct{}
 	notifyClose   chan error
@@ -111,7 +114,7 @@ func (c *Client) Connected() <-chan struct{} {
 	d := make(chan struct{})
 
 	go func() {
-		for !c.isConnected {
+		for !c.connected() {
 			time.Sleep(100 * time.Millisecond)
 		}
 		close(d)
@@ -120,9 +123,21 @@ func (c *Client) Connected() <-chan struct{} {
 	return d
 }
 
+func (c *Client) connected() bool {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	return c.isConnected
+}
+
+func (c *Client) setConnected(isConnected bool) {
+	c.stateMu.Lock()
+	c.isConnected = isConnected
+	c.stateMu.Unlock()
+}
+
 // Run starts listening for incoming webhook requests from Hookdeck.
 func (c *Client) Run(ctx context.Context) {
-	c.isConnected = false
+	c.setConnected(false)
 	c.cfg.Log.WithFields(log.Fields{
 		"prefix": "websocket.client.Run",
 	}).Debug("Attempting to connect to Hookdeck")
@@ -185,12 +200,19 @@ func (c *Client) ConnectionLost() {
 // instead of holding it open for the reconnect grace window.
 func (c *Client) Stop() {
 	c.doneOnce.Do(func() {
+		// Snapshot the connection state under stateMu — Stop can run on the
+		// signal-handler goroutine while the connect goroutine writes these fields.
+		c.stateMu.Lock()
+		conn := c.conn
+		isConnected := c.isConnected
+		c.stateMu.Unlock()
+
 		// If we have an active connection, send a clean close frame BEFORE
 		// tearing down the pumps. This guarantees the server sees code 1000
 		// rather than the abnormal 1006 it gets when the TCP socket dies.
-		if c.isConnected && c.conn != nil {
+		if isConnected && conn != nil {
 			deadline := time.Now().Add(c.cfg.WriteWait)
-			_ = c.conn.WriteControl(
+			_ = conn.WriteControl(
 				ws.CloseMessage,
 				ws.FormatCloseMessage(ws.CloseNormalClosure, "client_shutdown"),
 				deadline,
@@ -257,11 +279,13 @@ func (c *Client) connect(ctx context.Context) error {
 
 	// Send session data on every connect/reconnect so the server can
 	// recreate the session if it expired in Redis between reconnects.
+	// Filters are base64-encoded: raw UTF-8 header bytes would be decoded as
+	// latin-1 by the Node server and silently corrupt non-ASCII filter values.
 	if len(c.ConnectionIDs) > 0 {
 		header.Set("X-Webhook-Ids", strings.Join(c.ConnectionIDs, ","))
 	}
 	if c.FiltersJSON != "" {
-		header.Set("X-Session-Filters", c.FiltersJSON)
+		header.Set("X-Session-Filters", base64.StdEncoding.EncodeToString([]byte(c.FiltersJSON)))
 	}
 
 	url := c.URL
@@ -291,7 +315,7 @@ func (c *Client) connect(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	c.changeConnection(conn)
-	c.isConnected = true
+	c.setConnected(true)
 
 	c.wg = &sync.WaitGroup{}
 	c.wg.Add(2)
@@ -309,7 +333,9 @@ func (c *Client) connect(ctx context.Context) error {
 
 // changeConnection takes a new connection and recreates the channels.
 func (c *Client) changeConnection(conn *ws.Conn) {
+	c.stateMu.Lock()
 	c.conn = conn
+	c.stateMu.Unlock()
 	c.notifyClose = make(chan error)
 	c.stopReadPump = make(chan struct{})
 	c.stopWritePump = make(chan struct{})
