@@ -8,7 +8,7 @@ What exists today: `pkg/gateway/mcp/` is built on the official `github.com/model
 
 ## Recommendation summary
 
-1. **Offer both, from one shared Go package** — embedded stdio (`hookdeck gateway mcp`) and hosted streamable HTTP (`hookdeck gateway mcp serve`, deployed at e.g. `mcp.hookdeck.com/mcp`). **Do not** make the CLI a proxy; **do not** deprecate the embedded server.
+1. **Offer both, from one shared Go package** (`pkg/gateway/mcp`, refactored to a clean importable boundary) — embedded stdio (`hookdeck gateway mcp`) and hosted streamable HTTP (`hookdeck gateway mcp serve`, deployed at e.g. `mcp.hookdeck.com/mcp`). **Do not** make the CLI a proxy; **do not** deprecate the embedded server.
    - *Proxy rejected*: adds a network hop + hosted-availability dependency for local use, breaks offline, and kills local-only capabilities (`hookdeck_login` browser flow persisting to the TOML profile; roadmap Phase 3 local-listen/CLI-exec tools must run on the user's machine). Saves nothing — every tool is a pure API call either way.
    - *Deprecation rejected*: embedded is the zero-config path (inherits `hookdeck login` credentials) and the only home for local tools. Fleet drift is bounded: tools are thin veneers over the versioned API (`APIPathPrefix = "/2025-07-01"`), and one shared `tools.go` means both surfaces update in the same commit.
 2. **Hosted lives in this repo** as a `serve` subcommand + `Dockerfile`, deployed from `main` on merge (decoupled from tagged CLI releases). Public repo is fine — no secrets, and self-hostable is a trust asset. A separate `cmd/hookdeck-mcp-server/main.go` is a trivial later addition if image size ever matters; don't start there.
@@ -16,6 +16,27 @@ What exists today: `pkg/gateway/mcp/` is built on the official `github.com/model
 4. **Hosted surface = CLI surface minus `hookdeck_login`** (auth comes from the transport). Everything else — including `hookdeck_projects` — registers in both, from shared definitions.
 
 ## Shared-package refactor design
+
+### The shared package and its consumers
+
+The shared package **is `pkg/gateway/mcp`** — it doesn't need to be created, it needs its boundary cleaned up. After the refactor below, its public API is small:
+
+```go
+func NewServer(opts Options) *Server                       // tool registration + telemetry wrapping
+func (s *Server) Run(ctx, transport) / RunStdio(ctx) error // any SDK transport
+func (s *Server) AddTool(t *mcpsdk.Tool, h mcpsdk.ToolHandler) // extension point (telemetry-wrapped)
+func (s *Server) SessionContext() context.Context          // for background goroutines (login polling)
+func NewHTTPHandler(opts HTTPOptions) http.Handler         // hosted entrypoint: Bearer middleware + per-session servers
+```
+
+Consumers:
+1. **CLI stdio command** (`pkg/cmd/mcp.go`) — `NewServer(ProfileCLI)` + `AddTool(hookdeck_login)` + `RunStdio`.
+2. **Hosted serve command** (`pkg/cmd/mcp_serve.go`, same repo — recommended) — `NewHTTPHandler` behind `http.ListenAndServe`.
+3. **A future external consumer** (e.g. a service in the platform repo) — works without extraction: this repo is already a public Go module, so `import "github.com/hookdeck/hookdeck-cli/pkg/gateway/mcp"` resolves today, pinned by CLI release tag or pseudo-version of `main`. Go only compiles imported packages, so the binary doesn't inherit the whole CLI — but to keep the import genuinely lean, the core package must not depend on `pkg/config` (viper/TOML profile machinery). That's the dependency-inversion below: after it, core depends only on `pkg/hookdeck`, the MCP SDK, and small helpers (`pkg/project`, `pkg/validators`, `pkg/version`). If cross-repo versioning ever becomes friction, extracting to a standalone module (e.g. `hookdeck/mcp-go`) is mechanical because the boundary is already clean — don't start there.
+
+**Dependency inversion for login**: `hookdeck_login` is the only reason core imports `pkg/config` (browser login + TOML profile persistence). Move `tool_login.go` out of the core package into a CLI-side location (a small `pkg/gateway/mcp/logintool` subpackage or `pkg/cmd`), registered via the exported `Server.AddTool` after `NewServer`. This removes both the `Config` field from `Options` and the profile-gating of login inside core — the hosted profile simply never registers it.
+
+### Multi-tenancy
 
 Three things in `pkg/gateway/mcp` assume one process = one user:
 - `NewServer(client, cfg)` closes all handlers over a single `*hookdeck.Client` (`server.go:36`, `tools.go:14`)
@@ -32,18 +53,17 @@ const (
 )
 type Options struct {
     Client          *hookdeck.Client // hosted: built per session from Bearer token
-    Config          *config.Config   // required for ProfileCLI; nil for hosted
-    Profile         Profile
+    Profile         Profile          // drives tool descriptions/messaging variants
     TelemetrySource string           // "mcp" | "mcp-hosted"
     DeviceName      string           // os.Hostname() for CLI; "" for hosted
 }
-func NewServer(opts Options) *Server
+func NewServer(opts Options) *Server // no *config.Config — login is registered by the CLI via AddTool
 ```
 
 The go-sdk's `NewStreamableHTTPHandler(getServer func(*http.Request) *mcp.Server, opts)` calls `getServer` at session init and routes follow-ups via `Mcp-Session-Id`. Hosted flow: auth middleware validates Bearer on **every** request (401 + `WWW-Authenticate` otherwise; 401 on mid-session credential change) → `getServer` builds a fresh `hookdeck.Client{APIKey: token}` + `NewServer(Options{Profile: ProfileHosted, ...})` per session. `projects use` mutating that client is then correct per-session behavior, identical to stdio semantics.
 
 Key mechanics:
-- **Capability split**: refactor `toolDefs` (`tools.go:14`) to a named `toolDef{tool, handler, profiles}` type; gate the separately-registered `hookdeck_login` block (`server.go:57–66`) on `ProfileCLI`. Add per-profile description overrides — several descriptions, `tool_help.go` topics, `requireAuth` (`auth.go`), and `listProjectsFailureMessage` (`tool_projects_errors.go`) currently instruct agents to call `hookdeck_login`, which won't exist in hosted. Under a project-scoped key, the hosted `projects list/use` error must say "your token is project-scoped; all tools already operate on that project" so agents don't loop.
+- **Capability split**: refactor `toolDefs` (`tools.go:14`) to a named `toolDef{tool, handler, profiles}` type. `hookdeck_login` (registered separately today, `server.go:57–66`) moves out of core entirely per the dependency inversion above — the CLI registers it via `Server.AddTool`; hosted never sees it. Add per-profile description overrides — several descriptions, `tool_help.go` topics, `requireAuth` (`auth.go`), and `listProjectsFailureMessage` (`tool_projects_errors.go`) currently instruct agents to call `hookdeck_login`, which won't exist in hosted. Under a project-scoped key, the hosted `projects list/use` error must say "your token is project-scoped; all tools already operate on that project" so agents don't loop.
 - **Concurrency**: HTTP doesn't guarantee sequential calls within a session. Add a per-`Server` `sync.Mutex` held in `wrapWithTelemetry` for the call duration — serializes within one session only (each session has its own Server), preserving today's semantics for the telemetry write and `projects use`. Threading telemetry through `context` cascades into non-ctx client methods; not worth it now.
 - **Statefulness consequence**: keeping `projects use` in hosted makes sessions stateful (per-session in-memory Server). See the GKE deployment section — header-based sticky routing is not currently available there, so session loss must be treated as benign (clients re-initialize per the streamable HTTP spec), and the design should lean toward hosted statelessness over time (project selection derived from the token; with a project-scoped key there is no session state at all).
 - **Telemetry**: source from `Options` (`"mcp-hosted"`), empty device name for hosted (pod hostnames are noise); `mcpClientInfo` works unchanged over HTTP. Consider adding build SHA since hosted runs `main`.
@@ -72,12 +92,13 @@ Target platform is GKE, fronted by the GKE Gateway API (Cloud Application Load B
 
 ## Implementation phases
 
-**Phase 1 — multi-tenancy refactor (no behavior change), all in `pkg/gateway/mcp/`:**
-1. `server.go`: `Options`/`Profile`, `NewServer(opts)`, per-server mutex in `wrapWithTelemetry`, parameterized telemetry source/device name, profile-gate `hookdeck_login` registration.
-2. `tools.go`: named `toolDef` with `profiles` + per-profile description overrides.
-3. `tool_projects_errors.go`, `auth.go`, `tool_help.go`: profile-aware messaging (no `hookdeck_login` references in hosted output).
-4. `pkg/cmd/mcp.go:53–55`: update the single call site to `Options{..., Profile: ProfileCLI}`.
-5. Tests (follow `server_test.go` patterns — `NewInMemoryTransports` + `mockAPI` httptest): profile param on the test connect helper; hosted profile lists 11 tools (no login); hosted descriptions contain no `hookdeck_login` mention. Existing tests unchanged.
+**Phase 1 — shared-package refactor (no behavior change):**
+1. `server.go`: `Options`/`Profile`, `NewServer(opts)`, exported `AddTool` + `SessionContext`, per-server mutex in `wrapWithTelemetry`, parameterized telemetry source/device name.
+2. Move `tool_login.go` (and its `pkg/config` dependency) out of core into `pkg/gateway/mcp/logintool` (or `pkg/cmd`); core no longer imports `pkg/config`.
+3. `tools.go`: named `toolDef` with `profiles` + per-profile description overrides.
+4. `tool_projects_errors.go`, `auth.go`, `tool_help.go`: profile-aware messaging (no `hookdeck_login` references in hosted output).
+5. `pkg/cmd/mcp.go:53–55`: update the call site to `Options{..., Profile: ProfileCLI}` + `AddTool(login...)`.
+6. Tests (follow `server_test.go` patterns — `NewInMemoryTransports` + `mockAPI` httptest): profile param on the test connect helper; hosted profile lists 11 tools (no login); hosted descriptions contain no `hookdeck_login` mention. Existing tests unchanged.
 
 **Phase 2 — HTTP transport + `serve` (auth Phase A):**
 1. Verify Basic-vs-Bearer project-key acceptance; add `Client.AuthScheme` to `pkg/hookdeck/client.go` if needed.
