@@ -45,7 +45,7 @@ The go-sdk's `NewStreamableHTTPHandler(getServer func(*http.Request) *mcp.Server
 Key mechanics:
 - **Capability split**: refactor `toolDefs` (`tools.go:14`) to a named `toolDef{tool, handler, profiles}` type; gate the separately-registered `hookdeck_login` block (`server.go:57–66`) on `ProfileCLI`. Add per-profile description overrides — several descriptions, `tool_help.go` topics, `requireAuth` (`auth.go`), and `listProjectsFailureMessage` (`tool_projects_errors.go`) currently instruct agents to call `hookdeck_login`, which won't exist in hosted. Under a project-scoped key, the hosted `projects list/use` error must say "your token is project-scoped; all tools already operate on that project" so agents don't loop.
 - **Concurrency**: HTTP doesn't guarantee sequential calls within a session. Add a per-`Server` `sync.Mutex` held in `wrapWithTelemetry` for the call duration — serializes within one session only (each session has its own Server), preserving today's semantics for the telemetry write and `projects use`. Threading telemetry through `context` cascades into non-ctx client methods; not worth it now.
-- **Statefulness consequence**: keeping `projects use` in hosted makes sessions stateful → the deployment needs session affinity (sticky routing on `Mcp-Session-Id`). Acceptable at launch scale; dropping `use` from the hosted profile later would restore stateless horizontal scaling if needed.
+- **Statefulness consequence**: keeping `projects use` in hosted makes sessions stateful (per-session in-memory Server). See the GKE deployment section — header-based sticky routing is not currently available there, so session loss must be treated as benign (clients re-initialize per the streamable HTTP spec), and the design should lean toward hosted statelessness over time (project selection derived from the token; with a project-scoped key there is no session state at all).
 - **Telemetry**: source from `Options` (`"mcp-hosted"`), empty device name for hosted (pod hostnames are noise); `mcpClientInfo` works unchanged over HTTP. Consider adding build SHA since hosted runs `main`.
 
 ## Auth design
@@ -55,6 +55,20 @@ Key mechanics:
 **Phase B — OAuth 2.1 (platform-led, later).** The MCP auth spec (2025-06-18) mandates OAuth 2.1 + RFC 9728 Protected Resource Metadata for HTTP; Claude.ai/ChatGPT connector directories require it with Dynamic Client Registration. Platform work (dashboard/API repos): authorization server (or an IdP product — Auth0/WorkOS/Stytch have MCP offerings worth evaluating) with `/.well-known/oauth-authorization-server`, `/authorize` (PKCE S256), `/token` (+ refresh), `/register` (DCR); a consent screen reusing dashboard session auth **with project selection**; short-lived access tokens mapping to project-scoped credentials. This repo's share is small: serve `/.well-known/oauth-protected-resource`, extend middleware to accept OAuth tokens *in addition to* raw keys, emit the spec-compliant challenge. If connector-directory distribution is the point of hosting, co-plan Phase B with the platform team now rather than treating it as optional-someday.
 
 **Security notes**: long-lived static keys are revocable in the dashboard — same trust model as the REST API; fine for developers. `pause`/`unpause` means not read-only → add a `--read-only` flag on `serve` (cheap via the profile mechanism); real per-token scoping arrives with OAuth scopes. A project-scoped key is itself the tenancy boundary (no confused-deputy project switching). Edge hygiene: HTTPS at the LB, verify the SDK handler's Origin/DNS-rebinding protection, per-token rate limits, never log tokens/bodies.
+
+## Deployment on GKE
+
+Target platform is GKE, fronted by the GKE Gateway API (Cloud Application Load Balancer). Specifics that shape the design:
+
+- **Image & delivery**: `Dockerfile` in this repo (`ENTRYPOINT ["hookdeck","gateway","mcp","serve"]`), built and pushed to Artifact Registry from `main` on merge (GitHub Actions or Cloud Build) — independent of tagged CLI releases. GoReleaser's existing config is release-tag-driven; keep the hosted image build as a separate lightweight workflow rather than coupling it to releases.
+- **Session affinity — the hard constraint**: the ideal is sticky routing on the `Mcp-Session-Id` header, but `GCPBackendPolicy` does **not** currently support `HEADER_FIELD` (or `HTTP_COOKIE`) affinity — the CRD enum lists it, but GCP documents it as unsupported and there's an open feature request (GoogleCloudPlatform/gke-gateway-api#42). Cookie-based affinity doesn't help either: MCP clients are not cookie-aware. Practical approach:
+  1. Launch with **`CLIENT_IP` affinity** (supported) as best-effort stickiness plus a **small fixed replica count** (1–2). Client-IP affinity is coarse (corporate NATs share IPs — uneven load, but affinity still holds) and best-effort (rebalances on backend changes).
+  2. Treat **session loss as benign, by design**: the streamable HTTP spec requires clients to re-initialize on HTTP 404 for an unknown session, and the go-sdk handler returns 404 for unknown `Mcp-Session-Id`. The only state lost is an in-session `projects use` selection; with a project-scoped key (the primary documented credential) there is no state to lose.
+  3. Medium-term, prefer **making hosted stateless** (drop/no-op `projects use` in the hosted profile, project comes from the token) → SDK stateless mode, no affinity requirement, free HPA. Revisit if header-field affinity lands in `GCPBackendPolicy`.
+- **SSE / streaming timeouts**: Cloud ALB's backend service timeout defaults to 30s, which kills long-lived SSE streams — raise it (e.g. 3600s) via `GCPBackendPolicy` `timeoutSec` (Ingress equivalent: `BackendConfig.timeoutSec`). Verify at rollout that streams aren't buffered/cut at the LB.
+- **Health checks**: `HealthCheckPolicy` CRD pointing at `/healthz` (the LB's default health check expects 200 on `/`, which the MCP handler won't serve).
+- **Rollouts**: in-memory sessions die with pods, so use surge rollouts, a `preStop`/termination grace window long enough to drain in-flight streams, and a PDB. Clients recover via re-initialize (above).
+- **No service-side secrets**: auth is passthrough Bearer — the pod holds no Hookdeck credentials of its own, so no Workload Identity/secret mounts are needed for the MCP service itself.
 
 ## Implementation phases
 
@@ -69,7 +83,7 @@ Key mechanics:
 1. Verify Basic-vs-Bearer project-key acceptance; add `Client.AuthScheme` to `pkg/hookdeck/client.go` if needed.
 2. New `pkg/gateway/mcp/http.go`: `NewHTTPHandler(opts) http.Handler` — Bearer middleware on every request → `mcpsdk.NewStreamableHTTPHandler` with per-session Server+Client → plus `/healthz`; 401s carry `WWW-Authenticate`.
 3. New `pkg/cmd/mcp_serve.go`: cobra subcommand under the existing `mcp` command (`AddCommand` — no change needed to the parent's `validators.NoArgs`; cobra resolves subcommands before arg validation). Flags: `--addr`, `--api-base`, `--read-only`.
-4. New `Dockerfile` (`ENTRYPOINT ["hookdeck","gateway","mcp","serve"]`); internal deploy from `main` with sticky routing on `Mcp-Session-Id`; audit LB idle timeouts for SSE streams.
+4. New `Dockerfile` (`ENTRYPOINT ["hookdeck","gateway","mcp","serve"]`); GKE deploy from `main` per the "Deployment on GKE" section (Artifact Registry image, Gateway API with `CLIENT_IP` affinity + raised `timeoutSec`, `HealthCheckPolicy` → `/healthz`, small replica count).
 5. New `http_test.go`: `httptest.NewServer` around the handler with the repo's `mockAPI` — no/bad Bearer → 401; tools/list surface; end-to-end call asserting the mock received the right key; two concurrent sessions with different tokens don't cross-contaminate; `projects use` isolation between sessions.
 6. Docs: README + hookdeck.com for both connection modes; show env-var interpolation for keys in client configs.
 
@@ -86,8 +100,8 @@ Key mechanics:
 
 - **Basic-auth acceptance of project API keys** — the single gating verification; do first (needs a platform-side check, not answerable from this repo).
 - **go-sdk v1.6.1 handler specifics** (exact `StreamableHTTPHandler` options; `InitializeParams` availability per HTTP request) — verify at Phase 2 start.
-- **Session affinity** required while hosted keeps `projects use`.
-- **SSE through Hookdeck's edge** — LB timeout audit.
+- **GKE lacks header-field session affinity** (`GCPBackendPolicy` limitation, open feature request) — launch relies on `CLIENT_IP` affinity + benign session loss; strengthens the case for making hosted stateless over time.
+- **SSE through the Cloud ALB** — backend `timeoutSec` must be raised from the 30s default; verify streaming behavior at rollout.
 - Read-only scoping is per-deployment (flag) until OAuth brings per-token scopes.
 
 ## Critical files
