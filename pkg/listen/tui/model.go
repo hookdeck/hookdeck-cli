@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -14,8 +15,9 @@ import (
 )
 
 const (
-	maxEvents  = 1000                  // Maximum events to keep in memory (all navigable)
-	timeLayout = "2006-01-02 15:04:05" // Time format for display
+	maxEvents           = 1000                  // Maximum events to keep in memory (all navigable)
+	timeLayout          = "2006-01-02 15:04:05" // Time format for display
+	detailsInstructions = "[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page • [C] Copy request • [H] Copy headers • [B] Copy body"
 )
 
 // EventInfo represents a single event with all its data
@@ -61,6 +63,10 @@ type Model struct {
 	showingDetails   bool
 	detailsViewport  viewport.Model
 	detailsContent   string
+	detailsCopy      requestCopyContent
+	detailsCopyState detailsCopyState
+	detailsCopyLabel string
+	clipboardWrite   func(string) error
 	eventsTitleShown bool // Track if "Events" title has been displayed
 
 	// Header state
@@ -92,12 +98,13 @@ type Config struct {
 // NewModel creates a new TUI model
 func NewModel(cfg *Config) Model {
 	return Model{
-		cfg:           cfg,
-		client:        cfg.APIClient,
-		events:        make([]EventInfo, 0),
-		selectedIndex: -1,
-		ready:         false,
-		isConnected:   false,
+		cfg:            cfg,
+		client:         cfg.APIClient,
+		events:         make([]EventInfo, 0),
+		selectedIndex:  -1,
+		ready:          false,
+		isConnected:    false,
+		clipboardWrite: clipboard.WriteAll,
 	}
 }
 
@@ -277,12 +284,12 @@ func (m *Model) calculateHeaderHeight(header string) int {
 	return strings.Count(header, "\n") + 1
 }
 
-// buildDetailsContent builds the formatted details view for an event
-func (m *Model) buildDetailsContent(event *EventInfo) string {
+// buildEventDetailsContent builds the event data shown in the details view.
+// Navigation instructions are intentionally excluded from the request copy
+// content so clipboard output contains only request data.
+func (m *Model) buildEventDetailsContent(event *EventInfo) (string, requestCopyContent) {
 	var content strings.Builder
-
-	content.WriteString(faintStyle.Render("[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page"))
-	content.WriteString("\n\n")
+	var requestCopy requestCopyContent
 
 	// Event metadata - compact single line format
 	var metadataLine strings.Builder
@@ -305,7 +312,8 @@ func (m *Model) buildDetailsContent(event *EventInfo) string {
 
 		// HTTP request line: METHOD URL
 		requestURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host + event.Data.Body.Path
-		content.WriteString(event.Data.Body.Request.Method + " " + requestURL + "\n\n")
+		requestCopy.requestLine = event.Data.Body.Request.Method + " " + requestURL
+		content.WriteString(requestCopy.requestLine + "\n\n")
 
 		// Request headers
 		if len(event.Data.Body.Request.Headers) > 0 {
@@ -314,19 +322,23 @@ func (m *Model) buildDetailsContent(event *EventInfo) string {
 			if err := json.Unmarshal(event.Data.Body.Request.Headers, &headers); err == nil {
 				for key, value := range headers {
 					content.WriteString(faintStyle.Render(key+": ") + value + "\n")
+					requestCopy.headers += key + ": " + value + "\n"
 				}
 			} else {
-				content.WriteString(string(event.Data.Body.Request.Headers) + "\n")
+				requestCopy.headers = string(event.Data.Body.Request.Headers) + "\n"
+				content.WriteString(requestCopy.headers)
 			}
 		}
+		requestCopy.headers = strings.TrimSuffix(requestCopy.headers, "\n")
 		content.WriteString("\n")
 
 		// Request body
 		if event.Data.Body.Request.DataString != "" {
 			// Try to pretty print JSON
-			prettyBody := m.prettyPrintJSON(event.Data.Body.Request.DataString)
-			content.WriteString(prettyBody + "\n")
+			requestCopy.body = m.prettyPrintJSON(event.Data.Body.Request.DataString)
+			content.WriteString(requestCopy.body + "\n")
 		}
+		requestCopy.buildRequest()
 		content.WriteString("\n")
 	}
 
@@ -358,7 +370,35 @@ func (m *Model) buildDetailsContent(event *EventInfo) string {
 		content.WriteString(faintStyle.Render("(No response received yet)") + "\n")
 	}
 
-	return content.String()
+	return content.String(), requestCopy
+}
+
+// setDetailsContent builds the display and request-only clipboard content
+// together, including request data outside the visible viewport.
+func (m *Model) setDetailsContent(event *EventInfo) {
+	details, requestCopy := m.buildEventDetailsContent(event)
+	m.detailsContent = faintStyle.Render(detailsInstructions) + "\n\n" + details
+	m.detailsCopy = requestCopy
+	m.detailsCopyState = detailsCopyIdle
+	m.detailsCopyLabel = ""
+}
+
+type requestCopyContent struct {
+	requestLine string
+	request     string
+	headers     string
+	body        string
+}
+
+func (c *requestCopyContent) buildRequest() {
+	parts := []string{c.requestLine}
+	if c.headers != "" {
+		parts = append(parts, c.headers)
+	}
+	if c.body != "" {
+		parts = append(parts, c.body)
+	}
+	c.request = strings.Join(parts, "\n\n")
 }
 
 // prettyPrintJSON attempts to pretty print JSON, returns original if not valid JSON

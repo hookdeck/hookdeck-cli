@@ -228,6 +228,7 @@ While in interactive mode, you can use the following keyboard shortcuts:
 - `o` - Open the selected event in the Hookdeck dashboard
 - `d` - Show detailed request/response information for the selected event (press `d` or `ESC` to close)
   - When details view is open: `↑` / `↓` scroll through content, `PgUp` / `PgDown` for page navigation
+  - Press `C` to copy the complete request, `H` for request headers, or `B` for the request body; off-screen content is included
 - `q` - Quit the application (terminal state is restored)
 - `Ctrl+C` - Also quits the application
 
