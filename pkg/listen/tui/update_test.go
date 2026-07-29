@@ -38,8 +38,9 @@ func TestCopyRequestCopiesCompleteRequestWithoutResponse(t *testing.T) {
 	require.True(t, ok)
 	require.NoError(t, result.err)
 
+	// A successful copy schedules the status to clear after the timeout.
 	updated, cmd = m.Update(result)
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	m = updated.(Model)
 	assert.Equal(t, detailsCopySucceeded, m.detailsCopyState)
 
@@ -52,6 +53,12 @@ func TestCopyRequestCopiesCompleteRequestWithoutResponse(t *testing.T) {
 	assert.NotContains(t, copied, "Return to event list")
 	assert.NotContains(t, copied, "\x1b")
 	assert.Contains(t, m.renderDetailsView(), "Copied request")
+
+	// When the scheduled timer fires, the status returns to idle.
+	updated, _ = m.Update(clearCopyStatusMsg{gen: m.detailsCopyGen})
+	m = updated.(Model)
+	assert.Equal(t, detailsCopyIdle, m.detailsCopyState)
+	assert.NotContains(t, m.renderDetailsView(), "Copied request")
 }
 
 func TestCopyRequestHeadersOrBody(t *testing.T) {
@@ -144,6 +151,60 @@ func TestCopyShortcutIsIgnoredOutsideDetailsView(t *testing.T) {
 	assert.False(t, m.showingDetails)
 }
 
+func TestCopyPreservesRequestOrder(t *testing.T) {
+	m := newDetailsTestModel(t)
+	updated, _ := m.handleKeyPress(keyMsg('d'))
+	m = updated.(Model)
+
+	// Headers keep their original (non-alphabetical) order.
+	assert.Equal(t,
+		"x-test: header-value\nz-alpha: alpha\na-omega: omega\nm-mid: mid",
+		m.detailsCopy.headers,
+	)
+
+	// Body keys keep source order too ("padding" before "off_screen_marker"),
+	// which json.Marshal would otherwise sort.
+	body := m.detailsCopy.body
+	assert.Less(t,
+		strings.Index(body, `"padding"`),
+		strings.Index(body, `"off_screen_marker"`),
+		"body key order should be preserved, not sorted",
+	)
+}
+
+func TestStaleCopyClearTimerIsIgnored(t *testing.T) {
+	m := newDetailsTestModel(t)
+	updated, _ := m.handleKeyPress(keyMsg('d'))
+	m = updated.(Model)
+	m.clipboardWrite = func(string) error { return nil }
+
+	// First copy completes and records the generation its clear timer targets.
+	updated, cmd := m.handleKeyPress(keyMsg('C'))
+	m = updated.(Model)
+	updated, _ = m.Update(cmd().(copyDetailsResultMsg))
+	m = updated.(Model)
+	staleGen := m.detailsCopyGen
+
+	// A second copy supersedes the first.
+	updated, cmd = m.handleKeyPress(keyMsg('B'))
+	m = updated.(Model)
+	updated, _ = m.Update(cmd().(copyDetailsResultMsg))
+	m = updated.(Model)
+	require.Equal(t, detailsCopySucceeded, m.detailsCopyState)
+	require.Equal(t, "request body", m.detailsCopyLabel)
+
+	// The first copy's timer must not clear the second copy's status.
+	updated, _ = m.Update(clearCopyStatusMsg{gen: staleGen})
+	m = updated.(Model)
+	assert.Equal(t, detailsCopySucceeded, m.detailsCopyState)
+	assert.Equal(t, "request body", m.detailsCopyLabel)
+
+	// The current timer still clears it.
+	updated, _ = m.Update(clearCopyStatusMsg{gen: m.detailsCopyGen})
+	m = updated.(Model)
+	assert.Equal(t, detailsCopyIdle, m.detailsCopyState)
+}
+
 func newDetailsTestModel(t *testing.T) Model {
 	t.Helper()
 
@@ -167,8 +228,11 @@ func newDetailsTestModel(t *testing.T) Model {
 		Data: &websocket.Attempt{Body: websocket.AttemptBody{
 			Path: "/webhooks",
 			Request: websocket.AttemptRequest{
-				Method:     "POST",
-				Headers:    []byte(`{"x-test":"header-value"}`),
+				Method: "POST",
+				// Deliberately non-alphabetical so tests can prove the order is
+				// preserved rather than sorted. Multiple headers also push the
+				// body's off_screen_marker below the visible viewport.
+				Headers:    []byte(`{"x-test":"header-value","z-alpha":"alpha","a-omega":"omega","m-mid":"mid"}`),
 				DataString: `{"padding":"` + strings.Repeat("long content ", 20) + `","off_screen_marker":"copied"}`,
 			},
 		}},

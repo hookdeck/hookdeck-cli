@@ -234,6 +234,8 @@ While in interactive mode, you can use the following keyboard shortcuts:
 
 The selected event is indicated by a `>` character at the beginning of the line. All actions (retry, open, details) work on the currently selected event, not just the latest one. These shortcuts are displayed in the status bar at the bottom of the screen.
 
+> **Note:** Copying to the clipboard works out of the box on macOS and Windows. On Linux and other BSD/Unix systems it requires either [`xclip`](https://github.com/astrand/xclip) or [`xsel`](https://github.com/kfish/xsel) to be installed; without one of them the copy shortcuts report an error.
+
 #### Listen to all your connections for a given source
 
 The second param, `source-alias` is used to select a specific source to listen on. By default, the CLI will start listening on all eligible connections for that source.

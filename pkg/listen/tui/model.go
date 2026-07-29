@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -18,6 +19,7 @@ const (
 	maxEvents           = 1000                  // Maximum events to keep in memory (all navigable)
 	timeLayout          = "2006-01-02 15:04:05" // Time format for display
 	detailsInstructions = "[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page • [C] Copy request • [H] Copy headers • [B] Copy body"
+	copyStatusTimeout   = 5 * time.Second // How long the "Copied …" status stays before clearing
 )
 
 // EventInfo represents a single event with all its data
@@ -66,6 +68,7 @@ type Model struct {
 	detailsCopy      requestCopyContent
 	detailsCopyState detailsCopyState
 	detailsCopyLabel string
+	detailsCopyGen   uint64 // Invalidates stale copy-status clear timers
 	clipboardWrite   func(string) error
 	eventsTitleShown bool // Track if "Events" title has been displayed
 
@@ -315,14 +318,12 @@ func (m *Model) buildEventDetailsContent(event *EventInfo) (string, requestCopyC
 		requestCopy.requestLine = event.Data.Body.Request.Method + " " + requestURL
 		content.WriteString(requestCopy.requestLine + "\n\n")
 
-		// Request headers
+		// Request headers - preserve the order they arrived in
 		if len(event.Data.Body.Request.Headers) > 0 {
-			// Parse headers JSON
-			var headers map[string]string
-			if err := json.Unmarshal(event.Data.Body.Request.Headers, &headers); err == nil {
-				for key, value := range headers {
-					content.WriteString(faintStyle.Render(key+": ") + value + "\n")
-					requestCopy.headers += key + ": " + value + "\n"
+			if headers, ok := parseOrderedHeaders(event.Data.Body.Request.Headers); ok {
+				for _, h := range headers {
+					content.WriteString(faintStyle.Render(h.key+": ") + h.value + "\n")
+					requestCopy.headers += h.key + ": " + h.value + "\n"
 				}
 			} else {
 				requestCopy.headers = string(event.Data.Body.Request.Headers) + "\n"
@@ -377,7 +378,10 @@ func (m *Model) buildEventDetailsContent(event *EventInfo) (string, requestCopyC
 // together, including request data outside the visible viewport.
 func (m *Model) setDetailsContent(event *EventInfo) {
 	details, requestCopy := m.buildEventDetailsContent(event)
-	m.detailsContent = faintStyle.Render(detailsInstructions) + "\n\n" + details
+	// The instructions are rendered in the always-visible action bar
+	// (see renderDetailsView), so they are intentionally not repeated at the
+	// top of the scrollable content.
+	m.detailsContent = details
 	m.detailsCopy = requestCopy
 	m.detailsCopyState = detailsCopyIdle
 	m.detailsCopyLabel = ""
@@ -401,22 +405,64 @@ func (c *requestCopyContent) buildRequest() {
 	c.request = strings.Join(parts, "\n\n")
 }
 
-// prettyPrintJSON attempts to pretty print JSON, returns original if not valid JSON
+// prettyPrintJSON attempts to pretty print JSON, returns original if not valid JSON.
+// It uses json.Indent so object key order is preserved exactly as received rather
+// than being sorted (which json.Marshal would do).
 func (m *Model) prettyPrintJSON(input string) string {
-	var obj interface{}
-	if err := json.Unmarshal([]byte(input), &obj); err != nil {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, []byte(input), "", "  "); err != nil {
 		// Not valid JSON, return original
 		return input
 	}
 
-	// Pretty print with 2-space indentation
-	pretty, err := json.MarshalIndent(obj, "", "  ")
+	return buf.String()
+}
+
+// headerPair is a single request header, retaining its original position.
+type headerPair struct {
+	key   string
+	value string
+}
+
+// parseOrderedHeaders decodes a JSON object of string-valued headers while
+// preserving the order in which the keys appear. It returns false when the
+// input is not a flat object of string values, so the caller can fall back to
+// rendering the raw payload.
+func parseOrderedHeaders(raw []byte) ([]headerPair, bool) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+
+	tok, err := dec.Token()
 	if err != nil {
-		// Fallback to original
-		return input
+		return nil, false
+	}
+	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
+		return nil, false
 	}
 
-	return string(pretty)
+	var headers []headerPair
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return nil, false
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return nil, false
+		}
+
+		valTok, err := dec.Token()
+		if err != nil {
+			return nil, false
+		}
+		value, ok := valTok.(string)
+		if !ok {
+			return nil, false
+		}
+
+		headers = append(headers, headerPair{key: key, value: value})
+	}
+
+	return headers, true
 }
 
 // Messages for Bubble Tea

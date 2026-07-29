@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -88,6 +89,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.detailsCopyState = detailsCopySucceeded
 		}
+		// Schedule the status to clear, tagging the timer with the current
+		// generation so a later copy supersedes this one.
+		m.detailsCopyGen++
+		return m, clearCopyStatusAfter(m.detailsCopyGen)
+
+	case clearCopyStatusMsg:
+		// Ignore a stale timer from a copy that has since been superseded.
+		if msg.gen == m.detailsCopyGen {
+			m.detailsCopyState = detailsCopyIdle
+			m.detailsCopyLabel = ""
+		}
 		return m, nil
 	}
 
@@ -147,23 +159,17 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "c", "C":
 		if m.showingDetails {
-			m.detailsCopyState = detailsCopyPending
-			m.detailsCopyLabel = "request"
-			return m, m.copyDetails(m.detailsCopy.request, "request")
+			return m, m.beginDetailsCopy(m.detailsCopy.request, "request")
 		}
 
 	case "h", "H":
 		if m.showingDetails {
-			m.detailsCopyState = detailsCopyPending
-			m.detailsCopyLabel = "request headers"
-			return m, m.copyDetails(m.detailsCopy.headers, "request headers")
+			return m, m.beginDetailsCopy(m.detailsCopy.headers, "request headers")
 		}
 
 	case "b", "B":
 		if m.showingDetails {
-			m.detailsCopyState = detailsCopyPending
-			m.detailsCopyLabel = "request body"
-			return m, m.copyDetails(m.detailsCopy.body, "request body")
+			return m, m.beginDetailsCopy(m.detailsCopy.body, "request body")
 		}
 
 	case "r", "R":
@@ -203,6 +209,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// beginDetailsCopy marks a copy as in-progress and returns the command that
+// performs the clipboard write. It bumps the generation counter so any pending
+// clear timer scheduled by an earlier copy no longer applies.
+func (m *Model) beginDetailsCopy(content, label string) tea.Cmd {
+	m.detailsCopyState = detailsCopyPending
+	m.detailsCopyLabel = label
+	m.detailsCopyGen++
+	return m.copyDetails(content, label)
 }
 
 // copyDetails copies the requested portion of the request, including content
@@ -306,4 +322,18 @@ const (
 type copyDetailsResultMsg struct {
 	label string
 	err   error
+}
+
+// clearCopyStatusMsg clears the copy status once the timeout elapses. It carries
+// the generation it was scheduled for so a superseded timer is ignored.
+type clearCopyStatusMsg struct {
+	gen uint64
+}
+
+// clearCopyStatusAfter resets the copy status after copyStatusTimeout, tagging
+// the message with the generation that scheduled it.
+func clearCopyStatusAfter(gen uint64) tea.Cmd {
+	return tea.Tick(copyStatusTimeout, func(time.Time) tea.Msg {
+		return clearCopyStatusMsg{gen: gen}
+	})
 }
