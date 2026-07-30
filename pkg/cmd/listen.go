@@ -226,6 +226,12 @@ Examples:
   Filter using operators (see https://hookdeck.com/docs/filters for syntax):
 
     hookdeck listen %[1]d api --filter-body '{"amount": {"$gte": 100}}'
+
+  Authenticate with a specific key instead of the stored login, e.g. in CI or
+  when switching accounts (--cli-key takes a user-scoped CLI key; --api-key a
+  project-scoped key):
+
+    hookdeck listen %[1]d stripe --cli-key <your-cli-key>
 		`, 3000)
 
 	lc.cmd.SetUsageTemplate(usage)

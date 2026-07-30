@@ -185,6 +185,8 @@ Parameters:
 
 Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
+List supports the same filters as hookdeck gateway request list.
+
 Actions:
   list           — List requests with optional filters
   get            — Get a single request by ID
@@ -194,17 +196,33 @@ Actions:
 
 Parameters:
   action          (string, required) — list, get, raw_body, events, or ignored_events
-  id              (string)           — Required for get/raw_body/events/ignored_events
+  id              (string)           — List: filter by request ID(s), comma-separated. Get/raw_body/events/ignored_events: required.
   source_id       (string)           — Filter by source (list)
-  status          (string)           — Filter by status (list)
+  status          (string)           — accepted or rejected (list)
   rejection_cause (string)           — Filter by rejection cause (list)
   verified        (boolean)          — Filter by verification status (list)
-  limit           (integer)          — Max results (list, default 100)
-  next/prev       (string)           — Pagination cursors (list)`,
+
+Date range filters (list):
+  Use *_after / *_before with ISO 8601 datetimes (e.g. 2026-06-01T00:00:00Z). Do not pass API bracket keys like created_at[gte] in MCP args.
+  created_after   → created_at[gte]   (inclusive lower bound)
+  created_before  → created_at[lte]   (inclusive upper bound)
+  ingested_after  → ingested_at[gte]
+  ingested_before → ingested_at[lte]
+  Example: {"action":"list","ingested_after":"2026-06-09T12:00:00Z","source_id":"src_abc"}
+
+Payload search (list):
+  body, headers, parsed_query — Hookdeck JSON filter syntax (object or string). Same as hookdeck listen --filter-body.
+  path — partial URL path match (string)
+  Example: {"action":"list","body":{"type":"charge.succeeded"}}
+
+Pagination and sort (list):
+  order_by, dir (asc/desc), limit (default 100), next, prev`,
 
 	"hookdeck_events": `hookdeck_events — Query events (processed deliveries)
 
 Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
+
+List supports the same filters as hookdeck gateway event list.
 
 Actions:
   list     — List events with optional filters
@@ -212,21 +230,35 @@ Actions:
   raw_body — Get the event payload (body) directly by event ID. Use this when you need the payload; no need to call hookdeck_requests.
 
 Parameters:
-  action          (string, required) — list, get, or raw_body
-  id              (string)           — Required for get/raw_body
-  connection_id   (string)           — Filter by connection (list, maps to webhook_id)
-  source_id       (string)           — Filter by source (list)
-  destination_id  (string)           — Filter by destination (list)
-  status          (string)           — SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED
-  issue_id        (string)           — Filter by issue (list)
-  error_code      (string)           — Filter by error code (list)
-  response_status (string)           — Filter by HTTP response status (list)
-  created_after   (string)           — ISO datetime, lower bound (list)
-  created_before  (string)           — ISO datetime, upper bound (list)
-  limit           (integer)          — Max results (list, default 100)
-  order_by        (string)           — Sort field (list)
-  dir             (string)           — "asc" or "desc" (list)
-  next/prev       (string)           — Pagination cursors (list)`,
+  action           (string, required) — list, get, or raw_body
+  id               (string)           — List: filter by event ID(s), comma-separated. Get/raw_body: required.
+  connection_id    (string)           — Filter by connection (list, maps to webhook_id)
+  source_id        (string)           — Filter by source (list)
+  destination_id   (string)           — Filter by destination (list)
+  status           (string)           — SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED
+  attempts         (string)           — Filter by attempt count (list); integer or API operator syntax
+  issue_id         (string)           — Filter by issue (list)
+  error_code       (string)           — Filter by error code (list)
+  response_status  (string)           — Filter by HTTP response status (list)
+  cli_id           (string)           — Filter by CLI listen session (list)
+
+Date range filters (list):
+  Use *_after / *_before with ISO 8601 datetimes. Do not pass API bracket keys in MCP args.
+  created_after      → created_at[gte]
+  created_before     → created_at[lte]
+  successful_after   → successful_at[gte]
+  successful_before  → successful_at[lte]
+  last_attempt_after → last_attempt_at[gte]
+  last_attempt_before → last_attempt_at[lte]
+  Example: {"action":"list","status":"FAILED","last_attempt_after":"2026-06-08T00:00:00Z"}
+
+Payload search (list):
+  body, headers, parsed_query — Hookdeck JSON filter syntax (object or string)
+  path — partial URL path match
+  Example: {"action":"list","body":{"type":"charge.succeeded"}}
+
+Pagination and sort (list):
+  order_by, dir (asc/desc), limit (default 100), next, prev`,
 
 	"hookdeck_attempts": `hookdeck_attempts — Query delivery attempts
 

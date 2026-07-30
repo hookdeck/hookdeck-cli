@@ -42,12 +42,22 @@ func handleRequests(client *hookdeck.Client) mcpsdk.ToolHandler {
 
 func requestsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
 	params := make(map[string]string)
+	setIfNonEmpty(params, "id", in.String("id"))
 	setIfNonEmpty(params, "source_id", in.String("source_id"))
 	setIfNonEmpty(params, "status", in.String("status"))
 	setIfNonEmpty(params, "rejection_cause", in.String("rejection_cause"))
+	setIfNonEmpty(params, "created_at[gte]", in.String("created_after"))
+	setIfNonEmpty(params, "created_at[lte]", in.String("created_before"))
+	setIfNonEmpty(params, "ingested_at[gte]", in.String("ingested_after"))
+	setIfNonEmpty(params, "ingested_at[lte]", in.String("ingested_before"))
 	setInt(params, "limit", in.Int("limit", 0))
+	setIfNonEmpty(params, "order_by", in.String("order_by"))
+	setIfNonEmpty(params, "dir", in.String("dir"))
 	setIfNonEmpty(params, "next", in.String("next"))
 	setIfNonEmpty(params, "prev", in.String("prev"))
+	if err := setPayloadSearchFilters(params, in); err != nil {
+		return ErrorResult(err.Error()), nil
+	}
 
 	if bp := in.BoolPtr("verified"); bp != nil {
 		if *bp {
