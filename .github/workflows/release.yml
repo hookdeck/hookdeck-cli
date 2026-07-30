@@ -106,9 +106,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
 
+      # npm@latest now requires Node >= 22.22 (it dropped Node 20 support), and
+      # `npm publish --provenance` (OIDC) needs a recent npm, so this job runs on
+      # Node 22.x rather than 20.x.
       - name: Upgrade npm to latest version
         run: npm install -g npm@latest
 
