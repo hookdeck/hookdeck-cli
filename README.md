@@ -213,7 +213,7 @@ $ hookdeck listen 3000 stripe --api-key <your-project-api-key>
 
 Both flags are global, so they work with any command. A **CLI key** is tied to your user account and can navigate across projects; a **project API key** is scoped to a single project. Within the CLI both are stored and used the same way (see [Credential Types](#security-config-files-and-source-control)).
 
-Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
+The Event Gateway routes events received for a given `source` (e.g. Shopify, GitHub) to a `destination` via a `connection`. `hookdeck listen` is a standalone command that works with whichever product you're authenticated with — Hookdeck Console or the Event Gateway — receiving events for a given connection and forwarding them to your localhost at the specified port or any valid URL.
 
 Each `source` is assigned an Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
