@@ -228,10 +228,13 @@ While in interactive mode, you can use the following keyboard shortcuts:
 - `o` - Open the selected event in the Hookdeck dashboard
 - `d` - Show detailed request/response information for the selected event (press `d` or `ESC` to close)
   - When details view is open: `↑` / `↓` scroll through content, `PgUp` / `PgDown` for page navigation
+  - Press `C` to copy the complete request, `H` for request headers, or `B` for the request body; off-screen content is included
 - `q` - Quit the application (terminal state is restored)
 - `Ctrl+C` - Also quits the application
 
 The selected event is indicated by a `>` character at the beginning of the line. All actions (retry, open, details) work on the currently selected event, not just the latest one. These shortcuts are displayed in the status bar at the bottom of the screen.
+
+> **Note:** Copying to the clipboard works out of the box on macOS and Windows. On Linux and other BSD/Unix systems it requires either [`xclip`](https://github.com/astrand/xclip) or [`xsel`](https://github.com/kfish/xsel) to be installed; without one of them the copy shortcuts report an error.
 
 #### Listen to all your connections for a given source
 

@@ -2,8 +2,10 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -79,6 +81,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openBrowserResultMsg:
 		// Browser opened, could show notification if needed
 		return m, nil
+
+	case copyDetailsResultMsg:
+		m.detailsCopyLabel = msg.label
+		if msg.err != nil {
+			m.detailsCopyState = detailsCopyFailed
+		} else {
+			m.detailsCopyState = detailsCopySucceeded
+		}
+		// Schedule the status to clear, tagging the timer with the current
+		// generation so a later copy supersedes this one.
+		m.detailsCopyGen++
+		return m, clearCopyStatusAfter(m.detailsCopyGen)
+
+	case clearCopyStatusMsg:
+		// Ignore a stale timer from a copy that has since been superseded.
+		if msg.gen == m.detailsCopyGen {
+			m.detailsCopyState = detailsCopyIdle
+			m.detailsCopyLabel = ""
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -135,6 +157,21 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+	case "c", "C":
+		if m.showingDetails {
+			return m, m.beginDetailsCopy(m.detailsCopy.request, "request")
+		}
+
+	case "h", "H":
+		if m.showingDetails {
+			return m, m.beginDetailsCopy(m.detailsCopy.headers, "request headers")
+		}
+
+	case "b", "B":
+		if m.showingDetails {
+			return m, m.beginDetailsCopy(m.detailsCopy.body, "request body")
+		}
+
 	case "r", "R":
 		// Retry selected event (new attempt will arrive via websocket)
 		return m, m.retrySelectedEvent()
@@ -152,7 +189,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Open details view
 			selectedEvent := m.GetSelectedEvent()
 			if selectedEvent != nil {
-				m.detailsContent = m.buildDetailsContent(selectedEvent)
+				m.setDetailsContent(selectedEvent)
 				m.showingDetails = true
 
 				// Initialize details viewport if not already done
@@ -172,6 +209,32 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// beginDetailsCopy marks a copy as in-progress and returns the command that
+// performs the clipboard write. It bumps the generation counter so any pending
+// clear timer scheduled by an earlier copy no longer applies.
+func (m *Model) beginDetailsCopy(content, label string) tea.Cmd {
+	m.detailsCopyState = detailsCopyPending
+	m.detailsCopyLabel = label
+	m.detailsCopyGen++
+	return m.copyDetails(content, label)
+}
+
+// copyDetails copies the requested portion of the request, including content
+// outside the visible viewport, to the system clipboard.
+func (m Model) copyDetails(content, label string) tea.Cmd {
+	write := m.clipboardWrite
+
+	return func() tea.Msg {
+		if write == nil {
+			return copyDetailsResultMsg{label: label, err: fmt.Errorf("clipboard is unavailable")}
+		}
+		if content == "" {
+			return copyDetailsResultMsg{label: label, err: fmt.Errorf("%s is empty", label)}
+		}
+		return copyDetailsResultMsg{label: label, err: write(content)}
+	}
 }
 
 // retrySelectedEvent retries the currently selected event
@@ -245,4 +308,32 @@ type retryResultMsg struct {
 
 type openBrowserResultMsg struct {
 	err error
+}
+
+type detailsCopyState uint8
+
+const (
+	detailsCopyIdle detailsCopyState = iota
+	detailsCopyPending
+	detailsCopySucceeded
+	detailsCopyFailed
+)
+
+type copyDetailsResultMsg struct {
+	label string
+	err   error
+}
+
+// clearCopyStatusMsg clears the copy status once the timeout elapses. It carries
+// the generation it was scheduled for so a superseded timer is ignored.
+type clearCopyStatusMsg struct {
+	gen uint64
+}
+
+// clearCopyStatusAfter resets the copy status after copyStatusTimeout, tagging
+// the message with the generation that scheduled it.
+func clearCopyStatusAfter(gen uint64) tea.Cmd {
+	return tea.Tick(copyStatusTimeout, func(time.Time) tea.Msg {
+		return clearCopyStatusMsg{gen: gen}
+	})
 }
