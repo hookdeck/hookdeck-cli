@@ -36,22 +36,31 @@ func handleEvents(client *hookdeck.Client) mcpsdk.ToolHandler {
 
 func eventsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
 	params := make(map[string]string)
+	setIfNonEmpty(params, "id", in.String("id"))
 	// connection_id maps to webhook_id in the API
 	setIfNonEmpty(params, "webhook_id", in.String("connection_id"))
 	setIfNonEmpty(params, "source_id", in.String("source_id"))
 	setIfNonEmpty(params, "destination_id", in.String("destination_id"))
 	setIfNonEmpty(params, "status", in.String("status"))
+	setIfNonEmpty(params, "attempts", in.String("attempts"))
 	setIfNonEmpty(params, "issue_id", in.String("issue_id"))
 	setIfNonEmpty(params, "error_code", in.String("error_code"))
 	setIfNonEmpty(params, "response_status", in.String("response_status"))
-	// Date range mapping
+	setIfNonEmpty(params, "cli_id", in.String("cli_id"))
 	setIfNonEmpty(params, "created_at[gte]", in.String("created_after"))
 	setIfNonEmpty(params, "created_at[lte]", in.String("created_before"))
+	setIfNonEmpty(params, "successful_at[gte]", in.String("successful_after"))
+	setIfNonEmpty(params, "successful_at[lte]", in.String("successful_before"))
+	setIfNonEmpty(params, "last_attempt_at[gte]", in.String("last_attempt_after"))
+	setIfNonEmpty(params, "last_attempt_at[lte]", in.String("last_attempt_before"))
 	setInt(params, "limit", in.Int("limit", 0))
 	setIfNonEmpty(params, "order_by", in.String("order_by"))
 	setIfNonEmpty(params, "dir", in.String("dir"))
 	setIfNonEmpty(params, "next", in.String("next"))
 	setIfNonEmpty(params, "prev", in.String("prev"))
+	if err := setPayloadSearchFilters(params, in); err != nil {
+		return ErrorResult(err.Error()), nil
+	}
 
 	result, err := client.ListEvents(ctx, params)
 	if err != nil {
