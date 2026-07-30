@@ -197,7 +197,21 @@ Flags:
   --filter-headers string   Filter events by request headers using Hookdeck filter syntax (JSON)
   --filter-query string     Filter events by query parameters using Hookdeck filter syntax (JSON)
   --filter-path string      Filter events by request path using Hookdeck filter syntax (JSON)
+  --cli-key string          Authenticate with a user-scoped CLI key instead of the stored login
+  --api-key string          Authenticate with a project-scoped key instead of the stored login
 ```
+
+By default `listen` uses the credentials saved by `hookdeck login`. To authenticate a single invocation without logging in first — for example in CI or when switching accounts — pass a key directly:
+
+```sh
+# User-scoped CLI key (created by `hookdeck login`; can access all your projects)
+$ hookdeck listen 3000 stripe --cli-key <your-cli-key>
+
+# Project-scoped key (e.g. a Project API key or a key from `hookdeck ci`)
+$ hookdeck listen 3000 stripe --api-key <your-project-api-key>
+```
+
+Both flags are global, so they work with any command. A **CLI key** is tied to your user account and can navigate across projects; a **project API key** is scoped to a single project. Within the CLI both are stored and used the same way (see [Credential Types](#security-config-files-and-source-control)).
 
 Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
 
