@@ -30,10 +30,11 @@ func Login(config *configpkg.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
 	if config.Profile.APIKey != "" {
+		// Never log the key itself — users are asked to share `--log-level debug`
+		// output on GitHub. That a key is configured is the diagnostic signal.
 		log.WithFields(log.Fields{
 			"prefix": "login.Login",
-			"APIKey": config.Profile.APIKey,
-		}).Debug("Logging in with API key")
+		}).Debug("Logging in with the configured API key")
 
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
 		response, err := config.GetAPIClient().ValidateAPIKey()

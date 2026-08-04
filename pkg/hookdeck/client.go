@@ -185,8 +185,8 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 		logFields := log.Fields{
 			"prefix":  "client.Client.PerformRequest",
 			"method":  req.Method,
-			"url":     req.URL.String(),
-			"headers": req.Header,
+			"url":     redactURL(req.URL),
+			"headers": redactHeaders(req.Header),
 		}
 
 		if req.Body != nil {
@@ -199,7 +199,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 				// For now, just log and continue.
 			} else {
 				req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-				logFields["body"] = string(bodyBytes)
+				logFields["body"] = redactBody(bodyBytes)
 			}
 		}
 		log.WithFields(logFields).Debug("Performing request")
@@ -209,7 +209,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 		log.WithFields(log.Fields{
 			"prefix": "client.Client.PerformRequest 1",
 			"method": req.Method,
-			"url":    req.URL.String(),
+			"url":    redactURL(req.URL),
 			"error":  err.Error(),
 		}).Error("Failed to perform request")
 		return nil, err
@@ -222,7 +222,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 			log.WithFields(log.Fields{
 				"prefix": "client.Client.PerformRequest",
 				"method": req.Method,
-				"url":    req.URL.String(),
+				"url":    redactURL(req.URL),
 				"status": resp.StatusCode,
 			}).Debug("Rate limited")
 		} else if resp.StatusCode == http.StatusUnauthorized {
@@ -230,14 +230,14 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 			log.WithFields(log.Fields{
 				"prefix": "client.Client.PerformRequest",
 				"method": req.Method,
-				"url":    req.URL.String(),
+				"url":    redactURL(req.URL),
 				"status": resp.StatusCode,
 			}).Debug("Unauthorized response")
 		} else {
 			log.WithFields(log.Fields{
 				"prefix": "client.Client.PerformRequest 2",
 				"method": req.Method,
-				"url":    req.URL.String(),
+				"url":    redactURL(req.URL),
 				"error":  err.Error(),
 				"status": resp.StatusCode,
 			}).Error("Unexpected response")
@@ -249,13 +249,13 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 		logFields := log.Fields{
 			"prefix":     "client.Client.PerformRequest",
 			"statusCode": resp.StatusCode,
-			"headers":    resp.Header,
+			"headers":    redactHeaders(resp.Header),
 		}
 
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err == nil {
 			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-			logFields["body"] = string(bodyBytes)
+			logFields["body"] = redactBody(bodyBytes)
 		}
 
 		log.WithFields(logFields).Debug("Received response")

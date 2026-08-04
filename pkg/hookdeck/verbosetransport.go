@@ -43,7 +43,9 @@ func (t *verboseTransport) RoundTrip(req *http.Request) (resp *http.Response, er
 }
 
 func (t *verboseTransport) dumpRequest(req *http.Request) {
-	info := fmt.Sprintf("> %s %s://%s%s", req.Method, req.URL.Scheme, req.URL.Host, req.URL.RequestURI())
+	// redactURL keeps credential-bearing query parameters (e.g. the API key the
+	// login poll endpoint takes as ?key=) out of the printed URL.
+	info := fmt.Sprintf("> %s %s", req.Method, redactURL(req.URL))
 	t.verbosePrintln(info)
 	t.dumpHeaders(req.Header, ">")
 }

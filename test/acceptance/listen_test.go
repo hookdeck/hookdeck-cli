@@ -3,14 +3,48 @@
 package acceptance
 
 import (
+	"bytes"
 	"context"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+// syncBuffer collects a background process's output so a failure can report
+// what the process actually said. The plain bytes.Buffer used elsewhere in
+// these helpers is only safe for commands that are waited on before reading;
+// listen runs in the background and may still be writing while the test reads.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+// captureOutput wires a command's stdout and stderr into one buffer. Without
+// this, a listen process that dies during startup fails the test with nothing
+// but an exit code, which is not enough to tell a CLI bug from an API blip.
+// Credentials are safe to capture: the API client redacts them before logging.
+func captureOutput(cmd *exec.Cmd) *syncBuffer {
+	output := &syncBuffer{}
+	cmd.Stdout = output
+	cmd.Stderr = output
+	return output
+}
 
 // TestListenCommandBasic tests that the listen command starts without errors
 // and can be terminated gracefully
@@ -41,6 +75,7 @@ func TestListenCommandBasic(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "go", "run", mainGoPath,
 		"listen", "8080", sourceName, "--output", "compact")
 	cmd.Dir = projectRoot
+	output := captureOutput(cmd)
 
 	// Start the command in the background
 	err = cmd.Start()
@@ -69,7 +104,7 @@ func TestListenCommandBasic(t *testing.T) {
 	select {
 	case err := <-done:
 		// Process exited early - this is a failure
-		t.Fatalf("listen command exited early with error: %v", err)
+		t.Fatalf("listen command exited early with error: %v\nlisten output:\n%s", err, output.String())
 	case <-time.After(100 * time.Millisecond):
 		// Process is still running - this is what we want
 		t.Logf("Listen command successfully initialized and is running")
@@ -118,6 +153,7 @@ func TestListenCommandWithContext(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "go", "run", mainGoPath,
 		"listen", "8080", sourceName, "--output", "compact")
 	cmd.Dir = projectRoot
+	output := captureOutput(cmd)
 
 	// Start the command
 	err = cmd.Start()
@@ -143,7 +179,7 @@ func TestListenCommandWithContext(t *testing.T) {
 
 	select {
 	case err := <-done:
-		t.Fatalf("listen command exited early with error: %v", err)
+		t.Fatalf("listen command exited early with error: %v\nlisten output:\n%s", err, output.String())
 	case <-time.After(100 * time.Millisecond):
 		t.Logf("Listen command is running, now canceling context...")
 	}
