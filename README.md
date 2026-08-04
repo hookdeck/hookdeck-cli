@@ -206,9 +206,23 @@ Flags:
   --filter-headers string   Filter events by request headers using Hookdeck filter syntax (JSON)
   --filter-query string     Filter events by query parameters using Hookdeck filter syntax (JSON)
   --filter-path string      Filter events by request path using Hookdeck filter syntax (JSON)
+  --cli-key string          Authenticate with a user-scoped CLI key instead of the stored login
+  --api-key string          Authenticate with a project-scoped key instead of the stored login
 ```
 
-Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
+By default `listen` uses the credentials saved by `hookdeck login`. To authenticate a single invocation without logging in first — for example in CI or when switching accounts — pass a key directly:
+
+```sh
+# User-scoped CLI key (created by `hookdeck login`; can access all your projects)
+$ hookdeck listen 3000 stripe --cli-key <your-cli-key>
+
+# Project-scoped key (e.g. a Project API key or a key from `hookdeck ci`)
+$ hookdeck listen 3000 stripe --api-key <your-project-api-key>
+```
+
+Both flags are global, so they work with any command. A **CLI key** is tied to your user account and can navigate across projects; a **project API key** is scoped to a single project. Within the CLI both are stored and used the same way (see [Credential Types](#security-config-files-and-source-control)).
+
+The Event Gateway routes events received for a given `source` (e.g. Shopify, GitHub) to a `destination` via a `connection`. `hookdeck listen` is a standalone command that works with whichever product you're authenticated with — Hookdeck Console or the Event Gateway — receiving events for a given connection and forwarding them to your localhost at the specified port or any valid URL.
 
 Each `source` is assigned an Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
@@ -237,10 +251,13 @@ While in interactive mode, you can use the following keyboard shortcuts:
 - `o` - Open the selected event in the Hookdeck dashboard
 - `d` - Show detailed request/response information for the selected event (press `d` or `ESC` to close)
   - When details view is open: `↑` / `↓` scroll through content, `PgUp` / `PgDown` for page navigation
+  - Press `C` to copy the complete request, `H` for request headers, or `B` for the request body; off-screen content is included
 - `q` - Quit the application (terminal state is restored)
 - `Ctrl+C` - Also quits the application
 
 The selected event is indicated by a `>` character at the beginning of the line. All actions (retry, open, details) work on the currently selected event, not just the latest one. These shortcuts are displayed in the status bar at the bottom of the screen.
+
+> **Note:** Copying to the clipboard works out of the box on macOS and Windows. On Linux and other BSD/Unix systems it requires either [`xclip`](https://github.com/astrand/xclip) or [`xsel`](https://github.com/kfish/xsel) to be installed; without one of them the copy shortcuts report an error.
 
 #### Listen to all your connections for a given source
 
@@ -605,6 +622,8 @@ The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't a
 | `hookdeck_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
 | `hookdeck_help` | Discover available tools and their actions |
 
+`hookdeck_events` and `hookdeck_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `hookdeck_help` with topic `hookdeck_events` or `hookdeck_requests` for the full parameter list.
+
 #### Example prompts
 
 Once the MCP server is configured, you can ask your agent questions like:
@@ -630,6 +649,12 @@ Once the MCP server is configured, you can ask your agent questions like:
 
 "Compare failure rates across all my destinations this week."
 → Agent uses hookdeck_metrics with dimensions set to destination_id and measures like error_rate.
+
+"Find Stripe charge.succeeded events from the last week."
+→ Agent uses hookdeck_events list with body filter {"type":"charge.succeeded"} and created_after / created_before ISO datetimes.
+
+"Show failed events that had delivery attempts in the last 24 hours."
+→ Agent uses hookdeck_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
 ```
 
 ### Manage connections

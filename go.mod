@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/BurntSushi/toml v1.6.0
+	github.com/atotto/clipboard v0.1.4
 	github.com/briandowns/spinner v1.23.2
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -14,7 +15,7 @@ require (
 	github.com/gosimple/slug v1.15.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -22,8 +23,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/pretty v1.2.1
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
-	golang.org/x/sys v0.45.0
-	golang.org/x/term v0.43.0
+	golang.org/x/sys v0.47.0
+	golang.org/x/term v0.45.0
 )
 
 require (
@@ -70,7 +71,9 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

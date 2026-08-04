@@ -119,6 +119,42 @@ func TestGatewayMCPStdio_NoProjectExitsWithStderr(t *testing.T) {
 	}
 }
 
+func TestMCPEventsList_DateRangeAndBodyFilter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_events", map[string]any{
+		"action":         "list",
+		"created_after":  "2020-01-01T00:00:00Z",
+		"created_before": "2030-01-01T00:00:00Z",
+		"body":           map[string]any{},
+		"limit":          5,
+	}, 20*time.Second)
+	assert.False(t, result.IsError, "tool error: %s", result.Text)
+	assert.Contains(t, result.Text, `"data"`)
+	assert.True(t, strings.Contains(result.Text, `"models"`) || strings.Contains(result.Text, `"count"`),
+		"expected list payload in %s", result.Text)
+}
+
+func TestMCPRequestsList_DateRangeAndBodyFilter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_requests", map[string]any{
+		"action":          "list",
+		"ingested_after":  "2020-01-01T00:00:00Z",
+		"created_before":  "2030-01-01T00:00:00Z",
+		"body":            map[string]any{},
+		"limit":           5,
+	}, 20*time.Second)
+	assert.False(t, result.IsError, "tool error: %s", result.Text)
+	assert.Contains(t, result.Text, `"data"`)
+	assert.True(t, strings.Contains(result.Text, `"models"`) || strings.Contains(result.Text, `"count"`),
+		"expected list payload in %s", result.Text)
+}
+
 func TestGatewayMCPStdio_OutpostProjectRejected(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")

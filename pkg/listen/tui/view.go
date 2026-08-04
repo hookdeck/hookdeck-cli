@@ -179,7 +179,15 @@ func (m Model) renderDetailsView() string {
 	output.WriteString("\n")
 
 	// Action bar - LAST line, no trailing newline
-	actionBar := "[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page"
+	actionBar := detailsInstructions
+	switch m.detailsCopyState {
+	case detailsCopyPending:
+		actionBar = "Copying " + m.detailsCopyLabel + "... • " + actionBar
+	case detailsCopySucceeded:
+		actionBar = "Copied " + m.detailsCopyLabel + " • " + actionBar
+	case detailsCopyFailed:
+		actionBar = "Could not copy " + m.detailsCopyLabel + " • " + actionBar
+	}
 	output.WriteString(statusBarStyle.Render(actionBar))
 
 	return output.String()
@@ -448,13 +456,7 @@ func (m Model) renderConnectionInfo() string {
 		s.WriteString("💡 Sign up to make your webhook URL permanent: ")
 		s.WriteString(m.cfg.GuestURL)
 	} else {
-		// Build URL with team_id query parameter
-		var displayURL string
-		if m.cfg.ProjectMode == "console" {
-			displayURL = m.cfg.ConsoleBaseURL + "?team_id=" + m.cfg.ProjectID
-		} else {
-			displayURL = m.cfg.DashboardBaseURL + "/events/cli?team_id=" + m.cfg.ProjectID
-		}
+		displayURL := dashboardHomeURL(m.cfg)
 		s.WriteString("💡 View dashboard to inspect, retry & bookmark events: ")
 		s.WriteString(displayURL)
 	}

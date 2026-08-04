@@ -591,6 +591,83 @@ func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extra
 	return stdoutBuf.String(), stderrBuf.String(), waitErr
 }
 
+// MCPToolCallResult is the parsed JSON-RPC response for an MCP tools/call request.
+type MCPToolCallResult struct {
+	IsError bool
+	Text    string
+	Raw     map[string]any
+}
+
+// parseJSONRPCLines returns decoded JSON-RPC messages from stdout (one object per line).
+func parseJSONRPCLines(t *testing.T, stdout string) []map[string]any {
+	t.Helper()
+	var messages []map[string]any
+	for _, line := range strings.Split(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var msg map[string]any
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		if _, ok := msg["jsonrpc"]; ok {
+			messages = append(messages, msg)
+		}
+	}
+	return messages
+}
+
+// findJSONRPCResponseByID returns the response object for the given request id.
+func findJSONRPCResponseByID(t *testing.T, stdout string, id int) map[string]any {
+	t.Helper()
+	for _, msg := range parseJSONRPCLines(t, stdout) {
+		if msgID, ok := msg["id"].(float64); ok && int(msgID) == id {
+			return msg
+		}
+	}
+	t.Fatalf("no JSON-RPC response with id %d in stdout: %q", id, stdout)
+	return nil
+}
+
+// CallGatewayMCPTool runs initialize + notifications/initialized + tools/call over gateway mcp stdio.
+func CallGatewayMCPTool(t *testing.T, projectRoot, configPath, toolName string, arguments map[string]any, runDuration time.Duration) MCPToolCallResult {
+	t.Helper()
+	argsJSON, err := json.Marshal(arguments)
+	require.NoError(t, err)
+	stdin := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"acceptance-test","version":"1.0"},"capabilities":{}}}`,
+		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+		fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":%q,"arguments":%s}}`, toolName, string(argsJSON)),
+	}, "\n") + "\n"
+
+	extra := map[string]string{}
+	if configPath != "" {
+		extra["HOOKDECK_CONFIG_FILE"] = configPath
+	}
+	stdout, stderr, waitErr := RunGatewayMCPSubprocess(t, projectRoot, configPath, extra, stdin, runDuration)
+	if waitErr != nil {
+		t.Logf("gateway mcp subprocess wait: %v (stderr=%q)", waitErr, stderr)
+	}
+
+	resp := findJSONRPCResponseByID(t, stdout, 2)
+	result, ok := resp["result"].(map[string]any)
+	require.True(t, ok, "tools/call result missing in %v", resp)
+
+	out := MCPToolCallResult{Raw: result}
+	if isError, ok := result["isError"].(bool); ok {
+		out.IsError = isError
+	}
+	if content, ok := result["content"].([]any); ok && len(content) > 0 {
+		if block, ok := content[0].(map[string]any); ok {
+			if text, ok := block["text"].(string); ok {
+				out.Text = text
+			}
+		}
+	}
+	return out
+}
+
 // RunFromCwd executes the CLI from the current working directory.
 // This is useful for tests that need to test --local flag behavior,
 // which creates config in the current directory.

@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -50,7 +51,7 @@ type Config struct {
 	// Disable periodic health checks of the local server
 	NoHealthcheck bool
 	// Output mode: interactive, compact, quiet
-	Output string
+	Output   string
 	GuestURL string
 	// MaxConnections allows tuning the maximum concurrent connections per host.
 	// Default: 50 concurrent connections
@@ -69,15 +70,19 @@ type Config struct {
 // webhook events, forwards them to the local endpoint and sends the response
 // back to Hookdeck.
 type Proxy struct {
-	cfg             *Config
-	connections     []*hookdeck.Connection
-	webSocketClient *websocket.Client
-	connectionTimer *time.Timer
-	httpClient      *http.Client
-	transport       *http.Transport
-	activeRequests  int32
-	maxConnWarned   bool // Track if we've warned about connection limit
-	renderer        Renderer
+	cfg         *Config
+	connections []*hookdeck.Connection
+	// webSocketClient is reassigned by Run's reconnect loop and read from other goroutines
+	// (signal handler, event handlers). Always access it through currentWebSocketClient /
+	// setWebSocketClient.
+	webSocketClient   *websocket.Client
+	webSocketClientMu sync.Mutex
+	connectionTimer   *time.Timer
+	httpClient        *http.Client
+	transport         *http.Transport
+	activeRequests    int32
+	maxConnWarned     bool // Track if we've warned about connection limit
+	renderer          Renderer
 
 	// Server health monitoring
 	serverHealthy atomic.Bool
@@ -97,6 +102,20 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 	return ctx
 }
 
+// currentWebSocketClient returns the active websocket client (nil before the first connect).
+// Guards against the reconnect loop reassigning the client while another goroutine reads it.
+func (p *Proxy) currentWebSocketClient() *websocket.Client {
+	p.webSocketClientMu.Lock()
+	defer p.webSocketClientMu.Unlock()
+	return p.webSocketClient
+}
+
+func (p *Proxy) setWebSocketClient(client *websocket.Client) {
+	p.webSocketClientMu.Lock()
+	defer p.webSocketClientMu.Unlock()
+	p.webSocketClient = client
+}
+
 // Run manages the connection to Hookdeck.
 // The connection is established in phases:
 //   - Create a new CLI session
@@ -110,19 +129,38 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 	// of connection attempts that will be made and will retry
 	// until the connection is successful or the user terminates
 	// the program.
-	hasConnectedOnce := false
+	// Atomic: written by the per-attempt connection monitor goroutine below and
+	// read by canConnect on this goroutine.
+	var hasConnectedOnce atomic.Bool
 	canConnect := func() bool {
-		if hasConnectedOnce {
+		if hasConnectedOnce.Load() {
 			return true
 		} else {
 			return nAttempts < maxConnectAttempts
 		}
 	}
 
+	// Set before the websocket is stopped below, so the reconnect loop can tell an
+	// intentional shutdown from a real disconnect. Stopping the client closes its
+	// NotifyExpired channel, which would otherwise race the context cancellation and
+	// make the loop announce "Connection lost, reconnecting..." as the CLI exits.
+	var shuttingDown atomic.Bool
+
 	signalCtx := withSIGTERMCancel(parentCtx, func() {
 		log.WithFields(log.Fields{
 			"prefix": "proxy.Proxy.Run",
 		}).Debug("Ctrl+C received, cleaning up...")
+
+		shuttingDown.Store(true)
+
+		// Send a clean WebSocket close (1000) before the context is
+		// cancelled. This lets the server tombstone the session
+		// immediately instead of holding it for the 2-minute grace
+		// window, so subsequent events don't get routed to a
+		// disconnected CLI and old sessions don't pile up.
+		if wsClient := p.currentWebSocketClient(); wsClient != nil {
+			wsClient.Stop()
+		}
 	})
 
 	// Notify renderer we're connecting
@@ -141,33 +179,49 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		return fmt.Errorf("error while starting a new session")
 	}
 
+	// Build session data to send on every connect/reconnect so the server
+	// can recreate the session if it expired in Redis.
+	var connectionIDs []string
+	for _, connection := range p.connections {
+		connectionIDs = append(connectionIDs, connection.ID)
+	}
+
+	var filtersJSON string
+	if p.cfg.Filters != nil {
+		if b, err := json.Marshal(p.cfg.Filters); err == nil {
+			filtersJSON = string(b)
+		}
+	}
+
 	// Main loop to keep attempting to connect to Hookdeck once
 	// we have created a session.
 	for canConnect() {
-		p.webSocketClient = websocket.NewClient(
+		wsClient := websocket.NewClient(
 			p.cfg.WSBaseURL,
 			session.Id,
 			p.cfg.Key,
 			p.cfg.ProjectID,
+			connectionIDs,
+			filtersJSON,
 			&websocket.Config{
 				Log:          p.cfg.Log,
 				NoWSS:        p.cfg.NoWSS,
 				EventHandler: websocket.EventHandlerFunc(p.processAttempt),
 			},
 		)
+		p.setWebSocketClient(wsClient)
 
 		// Monitor the websocket for connection
 		go func() {
-			<-p.webSocketClient.Connected()
+			<-wsClient.Connected()
 			p.renderer.OnConnected()
 
 			// Only start health monitoring on first successful connection to prevent
-			// goroutine leaks on reconnects. The hasConnectedOnce guard ensures that
-			// even if the websocket reconnects multiple times (which happens in the
-			// Run() loop), we only spawn the health monitor goroutine once.
-			if !hasConnectedOnce {
-				hasConnectedOnce = true
-
+			// goroutine leaks on reconnects. The compare-and-swap ensures that even
+			// if the websocket reconnects multiple times (which happens in the Run()
+			// loop, each attempt spawning its own monitor goroutine), we only spawn
+			// the health monitor goroutine once.
+			if hasConnectedOnce.CompareAndSwap(false, true) {
 				// Skip health monitoring if disabled via --no-healthcheck flag
 				if p.cfg.NoHealthcheck {
 					// Assume server is healthy when healthchecks are disabled
@@ -185,22 +239,38 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		}()
 
 		// Run the websocket in the background
-		go p.webSocketClient.Run(signalCtx)
+		go wsClient.Run(signalCtx)
 		nAttempts++
 
 		// Block until ctrl+c, renderer quit, or websocket connection is interrupted
 		select {
 		case <-signalCtx.Done():
+			// The clean close (Stop) already ran in the withSIGTERMCancel callback,
+			// before the context was cancelled.
 			return nil
 		case <-p.renderer.Done():
 			// Renderer wants to quit (user pressed q or similar)
-			if p.webSocketClient != nil {
-				p.webSocketClient.Stop()
-			}
+			wsClient.Stop()
 			p.renderer.Cleanup()
 			return nil
-		case <-p.webSocketClient.NotifyExpired:
+		case <-wsClient.NotifyExpired:
+			// Stopping the client on shutdown closes NotifyExpired, so this case can
+			// win the race against signalCtx.Done(). That's an intentional exit, not a
+			// dropped connection — don't tell the user we're reconnecting.
+			if shuttingDown.Load() {
+				p.renderer.Cleanup()
+				return nil
+			}
+
 			p.renderer.OnDisconnected()
+			// If this attempt connected successfully before dropping (e.g. a
+			// routine server deploy closing with 1001), reset the counter so
+			// backoff reflects consecutive failures, not lifetime reconnects.
+			// Without this, a long-running CLI drifts toward the maximum
+			// backoff even though every reconnect succeeds immediately.
+			if wsClient.HasConnected() {
+				nAttempts = 0
+			}
 			if !canConnect() {
 				p.renderer.Cleanup()
 				return fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection.", nAttempts)
@@ -240,8 +310,8 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		}
 	}
 
-	if p.webSocketClient != nil {
-		p.webSocketClient.Stop()
+	if wsClient := p.currentWebSocketClient(); wsClient != nil {
+		wsClient.Stop()
 	}
 
 	// Clean up renderer
@@ -378,7 +448,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		timer.Stop()
 		if result.err != nil {
 			p.renderer.OnEventError(eventID, webhookEvent, result.err, requestStartTime)
-			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
+			p.currentWebSocketClient().SendMessage(&websocket.OutgoingMessage{
 				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
 					Event: "attempt_response",
 					Body: websocket.ErrorAttemptBody{
@@ -405,7 +475,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	if eventShown {
 		if result.err != nil {
 			p.renderer.OnEventError(eventID, webhookEvent, result.err, requestStartTime)
-			p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
+			p.currentWebSocketClient().SendMessage(&websocket.OutgoingMessage{
 				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
 					Event: "attempt_response",
 					Body: websocket.ErrorAttemptBody{
@@ -445,8 +515,8 @@ func (p *Proxy) processEndpointResponse(eventID string, webhookEvent *websocket.
 	}, requestStartTime)
 
 	// Send response back to Hookdeck
-	if p.webSocketClient != nil {
-		p.webSocketClient.SendMessage(&websocket.OutgoingMessage{
+	if wsClient := p.currentWebSocketClient(); wsClient != nil {
+		wsClient.SendMessage(&websocket.OutgoingMessage{
 			AttemptResponse: &websocket.AttemptResponse{
 				Event: "attempt_response",
 				Body: websocket.AttemptResponseBody{
