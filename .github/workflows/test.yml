@@ -8,6 +8,13 @@ on:
   pull_request:
     branches:
       - main
+  # Run on merge to main so the merged result is tested, not just each PR branch
+  # in isolation. A PR based on stale main can merge into a combination that no
+  # PR run exercised; this catches that (compile/unit/build only — acceptance
+  # tests stay PR-gated because they hit live APIs and are slow/flaky).
+  push:
+    branches:
+      - main
   # Allow manually triggering CI on a branch
   workflow_dispatch: {}
 
