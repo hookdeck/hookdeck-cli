@@ -207,17 +207,20 @@ func (c *Client) ConnectionLost() {
 // instead of holding it open for the reconnect grace window.
 func (c *Client) Stop() {
 	c.doneOnce.Do(func() {
-		// Snapshot the connection state under stateMu — Stop can run on the
-		// signal-handler goroutine while the connect goroutine writes these fields.
+		// Snapshot the connection under stateMu — Stop can run on the
+		// signal-handler goroutine while the connect goroutine writes it.
+		// conn alone signals an established connection: it is only assigned
+		// after a successful upgrade, and checking isConnected too would skip
+		// the clean close in the window between changeConnection() and
+		// setConnected(true).
 		c.stateMu.Lock()
 		conn := c.conn
-		isConnected := c.isConnected
 		c.stateMu.Unlock()
 
 		// If we have an active connection, send a clean close frame BEFORE
 		// tearing down the pumps. This guarantees the server sees code 1000
 		// rather than the abnormal 1006 it gets when the TCP socket dies.
-		if isConnected && conn != nil {
+		if conn != nil {
 			deadline := time.Now().Add(c.cfg.WriteWait)
 			_ = conn.WriteControl(
 				ws.CloseMessage,

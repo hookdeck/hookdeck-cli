@@ -37,6 +37,20 @@ func wsURL(s *httptest.Server) string {
 	return "ws" + strings.TrimPrefix(s.URL, "http")
 }
 
+// startClient runs the client and waits for the websocket connection to be
+// established. Tests must go through Run() rather than calling connect()
+// directly: connect() starts the read/write pumps, and without Run's select
+// loop draining notifyClose, readPump can block forever after Stop().
+func startClient(t *testing.T, client *Client) {
+	t.Helper()
+	go client.Run(context.Background())
+	select {
+	case <-client.Connected():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the client to connect")
+	}
+}
+
 func TestConnectSendsSessionRecreationHeaders(t *testing.T) {
 	filtersJSON := `{"body":{"name":"héllo wörld — テスト"}}`
 	var captured http.Header
@@ -52,9 +66,7 @@ func TestConnectSendsSessionRecreationHeaders(t *testing.T) {
 		filtersJSON,
 		&Config{},
 	)
-	if err := client.connect(context.Background()); err != nil {
-		t.Fatalf("connect failed: %v", err)
-	}
+	startClient(t, client)
 	defer client.Stop()
 
 	if got := captured.Get("Websocket-Id"); got != "cses_test" {
@@ -90,9 +102,7 @@ func TestConnectOmitsSessionHeadersWhenUnset(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(wsURL(server), "cses_test", "cli-key", "tm_test", nil, "", &Config{})
-	if err := client.connect(context.Background()); err != nil {
-		t.Fatalf("connect failed: %v", err)
-	}
+	startClient(t, client)
 	defer client.Stop()
 
 	if _, ok := captured["X-Webhook-Ids"]; ok {
@@ -122,9 +132,7 @@ func TestStopSendsCleanClose(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(wsURL(server), "cses_test", "cli-key", "tm_test", nil, "", &Config{})
-	if err := client.connect(context.Background()); err != nil {
-		t.Fatalf("connect failed: %v", err)
-	}
+	startClient(t, client)
 
 	client.Stop()
 
