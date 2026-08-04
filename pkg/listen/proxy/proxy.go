@@ -24,7 +24,6 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/healthcheck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 )
 
 const (
@@ -49,6 +48,8 @@ type Config struct {
 	// Force use of unencrypted ws:// protocol instead of wss://
 	NoWSS    bool
 	Insecure bool
+	// Disable periodic health checks of the local server
+	NoHealthcheck bool
 	// Output mode: interactive, compact, quiet
 	Output   string
 	GuestURL string
@@ -61,6 +62,8 @@ type Config struct {
 	MaxConnections int
 	// Filters for this CLI session
 	Filters *hookdeck.SessionFilters
+	// APIClient is the shared API client (from config.GetAPIClient)
+	APIClient *hookdeck.Client
 }
 
 // A Proxy opens a websocket connection with Hookdeck, listens for incoming
@@ -68,7 +71,7 @@ type Config struct {
 // back to Hookdeck.
 type Proxy struct {
 	cfg         *Config
-	connections []*hookdecksdk.Connection
+	connections []*hookdeck.Connection
 	// webSocketClient is reassigned by Run's reconnect loop and read from other goroutines
 	// (signal handler, event handlers). Always access it through currentWebSocketClient /
 	// setWebSocketClient.
@@ -170,7 +173,7 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 	// can recreate the session if it expired in Redis.
 	var connectionIDs []string
 	for _, connection := range p.connections {
-		connectionIDs = append(connectionIDs, connection.Id)
+		connectionIDs = append(connectionIDs, connection.ID)
 	}
 
 	var filtersJSON string
@@ -210,13 +213,19 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			if !hasConnectedOnce {
 				hasConnectedOnce = true
 
-				// Perform initial health check and notify renderer immediately
-				healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second)
-				p.serverHealthy.Store(healthy)
-				p.renderer.OnServerHealthChanged(healthy, err)
+				// Skip health monitoring if disabled via --no-healthcheck flag
+				if p.cfg.NoHealthcheck {
+					// Assume server is healthy when healthchecks are disabled
+					p.serverHealthy.Store(true)
+				} else {
+					// Perform initial health check and notify renderer immediately
+					healthy, err := checkServerHealth(p.cfg.URL, 3*time.Second, p.cfg.Insecure)
+					p.serverHealthy.Store(healthy)
+					p.renderer.OnServerHealthChanged(healthy, err)
 
-				// Start health check monitor after initial check
-				go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
+					// Start health check monitor after initial check
+					go p.startHealthCheckMonitor(signalCtx, p.cfg.URL)
+				}
 			}
 		}()
 
@@ -300,21 +309,13 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 
 func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 	var session hookdeck.Session
+	var err error
 
-	parsedBaseURL, err := url.Parse(p.cfg.APIBaseURL)
-	if err != nil {
-		return session, err
-	}
-
-	client := &hookdeck.Client{
-		BaseURL:   parsedBaseURL,
-		APIKey:    p.cfg.Key,
-		ProjectID: p.cfg.ProjectID,
-	}
+	client := p.cfg.APIClient
 
 	var connectionIDs []string
 	for _, connection := range p.connections {
-		connectionIDs = append(connectionIDs, connection.Id)
+		connectionIDs = append(connectionIDs, connection.ID)
 	}
 
 	for i := 0; i <= 5; i++ {
@@ -512,8 +513,8 @@ func (p *Proxy) processEndpointResponse(eventID string, webhookEvent *websocket.
 }
 
 // checkServerHealth is a simple wrapper around the healthcheck package's CheckServerHealth
-func checkServerHealth(targetURL *url.URL, timeout time.Duration) (bool, error) {
-	result := healthcheck.CheckServerHealth(targetURL, timeout)
+func checkServerHealth(targetURL *url.URL, timeout time.Duration, insecure bool) (bool, error) {
+	result := healthcheck.CheckServerHealth(targetURL, timeout, insecure)
 	return result.Healthy, result.Error
 }
 
@@ -535,7 +536,7 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 			return
 		case <-ticker.C:
 			// Perform health check
-			healthy, err := checkServerHealth(targetURL, 3*time.Second)
+			healthy, err := checkServerHealth(targetURL, 3*time.Second, p.cfg.Insecure)
 
 			// Only notify on state changes, atomically
 			prevHealthy := p.serverHealthy.Swap(healthy)
@@ -560,7 +561,7 @@ func (p *Proxy) startHealthCheckMonitor(ctx context.Context, targetURL *url.URL)
 //
 
 // New creates a new Proxy
-func New(cfg *Config, connections []*hookdecksdk.Connection, renderer Renderer) *Proxy {
+func New(cfg *Config, connections []*hookdeck.Connection, renderer Renderer) *Proxy {
 	if cfg.Log == nil {
 		cfg.Log = &log.Logger{Out: ioutil.Discard}
 	}

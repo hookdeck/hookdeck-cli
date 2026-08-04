@@ -42,6 +42,9 @@ type Config struct {
 	configFile     string // resolved path of config file
 	viper          *viper.Viper
 
+	// Telemetry
+	TelemetryDisabled bool
+
 	// Internal
 	fs ConfigFS
 }
@@ -161,6 +164,7 @@ func (c *Config) InitConfig() {
 func (c *Config) UseProject(projectId string, projectMode string) error {
 	c.Profile.ProjectId = projectId
 	c.Profile.ProjectMode = projectMode
+	c.Profile.ProjectType = ModeToProjectType(projectMode)
 	return c.Profile.SaveProfile()
 }
 
@@ -191,6 +195,7 @@ func (c *Config) UseProjectLocal(projectId string, projectMode string) (bool, er
 	// Update in-memory state
 	c.Profile.ProjectId = projectId
 	c.Profile.ProjectMode = projectMode
+	c.Profile.ProjectType = ModeToProjectType(projectMode)
 
 	// Write to local config file using shared helper
 	if err := c.writeProjectConfig(localConfigPath, !fileExists); err != nil {
@@ -233,6 +238,11 @@ func (c *Config) setProfileFieldsInViper(v *viper.Viper) {
 	v.Set("profile", c.Profile.Name)
 	v.Set(c.Profile.getConfigField("project_id"), c.Profile.ProjectId)
 	v.Set(c.Profile.getConfigField("project_mode"), c.Profile.ProjectMode)
+	projectType := c.Profile.ProjectType
+	if projectType == "" && c.Profile.ProjectMode != "" {
+		projectType = ModeToProjectType(c.Profile.ProjectMode)
+	}
+	v.Set(c.Profile.getConfigField("project_type"), projectType)
 	if c.Profile.GuestURL != "" {
 		v.Set(c.Profile.getConfigField("guest_url"), c.Profile.GuestURL)
 	}
@@ -283,7 +293,13 @@ func (c *Config) RemoveAllProfiles() error {
 	runtimeViper.SetConfigType("toml")
 	runtimeViper.SetConfigFile(c.viper.ConfigFileUsed())
 	c.viper = runtimeViper
-	return c.writeConfig()
+	if err := c.writeConfig(); err != nil {
+		return err
+	}
+	// Match single-profile logout: clear credential fields in memory so a long-lived
+	// process does not keep using stale keys after the file was wiped.
+	zeroProfileCredentialFields(&c.Profile)
+	return nil
 }
 
 func (c *Config) writeConfig() error {
@@ -328,12 +344,82 @@ func (c *Config) constructConfig() {
 
 	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
 
+	// ProjectType: prefer project_type from config; else derive from project_mode
+	c.Profile.ProjectType = stringCoalesce(c.Profile.ProjectType, c.viper.GetString(c.Profile.getConfigField("project_type")), c.viper.GetString("project_type"), "")
+	if c.Profile.ProjectType == "" && c.Profile.ProjectMode != "" {
+		c.Profile.ProjectType = ModeToProjectType(c.Profile.ProjectMode)
+	}
+
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
+
+	// Telemetry opt-out: check config file for telemetry_disabled = true
+	if c.viper.IsSet("telemetry_disabled") {
+		c.TelemetryDisabled = c.viper.GetBool("telemetry_disabled")
+	}
+}
+
+// SetTelemetryDisabled persists the telemetry_disabled flag to the config file.
+func (c *Config) SetTelemetryDisabled(disabled bool) error {
+	c.TelemetryDisabled = disabled
+	c.viper.Set("telemetry_disabled", disabled)
+	return c.writeConfig()
+}
+
+// ClearActiveProfileCredentials removes stored credentials for the active profile without
+// printing.
+//
+// Two paths:
+//   - Persisted config (viper set): removes the active profile section from the config file
+//     (same as RemoveProfile) and clears api_key / project_* / guest_url on the in-memory
+//     Profile. This is what the real CLI and MCP server use after InitConfig.
+//   - No viper (e.g. some tests): only clears those Profile fields in memory; nothing is
+//     written to disk.
+//
+// MCP reauth uses the persisted path in production. The shared *hookdeck.Client is also
+// cleared separately in the MCP handler so API calls stop using the old key immediately.
+func (c *Config) ClearActiveProfileCredentials() error {
+	if c == nil || c.Profile.APIKey == "" {
+		return nil
+	}
+	if c.viper == nil {
+		zeroProfileCredentialFields(&c.Profile)
+		return nil
+	}
+	if err := c.Profile.RemoveProfile(); err != nil {
+		return err
+	}
+	zeroProfileCredentialFields(&c.Profile)
+	return nil
+}
+
+func zeroProfileCredentialFields(p *Profile) {
+	p.APIKey = ""
+	p.ProjectId = ""
+	p.ProjectMode = ""
+	p.ProjectType = ""
+	p.GuestURL = ""
+}
+
+// SaveActiveProfileAfterLogin persists cfg.Profile credential fields and the active profile
+// name when viper is configured. It is a no-op when c is nil or viper is nil (e.g. MCP unit
+// tests with a minimal Config). The shared hookdeck client is updated separately by the caller.
+func (c *Config) SaveActiveProfileAfterLogin() {
+	if c == nil || c.viper == nil {
+		return
+	}
+	c.Profile.Config = c
+	if err := c.Profile.SaveProfile(); err != nil {
+		log.WithError(err).Error("Login succeeded but failed to save profile")
+	}
+	if err := c.Profile.UseProfile(); err != nil {
+		log.WithError(err).Error("Login succeeded but failed to activate profile")
+	}
 }
 
 // getConfigPath returns the path for the config file.
 // Precedence:
-// - path (if path is provided)
+// - path (if path is provided, e.g. from --hookdeck-config flag)
+// - HOOKDECK_CONFIG_FILE env var (for acceptance tests / parallel runs; avoids flag collision with subcommand JSON --config)
 // - `${PWD}/.hookdeck/config.toml`
 // - `${HOME}/.config/hookdeck/config.toml`
 // Returns the path string and a boolean indicating whether it's the global default path.
@@ -348,6 +434,9 @@ func (c *Config) getConfigPath(path string) (string, bool) {
 			return path, false
 		}
 		return filepath.Join(workspaceFolder, path), false
+	}
+	if envPath := os.Getenv("HOOKDECK_CONFIG_FILE"); envPath != "" {
+		return envPath, false
 	}
 
 	localConfigPath := filepath.Join(workspaceFolder, ".hookdeck/config.toml")

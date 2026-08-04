@@ -8,18 +8,11 @@ set -e
 rm -rf completions
 mkdir completions
 
-# Use 'go run .' to compile and run the CLI to generate completions
-# This works on any platform that can build Go code
-# The completion command writes files to the current directory, so we cd into completions/
 echo "Generating bash completion..."
-(cd completions && go run .. completion --shell bash)
+go run . completion --shell bash > completions/hookdeck.bash
 
 echo "Generating zsh completion..."
-(cd completions && go run .. completion --shell zsh)
-
-# Rename the generated files to match GoReleaser expectations
-mv completions/hookdeck-completion.bash completions/hookdeck.bash
-mv completions/hookdeck-completion.zsh completions/_hookdeck
+go run . completion --shell zsh > completions/_hookdeck
 
 # Fish completion is not currently supported by the CLI
 # If it gets added in the future, uncomment this:

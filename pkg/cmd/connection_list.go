@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -30,27 +29,27 @@ func newConnectionListCmd() *connectionListCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "list",
 		Args:  validators.NoArgs,
-		Short: "List connections",
+		Short: ShortList(ResourceConnection),
 		Long: `List all connections or filter by source/destination.
 
 Examples:
   # List all connections
-  hookdeck connection list
+  hookdeck gateway connection list
 
   # Filter by connection name
-  hookdeck connection list --name my-connection
+  hookdeck gateway connection list --name my-connection
 
   # Filter by source ID
-  hookdeck connection list --source-id src_abc123
+  hookdeck gateway connection list --source-id src_abc123
 
   # Filter by destination ID
-  hookdeck connection list --destination-id dst_def456
+  hookdeck gateway connection list --destination-id dst_def456
 
   # Include disabled connections
-  hookdeck connection list --disabled
+  hookdeck gateway connection list --disabled
 
   # Limit results
-  hookdeck connection list --limit 10`,
+  hookdeck gateway connection list --limit 10`,
 		RunE: cc.runConnectionListCmd,
 	}
 
@@ -113,12 +112,7 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 	}
 
 	if cc.output == "json" {
-		if len(response.Models) == 0 {
-			// Print an empty JSON array
-			fmt.Println("[]")
-			return nil
-		}
-		jsonBytes, err := json.MarshalIndent(response.Models, "", "  ")
+		jsonBytes, err := marshalListResponseWithPagination(response.Models, response.Pagination)
 		if err != nil {
 			return fmt.Errorf("failed to marshal connections to json: %w", err)
 		}
@@ -174,6 +168,10 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 
 		fmt.Println()
 	}
+
+	// Display pagination info
+	commandExample := "hookdeck gateway connection list"
+	printPaginationInfo(response.Pagination, commandExample)
 
 	return nil
 }

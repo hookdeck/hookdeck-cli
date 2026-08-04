@@ -7,21 +7,26 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 
 	"github.com/briandowns/spinner"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/open"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
 var openBrowser = open.Browser
 var canOpenBrowser = open.CanOpenBrowser
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
 
 // Login function is used to obtain credentials via hookdeck dashboard.
-func Login(config *config.Config, input io.Reader) error {
+func Login(config *configpkg.Config, input io.Reader) error {
 	var s *spinner.Spinner
 
 	if config.Profile.APIKey != "" {
@@ -31,22 +36,40 @@ func Login(config *config.Config, input io.Reader) error {
 		}).Debug("Logging in with API key")
 
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
-		response, err := ValidateKey(config.APIBaseURL, config.Profile.APIKey, config.Profile.ProjectId)
+		response, err := config.GetAPIClient().ValidateAPIKey()
 		if err != nil {
-			return err
-		}
+			ansi.StopSpinner(s, "", os.Stdout)
+			if !hookdeck.IsUnauthorizedError(err) {
+				return err
+			}
+			// Rejected key: continue into browser login below (must clear key first
+			// or we would re-enter this branch only).
+			fmt.Fprintln(os.Stdout, "Your saved API key is no longer valid. Starting browser sign-in...")
+			config.Profile.APIKey = ""
+		} else if response.UserID != "" {
+			message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
+			ansi.StopSpinner(s, message, os.Stdout)
 
-		message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
-		ansi.StopSpinner(s, message, os.Stdout)
+			config.Profile.ApplyValidateAPIKeyResponse(response, true)
 
-		if err = config.Profile.SaveProfile(); err != nil {
-			return err
-		}
-		if err = config.Profile.UseProfile(); err != nil {
-			return err
-		}
+			if err = config.Profile.SaveProfile(); err != nil {
+				return err
+			}
+			if err = config.Profile.UseProfile(); err != nil {
+				return err
+			}
 
-		return nil
+			config.RefreshCachedAPIClient()
+
+			return nil
+		} else {
+			ansi.StopSpinner(s, "", os.Stdout)
+			if !stdinIsTerminal() {
+				return project.ErrProjectScopedCredentials
+			}
+			fmt.Fprintln(os.Stdout, "Your saved key is scoped to a single project (CI). Starting browser sign-in...")
+			config.Profile.APIKey = ""
+		}
 	}
 
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
@@ -55,7 +78,8 @@ func Login(config *config.Config, input io.Reader) error {
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
+		BaseURL:           parsedBaseURL,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	session, err := client.StartLogin(config.DeviceName)
@@ -91,10 +115,7 @@ func Login(config *config.Config, input io.Reader) error {
 		return err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ProjectId = response.ProjectID
-	config.Profile.ProjectMode = response.ProjectMode
-	config.Profile.GuestURL = "" // Clear guest URL when logging in with permanent account
+	config.Profile.ApplyPollAPIKeyResponse(response, "")
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err
@@ -103,20 +124,23 @@ func Login(config *config.Config, input io.Reader) error {
 		return err
 	}
 
+	config.RefreshCachedAPIClient()
+
 	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
 	ansi.StopSpinner(s, message, os.Stdout)
 
 	return nil
 }
 
-func GuestLogin(config *config.Config) (string, error) {
+func GuestLogin(config *configpkg.Config) (string, error) {
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return "", err
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
+		BaseURL:           parsedBaseURL,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	fmt.Println("\n🚩 You are using the CLI for the first time without a permanent account. Creating a guest account...")
@@ -135,10 +159,7 @@ func GuestLogin(config *config.Config) (string, error) {
 		return "", err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ProjectId = response.ProjectID
-	config.Profile.ProjectMode = response.ProjectMode
-	config.Profile.GuestURL = session.GuestURL
+	config.Profile.ApplyPollAPIKeyResponse(response, session.GuestURL)
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return "", err
@@ -150,15 +171,16 @@ func GuestLogin(config *config.Config) (string, error) {
 	return session.GuestURL, nil
 }
 
-func CILogin(config *config.Config, apiKey string, name string) error {
+func CILogin(config *configpkg.Config, apiKey string, name string) error {
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return err
 	}
 
 	client := &hookdeck.Client{
-		BaseURL: parsedBaseURL,
-		APIKey:  apiKey,
+		BaseURL:           parsedBaseURL,
+		APIKey:            apiKey,
+		TelemetryDisabled: config.TelemetryDisabled,
 	}
 
 	deviceName := name
@@ -176,9 +198,7 @@ func CILogin(config *config.Config, apiKey string, name string) error {
 		return err
 	}
 
-	config.Profile.APIKey = response.APIKey
-	config.Profile.ProjectId = response.ProjectID
-	config.Profile.ProjectMode = response.ProjectMode
+	config.Profile.ApplyCIClient(response)
 
 	if err = config.Profile.SaveProfile(); err != nil {
 		return err

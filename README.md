@@ -8,11 +8,49 @@ Using the Hookdeck CLI, you can forward your events (e.g. webhooks) to your loca
 
 Hookdeck CLI is compatible with most of Hookdeck's features, such as filtering and fan-out delivery. You can use Hookdeck CLI to develop or test your event (e.g. webhook) integration code locally.
 
+You can also manage Hookdeck Event Gateway resources—sources, destinations, connections, events, transformations—from the CLI. For AI and agent workflows, the Event Gateway MCP server (`hookdeck gateway mcp`) exposes these capabilities as tools in MCP-compatible clients (e.g. Cursor, Claude).
+
 Although it uses a different approach and philosophy, it's a replacement for ngrok and alternative HTTP tunnel solutions.
 
 Hookdeck for development is completely free, and we monetize the platform with our production offering.
 
-For a complete reference, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
+For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE.md).
+
+## Table of contents
+
+- [Installation](#installation)
+  - [NPM](#npm)
+  - [macOS](#macos)
+  - [Windows](#windows)
+  - [Linux Or without package managers](#linux-or-without-package-managers)
+  - [Docker](#docker)
+- [Usage](#usage)
+- [Commands](#commands)
+  - [Login](#login)
+  - [Listen](#listen)
+  - [Logout](#logout)
+  - [Skip SSL validation](#skip-ssl-validation)
+  - [Disable health checks](#disable-health-checks)
+  - [Version](#version)
+  - [Completion](#completion)
+  - [Running in CI](#running-in-ci)
+  - [Event Gateway](#event-gateway)
+  - [Event Gateway MCP](#event-gateway-mcp)
+  - [Manage connections](#manage-connections)
+  - [Transformations](#transformations)
+  - [Requests, events, and attempts](#requests-events-and-attempts)
+  - [Manage active project](#manage-active-project)
+  - [Telemetry](#telemetry)
+- [Configuration files](#configuration-files)
+- [Global Flags](#global-flags)
+- [Troubleshooting](#troubleshooting)
+- [Developing](#developing)
+- [Testing](#testing)
+- [Releasing](#releasing)
+- [Repository Setup](#repository-setup)
+- [License](#license)
+
+**Quick links:** [Local development (Listen)](#listen) · [Resource management (CLI)](#event-gateway) / [Manage connections](#manage-connections) · [AI / agent integration (Event Gateway MCP)](#event-gateway-mcp)
 
 https://github.com/user-attachments/assets/7a333c5b-e4cb-45bb-8570-29fafd137bd2
 
@@ -37,17 +75,26 @@ npm install hookdeck-cli@beta -g
 
 ### macOS
 
-Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/):
+Hookdeck CLI is available on macOS via [Homebrew](https://brew.sh/) in [homebrew-core](https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/h/hookdeck.rb):
 
 ```sh
-brew install hookdeck/hookdeck/hookdeck
+brew install hookdeck
 ```
 
-To install a beta (pre-release) version:
+New stable versions are picked up automatically by Homebrew's autobump after each release — `brew upgrade` will pull them in.
+
+To install a beta (pre-release) version from our tap:
 
 ```sh
 brew install hookdeck/hookdeck/hookdeck-beta
 ```
+
+> [!NOTE]
+> When [`HOMEBREW_REQUIRE_TAP_TRUST`](https://docs.brew.sh/Taps) becomes the default in Homebrew 5.2.0 / 6.0.0, installing the beta formula from a third-party tap will require an explicit trust step:
+> ```sh
+> brew trust --formula hookdeck/hookdeck/hookdeck-beta
+> ```
+> The stable `hookdeck` formula lives in homebrew-core and is not affected.
 
 ### Windows
 
@@ -150,9 +197,23 @@ Flags:
   --filter-headers string   Filter events by request headers using Hookdeck filter syntax (JSON)
   --filter-query string     Filter events by query parameters using Hookdeck filter syntax (JSON)
   --filter-path string      Filter events by request path using Hookdeck filter syntax (JSON)
+  --cli-key string          Authenticate with a user-scoped CLI key instead of the stored login
+  --api-key string          Authenticate with a project-scoped key instead of the stored login
 ```
 
-Hookdeck works by routing events received for a given `source` (i.e., Shopify, Github, etc.) to its defined `destination` by connecting them with a `connection` to a `destination`. The CLI allows you to receive events for any given connection and forward them to your localhost at the specified port or any valid URL.
+By default `listen` uses the credentials saved by `hookdeck login`. To authenticate a single invocation without logging in first — for example in CI or when switching accounts — pass a key directly:
+
+```sh
+# User-scoped CLI key (created by `hookdeck login`; can access all your projects)
+$ hookdeck listen 3000 stripe --cli-key <your-cli-key>
+
+# Project-scoped key (e.g. a Project API key or a key from `hookdeck ci`)
+$ hookdeck listen 3000 stripe --api-key <your-project-api-key>
+```
+
+Both flags are global, so they work with any command. A **CLI key** is tied to your user account and can navigate across projects; a **project API key** is scoped to a single project. Within the CLI both are stored and used the same way (see [Credential Types](#security-config-files-and-source-control)).
+
+The Event Gateway routes events received for a given `source` (e.g. Shopify, GitHub) to a `destination` via a `connection`. `hookdeck listen` is a standalone command that works with whichever product you're authenticated with — Hookdeck Console or the Event Gateway — receiving events for a given connection and forwarding them to your localhost at the specified port or any valid URL.
 
 Each `source` is assigned an Event URL, which you can use to receive events. When starting with a fresh account, the CLI will prompt you to create your first source. Each CLI process can listen to one source at a time.
 
@@ -181,10 +242,13 @@ While in interactive mode, you can use the following keyboard shortcuts:
 - `o` - Open the selected event in the Hookdeck dashboard
 - `d` - Show detailed request/response information for the selected event (press `d` or `ESC` to close)
   - When details view is open: `↑` / `↓` scroll through content, `PgUp` / `PgDown` for page navigation
+  - Press `C` to copy the complete request, `H` for request headers, or `B` for the request body; off-screen content is included
 - `q` - Quit the application (terminal state is restored)
 - `Ctrl+C` - Also quits the application
 
 The selected event is indicated by a `>` character at the beginning of the line. All actions (retry, open, details) work on the currently selected event, not just the latest one. These shortcuts are displayed in the status bar at the bottom of the screen.
+
+> **Note:** Copying to the clipboard works out of the box on macOS and Windows. On Linux and other BSD/Unix systems it requires either [`xclip`](https://github.com/astrand/xclip) or [`xsel`](https://github.com/kfish/xsel) to be installed; without one of them the copy shortcuts report an error.
 
 #### Listen to all your connections for a given source
 
@@ -394,7 +458,7 @@ hookdeck logout
 
 When forwarding events to an HTTPS URL as the first argument to `hookdeck listen` (e.g., `https://localhost:1234/webhook`), you might encounter SSL validation errors if the destination is using a self-signed certificate.
 
-For local development scenarios, you can instruct the `listen` command to bypass this SSL certificate validation by using its `--insecure` flag. You must provide the full HTTPS URL.
+For local development scenarios, you can instruct the `listen` command to bypass this SSL certificate validation by using its `--insecure` flag. You must provide the full HTTPS URL. This flag also applies to the periodic server health checks that the CLI performs.
 
 **This is dangerous and should only be used in trusted local development environments for destinations you control.**
 
@@ -402,6 +466,14 @@ Example of skipping SSL validation for an HTTPS destination:
 
 ```sh
 hookdeck listen --insecure https://<your-ssl-url-or-url:port>/ <source-alias?> <connection-query?>
+```
+
+### Disable health checks
+
+The CLI periodically checks if your local server is reachable and displays warnings if the connection fails. If these health checks cause issues in your environment, you can disable them with the `--no-healthcheck` flag:
+
+```sh
+hookdeck listen --no-healthcheck 3000 <source-alias?>
 ```
 
 ### Version
@@ -414,11 +486,19 @@ hookdeck version
 
 ### Completion
 
-Configure auto-completion for Hookdeck CLI. It is run on install when using Homebrew or Scoop. You can optionally run this command when using the binaries directly or without a package manager.
+Generate a shell completion script for the Hookdeck CLI. When installed via Homebrew or Scoop, completions are configured automatically.
+
+To enable completions for the current shell session:
 
 ```sh
-hookdeck completion
+# bash
+source <(hookdeck completion --shell bash)
+
+# zsh
+source <(hookdeck completion --shell zsh)
 ```
+
+To install completions permanently, redirect the output to your shell's completion directory. See `hookdeck completion --help` for examples.
 
 ### Running in CI
 
@@ -448,24 +528,204 @@ Events • [↑↓] Navigate ─────────────────
 > ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
 
-### Manage connections
+### Event Gateway
 
-Create and manage webhook connections between sources and destinations with inline resource creation, authentication, processing rules, and lifecycle management. For detailed examples with authentication, filters, retry rules, and rate limiting, see the complete [connection management](#manage-connections) section below.
+The `hookdeck gateway` command provides full access to Hookdeck Event Gateway resources. Use these subcommands to manage infrastructure and inspect events:
+
+| Command group | Description |
+|---------------|-------------|
+| `hookdeck gateway connection` | Create and manage connections between sources and destinations |
+| `hookdeck gateway source` | Manage inbound webhook sources |
+| `hookdeck gateway destination` | Manage destinations (HTTP endpoints, CLI, etc.) |
+| `hookdeck gateway event` | List, get, retry, cancel, or mute events (processed deliveries) |
+| `hookdeck gateway request` | List, get, and retry requests (raw inbound webhooks) |
+| `hookdeck gateway attempt` | List and get delivery attempts |
+| `hookdeck gateway transformation` | Create and manage JavaScript transformations |
+
+**Examples:**
 
 ```sh
-hookdeck connection [command]
+# List sources and destinations
+hookdeck gateway source list
+hookdeck gateway destination list
+
+# List events (processed deliveries) and requests (raw inbound webhooks)
+hookdeck gateway event list --status FAILED
+hookdeck gateway request list --source-id src_abc123
+
+# List attempts for an event
+hookdeck gateway attempt list --event-id evt_abc123
+
+# Create a transformation and test-run it
+hookdeck gateway transformation create --name my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
+hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request '{"headers":{}}'
+```
+
+For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
+
+### Event Gateway MCP
+
+The CLI includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for investigating event traffic in production. It exposes read-only tools that let AI agents query your Hookdeck Event Gateway — inspect connections, trace requests through events and delivery attempts, review issues, and pull aggregate metrics.
+
+**Configure your MCP client** (Cursor, Claude Desktop, or any MCP-compatible host):
+
+Cursor (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp"]
+    }
+  }
+}
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp"]
+    }
+  }
+}
+```
+
+The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool is available to log in via the browser.
+
+#### Available tools
+
+| Tool | Description |
+|------|-------------|
+| `hookdeck_projects` | List projects or switch the active project for this session |
+| `hookdeck_connections` | Inspect connections and control delivery flow (list, get, pause, unpause) |
+| `hookdeck_sources` | Inspect inbound sources (HTTP endpoints that receive events) |
+| `hookdeck_destinations` | Inspect delivery destinations (HTTP endpoints where events are sent) |
+| `hookdeck_transformations` | Inspect JavaScript transformations applied to event payloads |
+| `hookdeck_requests` | Query inbound requests — list, get details, raw body, linked events |
+| `hookdeck_events` | Query processed events — list, get details, raw payload body |
+| `hookdeck_attempts` | Query delivery attempts — retry history, response codes, errors |
+| `hookdeck_issues` | Inspect aggregated failure signals (delivery failures, transform errors, backpressure) |
+| `hookdeck_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
+| `hookdeck_help` | Discover available tools and their actions |
+
+`hookdeck_events` and `hookdeck_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `hookdeck_help` with topic `hookdeck_events` or `hookdeck_requests` for the full parameter list.
+
+#### Example prompts
+
+Once the MCP server is configured, you can ask your agent questions like:
+
+```
+"Are any of my events failing right now?"
+→ Agent uses hookdeck_issues to list open issues, then hookdeck_events to inspect recent failures.
+
+"Show me the last 10 events for my Stripe source and check if any failed."
+→ Agent uses hookdeck_sources to find the Stripe source, then hookdeck_events filtered by source and status.
+
+"What's the error rate for my API destination over the last 24 hours?"
+→ Agent uses hookdeck_metrics with measures like failed_count and count, grouped by destination.
+
+"Trace request req_abc123 — what events did it produce, and did they all deliver successfully?"
+→ Agent uses hookdeck_requests to get the request, then the events action to list generated events.
+
+"Why is my checkout endpoint returning 500s? Show me the latest attempt details."
+→ Agent uses hookdeck_events filtered by status FAILED, then hookdeck_attempts to inspect delivery details.
+
+"Pause the connection between Stripe and my staging endpoint while I debug."
+→ Agent uses hookdeck_connections to find and pause the connection.
+
+"Compare failure rates across all my destinations this week."
+→ Agent uses hookdeck_metrics with dimensions set to destination_id and measures like error_rate.
+
+"Find Stripe charge.succeeded events from the last week."
+→ Agent uses hookdeck_events list with body filter {"type":"charge.succeeded"} and created_after / created_before ISO datetimes.
+
+"Show failed events that had delivery attempts in the last 24 hours."
+→ Agent uses hookdeck_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
+```
+
+### Manage connections
+
+Create and manage webhook connections between sources and destinations with inline resource creation, authentication, processing rules, and lifecycle management. Use `hookdeck gateway connection` (or the backward-compatible alias `hookdeck connection`). For detailed examples with authentication, filters, retry rules, and rate limiting, see the complete [connection management](#manage-connections) section below.
+
+```sh
+hookdeck gateway connection [command]
 
 # Available commands
-hookdeck connection list      # List all connections
-hookdeck connection get       # Get connection details
-hookdeck connection create    # Create a new connection
-hookdeck connection upsert    # Create or update a connection (idempotent)
-hookdeck connection delete    # Delete a connection
-hookdeck connection enable    # Enable a connection
-hookdeck connection disable   # Disable a connection
-hookdeck connection pause     # Pause a connection
-hookdeck connection unpause   # Unpause a connection
+hookdeck gateway connection list      # List all connections
+hookdeck gateway connection get       # Get connection details
+hookdeck gateway connection create    # Create a new connection
+hookdeck gateway connection upsert    # Create or update a connection (idempotent)
+hookdeck gateway connection update    # Update a connection
+hookdeck gateway connection delete    # Delete a connection
+hookdeck gateway connection enable    # Enable a connection
+hookdeck gateway connection disable   # Disable a connection
+hookdeck gateway connection pause     # Pause a connection
+hookdeck gateway connection unpause   # Unpause a connection
 ```
+
+#### Sources and destinations
+
+You can manage sources and destinations independently, not only inline when creating connections. Create reusable sources (e.g. Stripe, GitHub) and destinations (HTTP endpoints) that multiple connections can reference.
+
+```sh
+# List and inspect sources and destinations
+hookdeck gateway source list
+hookdeck gateway source get src_abc123
+
+hookdeck gateway destination list
+hookdeck gateway destination get dst_abc123
+
+# Create a standalone destination
+hookdeck gateway destination create --name "my-api" --type HTTP --url "https://api.example.com/webhooks"
+```
+
+See [Sources](REFERENCE.md#sources) and [Destinations](REFERENCE.md#destinations) in REFERENCE.md.
+
+### Transformations
+
+Transformations are JavaScript modules that modify requests before delivery. They are attached to connections and can add headers, transform the body, or filter events. Create, test, and manage transformations with `hookdeck gateway transformation`:
+
+```sh
+# Create a transformation
+hookdeck gateway transformation create --name my-transform --code "addHandler(\"transform\", (request, context) => { return request; });"
+
+# Test run transformation code (see transformed output)
+hookdeck gateway transformation run --code "addHandler(\"transform\", (request, context) => { return request; });" --request '{"headers":{}}'
+
+# List and use with connections (--transformation-name when creating connections)
+hookdeck gateway transformation list
+```
+
+See [Transformations](REFERENCE.md#transformations) in REFERENCE.md.
+
+### Requests, events, and attempts
+
+Webhooks flow through Hookdeck as **requests** (raw inbound), then **events** (processed, routed), then **attempts** (delivery tries). Use these commands to inspect, filter, and retry:
+
+```sh
+# List requests (raw inbound webhooks) and filter by source
+hookdeck gateway request list --source-id src_abc123
+hookdeck gateway request get req_abc123
+
+# List events (processed deliveries) by status
+hookdeck gateway event list --status FAILED
+hookdeck gateway event list --status PENDING
+hookdeck gateway event get evt_abc123
+
+# Retry a failed event or request
+hookdeck gateway event retry evt_abc123
+hookdeck gateway request retry req_abc123
+
+# List attempts (individual delivery tries) for an event
+hookdeck gateway attempt list --event-id evt_abc123
+```
+
+See [Requests](REFERENCE.md#requests), [Events](REFERENCE.md#events), and [Attempts](REFERENCE.md#attempts) in REFERENCE.md.
 
 ### Manage active project
 
@@ -514,7 +774,7 @@ By default, `project use` saves your selection to the **global configuration** (
 
 The CLI uses exactly one configuration file based on this precedence:
 
-1. **Custom config** (via `--config` flag) - highest priority
+1. **Custom config** (via `--hookdeck-config` flag) - highest priority
 2. **Local config** - `${PWD}/.hookdeck/config.toml` (if exists)
 3. **Global config** - `~/.config/hookdeck/config.toml` (default)
 
@@ -564,11 +824,11 @@ This ensures your directory-specific configuration is preserved when it exists.
 hookdeck project use my-org my-project
 hookdeck project use my-org my-project --local
 
-# ❌ Invalid (cannot combine --config with --local)
-hookdeck --config custom.toml project use my-org my-project --local
-Error: --local and --config flags cannot be used together
+# ❌ Invalid (cannot combine --hookdeck-config with --local)
+hookdeck --hookdeck-config custom.toml project use my-org my-project --local
+Error: --local and --hookdeck-config flags cannot be used together
   --local creates config at: .hookdeck/config.toml
-  --config uses custom path: custom.toml
+  --hookdeck-config uses custom path: custom.toml
 ```
 
 #### Benefits of local project pinning
@@ -634,7 +894,7 @@ Create a new connection between a source and destination. You can create the sou
 
 ```sh
 # Basic connection with inline source and destination
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "github-repo" \
   --source-type GITHUB \
   --destination-name "ci-system" \
@@ -648,9 +908,9 @@ Source URL: https://hkdk.events/src_xyz789
 Destination: ci-system (dst_def456)
 
 # Using existing source and destination
-$ hookdeck connection create \
-  --source "existing-source-name" \
-  --destination "existing-dest-name" \
+$ hookdeck gateway connection create \
+  --source-id src_existing123 \
+  --destination-id dst_existing456 \
   --name "new-connection" \
   --description "Connects existing resources"
 ```
@@ -661,7 +921,7 @@ Verify webhooks from providers like Stripe, GitHub, or Shopify by adding source 
 
 ```sh
 # Stripe webhook signature verification
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "stripe-prod" \
   --source-type STRIPE \
   --source-webhook-secret "whsec_abc123xyz" \
@@ -670,7 +930,7 @@ $ hookdeck connection create \
   --destination-url "https://api.example.com/webhooks/stripe"
 
 # GitHub webhook signature verification
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "github-webhooks" \
   --source-type GITHUB \
   --source-webhook-secret "ghp_secret123" \
@@ -685,7 +945,7 @@ Secure your destination endpoint with bearer tokens, API keys, or basic authenti
 
 ```sh
 # Destination with bearer token
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "webhook-source" \
   --source-type HTTP \
   --destination-name "secure-api" \
@@ -694,7 +954,7 @@ $ hookdeck connection create \
   --destination-bearer-token "bearer_token_xyz"
 
 # Destination with API key
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "webhook-source" \
   --source-type HTTP \
   --destination-name "api-endpoint" \
@@ -703,7 +963,7 @@ $ hookdeck connection create \
   --destination-api-key "your_api_key"
 
 # Destination with custom headers
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "webhook-source" \
   --source-type HTTP \
   --destination-name "custom-api" \
@@ -717,7 +977,7 @@ Add automatic retry logic with exponential or linear backoff:
 
 ```sh
 # Exponential backoff retry strategy
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "payment-webhooks" \
   --source-type STRIPE \
   --destination-name "payment-api" \
@@ -734,7 +994,7 @@ Filter events based on request body, headers, path, or query parameters:
 
 ```sh
 # Filter by event type in body
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "events" \
   --source-type HTTP \
   --destination-name "processor" \
@@ -743,7 +1003,7 @@ $ hookdeck connection create \
   --rule-filter-body '{"event_type":"payment.succeeded"}'
 
 # Combined filtering
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "shopify-webhooks" \
   --source-type SHOPIFY \
   --destination-name "order-processor" \
@@ -760,7 +1020,7 @@ Control the rate of event delivery to your destination:
 
 ```sh
 # Limit to 100 requests per minute
-$ hookdeck connection create \
+$ hookdeck gateway connection create \
   --source-name "high-volume-source" \
   --source-type HTTP \
   --destination-name "rate-limited-api" \
@@ -776,7 +1036,7 @@ Create or update connections idempotently based on connection name - perfect for
 
 ```sh
 # Create if doesn't exist, update if it does
-$ hookdeck connection upsert my-connection \
+$ hookdeck gateway connection upsert my-connection \
   --source-name "stripe-prod" \
   --source-type STRIPE \
   --destination-name "api-prod" \
@@ -784,12 +1044,12 @@ $ hookdeck connection upsert my-connection \
   --destination-url "https://api.example.com"
 
 # Partial update of existing connection
-$ hookdeck connection upsert my-connection \
+$ hookdeck gateway connection upsert my-connection \
   --description "Updated description" \
   --rule-retry-count 5
 
 # Preview changes without applying (dry-run)
-$ hookdeck connection upsert my-connection \
+$ hookdeck gateway connection upsert my-connection \
   --description "New description" \
   --dry-run
 
@@ -804,20 +1064,20 @@ View all connections with flexible filtering options:
 
 ```sh
 # List all connections
-$ hookdeck connection list
+$ hookdeck gateway connection list
 
 # Filter by source or destination
-$ hookdeck connection list --source src_abc123
-$ hookdeck connection list --destination dest_xyz789
+$ hookdeck gateway connection list --source-id src_abc123
+$ hookdeck gateway connection list --destination-id dst_def456
 
 # Filter by name pattern
-$ hookdeck connection list --name "production-*"
+$ hookdeck gateway connection list --name "production-*"
 
 # Include disabled connections
-$ hookdeck connection list --disabled
+$ hookdeck gateway connection list --disabled
 
 # Output as JSON
-$ hookdeck connection list --output json
+$ hookdeck gateway connection list --output json
 ```
 
 #### Get connection details
@@ -826,13 +1086,16 @@ View detailed information about a specific connection:
 
 ```sh
 # Get by ID
-$ hookdeck connection get conn_123abc
+$ hookdeck gateway connection get conn_123abc
 
 # Get by name
-$ hookdeck connection get "my-connection"
+$ hookdeck gateway connection get "my-connection"
 
 # Get as JSON
-$ hookdeck connection get conn_123abc --output json
+$ hookdeck gateway connection get conn_123abc --output json
+
+# Include destination authentication credentials
+$ hookdeck gateway connection get conn_123abc --include-destination-auth --output json
 ```
 
 #### Connection lifecycle management
@@ -841,16 +1104,16 @@ Control connection state and event processing behavior:
 
 ```sh
 # Disable a connection (stops receiving events entirely)
-$ hookdeck connection disable conn_123abc
+$ hookdeck gateway connection disable conn_123abc
 
 # Enable a disabled connection
-$ hookdeck connection enable conn_123abc
+$ hookdeck gateway connection enable conn_123abc
 
 # Pause a connection (queues events without forwarding)
-$ hookdeck connection pause conn_123abc
+$ hookdeck gateway connection pause conn_123abc
 
 # Resume a paused connection
-$ hookdeck connection unpause conn_123abc
+$ hookdeck gateway connection unpause conn_123abc
 ```
 
 **State differences:**
@@ -863,16 +1126,30 @@ Delete a connection permanently:
 
 ```sh
 # Delete with confirmation prompt
-$ hookdeck connection delete conn_123abc
+$ hookdeck gateway connection delete conn_123abc
 
 # Delete by name
-$ hookdeck connection delete "my-connection"
+$ hookdeck gateway connection delete "my-connection"
 
 # Skip confirmation
-$ hookdeck connection delete conn_123abc --force
+$ hookdeck gateway connection delete conn_123abc --force
 ```
 
-For complete flag documentation and all examples, see the [CLI reference](https://hookdeck.com/docs/cli?ref=github-hookdeck-cli).
+For complete flag documentation and all examples, see [REFERENCE.md](REFERENCE.md).
+
+### Telemetry
+
+The Hookdeck CLI collects anonymous telemetry to help improve the tool. You can opt out at any time:
+
+```sh
+# Disable telemetry
+hookdeck telemetry disabled
+
+# Re-enable telemetry
+hookdeck telemetry enabled
+```
+
+You can also disable telemetry by setting the `HOOKDECK_CLI_TELEMETRY_DISABLED` environment variable to `1` or `true`.
 
 ## Configuration files
 
@@ -882,9 +1159,10 @@ The Hookdeck CLI uses configuration files to store the your keys, project settin
 
 The CLI will look for the configuration file in the following order:
 
-1. The `--config` flag, which allows you to specify a custom configuration file name and path per command.
-2. The local directory `.hookdeck/config.toml`.
-3. The default global configuration file location.
+1. The `--hookdeck-config` flag, which allows you to specify a custom configuration file path per command.
+2. The `HOOKDECK_CONFIG_FILE` environment variable (path to the config file).
+3. The local directory `.hookdeck/config.toml`.
+4. The default global configuration file location.
 
 ### Default configuration Location
 
@@ -959,7 +1237,7 @@ The following flags can be used with any command:
 
 - `--api-key`: Your API key to use for the command.
 - `--color`: Turn on/off color output (on, off, auto).
-- `--config`: Path to a specific configuration file.
+- `--hookdeck-config`: Path to the CLI configuration file. You can also set the `HOOKDECK_CONFIG_FILE` environment variable to the config file path.
 - `--device-name`: A unique name for your device.
 - `--insecure`: Allow invalid TLS certificates.
 - `--log-level`: Set the logging level (debug, info, warn, error).
@@ -974,21 +1252,40 @@ There are also some hidden flags that are mainly used for development and debugg
 
 ## Troubleshooting
 
-### Homebrew: Binary Already Exists Error
+### Homebrew: migrating from the third-party tap to homebrew-core
 
-If you previously installed Hookdeck via the Homebrew formula and are upgrading to the cask version, you may see:
+The stable `hookdeck` formula now lives in [homebrew-core](https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/h/hookdeck.rb). The third-party `hookdeck/hookdeck` tap publishes only the beta formula.
 
-```
-Warning: It seems there is already a Binary at '/opt/homebrew/bin/hookdeck'
-from formula hookdeck; skipping link.
-```
+If you installed via the tap, the move is automatic: `brew update && brew upgrade` will pull the next stable version from homebrew-core. No action needed.
 
-To resolve this, uninstall the old formula version first, then install the cask:
+If you want to switch immediately:
 
 ```sh
-brew uninstall hookdeck
-brew install --cask hookdeck/hookdeck/hookdeck
+brew update
+brew upgrade hookdeck
 ```
+
+### Homebrew: `hookdeck` and `hookdeck-beta` conflict on link
+
+Both formulae install a binary called `hookdeck`, so only one can be linked at a time. Switching between them requires `--overwrite`:
+
+```sh
+# Switch from beta to stable
+brew link --overwrite hookdeck
+
+# Switch from stable to beta
+brew link --overwrite hookdeck-beta
+```
+
+### Homebrew: beta install asks for a `brew trust` step
+
+Once [`HOMEBREW_REQUIRE_TAP_TRUST`](https://docs.brew.sh/Taps) becomes the default in Homebrew 5.2.0 / 6.0.0, installing the beta from the third-party tap requires:
+
+```sh
+brew trust --formula hookdeck/hookdeck/hookdeck-beta
+```
+
+The stable formula lives in homebrew-core and is unaffected.
 
 
 ## Developing
@@ -997,6 +1294,20 @@ Running from source:
 
 ```sh
 go run main.go
+```
+
+### Generating REFERENCE.md
+
+The [REFERENCE.md](REFERENCE.md) file is generated from Cobra command metadata. After changing commands, flags, or help text, regenerate it in place:
+
+```sh
+go run ./tools/generate-reference
+```
+
+To validate that REFERENCE.md is up to date (useful in CI):
+
+```sh
+go run ./tools/generate-reference --check
 ```
 
 Build from source by running:
@@ -1010,6 +1321,46 @@ Then run the locally generated `hookdeck-cli` binary:
 ```sh
 ./hookdeck-cli
 ```
+
+### Testing the npm package build
+
+To test the npm package build process locally (including the wrapper script), you can use the automated test script:
+
+```sh
+# Run the automated test script (recommended)
+./test-scripts/test-npm-build.sh
+```
+
+The test script will:
+- Build all 6 platform binaries using GoReleaser
+- Verify the binaries directory structure
+- Test the wrapper script on your current platform
+- Verify npm pack includes all required files
+
+**Manual testing (if you prefer step-by-step):**
+
+```sh
+# Install GoReleaser (if not already installed)
+# Option 1: Using Homebrew (recommended on macOS)
+brew install goreleaser
+
+# Option 2: Download binary from GitHub releases
+# Visit https://github.com/goreleaser/goreleaser/releases/latest
+
+# Build all platform binaries for npm
+goreleaser build -f .goreleaser/npm.yml --snapshot --clean
+
+# Verify binaries directory structure
+ls -R binaries/
+
+# Test the wrapper script on your platform
+node bin/hookdeck.js --version
+
+# Test npm package creation (dry-run)
+npm pack --dry-run
+```
+
+This will create the `binaries/` directory with all 6 platform binaries, allowing you to test the wrapper script locally before publishing.
 
 ## Testing
 
@@ -1045,6 +1396,36 @@ In CI environments, set the `HOOKDECK_CLI_TESTING_API_KEY` environment variable 
 
 For detailed testing documentation and troubleshooting, see [`test/acceptance/README.md`](test/acceptance/README.md).
 
+### Testing npm package and wrapper script
+
+The npm package includes a wrapper script (`bin/hookdeck.js`) that detects the platform and executes the correct binary. 
+
+**Quick test (using automated script):**
+
+```sh
+./test-scripts/test-npm-build.sh
+```
+
+**Manual testing:**
+
+```sh
+# Ensure GoReleaser is installed (see "Testing the npm package build" section above)
+
+# Build all platform binaries
+goreleaser build -f .goreleaser/npm.yml --snapshot --clean
+
+# Test wrapper script on current platform
+node bin/hookdeck.js version
+
+# Verify wrapper script can find binary
+node bin/hookdeck.js --help
+
+# Test npm pack includes all files
+npm pack --dry-run | grep -E "(bin/hookdeck.js|binaries/)"
+```
+
+**Note:** The wrapper script expects binaries in `binaries/{platform}-{arch}/hookdeck[.exe]`. When building locally, ensure all platforms are built or the wrapper will fail for missing platforms.
+
 ### Testing against a local API
 
 When testing against a non-production Hookdeck API, you can use the
@@ -1065,42 +1446,78 @@ docker run --rm -it \
     http://host.docker.internal:1234
 ```
 
+### Testing the published npm package
+
+To verify that the published npm package installs correctly and has the expected layout (wrapper script and platform binaries), use the local test script. It installs into a controlled directory (no global install) and runs the same checks as the `test-npm-install` CI workflow.
+
+```sh
+# Test with @latest (default)
+./test-scripts/test-npm-install-local.sh
+
+# Test with a specific version or tag
+./test-scripts/test-npm-install-local.sh 1.7.1
+./test-scripts/test-npm-install-local.sh @beta
+```
+
+Install output is written to `test-scripts/.install-test/` (gitignored).
+
 ## Releasing
 
-This section describes the branching strategy and release process for the Hookdeck CLI.
+This section describes the release process for the Hookdeck CLI.
 
-### Branching Strategy
+Maintainers using AI assistants: see **[skills/hookdeck-cli-release/](skills/hookdeck-cli-release/)** for the release skill (automation details and release-note workflow).
 
-The project uses two primary branches:
+## Release Process
 
-- **`main`** - The stable, production-ready branch. All production releases are created from this branch.
-- **`next`** - The beta/pre-release branch. All new features are merged here first for testing before being promoted to `main`.
+The release workflow supports tagging from **ANY branch** - it automatically detects which branch contains the tag. This means you can create beta releases directly from feature branches for testing before merging to `main`.
 
-### Beta Releases
+### Stable Release (Preferred Method: GitHub UI)
 
-Beta releases allow you to publish pre-release versions for testing without blocking the `main` branch or affecting stable releases.
+1. Ensure all tests pass on `main`
+2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
+3. Click "Draft a new release"
+4. Create a new tag with a stable version (e.g., `v1.3.0`)
+5. Target the `main` branch
+6. Generate release notes or write them manually
+7. Publish the release
 
-**Process:**
+The GitHub Actions workflow will automatically:
+- Build binaries for all platforms
+- Create a stable GitHub release
+- Publish to NPM with the `latest` tag
+- Update package managers:
+  - Homebrew: stable formula in [homebrew-core](https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/h/hookdeck.rb) is auto-bumped by Homebrew's BrewTestBot (no action from us; runs every ~3 hours after the tag is published). The `hookdeck-beta` formula in our third-party tap is updated only on pre-release tags.
+  - Scoop: `hookdeck` package
+  - Docker: Updates both the version tag and `latest`
 
-1. Ensure all desired features are merged into the `next` branch
-2. Pull the latest changes locally:
-   ```sh
-   git checkout next
-   git pull origin next
-   ```
-3. Create and push a beta tag with a pre-release identifier:
-   ```sh
-   git tag v1.2.3-beta.0
-   git push origin v1.2.3-beta.0
-   ```
-4. The GitHub Actions workflow will automatically:
-   - Build binaries for all platforms (macOS, Linux, Windows)
-   - Create a GitHub pre-release (marked as "Pre-release")
-   - Publish to NPM with the `beta` tag
-   - Create beta packages:
-     - Homebrew: `hookdeck-beta` formula
-     - Scoop: `hookdeck-beta` package
-     - Docker: Tagged with the version (e.g., `v1.2.3-beta.0`), but not `latest`
+**Alternative (Command Line):**
+```bash
+git checkout main
+git tag v1.3.0
+git push origin v1.3.0
+# Then create release notes on GitHub Releases page
+```
+
+### Pre-release from Main (General Beta Testing)
+
+For general beta testing of features that have been merged to `main`:
+
+**Preferred Method: GitHub UI**
+1. Ensure `main` branch is in the desired state
+2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
+3. Click "Draft a new release"
+4. Create a new tag with pre-release version (e.g., `v1.3.0-beta.1`)
+5. Target the `main` branch
+6. Check "Set as a pre-release"
+7. Publish the release
+8. GitHub Actions will build and publish with npm tag `beta`
+
+**Alternative (Command Line):**
+```bash
+git checkout main
+git tag v1.3.0-beta.1
+git push origin v1.3.0-beta.1
+```
 
 **Installing beta releases:**
 
@@ -1118,57 +1535,7 @@ brew install hookdeck/hookdeck/hookdeck-beta
 scoop install hookdeck-beta
 
 # Docker
-docker run hookdeck/hookdeck-cli:v1.2.3-beta.0 version
-```
-
-## Release Process
-
-The release workflow supports tagging from ANY branch - it automatically detects which branch contains the tag.
-
-### Stable Release (Preferred Method: GitHub UI)
-
-1. Ensure all tests pass on `main`
-2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
-3. Click "Draft a new release"
-4. Create a new tag with a stable version (e.g., `v1.3.0`)
-5. Target the `main` branch
-6. Generate release notes or write them manually
-7. Publish the release
-
-The GitHub Actions workflow will automatically:
-- Build binaries for all platforms
-- Create a stable GitHub release
-- Publish to NPM with the `latest` tag
-- Update package managers:
-  - Homebrew: `hookdeck` formula
-  - Scoop: `hookdeck` package
-  - Docker: Updates both the version tag and `latest`
-
-**Alternative (Command Line):**
-```bash
-git checkout main
-git tag v1.3.0
-git push origin v1.3.0
-# Then create release notes on GitHub Releases page
-```
-
-### Pre-release from Main (General Beta Testing)
-
-**Preferred Method: GitHub UI**
-1. Ensure `main` branch is in the desired state
-2. Go to the [GitHub Releases page](https://github.com/hookdeck/hookdeck-cli/releases)
-3. Click "Draft a new release"
-4. Create a new tag with pre-release version (e.g., `v1.3.0-beta.1`)
-5. Target the `main` branch
-6. Check "Set as a pre-release"
-7. Publish the release
-8. GitHub Actions will build and publish with npm tag `beta`
-
-**Alternative (Command Line):**
-```bash
-git checkout main
-git tag v1.3.0-beta.1
-git push origin v1.3.0-beta.1
+docker run hookdeck/hookdeck-cli:v1.3.0-beta.1 version
 ```
 
 ### Pre-release from Feature Branch (Feature-Specific Testing)
@@ -1192,6 +1559,25 @@ git checkout feat/my-feature
 git tag v1.3.0-beta.1
 git push origin v1.3.0-beta.1
 # Then create release notes on GitHub Releases page
+```
+
+**Installing beta releases:**
+
+```sh
+# NPM
+npm install hookdeck-cli@beta -g
+
+# Homebrew
+brew install hookdeck/hookdeck/hookdeck-beta
+
+# To force the symlink update and overwrite all conflicting files:
+# brew link --overwrite hookdeck-beta
+
+# Scoop
+scoop install hookdeck-beta
+
+# Docker
+docker run hookdeck/hookdeck-cli:v1.3.0-beta.1 version
 ```
 
 **Note:** Only stable releases (without pre-release identifiers like `-beta`, `-alpha`) will update the `latest` tags across all distribution channels.

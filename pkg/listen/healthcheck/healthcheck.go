@@ -1,6 +1,7 @@
 package healthcheck
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/url"
@@ -27,11 +28,14 @@ type HealthCheckResult struct {
 	Duration  time.Duration
 }
 
-// CheckServerHealth performs a TCP connection check to verify a server is listening.
+// CheckServerHealth performs a connection check to verify a server is listening.
+// For HTTPS URLs, it performs a TLS handshake to avoid incomplete handshake warnings
+// on the server side. The insecure parameter controls whether to skip TLS certificate
+// verification (matching the --insecure flag behavior for webhook forwarding).
 // The timeout parameter should be appropriate for the deployment context:
 // - Local development: 3s is typically sufficient
 // - Production/edge: May require longer timeouts due to network conditions
-func CheckServerHealth(targetURL *url.URL, timeout time.Duration) HealthCheckResult {
+func CheckServerHealth(targetURL *url.URL, timeout time.Duration, insecure bool) HealthCheckResult {
 	start := time.Now()
 
 	host := targetURL.Hostname()
@@ -48,7 +52,23 @@ func CheckServerHealth(targetURL *url.URL, timeout time.Duration) HealthCheckRes
 
 	address := net.JoinHostPort(host, port)
 
-	conn, err := net.DialTimeout("tcp", address, timeout)
+	var conn net.Conn
+	var err error
+
+	if targetURL.Scheme == "https" {
+		// Use TLS connection for HTTPS endpoints to complete handshake properly
+		// and avoid TLS handshake warnings on the server
+		dialer := &net.Dialer{Timeout: timeout}
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: insecure,
+			ServerName:         host,
+		}
+		conn, err = tls.DialWithDialer(dialer, "tcp", address, tlsConfig)
+	} else {
+		// Use plain TCP for HTTP endpoints
+		conn, err = net.DialTimeout("tcp", address, timeout)
+	}
+
 	duration := time.Since(start)
 
 	result := HealthCheckResult{

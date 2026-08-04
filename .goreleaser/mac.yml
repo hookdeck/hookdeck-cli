@@ -13,7 +13,7 @@ builds:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     binary: hookdeck
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     main: ./main.go
     goos:
       - darwin
@@ -23,6 +23,8 @@ builds:
     ldflags:
       - -s -w -X github.com/hookdeck/hookdeck-cli/pkg/version.Version={{.Version}}
     binary: hookdeck
+    env:
+      - CGO_ENABLED=0
     main: ./main.go
     goos:
       - darwin
@@ -45,7 +47,12 @@ archives:
       - README*
       - CHANGELOG*
 brews:
-  - name: "{{ if .Prerelease }}hookdeck-beta{{ else }}hookdeck{{ end }}"
+  # Stable releases are published to homebrew-core via Homebrew's autobump
+  # (BrewTestBot opens version-bump PRs after each tagged release). The
+  # third-party tap publishes only the beta channel — homebrew-core does
+  # not accept pre-releases, so the `hookdeck-beta` formula lives here.
+  - name: hookdeck-beta
+    skip_upload: "{{ if not .Prerelease }}true{{ end }}"
     ids:
       - hookdeck
     repository:
@@ -54,21 +61,20 @@ brews:
     directory: Formula
     homepage: https://hookdeck.com
     description: Receive events (e.g. webhooks) on your localhost with event history, replay, and team collaboration
-    
+
     install: |
       bin.install "hookdeck"
-      
+
       # Install completions from pre-generated files
       bash_completion.install "completions/hookdeck.bash" => "hookdeck"
       zsh_completion.install "completions/_hookdeck"
-    
+
     caveats: |
-      ❤ Thanks for installing the Hookdeck CLI!
-      {{ if .Prerelease }}
+      ❤ Thanks for installing the Hookdeck CLI beta!
+
       ⚠️  You are using a BETA version. Report issues at:
         https://github.com/hookdeck/hookdeck-cli/issues
-      {{ end }}
-      
+
       If this is your first time using the CLI, run:
         hookdeck login
 

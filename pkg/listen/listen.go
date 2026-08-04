@@ -29,12 +29,12 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/proxy"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
 	log "github.com/sirupsen/logrus"
 )
 
 type Flags struct {
 	NoWSS          bool
+	NoHealthcheck  bool
 	Path           string
 	MaxConnections int
 	Output         string
@@ -77,14 +77,14 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 		guestURL = config.Profile.GuestURL
 	}
 
-	sdkClient := config.GetClient()
+	apiClient := config.GetAPIClient()
 
-	sources, err := getSources(sdkClient, sourceAliases)
+	sources, err := getSources(apiClient, sourceAliases)
 	if err != nil {
 		return err
 	}
 
-	connections, err := getConnections(sdkClient, sources, connectionFilterString, isMultiSource, flags.Path)
+	connections, err := getConnections(apiClient, sources, connectionFilterString, isMultiSource, flags.Path)
 	if err != nil {
 		return err
 	}
@@ -92,29 +92,31 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 	if len(flags.Path) != 0 && len(connections) > 1 {
 		return errors.New(fmt.Errorf(`Multiple CLI destinations found. Cannot set the path on multiple destinations.
 Specify a single destination to update the path. For example, pass a connection name:
-			
+
   hookdeck listen %s %s %s --path %s`, URL.String(), sources[0].Name, "<connection>", flags.Path).Error())
 	}
 
 	// If the "--path" flag has been passed and the destination has a current cli path value but it's different, update destination path
+	currentCLIPath := connections[0].Destination.GetCLIPath()
 	if len(flags.Path) != 0 &&
 		len(connections) == 1 &&
-		*connections[0].Destination.CliPath != "" &&
-		*connections[0].Destination.CliPath != flags.Path {
+		currentCLIPath != nil && *currentCLIPath != "" &&
+		*currentCLIPath != flags.Path {
 
-		updateMsg := fmt.Sprintf("Updating destination CLI path from \"%s\" to \"%s\"", *connections[0].Destination.CliPath, flags.Path)
+		updateMsg := fmt.Sprintf("Updating destination CLI path from \"%s\" to \"%s\"", *currentCLIPath, flags.Path)
 		log.Debug(updateMsg)
 
-		path := flags.Path
-		_, err := sdkClient.Destination.Update(context.Background(), connections[0].Destination.Id, &hookdecksdk.DestinationUpdateRequest{
-			CliPath: hookdecksdk.Optional(path),
+		_, err := apiClient.UpdateDestination(context.Background(), connections[0].Destination.ID, &hookdeck.DestinationUpdateRequest{
+			Config: map[string]interface{}{
+				"path": flags.Path,
+			},
 		})
 
 		if err != nil {
 			return err
 		}
 
-		connections[0].Destination.CliPath = &path
+		connections[0].Destination.SetCLIPath(flags.Path)
 	}
 
 	sources = getRelevantSources(sources, connections)
@@ -123,28 +125,30 @@ Specify a single destination to update the path. For example, pass a connection 
 		return err
 	}
 
-	// Perform initial health check on target server
+	// Perform initial health check on target server (unless disabled)
 	// Using 3-second timeout optimized for local development scenarios.
 	// This assumes low latency to localhost. For production/edge deployments,
 	// this timeout may need to be configurable in future iterations.
-	healthCheckTimeout := 3 * time.Second
-	healthResult := CheckServerHealth(URL, healthCheckTimeout)
+	if !flags.NoHealthcheck {
+		healthCheckTimeout := 3 * time.Second
+		healthResult := CheckServerHealth(URL, healthCheckTimeout, config.Insecure)
 
-	// For all output modes, warn if server isn't reachable
-	if !healthResult.Healthy {
-		warningMsg := FormatHealthMessage(healthResult, URL)
+		// For all output modes, warn if server isn't reachable
+		if !healthResult.Healthy {
+			warningMsg := FormatHealthMessage(healthResult, URL)
 
-		if flags.Output == "interactive" {
-			// Interactive mode will show warning before TUI starts
-			fmt.Println()
-			fmt.Println(warningMsg)
-			fmt.Println()
-			time.Sleep(500 * time.Millisecond) // Give user time to see warning before TUI starts
-		} else {
-			// Compact/quiet modes: print warning before connection info
-			fmt.Println()
-			fmt.Println(warningMsg)
-			fmt.Println()
+			if flags.Output == "interactive" {
+				// Interactive mode will show warning before TUI starts
+				fmt.Println()
+				fmt.Println(warningMsg)
+				fmt.Println()
+				time.Sleep(500 * time.Millisecond) // Give user time to see warning before TUI starts
+			} else {
+				// Compact/quiet modes: print warning before connection info
+				fmt.Println()
+				fmt.Println(warningMsg)
+				fmt.Println()
+			}
 		}
 	}
 
@@ -168,6 +172,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		ConsoleBaseURL:   config.ConsoleBaseURL,
 		WSBaseURL:        config.WSBaseURL,
 		NoWSS:            flags.NoWSS,
+		NoHealthcheck:    flags.NoHealthcheck,
 		URL:              URL,
 		Log:              log.StandardLogger(),
 		Insecure:         config.Insecure,
@@ -175,6 +180,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		GuestURL:         guestURL,
 		MaxConnections:   flags.MaxConnections,
 		Filters:          flags.Filters,
+		APIClient:        apiClient,
 	}
 
 	// Create renderer based on output mode
@@ -192,6 +198,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		Sources:          sources,
 		Connections:      connections,
 		Filters:          flags.Filters,
+		APIClient:        apiClient,
 	}
 
 	renderer := proxy.NewRenderer(rendererCfg)
@@ -238,7 +245,7 @@ func isPath(value string) (bool, error) {
 	return is_path, err
 }
 
-func validateData(sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection) error {
+func validateData(sources []*hookdeck.Source, connections []*hookdeck.Connection) error {
 	if len(connections) == 0 {
 		return errors.New("no matching connections found")
 	}
@@ -246,17 +253,17 @@ func validateData(sources []*hookdecksdk.Source, connections []*hookdecksdk.Conn
 	return nil
 }
 
-func getRelevantSources(sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection) []*hookdecksdk.Source {
-	relevantSourceId := map[string]bool{}
+func getRelevantSources(sources []*hookdeck.Source, connections []*hookdeck.Connection) []*hookdeck.Source {
+	relevantSourceID := map[string]bool{}
 
 	for _, connection := range connections {
-		relevantSourceId[connection.Source.Id] = true
+		relevantSourceID[connection.Source.ID] = true
 	}
 
-	relevantSources := []*hookdecksdk.Source{}
+	relevantSources := []*hookdeck.Source{}
 
 	for _, source := range sources {
-		if relevantSourceId[source.Id] {
+		if relevantSourceID[source.ID] {
 			relevantSources = append(relevantSources, source)
 		}
 	}

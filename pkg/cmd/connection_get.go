@@ -17,7 +17,9 @@ import (
 type connectionGetCmd struct {
 	cmd *cobra.Command
 
-	output string
+	output                 string
+	includeSourceAuth      bool
+	includeDestinationAuth bool
 }
 
 func newConnectionGetCmd() *connectionGetCmd {
@@ -26,21 +28,24 @@ func newConnectionGetCmd() *connectionGetCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "get <connection-id-or-name>",
 		Args:  validators.ExactArgs(1),
-		Short: "Get connection details",
-		Long: `Get detailed information about a specific connection.
-
-You can specify either a connection ID or name.
+		Short: ShortGet(ResourceConnection),
+		Long: LongGetIntro(ResourceConnection) + `
 
 Examples:
 	 # Get connection by ID
-	 hookdeck connection get conn_abc123
+	 hookdeck gateway connection get conn_abc123
 	 
 	 # Get connection by name
-	 hookdeck connection get my-connection`,
+	 hookdeck gateway connection get my-connection`,
 		RunE: cc.runConnectionGetCmd,
+	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id-or-name","type":"string","description":"Connection ID or name","required":true}]`,
 	}
 
 	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	addIncludeSourceAuthFlagForConnection(cc.cmd, &cc.includeSourceAuth)
+	addIncludeDestinationAuthFlag(cc.cmd, &cc.includeDestinationAuth)
 
 	return cc
 }
@@ -64,6 +69,22 @@ func (cc *connectionGetCmd) runConnectionGetCmd(cmd *cobra.Command, args []strin
 	conn, err := apiClient.GetConnection(ctx, connectionID)
 	if err != nil {
 		return formatConnectionError(err, connectionIDOrName)
+	}
+
+	// The connections API does not support include=config.auth, so when
+	// --include-source-auth or --include-destination-auth is requested we fetch
+	// the source or destination directly with ?include=config.auth and merge.
+	if cc.includeSourceAuth && conn.Source != nil {
+		src, err := apiClient.GetSource(ctx, conn.Source.ID, includeAuthParams(true))
+		if err == nil {
+			conn.Source = src
+		}
+	}
+	if cc.includeDestinationAuth && conn.Destination != nil {
+		dest, err := apiClient.GetDestination(ctx, conn.Destination.ID, includeAuthParams(true))
+		if err == nil {
+			conn.Destination = dest
+		}
 	}
 
 	if cc.output == "json" {
@@ -166,12 +187,10 @@ func resolveConnectionID(ctx context.Context, client *hookdeck.Client, nameOrID 
 			return nameOrID, nil
 		}
 		// If we get a 404, fall through to name lookup
-		// For other errors, format and return the error
-		errMsg := strings.ToLower(err.Error())
-		if !strings.Contains(errMsg, "404") && !strings.Contains(errMsg, "not found") {
+		// For other errors, return the error directly
+		if !hookdeck.IsNotFoundError(err) {
 			return "", err
 		}
-		// 404 on ID lookup - fall through to try name lookup
 	}
 
 	// Try to find by name
@@ -197,13 +216,11 @@ func resolveConnectionID(ctx context.Context, client *hookdeck.Client, nameOrID 
 
 // formatConnectionError provides user-friendly error messages for connection get failures
 func formatConnectionError(err error, identifier string) error {
-	errMsg := err.Error()
-
-	// Check for 404/not found errors (case-insensitive)
-	errMsgLower := strings.ToLower(errMsg)
-	if strings.Contains(errMsgLower, "404") || strings.Contains(errMsgLower, "not found") {
+	if hookdeck.IsNotFoundError(err) {
 		return fmt.Errorf("connection not found: '%s'\n\nPlease check the connection name or ID and try again", identifier)
 	}
+
+	errMsg := err.Error()
 
 	// Check for network/timeout errors
 	if strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "connection refused") {

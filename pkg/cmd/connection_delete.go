@@ -21,17 +21,20 @@ func newConnectionDeleteCmd() *connectionDeleteCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "delete <connection-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Delete a connection",
-		Long: `Delete a connection.
+		Short: ShortDelete(ResourceConnection),
+		Long: LongDeleteIntro(ResourceConnection) + `
 
 Examples:
   # Delete a connection (with confirmation)
-  hookdeck connection delete conn_abc123
+  hookdeck gateway connection delete conn_abc123
 
   # Force delete without confirmation
-  hookdeck connection delete conn_abc123 --force`,
+  hookdeck gateway connection delete conn_abc123 --force`,
 		PreRunE: cc.validateFlags,
 		RunE:    cc.runConnectionDeleteCmd,
+	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
 	}
 
 	cc.cmd.Flags().BoolVar(&cc.force, "force", false, "Force delete without confirmation")
@@ -80,7 +83,7 @@ func (cc *connectionDeleteCmd) runConnectionDeleteCmd(cmd *cobra.Command, args [
 		return fmt.Errorf("failed to delete connection: %w", err)
 	}
 
-	fmt.Printf("\n✓ Connection '%s' (%s) deleted successfully\n", connectionName, connectionID)
+	fmt.Printf("\n"+SuccessCheck+" Connection '%s' (%s) deleted successfully\n", connectionName, connectionID)
 
 	return nil
 }

@@ -1,0 +1,72 @@
+name: 'Test npm install'
+description: 'Install and verify hookdeck-cli npm package'
+
+inputs:
+  version:
+    description: 'Version to install (e.g., @beta, @latest, or specific version)'
+    required: true
+  platform:
+    description: 'Platform being tested (darwin, linux, win32)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Wait for npm registry propagation
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        
+        # If testing a specific version (not a tag), poll until available
+        if [[ "$VERSION" =~ ^[0-9] ]]; then
+          echo "Waiting for version $VERSION to be available on npm..."
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if npm view "hookdeck-cli@$VERSION" version > /dev/null 2>&1; then
+              echo "✓ Version $VERSION is now available on npm"
+              break
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Version not yet available, waiting 10 seconds..."
+            sleep 10
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "✗ Version $VERSION not available after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+        else
+          echo "Testing with npm tag: $VERSION (no polling needed)"
+        fi
+
+    - name: Install hookdeck-cli (local, no global)
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        INSTALL_DIR="${RUNNER_TEMP}/hookdeck-cli-install-test"
+        mkdir -p "$INSTALL_DIR"
+        cd "$INSTALL_DIR"
+        # Explicit package.json so npm installs here (not in repo root if runner cwd leaks)
+        echo '{"name":"hookdeck-cli-install-test","version":"1.0.0","private":true}' > package.json
+        # npm install needs package@version; tags already have @ (e.g. @latest, @beta)
+        if [[ "$VERSION" == @* ]]; then
+          PKG_SPEC="hookdeck-cli${VERSION}"
+        else
+          PKG_SPEC="hookdeck-cli@${VERSION}"
+        fi
+        echo "Installing ${PKG_SPEC} into $INSTALL_DIR..."
+        npm install "$PKG_SPEC"
+        # Required by test-npm-install-verify.sh in the next step
+        echo "INSTALL_DIR=$INSTALL_DIR" >> "$GITHUB_ENV"
+
+    - name: Verify installation
+      shell: bash
+      env:
+        PLATFORM: ${{ inputs.platform }}
+      run: |
+        # INSTALL_DIR is set by the previous step via GITHUB_ENV
+        chmod +x test-scripts/test-npm-install-verify.sh
+        ./test-scripts/test-npm-install-verify.sh

@@ -19,17 +19,22 @@ func newConnectionEnableCmd() *connectionEnableCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "enable <connection-id>",
 		Args:  validators.ExactArgs(1),
-		Short: "Enable a connection",
-		Long: `Enable a disabled connection.
-
-The connection will resume processing events.`,
+		Short: ShortEnable(ResourceConnection),
+		Long:  LongEnableIntro(ResourceConnection),
 		RunE: cc.runConnectionEnableCmd,
+	}
+	cc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,
 	}
 
 	return cc
 }
 
 func (cc *connectionEnableCmd) runConnectionEnableCmd(cmd *cobra.Command, args []string) error {
+	if err := Config.Profile.ValidateAPIKey(); err != nil {
+		return err
+	}
+
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
@@ -43,6 +48,6 @@ func (cc *connectionEnableCmd) runConnectionEnableCmd(cmd *cobra.Command, args [
 		name = *conn.Name
 	}
 
-	fmt.Printf("✓ Connection enabled: %s (%s)\n", name, conn.ID)
+	fmt.Printf(SuccessCheck+" Connection enabled: %s (%s)\n", name, conn.ID)
 	return nil
 }

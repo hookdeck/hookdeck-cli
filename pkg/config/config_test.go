@@ -235,6 +235,45 @@ func TestInitConfig(t *testing.T) {
 		assert.Equal(t, "test_project_id", c.Profile.ProjectId)
 		assert.Equal(t, "test_project_mode", c.Profile.ProjectMode)
 	})
+
+	t.Run("project_type only", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/project-type-only.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "Gateway", c.Profile.ProjectType)
+		assert.Equal(t, "", c.Profile.ProjectMode)
+	})
+
+	t.Run("project_mode only - derive project_type", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/project-mode-inbound.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "inbound", c.Profile.ProjectMode)
+		assert.Equal(t, "Gateway", c.Profile.ProjectType)
+	})
+
+	t.Run("project_type and project_mode - prefer project_type", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{
+			LogLevel:       "info",
+			ConfigFileFlag: "./testdata/project-type-and-mode.toml",
+		}
+		c.InitConfig()
+
+		assert.Equal(t, "Outpost", c.Profile.ProjectType)
+		assert.Equal(t, "inbound", c.Profile.ProjectMode)
+	})
 }
 
 func TestWriteConfig(t *testing.T) {
@@ -267,12 +306,13 @@ func TestWriteConfig(t *testing.T) {
 		c.InitConfig()
 
 		// Act
-		err := c.UseProject("new_team_id", "new_team_mode")
+		err := c.UseProject("new_team_id", "inbound")
 
 		// Assert
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
 		assert.Contains(t, string(contentBytes), `project_id = 'new_team_id'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'Gateway'`)
 	})
 
 	t.Run("use profile", func(t *testing.T) {
@@ -350,6 +390,44 @@ func TestWriteConfig(t *testing.T) {
 		c3.InitConfig()
 		assert.Equal(t, "default", c3.Profile.Name, `profile should be "default"`)
 		assert.Equal(t, "", c3.Profile.APIKey, "api key should be empty even though there are other profiles")
+	})
+}
+
+func TestSetTelemetryDisabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("disable telemetry", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/default-profile.toml")
+		c.InitConfig()
+
+		assert.False(t, c.TelemetryDisabled)
+
+		err := c.SetTelemetryDisabled(true)
+
+		assert.NoError(t, err)
+		assert.True(t, c.TelemetryDisabled)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), "telemetry_disabled = true")
+	})
+
+	t.Run("enable telemetry", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/telemetry-disabled.toml")
+		c.InitConfig()
+
+		assert.True(t, c.TelemetryDisabled)
+
+		err := c.SetTelemetryDisabled(false)
+
+		assert.NoError(t, err)
+		assert.False(t, c.TelemetryDisabled)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), "telemetry_disabled = false")
 	})
 }
 

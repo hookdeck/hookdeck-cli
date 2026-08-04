@@ -7,14 +7,14 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
-	hookdecksdk "github.com/hookdeck/hookdeck-go-sdk"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.Source, connections []*hookdecksdk.Connection, targetURL *url.URL, guestURL string) {
+func printSourcesWithConnections(config *config.Config, sources []*hookdeck.Source, connections []*hookdeck.Connection, targetURL *url.URL, guestURL string) {
 	// Group connections by source ID
-	sourceConnections := make(map[string][]*hookdecksdk.Connection)
+	sourceConnections := make(map[string][]*hookdeck.Connection)
 	for _, connection := range connections {
-		sourceID := connection.Source.Id
+		sourceID := connection.Source.ID
 		sourceConnections[sourceID] = append(sourceConnections[sourceID], connection)
 	}
 
@@ -28,15 +28,20 @@ func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.S
 		fmt.Printf("%s\n", ansi.Bold(source.Name))
 
 		// Print connections for this source
-		if sourceConns, exists := sourceConnections[source.Id]; exists {
+		if sourceConns, exists := sourceConnections[source.ID]; exists {
 			numConns := len(sourceConns)
 
 			// Print webhook URL with vertical line only (no horizontal branch)
-			fmt.Printf("│  Requests to → %s\n", source.Url)
+			fmt.Printf("│  Requests to → %s\n", source.URL)
 
 			// Print each connection
 			for j, connection := range sourceConns {
-				fullPath := targetURL.Scheme + "://" + targetURL.Host + *connection.Destination.CliPath
+				cliPath := connection.Destination.GetCLIPath()
+				path := "/"
+				if cliPath != nil {
+					path = *cliPath
+				}
+				fullPath := targetURL.Scheme + "://" + targetURL.Host + path
 
 				// Get connection name from FullName (format: "source -> destination")
 				// Split on "->" and take the second part (destination)
@@ -61,7 +66,7 @@ func printSourcesWithConnections(config *config.Config, sources []*hookdecksdk.S
 			}
 		} else {
 			// No connections, just show webhook URL
-			fmt.Printf("   Request sents to → %s\n", source.Url)
+			fmt.Printf("   Request sents to → %s\n", source.URL)
 		}
 
 		// Add spacing between sources (but not after the last one)

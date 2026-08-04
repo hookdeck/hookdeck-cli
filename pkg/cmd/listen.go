@@ -32,6 +32,7 @@ import (
 type listenCmd struct {
 	cmd            *cobra.Command
 	noWSS          bool
+	noHealthcheck  bool
 	path           string
 	maxConnections int
 	output         string
@@ -102,11 +103,15 @@ func newListenCmd() *listenCmd {
 	lc := &listenCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:   "listen",
-		Short: "Forward events for a source to your local server",
-		Long: `Forward events for a source to your local server.
+		Use:   "listen [port or forwarding URL] [source(s)] [connection]",
+		Short: "Forward events for one or more sources to your local server",
+		Long: `Forward events for one or more sources to your local server.
 
-This command will create a new Hookdeck Source if it doesn't exist.
+You can listen to a single source, a comma-separated list of sources, or
+"*" to listen to all of your sources at once.
+
+This command will create a new Hookdeck Source if it doesn't exist (single
+source only).
 
 By default the Hookdeck Destination will be named "{source}-cli", and the
 Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
@@ -147,6 +152,13 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 		},
 		RunE: lc.runListenCmd,
 	}
+	lc.cmd.Annotations = map[string]string{
+		"cli.arguments": `[
+			{"name":"port or forwarding URL","type":"string","description":"Port (e.g. 3000) or full URL (e.g. http://localhost:3000) to forward events to. The forward URL will be http://localhost:$PORT/$DESTINATION_PATH or http://domain/$DESTINATION_PATH. Only one of port or domain is required.","required":true},
+			{"name":"source","type":"string","description":"The name of a source to listen to, a comma-separated list of source names, or '*' (with quotes) to listen to all. If empty, the CLI prompts you to choose.","required":false},
+			{"name":"connection","type":"string","description":"Filter connections by connection name or path.","required":false}
+		]`,
+	}
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 	lc.cmd.Flags().MarkHidden("no-wss")
 
@@ -154,6 +166,8 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
 
 	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only)")
+
+	lc.cmd.Flags().BoolVar(&lc.noHealthcheck, "no-healthcheck", false, "Disable periodic health checks of the local server")
 
 	lc.cmd.Flags().StringVar(&lc.filterBody, "filter-body", "", "Filter events by request body using Hookdeck filter syntax (JSON)")
 	lc.cmd.Flags().StringVar(&lc.filterHeaders, "filter-headers", "", "Filter events by request headers using Hookdeck filter syntax (JSON)")
@@ -168,12 +182,12 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	usage = strings.Replace(
 		usage,
 		"{{.UseLine}}",
-		`hookdeck listen [port or forwarding URL] [source] [connection] [flags]
+		`hookdeck listen [port or forwarding URL] [source(s)] [connection] [flags]
 
 Arguments:
 
  - [port or forwarding URL]: Required. The port or forwarding URL to forward the events to e.g., "3000" or "http://localhost:3000"
- - [source]: Required. The name of source to forward the events from e.g., "shopify", "stripe"
+ - [source(s)]: Optional. One source name, a comma-separated list of source names (e.g. "shopify,stripe"), or "*" to listen to all sources. If omitted, the CLI prompts you to choose.
  - [connection]: Optional. The name of the connection linking the Source and the Destination
 	`, 1)
 
@@ -184,6 +198,14 @@ Examples:
   Forward events from a Hookdeck Source named "shopify" to a local server running on port %[1]d:
 
     hookdeck listen %[1]d shopify
+
+  Forward events from multiple sources to a local server running on port %[1]d:
+
+    hookdeck listen %[1]d shopify,stripe
+
+  Forward events from all of your sources:
+
+    hookdeck listen %[1]d '*'
 
   Forward events to a local server running on "http://myapp.test:%[1]d":
 
@@ -204,6 +226,12 @@ Examples:
   Filter using operators (see https://hookdeck.com/docs/filters for syntax):
 
     hookdeck listen %[1]d api --filter-body '{"amount": {"$gte": 100}}'
+
+  Authenticate with a specific key instead of the stored login, e.g. in CI or
+  when switching accounts (--cli-key takes a user-scoped CLI key; --api-key a
+  project-scoped key):
+
+    hookdeck listen %[1]d stripe --cli-key <your-cli-key>
 		`, 3000)
 
 	lc.cmd.SetUsageTemplate(usage)
@@ -255,6 +283,7 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 
 	return listen.Listen(url, sourceQuery, connectionQuery, listen.Flags{
 		NoWSS:          lc.noWSS,
+		NoHealthcheck:  lc.noHealthcheck,
 		Path:           lc.path,
 		Output:         lc.output,
 		MaxConnections: lc.maxConnections,

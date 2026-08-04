@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/useragent"
@@ -31,6 +33,11 @@ const DefaultWebsocektURL = "wss://ws.hookdeck.com"
 
 const DefaultProfileName = "default"
 
+// APIPathPrefix is the versioned path prefix for all REST API requests.
+// Used by connections, sources, destinations, events, auth, etc.
+// Change in one place when the API version is updated.
+const APIPathPrefix = "/2025-07-01"
+
 // Client is the API client used to sent requests to Hookdeck.
 type Client struct {
 	// The base URL (protocol + hostname) used for all requests sent by this
@@ -43,6 +50,14 @@ type Client struct {
 
 	ProjectID string
 
+	// ProjectOrg is the organization segment for the active project (MCP meta),
+	// when applicable. Not sent on API requests.
+	ProjectOrg string
+
+	// ProjectName is the short project name (not including org). Used for MCP
+	// meta and display composition with ProjectOrg. Not sent on API requests.
+	ProjectName string
+
 	// When this is enabled, request and response headers will be printed to
 	// stdout.
 	Verbose bool
@@ -52,14 +67,80 @@ type Client struct {
 	// rate limiting is expected.
 	SuppressRateLimitErrors bool
 
+	// Per-request telemetry override. When non-nil, this is used instead of
+	// the global telemetry singleton. Used by MCP tool handlers to set
+	// per-invocation context.
+	Telemetry *CLITelemetry
+
+	// TelemetryDisabled mirrors the config-based telemetry opt-out flag.
+	TelemetryDisabled bool
+
 	// Cached HTTP client, lazily created the first time the Client is used to
 	// send a request.
 	httpClient *http.Client
 }
 
+// WithTelemetry returns a shallow clone of the client with the given
+// per-request telemetry override. The underlying http.Client (and its
+// connection pool) is shared.
+func (c *Client) WithTelemetry(t *CLITelemetry) *Client {
+	return &Client{
+		BaseURL:                 c.BaseURL,
+		APIKey:                  c.APIKey,
+		ProjectID:               c.ProjectID,
+		ProjectOrg:              c.ProjectOrg,
+		ProjectName:             c.ProjectName,
+		Verbose:                 c.Verbose,
+		SuppressRateLimitErrors: c.SuppressRateLimitErrors,
+		Telemetry:               t,
+		TelemetryDisabled:       c.TelemetryDisabled,
+		httpClient:              c.httpClient,
+	}
+}
+
 type ErrorResponse struct {
 	Handled bool   `json:"Handled"`
 	Message string `json:"message"`
+}
+
+// APIError is a structured error returned by the Hookdeck API.
+// It preserves the HTTP status code so callers can distinguish
+// between different error types (e.g. 404 Not Found vs 500 Server Error)
+// without resorting to string matching.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("error: %s", e.Message)
+	}
+	return fmt.Sprintf("unexpected http status code: %d", e.StatusCode)
+}
+
+// IsNotFoundError reports whether the error is an API "not found" response.
+// Hookdeck may return 404 (Not Found) or 410 (Gone) for resources that have
+// been deleted.
+func IsNotFoundError(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone)
+}
+
+// IsUnauthorizedError reports whether err is an HTTP 401 from the Hookdeck API
+// (invalid or rejected credentials). Non-JSON 401 bodies still become *APIError
+// with StatusCode 401; a plain error string containing "status code: 401" is
+// treated as unauthorized for wrapped failures.
+func IsUnauthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "status code: 401")
 }
 
 // PerformRequest sends a request to Hookdeck and returns the response.
@@ -76,10 +157,18 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 		req.Header.Set("X-Project-ID", c.ProjectID)
 	}
 
-	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_OPTOUT")) {
-		telemetryHdr, err := getTelemetryHeader()
-		if err == nil {
-			req.Header.Set("Hookdeck-CLI-Telemetry", telemetryHdr)
+	singletonDisabled := GetTelemetryInstance().Disabled
+	if !telemetryOptedOut(os.Getenv("HOOKDECK_CLI_TELEMETRY_DISABLED"), c.TelemetryDisabled || singletonDisabled) {
+		var telemetryHdr string
+		var telErr error
+		if c.Telemetry != nil {
+			b, e := json.Marshal(c.Telemetry)
+			telemetryHdr, telErr = string(b), e
+		} else {
+			telemetryHdr, telErr = getTelemetryHeader()
+		}
+		if telErr == nil {
+			req.Header.Set(TelemetryHeaderName, telemetryHdr)
 		}
 	}
 
@@ -136,6 +225,14 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 				"url":    req.URL.String(),
 				"status": resp.StatusCode,
 			}).Debug("Rate limited")
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			// Invalid or expired keys are common; avoid ERROR-level noise (e.g. whoami, agents).
+			log.WithFields(log.Fields{
+				"prefix": "client.Client.PerformRequest",
+				"method": req.Method,
+				"url":    req.URL.String(),
+				"status": resp.StatusCode,
+			}).Debug("Unauthorized response")
 		} else {
 			log.WithFields(log.Fields{
 				"prefix": "client.Client.PerformRequest 2",
@@ -225,13 +322,22 @@ func checkAndPrintError(res *http.Response) error {
 		response := &ErrorResponse{}
 		err = json.Unmarshal(body, &response)
 		if err != nil {
-			// Not a valid JSON response, just use body
-			return fmt.Errorf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body)
+			// Not a valid JSON response, return structured error with raw body
+			return &APIError{
+				StatusCode: res.StatusCode,
+				Message:    fmt.Sprintf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body),
+			}
 		}
 		if response.Message != "" {
-			return fmt.Errorf("error: %s", response.Message)
+			return &APIError{
+				StatusCode: res.StatusCode,
+				Message:    response.Message,
+			}
 		}
-		return fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, body)
+		return &APIError{
+			StatusCode: res.StatusCode,
+			Message:    fmt.Sprintf("unexpected http status code: %d %s", res.StatusCode, body),
+		}
 	}
 	return nil
 }

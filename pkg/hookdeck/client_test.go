@@ -2,6 +2,7 @@ package hookdeck
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -12,6 +13,24 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestIsNotFoundError_410Gone(t *testing.T) {
+	require.True(t, IsNotFoundError(&APIError{StatusCode: http.StatusGone, Message: "gone"}))
+	require.False(t, IsNotFoundError(&APIError{StatusCode: http.StatusInternalServerError, Message: "err"}))
+}
+
+func TestIsUnauthorizedError(t *testing.T) {
+	require.True(t, IsUnauthorizedError(&APIError{StatusCode: http.StatusUnauthorized, Message: "Unauthorized"}))
+	require.True(t, IsUnauthorizedError(&APIError{
+		StatusCode: http.StatusUnauthorized,
+		Message:    "unexpected http status code: 401, raw response body: Unauthorized",
+	}))
+	require.True(t, IsUnauthorizedError(fmt.Errorf("wrapped: %w", &APIError{StatusCode: http.StatusUnauthorized})))
+	require.True(t, IsUnauthorizedError(fmt.Errorf("unexpected http status code: 401, raw response body: Unauthorized")))
+	require.False(t, IsUnauthorizedError(&APIError{StatusCode: http.StatusForbidden, Message: "nope"}))
+	require.False(t, IsUnauthorizedError(nil))
+	require.False(t, IsUnauthorizedError(fmt.Errorf("network down")))
+}
 
 func TestPerformRequest_ParamsEncoding_Delete(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

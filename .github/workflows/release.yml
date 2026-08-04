@@ -20,7 +20,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release -f .goreleaser/mac.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -51,7 +51,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release -f .goreleaser/linux.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release -f .goreleaser/windows.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -106,9 +106,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
 
+      # npm@latest now requires Node >= 22.22 (it dropped Node 20 support), and
+      # `npm publish --provenance` (OIDC) needs a recent npm, so this job runs on
+      # Node 22.x rather than 20.x.
       - name: Upgrade npm to latest version
         run: npm install -g npm@latest
 
@@ -134,6 +137,19 @@ jobs:
           add: "package.json"
 
       - run: npm ci
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.9
+
+      - name: Build npm binaries with GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: v2.12.1
+          args: build -f .goreleaser/npm.yml --clean --skip validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine npm tag for pre-releases
         id: npm_tag

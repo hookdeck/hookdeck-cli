@@ -9,6 +9,7 @@ type Profile struct {
 	APIKey      string
 	ProjectId   string
 	ProjectMode string
+	ProjectType string // display type: Gateway, Outpost, Console
 	GuestURL    string // URL to create permanent account for guest users
 
 	Config *Config
@@ -23,8 +24,38 @@ func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
 	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
 	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
+	projectType := p.ProjectType
+	if projectType == "" && p.ProjectMode != "" {
+		projectType = ModeToProjectType(p.ProjectMode)
+	}
+	p.Config.viper.Set(p.getConfigField("project_type"), projectType)
 	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
+
+	if err := p.removeLegacyConfigKeys(); err != nil {
+		return err
+	}
+
 	return p.Config.writeConfig()
+}
+
+func (p *Profile) removeLegacyConfigKeys() error {
+	legacyKeys := []string{"workspace_id", "workspace_mode", "team_id", "team_mode"}
+	configFile := p.Config.viper.ConfigFileUsed()
+	var err error
+	for _, key := range legacyKeys {
+		p.Config.viper, err = removeKey(p.Config.viper, p.getConfigField(key))
+		if err != nil {
+			return err
+		}
+		p.Config.viper, err = removeKey(p.Config.viper, key)
+		if err != nil {
+			return err
+		}
+	}
+	if configFile != "" {
+		p.Config.viper.SetConfigFile(configFile)
+	}
+	return nil
 }
 
 func (p *Profile) RemoveProfile() error {

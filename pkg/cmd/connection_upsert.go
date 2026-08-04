@@ -24,9 +24,9 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd = &cobra.Command{
 		Use:   "upsert <name>",
 		Args:  cobra.ExactArgs(1),
-		Short: "Create or update a connection by name",
-		Long: `Create a new connection or update an existing one using name as the unique identifier.
-	
+		Short: ShortUpsert(ResourceConnection),
+		Long: LongUpsertIntro(ResourceConnection) + `
+
 	This command is idempotent - it can be safely run multiple times with the same arguments.
 	
 	When the connection doesn't exist:
@@ -42,26 +42,29 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	
 	Examples:
 		 # Create or update a connection with inline source and destination
-		 hookdeck connection upsert "my-connection" \
+		 hookdeck gateway connection upsert "my-connection" \
 		   --source-name "stripe-prod" --source-type STRIPE \
 		   --destination-name "my-api" --destination-type HTTP --destination-url https://api.example.com
 	
 		 # Update just the rate limit on an existing connection
-		 hookdeck connection upsert my-connection \
+		 hookdeck gateway connection upsert my-connection \
 		   --destination-rate-limit 100 --destination-rate-limit-period minute
 	
 		 # Update source configuration options
-		 hookdeck connection upsert my-connection \
+		 hookdeck gateway connection upsert my-connection \
 		   --source-allowed-http-methods "POST,PUT,DELETE" \
 		   --source-custom-response-content-type "json" \
 		   --source-custom-response-body '{"status":"received"}'
 	
 		 # Preview changes without applying them
-		 hookdeck connection upsert my-connection \
+		 hookdeck gateway connection upsert my-connection \
 		   --destination-rate-limit 200 --destination-rate-limit-period hour \
 		   --dry-run`,
 		PreRunE: cu.validateUpsertFlags,
 		RunE:    cu.runConnectionUpsertCmd,
+	}
+	cu.cmd.Annotations = map[string]string{
+		"cli.arguments": `[{"name":"name","type":"string","description":"Connection name (create or update by name)","required":true}]`,
 	}
 
 	// Reuse all flags from create command (name is now a positional argument)
@@ -94,7 +97,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.destinationType, "destination-type", "", "Destination type (CLI, HTTP, MOCK)")
 	cu.cmd.Flags().StringVar(&cu.destinationDescription, "destination-description", "", "Destination description")
 	cu.cmd.Flags().StringVar(&cu.destinationURL, "destination-url", "", "URL for HTTP destinations")
-	cu.cmd.Flags().StringVar(&cu.destinationCliPath, "destination-cli-path", "/", "CLI path for CLI destinations (default: /)")
+	cu.cmd.Flags().StringVar(&cu.destinationCliPath, "destination-cli-path", "", "CLI path for CLI destinations (default: / for new connections)")
 
 	// Use a string flag to allow explicit true/false values
 	var pathForwardingDisabledStr string
@@ -158,34 +161,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().IntVar(&cu.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
 	cu.cmd.Flags().StringVar(&cu.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
 
-	// Rule flags - Retry
-	cu.cmd.Flags().StringVar(&cu.RuleRetryStrategy, "rule-retry-strategy", "", "Retry strategy (linear, exponential)")
-	cu.cmd.Flags().IntVar(&cu.RuleRetryCount, "rule-retry-count", 0, "Number of retry attempts")
-	cu.cmd.Flags().IntVar(&cu.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
-	cu.cmd.Flags().StringVar(&cu.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on (e.g., '429,500,502')")
-
-	// Rule flags - Filter
-	cu.cmd.Flags().StringVar(&cu.RuleFilterBody, "rule-filter-body", "", "JQ expression to filter on request body")
-	cu.cmd.Flags().StringVar(&cu.RuleFilterHeaders, "rule-filter-headers", "", "JQ expression to filter on request headers")
-	cu.cmd.Flags().StringVar(&cu.RuleFilterQuery, "rule-filter-query", "", "JQ expression to filter on request query parameters")
-	cu.cmd.Flags().StringVar(&cu.RuleFilterPath, "rule-filter-path", "", "JQ expression to filter on request path")
-
-	// Rule flags - Transform
-	cu.cmd.Flags().StringVar(&cu.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
-	cu.cmd.Flags().StringVar(&cu.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
-	cu.cmd.Flags().StringVar(&cu.RuleTransformEnv, "rule-transform-env", "", "JSON string representing environment variables for transformation")
-
-	// Rule flags - Delay
-	cu.cmd.Flags().IntVar(&cu.RuleDelay, "rule-delay", 0, "Delay in milliseconds")
-
-	// Rule flags - Deduplicate
-	cu.cmd.Flags().IntVar(&cu.RuleDeduplicateWindow, "rule-deduplicate-window", 0, "Time window in seconds for deduplication")
-	cu.cmd.Flags().StringVar(&cu.RuleDeduplicateIncludeFields, "rule-deduplicate-include-fields", "", "Comma-separated list of fields to include for deduplication")
-	cu.cmd.Flags().StringVar(&cu.RuleDeduplicateExcludeFields, "rule-deduplicate-exclude-fields", "", "Comma-separated list of fields to exclude for deduplication")
-
-	// Rules JSON fallback
-	cu.cmd.Flags().StringVar(&cu.Rules, "rules", "", "JSON string representing the entire rules array")
-	cu.cmd.Flags().StringVar(&cu.RulesFile, "rules-file", "", "Path to a JSON file containing the rules array")
+	addConnectionRuleFlags(cu.cmd, &cu.connectionCreateCmd.connectionRuleFlags)
 
 	// Reference existing resources
 	cu.cmd.Flags().StringVar(&cu.sourceID, "source-id", "", "Use existing source by ID")
@@ -284,10 +260,10 @@ func (cu *connectionUpsertCmd) validateSourceFlags() error {
 		return fmt.Errorf("cannot use --source-id with --source-name or --source-type")
 	}
 
-	// If creating inline, require both name and type
-	if (cu.sourceName != "" || cu.sourceType != "") && (cu.sourceName == "" || cu.sourceType == "") {
-		return fmt.Errorf("both --source-name and --source-type are required for inline source creation")
-	}
+	// For upsert, we don't require both --source-name and --source-type.
+	// If the connection already exists, providing just --source-name is valid
+	// (the existing source type will be preserved). The API will reject
+	// incomplete data if this is actually a create.
 
 	return nil
 }
@@ -299,10 +275,10 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 		return fmt.Errorf("cannot use --destination-id with --destination-name or --destination-type")
 	}
 
-	// If creating inline, require both name and type
-	if (cu.destinationName != "" || cu.destinationType != "") && (cu.destinationName == "" || cu.destinationType == "") {
-		return fmt.Errorf("both --destination-name and --destination-type are required for inline destination creation")
-	}
+	// For upsert, we don't require both --destination-name and --destination-type.
+	// If the connection already exists, providing just --destination-name is valid
+	// (the existing destination type will be preserved). The API will reject
+	// incomplete data if this is actually a create.
 
 	return nil
 }
@@ -331,7 +307,11 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 		cu.DestinationRateLimit != 0 || cu.DestinationAuthMethod != "") &&
 		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
 
-	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasSourceConfigOnly || hasDestinationConfigOnly
+	// Also need to fetch existing when name is provided without type (to fill in the type)
+	hasPartialSourceInline := (cu.sourceName != "" && cu.sourceType == "" && cu.sourceID == "")
+	hasPartialDestinationInline := (cu.destinationName != "" && cu.destinationType == "" && cu.destinationID == "")
+
+	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasSourceConfigOnly || hasDestinationConfigOnly || hasPartialSourceInline || hasPartialDestinationInline
 
 	var existing *hookdeck.Connection
 	var isUpdate bool
@@ -368,7 +348,7 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 
 	connection, err := client.UpsertConnection(context.Background(), req)
 	if err != nil {
-		return fmt.Errorf("failed to upsert connection: %w", err)
+		return cu.enhanceConnectionError(err, "upsert")
 	}
 
 	// Display results
@@ -381,9 +361,9 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	} else {
 		// Determine if this was a create or update based on whether connection existed
 		if isUpdate {
-			fmt.Println("✔ Connection updated successfully")
+			fmt.Println(SuccessCheck + " Connection updated successfully")
 		} else {
-			fmt.Println("✔ Connection created successfully")
+			fmt.Println(SuccessCheck + " Connection created successfully")
 		}
 		fmt.Println()
 
@@ -438,6 +418,10 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	if cu.sourceID != "" {
 		req.SourceID = &cu.sourceID
 	} else if cu.sourceName != "" || cu.sourceType != "" {
+		// For upsert updates, fill in missing source type from existing connection
+		if cu.sourceType == "" && isUpdate && existing != nil && existing.Source != nil {
+			cu.sourceType = existing.Source.Type
+		}
 		sourceInput, err := cu.buildSourceInput()
 		if err != nil {
 			return nil, err
@@ -469,6 +453,14 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	if cu.destinationID != "" {
 		req.DestinationID = &cu.destinationID
 	} else if cu.destinationName != "" || cu.destinationType != "" {
+		// For upsert updates, fill in missing destination type from existing connection
+		if cu.destinationType == "" && isUpdate && existing != nil && existing.Destination != nil {
+			cu.destinationType = existing.Destination.Type
+		}
+		// Default CLI path to "/" for new CLI destinations when not explicitly set
+		if strings.ToUpper(cu.destinationType) == "CLI" && cu.destinationCliPath == "" {
+			cu.destinationCliPath = "/"
+		}
 		destinationInput, err := cu.buildDestinationInput()
 		if err != nil {
 			return nil, err
@@ -496,13 +488,16 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		}
 	}
 
-	// Also preserve source if not specified
+	// Preserve existing source/destination if not specified
 	if req.SourceID == nil && req.Source == nil && isUpdate && existing != nil && existing.Source != nil {
 		req.SourceID = &existing.Source.ID
 	}
+	if req.DestinationID == nil && req.Destination == nil && isUpdate && existing != nil && existing.Destination != nil {
+		req.DestinationID = &existing.Destination.ID
+	}
 
 	// Handle Rules
-	rules, err := cu.buildRulesArray(nil)
+	rules, err := buildConnectionRules(&cu.connectionCreateCmd.connectionRuleFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -599,12 +594,24 @@ func (cu *connectionUpsertCmd) buildDestinationInputForUpdate(existingDest *hook
 
 	// Apply authentication config if provided
 	if cu.DestinationAuthMethod != "" {
+		// Clear any existing auth fields before setting new ones
+		delete(destConfig, "auth_type")
+		delete(destConfig, "auth")
+
 		authConfig, err := cu.buildAuthConfig()
 		if err != nil {
 			return nil, err
 		}
 		if len(authConfig) > 0 {
-			destConfig["auth_method"] = authConfig
+			// Use the correct API format: auth_type + auth as separate fields
+			destConfig["auth_type"] = authConfig["type"]
+			auth := make(map[string]interface{})
+			for k, v := range authConfig {
+				if k != "type" {
+					auth[k] = v
+				}
+			}
+			destConfig["auth"] = auth
 		}
 	}
 

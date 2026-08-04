@@ -8,8 +8,22 @@ on:
   pull_request:
     branches:
       - main
+  # Allow manually triggering CI on a branch
+  workflow_dispatch: {}
 
 jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.9
+      - name: Run unit tests
+        run: go test -short ./pkg/...
+
   build-mac:
     runs-on: macos-latest
     steps:
@@ -24,7 +38,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release --skip=publish --snapshot -f .goreleaser/mac.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -56,7 +70,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release --skip=publish --snapshot -f .goreleaser/linux.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
@@ -75,7 +89,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
-          version: v2.10.2
+          version: v2.12.1
           args: release --skip=publish --snapshot -f .goreleaser/windows.yml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}

@@ -1,7 +1,9 @@
 
 completions/
 dist/
-bin/
+bin/*
+!bin/hookdeck.js
+binaries/
 coverage.txt
 /hookdeck
 /hookdeck-darwin
@@ -14,3 +16,11 @@ default_cassette.yaml
 __debug_bin
 node_modules/
 .env
+test/acceptance/logs/
+test-scripts/.install-test/
+
+# Temporary OpenAPI spec download (large; do not commit)
+.plans/openapi-2025-07-01.json
+
+# Claude Code temporary worktrees
+.claude/worktrees/

@@ -53,5 +53,5 @@ jobs:
         with:
           name: homebrew-files
           path: |
-            dist/homebrew/Formula/hookdeck.rb
+            dist/homebrew/Formula/hookdeck-beta.rb
           retention-days: 7

@@ -2,8 +2,6 @@ package hookdeck
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 )
 
 type Project struct {
@@ -13,12 +11,12 @@ type Project struct {
 }
 
 func (c *Client) ListProjects() ([]Project, error) {
-	res, err := c.Get(context.Background(), "/2025-07-01/teams", "", nil)
+	res, err := c.clientForCLIAuthValidate().Get(context.Background(), APIPathPrefix+"/teams", "", nil)
 	if err != nil {
 		return []Project{}, err
 	}
-	if res.StatusCode != http.StatusOK {
-		return []Project{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
+	if err := checkAndPrintError(res); err != nil {
+		return []Project{}, err
 	}
 	projects := []Project{}
 	postprocessJsonResponse(res, &projects)

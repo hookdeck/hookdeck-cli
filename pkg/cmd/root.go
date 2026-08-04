@@ -36,22 +36,61 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	Version:       version.Version,
 	Short:         "A CLI to forward events received on Hookdeck to your local server.",
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		initTelemetry(cmd)
+	},
+}
+
+// initTelemetry populates the process-wide telemetry singleton before any
+// command runs. Commands that override PersistentPreRun (e.g. connection)
+// must call this explicitly — Cobra does not chain PersistentPreRun.
+func initTelemetry(cmd *cobra.Command) {
+	tel := hookdeck.GetTelemetryInstance()
+	tel.SetDisabled(Config.TelemetryDisabled)
+	tel.SetSource("cli")
+	tel.SetEnvironment(hookdeck.DetectEnvironment())
+	tel.SetCommandContext(cmd)
+	tel.SetCommandFlagsFromCobra(cmd)
+	tel.SetDeviceName(Config.DeviceName)
+	if tel.InvocationID == "" {
+		tel.SetInvocationID(hookdeck.NewInvocationID())
+	}
+}
+
+// RootCmd returns the root command for use by tools (e.g. generate-reference).
+func RootCmd() *cobra.Command {
+	return rootCmd
+}
+
+// addConnectionCmdTo registers the connection command tree on a parent so that
+// "connection" (and alias "connections") is available there. Call twice to expose
+// the same subcommands under both gateway and root (backward compat).
+// Command definitions live only in newConnectionCmd(); this just registers the result.
+func addConnectionCmdTo(parent *cobra.Command) {
+	parent.AddCommand(newConnectionCmd().cmd)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	gatewayMCP := argvContainsGatewayMCP(os.Args)
 	if err := rootCmd.Execute(); err != nil {
 		errString := err.Error()
 		isLoginRequiredError := errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error()
 
 		switch {
 		case isLoginRequiredError:
-			// capitalize first letter of error because linter
 			errRunes := []rune(errString)
 			errRunes[0] = unicode.ToUpper(errRunes[0])
+			capitalized := string(errRunes)
 
-			fmt.Printf("%s. Running `hookdeck login`...\n", string(errRunes))
+			if gatewayMCP {
+				// MCP uses JSON-RPC on stdout; do not run interactive login or print recovery text there.
+				fmt.Fprintf(os.Stderr, "%s. Use hookdeck_login in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized)
+				os.Exit(1)
+			}
+
+			fmt.Printf("%s. Running `hookdeck login`...\n", capitalized)
 			loginCommand, _, err := rootCmd.Find([]string{"login"})
 
 			if err != nil {
@@ -72,16 +111,108 @@ func Execute() {
 				suggStr = fmt.Sprintf(" Did you mean \"%s\"?\nIf not, s", suggestions[0])
 			}
 
-			fmt.Println(fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
+			msg := fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
 				"ee \"hookdeck --help\" for a list of available commands.",
-				os.Args[1], rootCmd.CommandPath(), suggStr))
+				os.Args[1], rootCmd.CommandPath(), suggStr)
+			if gatewayMCP {
+				fmt.Fprintln(os.Stderr, msg)
+			} else {
+				fmt.Println(msg)
+			}
 
 		default:
-			fmt.Println(err)
+			if hookdeck.IsUnauthorizedError(err) {
+				msg := "Authentication failed: your API key is invalid or expired.\n\n" +
+					"Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`.\n\n" +
+					"MCP: use hookdeck_login with reauth: true."
+				if gatewayMCP {
+					fmt.Fprintln(os.Stderr, msg)
+				} else {
+					fmt.Println(msg)
+				}
+			} else if gatewayMCP {
+				fmt.Fprintln(os.Stderr, err)
+			} else {
+				fmt.Println(err)
+			}
 		}
 
 		os.Exit(1)
 	}
+}
+
+// argvContainsGatewayMCP reports whether argv invokes `hookdeck gateway mcp`, ignoring
+// global flags and flag values (e.g. --profile name, -p name) so detection stays accurate.
+func argvContainsGatewayMCP(argv []string) bool {
+	if len(argv) < 3 {
+		return false
+	}
+	pos := globalPositionalArgs(argv[1:])
+	for i := 0; i < len(pos)-1; i++ {
+		if pos[i] == "gateway" && pos[i+1] == "mcp" {
+			return true
+		}
+	}
+	return false
+}
+
+// flagNeedsNextArg lists global flags that consume the next argv token as their value.
+// Keep in sync with the PersistentFlags registered in init() below.
+var flagNeedsNextArg = map[string]bool{
+	"profile":         true,
+	"p":               true,
+	"cli-key":         true,
+	"api-key":         true,
+	"hookdeck-config": true,
+	"device-name":     true,
+	"log-level":       true,
+	"color":           true,
+	"api-base":        true,
+	"dashboard-base":  true,
+	"console-base":    true,
+	"ws-base":         true,
+}
+
+// globalPositionalArgs returns argv arguments that are not global flags or flag values,
+// stopping at `--` (which ends flag parsing; remaining tokens are positional).
+func globalPositionalArgs(args []string) []string {
+	var out []string
+	i := 0
+	for i < len(args) {
+		a := args[i]
+		if a == "--" {
+			return append(out, args[i+1:]...)
+		}
+		if !strings.HasPrefix(a, "-") {
+			return append(out, args[i:]...)
+		}
+		if strings.HasPrefix(a, "--") {
+			body := strings.TrimPrefix(a, "--")
+			name := body
+			hasEq := false
+			if j := strings.IndexByte(body, '='); j >= 0 {
+				name = body[:j]
+				hasEq = true
+			}
+			i++
+			if flagNeedsNextArg[name] && !hasEq {
+				if i < len(args) && !strings.HasPrefix(args[i], "-") {
+					i++
+				}
+			}
+			continue
+		}
+		// Short flags: support -p <profile> only; other shorts consume one token.
+		if a == "-p" {
+			i++
+			if i < len(args) && !strings.HasPrefix(args[i], "-") {
+				i++
+			}
+			continue
+		}
+		i++
+	}
+	return out
 }
 
 func init() {
@@ -97,7 +228,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
 
-	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "config", "", "config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "hookdeck-config", "", "path to CLI config file (default is $HOME/.config/hookdeck/config.toml)")
 
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
 
@@ -127,5 +258,8 @@ func init() {
 	rootCmd.AddCommand(newCompletionCmd().cmd)
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
 	rootCmd.AddCommand(newProjectCmd().cmd)
-	rootCmd.AddCommand(newConnectionCmd().cmd)
+	rootCmd.AddCommand(newGatewayCmd().cmd)
+	rootCmd.AddCommand(newTelemetryCmd().cmd)
+	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
+	addConnectionCmdTo(rootCmd)
 }

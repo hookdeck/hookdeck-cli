@@ -24,8 +24,8 @@ func TestCheckServerHealth_HealthyServer(t *testing.T) {
 		t.Fatalf("Failed to parse server URL: %v", err)
 	}
 
-	// Perform health check
-	result := CheckServerHealth(serverURL, 3*time.Second)
+	// Perform health check (insecure=false, not relevant for HTTP)
+	result := CheckServerHealth(serverURL, 3*time.Second, false)
 
 	// Verify result
 	if !result.Healthy {
@@ -50,7 +50,7 @@ func TestCheckServerHealth_UnreachableServer(t *testing.T) {
 	}
 
 	// Perform health check
-	result := CheckServerHealth(targetURL, 1*time.Second)
+	result := CheckServerHealth(targetURL, 1*time.Second, false)
 
 	// Verify result
 	if result.Healthy {
@@ -101,8 +101,8 @@ func TestCheckServerHealth_DefaultPorts(t *testing.T) {
 			}
 			defer listener.Close()
 
-			// Perform health check
-			result := CheckServerHealth(targetURL, 1*time.Second)
+			// Perform health check (insecure=true to handle self-signed certs in test)
+			result := CheckServerHealth(targetURL, 1*time.Second, true)
 
 			// Should be healthy since we have a listener
 			if !result.Healthy {
@@ -185,7 +185,7 @@ func TestCheckServerHealth_PortInURL(t *testing.T) {
 	targetURL, _ := url.Parse(fmt.Sprintf("http://localhost:%d/path", addr.Port))
 
 	// Perform health check
-	result := CheckServerHealth(targetURL, 3*time.Second)
+	result := CheckServerHealth(targetURL, 3*time.Second, false)
 
 	// Verify that the health check succeeded
 	// This confirms that when a port is already in the URL, we don't append
@@ -195,5 +195,117 @@ func TestCheckServerHealth_PortInURL(t *testing.T) {
 	}
 	if result.Error != nil {
 		t.Errorf("Expected no error for server with port in URL, got: %v", result.Error)
+	}
+}
+
+func TestCheckServerHealth_HTTPS_SelfSigned_InsecureTrue(t *testing.T) {
+	// Start a test HTTPS server with self-signed certificate
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	// Parse server URL (will be https://...)
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Failed to parse server URL: %v", err)
+	}
+
+	// Verify it's HTTPS
+	if serverURL.Scheme != "https" {
+		t.Fatalf("Expected HTTPS scheme, got: %s", serverURL.Scheme)
+	}
+
+	// Perform health check with insecure=true (should succeed)
+	result := CheckServerHealth(serverURL, 3*time.Second, true)
+
+	// Should be healthy because we skip certificate verification
+	if !result.Healthy {
+		t.Errorf("Expected server to be healthy with insecure=true, got unhealthy: %v", result.Error)
+	}
+	if result.Status != HealthHealthy {
+		t.Errorf("Expected status HealthHealthy, got %v", result.Status)
+	}
+	if result.Error != nil {
+		t.Errorf("Expected no error with insecure=true, got: %v", result.Error)
+	}
+}
+
+func TestCheckServerHealth_HTTPS_SelfSigned_InsecureFalse(t *testing.T) {
+	// Start a test HTTPS server with self-signed certificate
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	// Parse server URL (will be https://...)
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Failed to parse server URL: %v", err)
+	}
+
+	// Perform health check with insecure=false (should fail due to self-signed cert)
+	result := CheckServerHealth(serverURL, 3*time.Second, false)
+
+	// Should be unhealthy because certificate verification fails
+	if result.Healthy {
+		t.Errorf("Expected server to be unhealthy with insecure=false on self-signed cert, got healthy")
+	}
+	if result.Status != HealthUnreachable {
+		t.Errorf("Expected status HealthUnreachable, got %v", result.Status)
+	}
+	if result.Error == nil {
+		t.Errorf("Expected certificate error, got nil")
+	}
+	// Verify it's a certificate-related error
+	if result.Error != nil && !strings.Contains(result.Error.Error(), "certificate") {
+		t.Logf("Error message: %v (may vary by platform)", result.Error)
+	}
+}
+
+func TestCheckServerHealth_HTTPS_UsesTLSHandshake(t *testing.T) {
+	// This test verifies that HTTPS URLs use TLS dial (not raw TCP)
+	// by using httptest.NewTLSServer which creates a proper TLS server
+	// and checking that the health check completes successfully
+
+	// Start a test HTTPS server - this will only succeed if TLS handshake completes
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Failed to parse server URL: %v", err)
+	}
+
+	// Verify it's HTTPS
+	if serverURL.Scheme != "https" {
+		t.Fatalf("Expected HTTPS scheme, got: %s", serverURL.Scheme)
+	}
+
+	// Perform health check with insecure=true (to accept self-signed cert)
+	// If this succeeds, it proves TLS handshake was performed (not just TCP connect)
+	result := CheckServerHealth(serverURL, 3*time.Second, true)
+
+	// Should be healthy - this proves TLS handshake succeeded
+	if !result.Healthy {
+		t.Errorf("Expected healthy result for HTTPS server (TLS handshake should succeed), got: %v", result.Error)
+	}
+
+	// Verify that for HTTP URLs, we still use TCP (not TLS)
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	httpURL, _ := url.Parse(httpServer.URL)
+	if httpURL.Scheme != "http" {
+		t.Fatalf("Expected HTTP scheme, got: %s", httpURL.Scheme)
+	}
+
+	httpResult := CheckServerHealth(httpURL, 3*time.Second, false)
+	if !httpResult.Healthy {
+		t.Errorf("Expected healthy result for HTTP server, got: %v", httpResult.Error)
 	}
 }
