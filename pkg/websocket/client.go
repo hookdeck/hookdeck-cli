@@ -129,6 +129,13 @@ func (c *Client) connected() bool {
 	return c.isConnected
 }
 
+// HasConnected reports whether this client successfully established its
+// websocket connection at some point. It stays true after a disconnect, so
+// callers can distinguish "connected then dropped" from "never connected".
+func (c *Client) HasConnected() bool {
+	return c.connected()
+}
+
 func (c *Client) setConnected(isConnected bool) {
 	c.stateMu.Lock()
 	c.isConnected = isConnected
@@ -377,22 +384,35 @@ func (c *Client) readPump() {
 					"prefix": "websocket.Client.readPump",
 				}).Debug("stopReadPump")
 			default:
+				var closeErr *ws.CloseError
 				switch {
-				case !ws.IsCloseError(err):
+				case !errors.As(err, &closeErr):
 					// read errors do not prevent websocket reconnects in the CLI so we should
 					// only display this on debug-level logging
 					c.cfg.Log.WithFields(log.Fields{
 						"prefix": "websocket.Client.Close",
 					}).Debug("read error: ", err)
-				case ws.IsUnexpectedCloseError(err, ws.CloseNormalClosure):
+				case closeErr.Code == ws.CloseNormalClosure:
+					c.cfg.Log.WithFields(log.Fields{
+						"prefix": "websocket.Client.Close",
+					}).Debug("server closed the connection normally")
+				case closeErr.Code == ws.CloseGoingAway:
+					// 1001 SERVER_SHUTDOWN: the server pod is restarting (routine deploy).
+					// The reconnect loop will land on a live pod, so don't alarm the user.
+					c.cfg.Log.WithFields(log.Fields{
+						"prefix": "websocket.Client.Close",
+					}).Debug("server is restarting, reconnecting: ", err)
+				case closeErr.Code == closeCodeSessionExpired:
+					// 4001 SESSION_EXPIRED: the session is gone from the server's store.
+					// Reconnecting recreates it via the X-Webhook-Ids / X-Session-Filters
+					// headers, so this is part of normal operation.
+					c.cfg.Log.WithFields(log.Fields{
+						"prefix": "websocket.Client.Close",
+					}).Debug("session expired on server, reconnecting to recreate it: ", err)
+				default:
 					c.cfg.Log.WithFields(log.Fields{
 						"prefix": "websocket.Client.Close",
 					}).Error("close error: ", err)
-					c.cfg.Log.WithFields(log.Fields{
-						"prefix": "hookdeckcli.ADDITIONAL_INFO",
-					}).Error("If you run into issues, please re-run with `--log-level debug` and share the output with the Hookdeck team on GitHub.")
-				default:
-					c.cfg.Log.Error("other error: ", err)
 					c.cfg.Log.WithFields(log.Fields{
 						"prefix": "hookdeckcli.ADDITIONAL_INFO",
 					}).Error("If you run into issues, please re-run with `--log-level debug` and share the output with the Hookdeck team on GitHub.")
@@ -560,6 +580,13 @@ const (
 	defaultPongWait = 10 * time.Second
 
 	defaultWriteWait = 10 * time.Second
+
+	// closeCodeSessionExpired (4001) is sent by the server when the CLI session
+	// no longer exists in its store, either on connect (older CLIs that don't
+	// send session-recreation headers) or mid-connection (session expired during
+	// a ping). Reconnecting with the X-Webhook-Ids / X-Session-Filters headers
+	// recreates the session, so this close code is expected, not an error.
+	closeCodeSessionExpired = 4001
 )
 
 //

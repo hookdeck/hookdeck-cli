@@ -11,6 +11,8 @@ import (
 	"time"
 
 	ws "github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 )
 
 // upgradeTestServer starts an httptest server that upgrades websocket requests and captures
@@ -135,6 +137,50 @@ func TestStopSendsCleanClose(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("server did not receive a close frame")
+	}
+}
+
+// The server intentionally closes with 1001 (pod restart during a deploy) and 4001
+// (session expired; recreated on reconnect via the session headers). Both are part of
+// normal operation and must not produce error-level logs that alarm the user.
+func TestServerCloseCodesReconnectQuietly(t *testing.T) {
+	codes := map[string]int{
+		"server_shutdown_1001": ws.CloseGoingAway,
+		"session_expired_4001": closeCodeSessionExpired,
+	}
+	for name, code := range codes {
+		t.Run(name, func(t *testing.T) {
+			var captured http.Header
+			server := upgradeTestServer(t, &captured, func(conn *ws.Conn) {
+				_ = conn.WriteControl(
+					ws.CloseMessage,
+					ws.FormatCloseMessage(code, "test"),
+					time.Now().Add(time.Second),
+				)
+			})
+			defer server.Close()
+
+			logger, hook := logtest.NewNullLogger()
+			client := NewClient(wsURL(server), "cses_test", "cli-key", "tm_test", nil, "", &Config{Log: logger})
+
+			go client.Run(context.Background())
+
+			select {
+			case <-client.NotifyExpired:
+			case <-time.After(5 * time.Second):
+				t.Fatal("client did not report connection loss after server close")
+			}
+
+			if !client.HasConnected() {
+				t.Error("HasConnected() = false, want true after a successful connect that later dropped")
+			}
+
+			for _, entry := range hook.AllEntries() {
+				if entry.Level <= logrus.ErrorLevel {
+					t.Errorf("close code %d logged at %s level: %s", code, entry.Level, entry.Message)
+				}
+			}
+		})
 	}
 }
 

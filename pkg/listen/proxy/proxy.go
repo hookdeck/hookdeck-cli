@@ -75,11 +75,11 @@ type Proxy struct {
 	webSocketClient   *websocket.Client
 	webSocketClientMu sync.Mutex
 	connectionTimer   *time.Timer
-	httpClient      *http.Client
-	transport       *http.Transport
-	activeRequests  int32
-	maxConnWarned   bool // Track if we've warned about connection limit
-	renderer        Renderer
+	httpClient        *http.Client
+	transport         *http.Transport
+	activeRequests    int32
+	maxConnWarned     bool // Track if we've warned about connection limit
+	renderer          Renderer
 
 	// Server health monitoring
 	serverHealthy atomic.Bool
@@ -99,10 +99,6 @@ func withSIGTERMCancel(ctx context.Context, onCancel func()) context.Context {
 	return ctx
 }
 
-// Run manages the connection to Hookdeck.
-// The connection is established in phases:
-//   - Create a new CLI session
-//   - Create a new websocket connection
 // currentWebSocketClient returns the active websocket client (nil before the first connect).
 // Guards against the reconnect loop reassigning the client while another goroutine reads it.
 func (p *Proxy) currentWebSocketClient() *websocket.Client {
@@ -117,6 +113,10 @@ func (p *Proxy) setWebSocketClient(client *websocket.Client) {
 	p.webSocketClient = client
 }
 
+// Run manages the connection to Hookdeck.
+// The connection is established in phases:
+//   - Create a new CLI session
+//   - Create a new websocket connection
 func (p *Proxy) Run(parentCtx context.Context) error {
 	const maxConnectAttempts = 10
 	nAttempts := 0
@@ -237,6 +237,14 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			return nil
 		case <-wsClient.NotifyExpired:
 			p.renderer.OnDisconnected()
+			// If this attempt connected successfully before dropping (e.g. a
+			// routine server deploy closing with 1001), reset the counter so
+			// backoff reflects consecutive failures, not lifetime reconnects.
+			// Without this, a long-running CLI drifts toward the maximum
+			// backoff even though every reconnect succeeds immediately.
+			if wsClient.HasConnected() {
+				nAttempts = 0
+			}
 			if !canConnect() {
 				p.renderer.Cleanup()
 				return fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection.", nAttempts)
