@@ -10,7 +10,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-func printSourcesWithConnections(config *config.Config, sources []*hookdeck.Source, connections []*hookdeck.Connection, targetURL *url.URL, guestURL string) {
+func printSourcesWithConnections(config *config.Config, projectID string, sources []*hookdeck.Source, connections []*hookdeck.Connection, targetURL *url.URL, guestURL string) {
 	// Group connections by source ID
 	sourceConnections := make(map[string][]*hookdeck.Connection)
 	for _, connection := range connections {
@@ -82,8 +82,8 @@ func printSourcesWithConnections(config *config.Config, sources []*hookdeck.Sour
 	} else {
 		var url = config.DashboardBaseURL
 		var displayURL = config.DashboardBaseURL
-		if config.Profile.ProjectId != "" {
-			url += "/events/cli?team_id=" + config.Profile.ProjectId
+		if projectID != "" {
+			url += "/events/cli?team_id=" + projectID
 			displayURL += "/events/cli"
 		}
 		if config.Profile.ProjectMode == "console" {

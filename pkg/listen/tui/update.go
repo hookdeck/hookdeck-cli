@@ -265,13 +265,7 @@ func (m Model) openSelectedEventInBrowser() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		// Build event URL with team_id query parameter
-		var eventURL string
-		if m.cfg.ProjectMode == "console" {
-			eventURL = m.cfg.ConsoleBaseURL + "/?event_id=" + selectedEvent.ID + "&team_id=" + m.cfg.ProjectID
-		} else {
-			eventURL = m.cfg.DashboardBaseURL + "/events/" + selectedEvent.ID + "?team_id=" + m.cfg.ProjectID
-		}
+		eventURL := eventDashboardURL(m.cfg, selectedEvent.ID)
 
 		// Open in browser
 		err := openBrowser(eventURL)

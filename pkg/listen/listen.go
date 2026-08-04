@@ -125,6 +125,11 @@ Specify a single destination to update the path. For example, pass a connection 
 		return err
 	}
 
+	// User-scoped CLI keys have no project_id in config, which left dashboard
+	// deep-links with an empty team_id. Fall back to the team that owns the
+	// resolved connections so links stay project-scoped.
+	projectID := resolveEffectiveProjectID(config.Profile.ProjectId, connections)
+
 	// Perform initial health check on target server (unless disabled)
 	// Using 3-second timeout optimized for local development scenarios.
 	// This assumes low latency to localhost. For production/edge deployments,
@@ -156,7 +161,7 @@ Specify a single destination to update the path. For example, pass a connection 
 	// For non-interactive modes, print connection info before starting
 	if flags.Output == "compact" || flags.Output == "quiet" {
 		fmt.Println()
-		printSourcesWithConnections(config, sources, connections, URL, guestURL)
+		printSourcesWithConnections(config, projectID, sources, connections, URL, guestURL)
 		fmt.Println()
 	}
 	// For interactive mode, connection info will be shown in TUI
@@ -191,7 +196,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		DashboardBaseURL: config.DashboardBaseURL,
 		ConsoleBaseURL:   config.ConsoleBaseURL,
 		ProjectMode:      config.Profile.ProjectMode,
-		ProjectID:        config.Profile.ProjectId,
+		ProjectID:        projectID,
 		GuestURL:         guestURL,
 		TargetURL:        URL,
 		Output:           flags.Output,
@@ -214,6 +219,22 @@ Specify a single destination to update the path. For example, pass a connection 
 	}
 
 	return nil
+}
+
+// resolveEffectiveProjectID returns the project id to use for dashboard
+// deep-links: the profile's active project when set, otherwise the team that
+// owns the connections being listened to (user-scoped CLI keys are not tied to
+// a single project, so the profile value is empty for them).
+func resolveEffectiveProjectID(profileProjectID string, connections []*hookdeck.Connection) string {
+	if profileProjectID != "" {
+		return profileProjectID
+	}
+	for _, connection := range connections {
+		if connection != nil && connection.TeamID != "" {
+			return connection.TeamID
+		}
+	}
+	return ""
 }
 
 func parseSourceQuery(sourceQuery string) ([]string, error) {
