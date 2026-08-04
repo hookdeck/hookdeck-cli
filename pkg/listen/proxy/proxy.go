@@ -50,7 +50,7 @@ type Config struct {
 	// Disable periodic health checks of the local server
 	NoHealthcheck bool
 	// Output mode: interactive, compact, quiet
-	Output string
+	Output   string
 	GuestURL string
 	// MaxConnections allows tuning the maximum concurrent connections per host.
 	// Default: 50 concurrent connections
@@ -141,6 +141,25 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 		return fmt.Errorf("error while starting a new session")
 	}
 
+	// Session-recreation data sent on every websocket connect so the server
+	// can recreate the session if it has expired server-side while the CLI
+	// is still running.
+	var connectionIDs []string
+	for _, connection := range p.connections {
+		connectionIDs = append(connectionIDs, connection.ID)
+	}
+	var sessionFiltersJSON []byte
+	if p.cfg.Filters != nil {
+		var err error
+		sessionFiltersJSON, err = json.Marshal(p.cfg.Filters)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"prefix": "proxy.Proxy.Run",
+			}).Debug("Failed to serialize session filters for reconnect headers: ", err)
+			sessionFiltersJSON = nil
+		}
+	}
+
 	// Main loop to keep attempting to connect to Hookdeck once
 	// we have created a session.
 	for canConnect() {
@@ -150,9 +169,11 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			p.cfg.Key,
 			p.cfg.ProjectID,
 			&websocket.Config{
-				Log:          p.cfg.Log,
-				NoWSS:        p.cfg.NoWSS,
-				EventHandler: websocket.EventHandlerFunc(p.processAttempt),
+				Log:                p.cfg.Log,
+				NoWSS:              p.cfg.NoWSS,
+				EventHandler:       websocket.EventHandlerFunc(p.processAttempt),
+				WebhookIDs:         connectionIDs,
+				SessionFiltersJSON: sessionFiltersJSON,
 			},
 		)
 
@@ -204,6 +225,23 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			if !canConnect() {
 				p.renderer.Cleanup()
 				return fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection.", nAttempts)
+			}
+			// The server reported that the session no longer exists (e.g. it
+			// expired server-side). Reconnecting with the same websocket ID
+			// can never succeed, so create a fresh session before retrying.
+			if p.webSocketClient.SessionExpired() {
+				log.WithFields(log.Fields{
+					"prefix": "proxy.Proxy.Run",
+				}).Debug("Session expired server-side, creating a new session before reconnecting")
+
+				newSession, err := p.createSession(signalCtx)
+				if err != nil || newSession.Id == "" {
+					log.WithFields(log.Fields{
+						"prefix": "proxy.Proxy.Run",
+					}).Debug("Failed to create a replacement session, retrying with the existing session: ", err)
+				} else {
+					session = newSession
+				}
 			}
 		}
 

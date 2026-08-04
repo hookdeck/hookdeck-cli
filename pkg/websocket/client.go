@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ws "github.com/gorilla/websocket"
@@ -41,6 +42,16 @@ type Config struct {
 	WriteWait time.Duration
 
 	EventHandler EventHandler
+
+	// WebhookIDs are the connection IDs the session listens to. They are sent
+	// on every connect via the X-Webhook-Ids header so the server can recreate
+	// the session if it has expired server-side.
+	WebhookIDs []string
+
+	// SessionFiltersJSON is the JSON-encoded session filters, sent on every
+	// connect via the X-Session-Filters header (base64-encoded). Nil when the
+	// session has no filters.
+	SessionFiltersJSON []byte
 }
 
 // EventHandler handles an event.
@@ -82,12 +93,25 @@ type Client struct {
 	done        chan struct{}
 	isConnected bool
 
+	// sessionExpired is set when the server indicates the session no longer
+	// exists (close code 4001, or an "Unknown WebSocket ID." rejection during
+	// the upgrade). The owner of the client should create a new session
+	// instead of reconnecting with the same websocket ID.
+	sessionExpired atomic.Bool
+
 	NotifyExpired chan struct{}
 	notifyClose   chan error
 	send          chan *OutgoingMessage
 	stopReadPump  chan struct{}
 	stopWritePump chan struct{}
 	wg            *sync.WaitGroup
+}
+
+// SessionExpired reports whether the server indicated that the session tied
+// to this client's WebSocketID no longer exists. When true, reconnecting with
+// the same WebSocketID cannot succeed; a new session must be created first.
+func (c *Client) SessionExpired() bool {
+	return c.sessionExpired.Load()
 }
 
 // Connected returns a channel that's closed when the client has finished
@@ -123,6 +147,7 @@ func (c *Client) Run(ctx context.Context) {
 		}).Debug("Failed to connect to Hookdeck. Retrying...")
 
 		if err == ErrUnknownID {
+			c.sessionExpired.Store(true)
 			c.cfg.Log.WithFields(log.Fields{
 				"prefix": "websocket.client.Run",
 			}).Debug("Websocket session is expired.")
@@ -205,14 +230,20 @@ var unknownIDMessage string = "Unknown WebSocket ID."
 // ErrUnknownID can occur when the websocket session is expired or invalid
 var ErrUnknownID error = errors.New(unknownIDMessage)
 
+// closeSessionExpired is the close code the server sends when the session
+// tied to the Websocket-Id header no longer exists (SESSION_EXPIRED) or the
+// session-recreation headers could not be parsed (INVALID_SESSION_DATA).
+const closeSessionExpired = 4001
+
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-// connect makes a single attempt to connect to the websocket URL. It returns
-// the success of the attempt.
-func (c *Client) connect(ctx context.Context) error {
+// connectHeaders builds the headers sent with the websocket upgrade request.
+// X-Webhook-Ids and X-Session-Filters let the server recreate the session if
+// it has expired server-side (e.g. Redis TTL) while the CLI is still running.
+func (c *Client) connectHeaders() http.Header {
 	header := http.Header{}
 	// Disable compression by requiring "identity"
 	header.Set("Accept-Encoding", "identity")
@@ -221,6 +252,23 @@ func (c *Client) connect(ctx context.Context) error {
 	header.Set("Websocket-Id", c.WebSocketID)
 	header.Set("X-Team-Id", c.TeamID)
 	header.Set("Authorization", "Basic "+basicAuth(c.CLIKey, ""))
+
+	if len(c.cfg.WebhookIDs) > 0 {
+		header.Set("X-Webhook-Ids", strings.Join(c.cfg.WebhookIDs, ","))
+	}
+	// Base64 keeps non-ASCII filter values intact; the server decodes the
+	// header as base64-encoded JSON.
+	if len(c.cfg.SessionFiltersJSON) > 0 {
+		header.Set("X-Session-Filters", base64.StdEncoding.EncodeToString(c.cfg.SessionFiltersJSON))
+	}
+
+	return header
+}
+
+// connect makes a single attempt to connect to the websocket URL. It returns
+// the success of the attempt.
+func (c *Client) connect(ctx context.Context) error {
+	header := c.connectHeaders()
 
 	url := c.URL
 	if c.cfg.NoWSS && strings.HasPrefix(url, "wss") {
@@ -309,6 +357,12 @@ func (c *Client) readPump() {
 					"prefix": "websocket.Client.readPump",
 				}).Debug("stopReadPump")
 			default:
+				if ws.IsCloseError(err, closeSessionExpired) {
+					c.sessionExpired.Store(true)
+					c.cfg.Log.WithFields(log.Fields{
+						"prefix": "websocket.Client.readPump",
+					}).Debug("Server closed the connection because the session expired: ", err)
+				}
 				switch {
 				case !ws.IsCloseError(err):
 					// read errors do not prevent websocket reconnects in the CLI so we should
