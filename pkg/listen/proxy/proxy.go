@@ -129,19 +129,29 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 	// of connection attempts that will be made and will retry
 	// until the connection is successful or the user terminates
 	// the program.
-	hasConnectedOnce := false
+	// Atomic: written by the per-attempt connection monitor goroutine below and
+	// read by canConnect on this goroutine.
+	var hasConnectedOnce atomic.Bool
 	canConnect := func() bool {
-		if hasConnectedOnce {
+		if hasConnectedOnce.Load() {
 			return true
 		} else {
 			return nAttempts < maxConnectAttempts
 		}
 	}
 
+	// Set before the websocket is stopped below, so the reconnect loop can tell an
+	// intentional shutdown from a real disconnect. Stopping the client closes its
+	// NotifyExpired channel, which would otherwise race the context cancellation and
+	// make the loop announce "Connection lost, reconnecting..." as the CLI exits.
+	var shuttingDown atomic.Bool
+
 	signalCtx := withSIGTERMCancel(parentCtx, func() {
 		log.WithFields(log.Fields{
 			"prefix": "proxy.Proxy.Run",
 		}).Debug("Ctrl+C received, cleaning up...")
+
+		shuttingDown.Store(true)
 
 		// Send a clean WebSocket close (1000) before the context is
 		// cancelled. This lets the server tombstone the session
@@ -207,12 +217,11 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			p.renderer.OnConnected()
 
 			// Only start health monitoring on first successful connection to prevent
-			// goroutine leaks on reconnects. The hasConnectedOnce guard ensures that
-			// even if the websocket reconnects multiple times (which happens in the
-			// Run() loop), we only spawn the health monitor goroutine once.
-			if !hasConnectedOnce {
-				hasConnectedOnce = true
-
+			// goroutine leaks on reconnects. The compare-and-swap ensures that even
+			// if the websocket reconnects multiple times (which happens in the Run()
+			// loop, each attempt spawning its own monitor goroutine), we only spawn
+			// the health monitor goroutine once.
+			if hasConnectedOnce.CompareAndSwap(false, true) {
 				// Skip health monitoring if disabled via --no-healthcheck flag
 				if p.cfg.NoHealthcheck {
 					// Assume server is healthy when healthchecks are disabled
@@ -245,6 +254,14 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			p.renderer.Cleanup()
 			return nil
 		case <-wsClient.NotifyExpired:
+			// Stopping the client on shutdown closes NotifyExpired, so this case can
+			// win the race against signalCtx.Done(). That's an intentional exit, not a
+			// dropped connection — don't tell the user we're reconnecting.
+			if shuttingDown.Load() {
+				p.renderer.Cleanup()
+				return nil
+			}
+
 			p.renderer.OnDisconnected()
 			// If this attempt connected successfully before dropping (e.g. a
 			// routine server deploy closing with 1001), reset the counter so

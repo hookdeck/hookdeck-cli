@@ -192,6 +192,35 @@ func TestServerCloseCodesReconnectQuietly(t *testing.T) {
 	}
 }
 
+// A connection that dies without a close handshake (network blip, laptop sleep, load
+// balancer timeout, ungracefully killed pod) surfaces as a synthesized 1006 CloseError.
+// The reconnect loop handles it, so it must not tell the user to file a bug report.
+func TestAbruptDisconnectReconnectsQuietly(t *testing.T) {
+	var captured http.Header
+	server := upgradeTestServer(t, &captured, func(conn *ws.Conn) {
+		// Drop the TCP connection with no close frame.
+		_ = conn.UnderlyingConn().Close()
+	})
+	defer server.Close()
+
+	logger, hook := logtest.NewNullLogger()
+	client := NewClient(wsURL(server), "cses_test", "cli-key", "tm_test", nil, "", &Config{Log: logger})
+
+	go client.Run(context.Background())
+
+	select {
+	case <-client.NotifyExpired:
+	case <-time.After(5 * time.Second):
+		t.Fatal("client did not report connection loss after the connection dropped")
+	}
+
+	for _, entry := range hook.AllEntries() {
+		if entry.Level <= logrus.ErrorLevel {
+			t.Errorf("abrupt disconnect logged at %s level: %s", entry.Level, entry.Message)
+		}
+	}
+}
+
 func TestStopIsIdempotentWithoutConnection(t *testing.T) {
 	client := NewClient("ws://127.0.0.1:1", "cses_test", "cli-key", "tm_test", nil, "", &Config{})
 

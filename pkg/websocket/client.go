@@ -412,6 +412,15 @@ func (c *Client) readPump() {
 					c.cfg.Log.WithFields(log.Fields{
 						"prefix": "websocket.Client.Close",
 					}).Debug("session expired on server, reconnecting to recreate it: ", err)
+				case closeErr.Code == ws.CloseAbnormalClosure:
+					// 1006: the connection dropped without a close handshake — a network
+					// blip, laptop sleep, load balancer idle timeout, or a pod killed
+					// ungracefully. 1006 is never sent on the wire; gorilla synthesizes it
+					// for an unexpected EOF. The reconnect loop handles it, so this is
+					// routine rather than something to report.
+					c.cfg.Log.WithFields(log.Fields{
+						"prefix": "websocket.Client.Close",
+					}).Debug("connection dropped, reconnecting: ", err)
 				default:
 					c.cfg.Log.WithFields(log.Fields{
 						"prefix": "websocket.Client.Close",
