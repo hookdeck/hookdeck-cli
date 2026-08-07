@@ -63,8 +63,18 @@ type listenCmd struct {
 // The key is validated before anything is written, so a typo fails here with a
 // clear error rather than being persisted and confusing the next run.
 func (lc *listenCmd) applyCliKey(cmd *cobra.Command) error {
-	if !cmd.Flags().Changed("cli-key") {
+	flag := cmd.Flags().Lookup("cli-key")
+	if flag == nil || !flag.Changed {
 		return nil
+	}
+
+	// `--cli-key=` passes the Changed check but leaves nothing to authenticate
+	// with. Without this the empty value falls through InitConfig's coalesce
+	// and the run fails with "your API key is invalid or expired", which
+	// describes neither what happened nor how to fix it. Read the flag rather
+	// than Profile.APIKey, which by now may hold a stored key instead.
+	if strings.TrimSpace(flag.Value.String()) == "" {
+		return errors.New("--cli-key needs a value, e.g. --cli-key <key from the Hookdeck Console>")
 	}
 
 	response, err := Config.GetAPIClient().ValidateAPIKey()

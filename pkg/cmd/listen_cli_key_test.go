@@ -130,6 +130,26 @@ project_id = "stored_project"
 		assert.Equal(t, stored, string(after), "an existing login must be left on disk untouched")
 	})
 
+	// `--cli-key=` satisfies Changed but carries nothing to authenticate with.
+	// It must fail locally rather than as an opaque auth error from the API.
+	t.Run("rejects an explicitly empty --cli-key before calling the API", func(t *testing.T) {
+		old := Config
+		t.Cleanup(func() { Config = old })
+		config.ResetAPIClientForTesting()
+		t.Cleanup(config.ResetAPIClientForTesting)
+
+		// A dead port: reaching the network at all fails this test.
+		Config = config.Config{}
+		Config.APIBaseURL = "http://127.0.0.1:1"
+
+		lc := listenCmdWithCliKeyFlag(t, "")
+
+		err := lc.applyCliKey(lc.cmd)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--cli-key needs a value",
+			"the error must name the flag, not surface as an auth failure")
+	})
+
 	t.Run("propagates a validation failure without writing", func(t *testing.T) {
 		old := Config
 		t.Cleanup(func() { Config = old })
