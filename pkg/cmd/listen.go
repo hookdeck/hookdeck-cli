@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen"
 	"github.com/spf13/cobra"
@@ -40,6 +41,47 @@ type listenCmd struct {
 	filterHeaders  string
 	filterQuery    string
 	filterPath     string
+}
+
+// adoptCliKeyIfUnauthenticated saves a --cli-key supplied on the command line
+// when this machine has no stored credential yet, so the key only has to be
+// pasted once. This is the Hookdeck Console path: the Console hands you a
+// `listen ... --cli-key <key>` command, and without this the key would be
+// needed on every subsequent run.
+//
+// It deliberately does nothing when a credential already exists. Someone
+// forwarding a Console source for a few minutes should not silently lose the
+// login they already had — in that case the key applies to this run only.
+//
+// The key is validated before being written, so a typo fails here with a clear
+// error rather than being persisted and confusing the next run.
+func (lc *listenCmd) adoptCliKeyIfUnauthenticated(cmd *cobra.Command) error {
+	if !cmd.Flags().Changed("cli-key") || Config.HasStoredAPIKey {
+		return nil
+	}
+
+	response, err := Config.GetAPIClient().ValidateAPIKey()
+	if err != nil {
+		return err
+	}
+
+	Config.Profile.ApplyValidateAPIKeyResponse(response, true)
+	if err := Config.Profile.SaveProfile(); err != nil {
+		return err
+	}
+	if err := Config.Profile.UseProfile(); err != nil {
+		return err
+	}
+	Config.RefreshCachedAPIClient()
+
+	// Writing credentials is a side effect of a command that otherwise only
+	// forwards events, so say so rather than doing it silently.
+	fmt.Printf(
+		"Saved CLI key for %s. Future runs won't need --cli-key.\n",
+		ansi.Bold(response.ProjectName),
+	)
+
+	return nil
 }
 
 // Map --cli-path to --path
@@ -162,6 +204,14 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 	lc.cmd.Flags().MarkHidden("no-wss")
 
+	// Declared locally as well as on the root command. The root flag is hidden
+	// and deprecated, but `listen --cli-key` is a documented, supported way to
+	// authenticate a single run (from the Hookdeck Console, or in CI), and
+	// listen's own help promotes it. Binding to the same Config field keeps the
+	// behaviour identical; this only makes the flag discoverable in
+	// `hookdeck listen --help`.
+	lc.cmd.Flags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Hookdeck CLI key used to authenticate this command, e.g. the key shown in the Hookdeck Console")
+
 	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
 	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
 
@@ -241,6 +291,10 @@ Examples:
 
 // listenCmd represents the listen command
 func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
+	if err := lc.adoptCliKeyIfUnauthenticated(cmd); err != nil {
+		return err
+	}
+
 	var sourceQuery, connectionQuery string
 	if len(args) > 1 {
 		sourceQuery = args[1]

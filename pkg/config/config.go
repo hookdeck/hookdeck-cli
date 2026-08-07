@@ -42,6 +42,13 @@ type Config struct {
 	configFile     string // resolved path of config file
 	viper          *viper.Viper
 
+	// HasStoredAPIKey reports whether the config file already held a key when
+	// InitConfig ran, before any --cli-key/--api-key flag was folded in.
+	// Commands use it to tell "this machine already has a login" apart from
+	// "the key came from this invocation's flag", which the coalesced
+	// Profile.APIKey can no longer distinguish.
+	HasStoredAPIKey bool
+
 	// Telemetry
 	TelemetryDisabled bool
 
@@ -338,6 +345,11 @@ func (c *Config) constructConfig() {
 	// "workspace" > "team"
 	// TODO: use "project" instead of "workspace"
 	// TODO: use "cli_key" instead of "api_key"
+	// Record whether a key was already on disk before the flag value wins the
+	// coalesce below, so commands can distinguish an existing login from a
+	// key supplied for this run only.
+	c.HasStoredAPIKey = stringCoalesce(c.viper.GetString(c.Profile.getConfigField("api_key")), c.viper.GetString("api_key"), "") != ""
+
 	c.Profile.APIKey = stringCoalesce(c.Profile.APIKey, c.viper.GetString(c.Profile.getConfigField("api_key")), c.viper.GetString("api_key"), "")
 
 	c.Profile.ProjectId = stringCoalesce(c.Profile.ProjectId, c.viper.GetString(c.Profile.getConfigField("project_id")), c.viper.GetString("project_id"), c.viper.GetString(c.Profile.getConfigField("workspace_id")), c.viper.GetString(c.Profile.getConfigField("team_id")), c.viper.GetString("workspace_id"), "")
