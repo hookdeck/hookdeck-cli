@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen"
 	"github.com/spf13/cobra"
@@ -40,6 +41,72 @@ type listenCmd struct {
 	filterHeaders  string
 	filterQuery    string
 	filterPath     string
+}
+
+// applyCliKey resolves the project context for a --cli-key supplied on the
+// command line, and saves the key when this machine has no stored credential.
+//
+// A key given on the command line determines its own project. Any project read
+// from the config file belongs to a different login, and sending it alongside
+// this key is what previously produced "your API key is invalid or expired" for
+// anyone who already had a profile. Validation is project-agnostic (see
+// Client.clientForCLIAuthValidate), so it resolves the project the key really
+// belongs to, and that replaces whatever was on disk for this process.
+//
+// Saving is separate, and only happens when there is no stored credential. That
+// covers the Hookdeck Console path, where the Console hands you a
+// `listen ... --cli-key <key>` command and the key would otherwise be needed on
+// every later run. When a credential already exists it is left alone: someone
+// forwarding a Console source for a few minutes should not silently lose the
+// login they had.
+//
+// The key is validated before anything is written, so a typo fails here with a
+// clear error rather than being persisted and confusing the next run.
+func (lc *listenCmd) applyCliKey(cmd *cobra.Command) error {
+	flag := cmd.Flags().Lookup("cli-key")
+	if flag == nil || !flag.Changed {
+		return nil
+	}
+
+	// `--cli-key=` passes the Changed check but leaves nothing to authenticate
+	// with. Without this the empty value falls through InitConfig's coalesce
+	// and the run fails with "your API key is invalid or expired", which
+	// describes neither what happened nor how to fix it. Read the flag rather
+	// than Profile.APIKey, which by now may hold a stored key instead.
+	if strings.TrimSpace(flag.Value.String()) == "" {
+		return errors.New("--cli-key needs a value, e.g. --cli-key <key from the Hookdeck Console>")
+	}
+
+	response, err := Config.GetAPIClient().ValidateAPIKey()
+	if err != nil {
+		return err
+	}
+
+	// Adopt the key's own project, discarding any stale project from config.
+	Config.Profile.ApplyValidateAPIKeyResponse(response, true)
+	Config.RefreshCachedAPIClient()
+
+	if Config.HasStoredAPIKey {
+		// Use the key for this run only; the existing login stays on disk.
+		return nil
+	}
+
+	if err := Config.Profile.SaveProfile(); err != nil {
+		return err
+	}
+	if err := Config.Profile.UseProfile(); err != nil {
+		return err
+	}
+	Config.RefreshCachedAPIClient()
+
+	// Writing credentials is a side effect of a command that otherwise only
+	// forwards events, so say so rather than doing it silently.
+	fmt.Printf(
+		"Saved CLI key for %s. Future runs won't need --cli-key.\n",
+		ansi.Bold(response.ProjectName),
+	)
+
+	return nil
 }
 
 // Map --cli-path to --path
@@ -162,6 +229,14 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().BoolVar(&lc.noWSS, "no-wss", false, "Force unencrypted ws:// protocol instead of wss://")
 	lc.cmd.Flags().MarkHidden("no-wss")
 
+	// Declared locally as well as on the root command. The root flag is hidden
+	// and deprecated, but `listen --cli-key` is a documented, supported way to
+	// authenticate a single run (from the Hookdeck Console, or in CI), and
+	// listen's own help promotes it. Binding to the same Config field keeps the
+	// behaviour identical; this only makes the flag discoverable in
+	// `hookdeck listen --help`.
+	lc.cmd.Flags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Hookdeck CLI key used to authenticate this command, e.g. the key shown in the Hookdeck Console")
+
 	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
 	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
 
@@ -241,6 +316,10 @@ Examples:
 
 // listenCmd represents the listen command
 func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
+	if err := lc.applyCliKey(cmd); err != nil {
+		return err
+	}
+
 	var sourceQuery, connectionQuery string
 	if len(args) > 1 {
 		sourceQuery = args[1]
