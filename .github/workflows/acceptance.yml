@@ -33,7 +33,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.24.9"
+          go-version: "1.26.5"
 
       - name: Run Go Acceptance Tests (slice ${{ matrix.slice }})
         run: go test -tags="${{ matrix.tags }}" ./test/acceptance/... -v -timeout 12m
@@ -55,7 +55,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.24.9"
+          go-version: "1.26.5"
 
       - name: Run telemetry acceptance tests
         run: go test -tags=telemetry ./test/acceptance/... -v -timeout 12m
