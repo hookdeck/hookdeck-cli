@@ -43,20 +43,27 @@ type listenCmd struct {
 	filterPath     string
 }
 
-// adoptCliKeyIfUnauthenticated saves a --cli-key supplied on the command line
-// when this machine has no stored credential yet, so the key only has to be
-// pasted once. This is the Hookdeck Console path: the Console hands you a
-// `listen ... --cli-key <key>` command, and without this the key would be
-// needed on every subsequent run.
+// applyCliKey resolves the project context for a --cli-key supplied on the
+// command line, and saves the key when this machine has no stored credential.
 //
-// It deliberately does nothing when a credential already exists. Someone
+// A key given on the command line determines its own project. Any project read
+// from the config file belongs to a different login, and sending it alongside
+// this key is what previously produced "your API key is invalid or expired" for
+// anyone who already had a profile. Validation is project-agnostic (see
+// Client.clientForCLIAuthValidate), so it resolves the project the key really
+// belongs to, and that replaces whatever was on disk for this process.
+//
+// Saving is separate, and only happens when there is no stored credential. That
+// covers the Hookdeck Console path, where the Console hands you a
+// `listen ... --cli-key <key>` command and the key would otherwise be needed on
+// every later run. When a credential already exists it is left alone: someone
 // forwarding a Console source for a few minutes should not silently lose the
-// login they already had — in that case the key applies to this run only.
+// login they had.
 //
-// The key is validated before being written, so a typo fails here with a clear
-// error rather than being persisted and confusing the next run.
-func (lc *listenCmd) adoptCliKeyIfUnauthenticated(cmd *cobra.Command) error {
-	if !cmd.Flags().Changed("cli-key") || Config.HasStoredAPIKey {
+// The key is validated before anything is written, so a typo fails here with a
+// clear error rather than being persisted and confusing the next run.
+func (lc *listenCmd) applyCliKey(cmd *cobra.Command) error {
+	if !cmd.Flags().Changed("cli-key") {
 		return nil
 	}
 
@@ -65,7 +72,15 @@ func (lc *listenCmd) adoptCliKeyIfUnauthenticated(cmd *cobra.Command) error {
 		return err
 	}
 
+	// Adopt the key's own project, discarding any stale project from config.
 	Config.Profile.ApplyValidateAPIKeyResponse(response, true)
+	Config.RefreshCachedAPIClient()
+
+	if Config.HasStoredAPIKey {
+		// Use the key for this run only; the existing login stays on disk.
+		return nil
+	}
+
 	if err := Config.Profile.SaveProfile(); err != nil {
 		return err
 	}
@@ -291,7 +306,7 @@ Examples:
 
 // listenCmd represents the listen command
 func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
-	if err := lc.adoptCliKeyIfUnauthenticated(cmd); err != nil {
+	if err := lc.applyCliKey(cmd); err != nil {
 		return err
 	}
 
