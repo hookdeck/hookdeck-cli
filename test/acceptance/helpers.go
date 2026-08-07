@@ -69,11 +69,20 @@ func commandSummaryFor502Log(args []string) string {
 
 // runWithHTTP502Retry re-runs run() when the process exits with an error and
 // output looks like a transient Hookdeck API HTTP 502/500. Logs each retry clearly via t.Logf.
-func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, run func() (stdout, stderr string, err error)) (stdout, stderr string, err error) {
+func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, args []string, run func() (stdout, stderr string, err error)) (stdout, stderr string, err error) {
 	r.t.Helper()
 	var lastStdout, lastStderr string
 	var lastErr error
 	for attempt := 1; attempt <= acceptance502MaxAttempts; attempt++ {
+		if attempt > 1 {
+			// A retry re-runs the whole CLI command, which emits a fresh
+			// invocation_id. If a recording proxy captured the failed attempt's
+			// requests too, AssertTelemetryConsistent would see two invocation_ids
+			// and fail. Drop the previous attempt's recorded requests so only the
+			// final (successful) attempt remains. No-op when no recording proxy is
+			// referenced by --api-base.
+			resetRecordingProxiesForArgs(args)
+		}
 		lastStdout, lastStderr, lastErr = run()
 		if lastErr == nil || !combinedOutputLooksLikeHTTP502(lastStdout, lastStderr) {
 			return lastStdout, lastStderr, lastErr
@@ -130,9 +139,65 @@ func (p *RecordingProxy) Recorded() []RecordedRequest {
 	return out
 }
 
+// Reset clears the recorded requests. Used between CLI retries so only the
+// final (successful) attempt's requests are asserted.
+func (p *RecordingProxy) Reset() {
+	p.mu.Lock()
+	p.recorded = p.recorded[:0]
+	p.mu.Unlock()
+}
+
 // Close shuts down the proxy server.
 func (p *RecordingProxy) Close() {
+	unregisterRecordingProxy(p)
 	p.server.Close()
+}
+
+// recordingProxyByURL maps a proxy's base URL to the proxy so the CLI retry loop
+// can reset the correct proxy (found via --api-base in the command args) between
+// attempts, without every test having to wire it up.
+var (
+	recordingProxyMu    sync.Mutex
+	recordingProxyByURL = map[string]*RecordingProxy{}
+)
+
+func registerRecordingProxy(p *RecordingProxy) {
+	recordingProxyMu.Lock()
+	recordingProxyByURL[p.server.URL] = p
+	recordingProxyMu.Unlock()
+}
+
+func unregisterRecordingProxy(p *RecordingProxy) {
+	recordingProxyMu.Lock()
+	delete(recordingProxyByURL, p.server.URL)
+	recordingProxyMu.Unlock()
+}
+
+func lookupRecordingProxy(baseURL string) *RecordingProxy {
+	recordingProxyMu.Lock()
+	defer recordingProxyMu.Unlock()
+	return recordingProxyByURL[baseURL]
+}
+
+// resetRecordingProxiesForArgs clears the recorded requests of any recording
+// proxy referenced by --api-base in args. Called before a CLI retry so a failed
+// attempt's requests (which carry a different invocation_id) don't linger.
+func resetRecordingProxiesForArgs(args []string) {
+	for i, a := range args {
+		var baseURL string
+		switch {
+		case a == "--api-base" && i+1 < len(args):
+			baseURL = args[i+1]
+		case strings.HasPrefix(a, "--api-base="):
+			baseURL = strings.TrimPrefix(a, "--api-base=")
+		}
+		if baseURL == "" {
+			continue
+		}
+		if p := lookupRecordingProxy(baseURL); p != nil {
+			p.Reset()
+		}
+	}
 }
 
 // StartRecordingProxy starts an httptest.Server that acts as a reverse proxy to
@@ -200,6 +265,7 @@ func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
 		_, _ = io.Copy(w, resp.Body)
 	}))
 
+	registerRecordingProxy(p)
 	return p
 }
 
@@ -432,7 +498,7 @@ func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
 
 	summary := commandSummaryFor502Log(args)
-	return r.runWithHTTP502Retry(summary, func() (string, string, error) {
+	return r.runWithHTTP502Retry(summary, args, func() (string, string, error) {
 		mainGoPath := filepath.Join(r.projectRoot, "main.go")
 		cmdArgs := append([]string{"run", mainGoPath}, args...)
 		cmd := exec.Command("go", cmdArgs...)
@@ -455,7 +521,7 @@ func (r *CLIRunner) RunWithEnv(extraEnv map[string]string, args ...string) (stdo
 	r.t.Helper()
 
 	summary := commandSummaryFor502Log(args)
-	return r.runWithHTTP502Retry(summary, func() (string, string, error) {
+	return r.runWithHTTP502Retry(summary, args, func() (string, string, error) {
 		env := os.Environ()
 		if r.configPath != "" {
 			env = appendEnvOverride(env, "HOOKDECK_CONFIG_FILE", r.configPath)
@@ -687,7 +753,7 @@ func (r *CLIRunner) RunFromCwd(args ...string) (stdout, stderr string, err error
 	}
 
 	summary := commandSummaryFor502Log(args)
-	return r.runWithHTTP502Retry(summary, func() (string, string, error) {
+	return r.runWithHTTP502Retry(summary, args, func() (string, string, error) {
 		cmd := exec.Command(tmpBinary, args...)
 		if r.configPath != "" {
 			cmd.Env = appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", r.configPath)
@@ -846,10 +912,10 @@ type Request struct {
 
 // Attempt represents a Hookdeck attempt for testing
 type Attempt struct {
-	ID           string `json:"id"`
-	EventID      string `json:"event_id"`
-	AttemptNumber int   `json:"attempt_number"`
-	Status       string `json:"status"`
+	ID            string `json:"id"`
+	EventID       string `json:"event_id"`
+	AttemptNumber int    `json:"attempt_number"`
+	Status        string `json:"status"`
 }
 
 // createTestConnection creates a basic test connection and returns its ID

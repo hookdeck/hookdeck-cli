@@ -6,7 +6,15 @@ on:
       - "v*"
 
 jobs:
+  # Gate: the release only proceeds if the acceptance suite passes on the tagged
+  # commit. On a transient failure, use "Re-run failed jobs" — builds and the npm
+  # publish only run once acceptance is green, so no re-tag is needed.
+  acceptance:
+    uses: ./.github/workflows/acceptance.yml
+    secrets: inherit
+
   build-mac:
+    needs: [acceptance]
     runs-on: macos-latest
     steps:
       - name: Code checkout
@@ -26,6 +34,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
 
   build-linux:
+    needs: [acceptance]
     runs-on: ubuntu-latest
     env:
       # https://goreleaser.com/customization/docker_manifest/
@@ -57,6 +66,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
 
   build-windows:
+    needs: [acceptance]
     runs-on: windows-latest
     steps:
       - name: Code checkout
