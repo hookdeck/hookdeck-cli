@@ -39,6 +39,7 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		Connections:      cfg.Connections,
 		Filters:          cfg.Filters,
 		APIClient:        cfg.APIClient,
+		AppConfig:        cfg.AppConfig,
 	}
 
 	model := tui.NewModel(tuiCfg)

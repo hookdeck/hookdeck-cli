@@ -73,7 +73,7 @@ func Listen(URL *url.URL, sourceQuery string, connectionFilterString string, fla
 			return err
 		}
 	} else if config.Profile.GuestURL != "" && config.Profile.APIKey != "" {
-		// User is logged in with a guest account (has both GuestURL and APIKey)
+		// Guest profile: use saved URL at startup; interactive TUI refreshes async.
 		guestURL = config.Profile.GuestURL
 	}
 
@@ -204,6 +204,7 @@ Specify a single destination to update the path. For example, pass a connection 
 		Connections:      connections,
 		Filters:          flags.Filters,
 		APIClient:        apiClient,
+		AppConfig:        config,
 	}
 
 	renderer := proxy.NewRenderer(rendererCfg)

@@ -15,8 +15,16 @@ type GuestUser struct {
 	PollURL    string `json:"poll_url"`
 }
 
+type GuestSigninLinkResponse struct {
+	// Id is the guest user id (not the sign-in token id).
+	Id        string `json:"id"`
+	Url       string `json:"link"`
+	ExpiresAt string `json:"expires_at"`
+}
+
 type CreateGuestUserInput struct {
-	DeviceName string `json:"device_name"`
+	DeviceName  string `json:"device_name,omitempty"`
+	LinkContext string `json:"link_context,omitempty"`
 }
 
 func (c *Client) CreateGuestUser(input CreateGuestUserInput) (GuestUser, error) {
@@ -29,9 +37,26 @@ func (c *Client) CreateGuestUser(input CreateGuestUserInput) (GuestUser, error) 
 		return GuestUser{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return GuestUser{}, fmt.Errorf("unexpected http status code: %d %s", res.StatusCode, err)
+		return GuestUser{}, fmt.Errorf("unexpected http status code: %d", res.StatusCode)
 	}
 	guest_user := GuestUser{}
 	postprocessJsonResponse(res, &guest_user)
 	return guest_user, nil
+}
+
+func (c *Client) RefreshGuestSigninLink() (GuestSigninLinkResponse, error) {
+	input_bytes, err := json.Marshal(CreateGuestUserInput{LinkContext: "signup"})
+	if err != nil {
+		return GuestSigninLinkResponse{}, err
+	}
+	res, err := c.Post(context.Background(), APIPathPrefix+"/cli/guest", input_bytes, nil)
+	if err != nil {
+		return GuestSigninLinkResponse{}, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return GuestSigninLinkResponse{}, fmt.Errorf("unexpected http status code: %d", res.StatusCode)
+	}
+	response := GuestSigninLinkResponse{}
+	postprocessJsonResponse(res, &response)
+	return response, nil
 }

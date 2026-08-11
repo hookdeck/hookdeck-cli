@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -59,6 +60,7 @@ type RendererConfig struct {
 	Connections      []*hookdeck.Connection
 	Filters          *hookdeck.SessionFilters
 	APIClient        *hookdeck.Client
+	AppConfig        *config.Config
 }
 
 // NewRenderer creates the appropriate renderer based on output mode

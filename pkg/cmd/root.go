@@ -220,8 +220,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&Config.Profile.Name, "profile", "p", "", fmt.Sprintf("profile name (default \"%s\")", hookdeck.DefaultProfileName))
 
-	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "(deprecated) Your API key to use for the command")
-	rootCmd.PersistentFlags().MarkHidden("cli-key")
+	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Hookdeck CLI key (e.g. from dashboard onboarding or hookdeck login)")
 
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "api-key", "", "Your API key to use for the command")
 	rootCmd.PersistentFlags().MarkHidden("api-key")

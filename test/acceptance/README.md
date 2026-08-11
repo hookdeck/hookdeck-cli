@@ -13,6 +13,8 @@ These tests run automatically in CI using API keys from `hookdeck ci`. They don'
 
 **Login recovery (mock API, `basic` tag):** `login_auth_acceptance_test.go` runs the real CLI with `--api-base` pointing at a local server that returns **401** on `GET .../cli-auth/validate`, then completes a fake device-auth poll — this asserts `hookdeck login` continues into browser/device flow after a stale key (no human, no real Hookdeck key). The same file includes **`TestCIFailsFastWithInvalidAPIKeyAcceptance`**, which runs `hookdeck ci --api-key` with a bogus key against the real API and expects a quick failure with the friendly **Authentication failed** message, and asserts output does **not** contain browser/device-login phrases (`Press Enter to open the browser`, `To authenticate with Hookdeck`, etc.) so CI never enters the interactive `hookdeck login` flow.
 
+**Guest login (mock API, `guest` tag):** `guest_login_acceptance_test.go` asserts `POST /cli-auth` receives guest credentials when a guest profile is present, and omits them after logout (empty profile).
+
 ### 2. Manual Tests (Require Human Interaction)
 These tests require browser-based authentication via `hookdeck login` and must be run manually by developers.
 
@@ -28,7 +30,9 @@ These tests require browser-based authentication via `hookdeck login` and must b
 
 Some tests (e.g. `TestTelemetryGatewayConnectionListProxy` in `telemetry_test.go`, `TestTelemetryListenProxy` in `telemetry_listen_test.go`) use a **recording proxy**: the CLI is run with `--api-base` pointing at a local HTTP server that forwards every request to the real Hookdeck API and records method, path, and the `X-Hookdeck-CLI-Telemetry` header. The same `CLIRunner` and `go run main.go` flow are used as in other acceptance tests; only the API base URL is overridden so traffic goes through the proxy. This verifies that a single CLI run sends consistent telemetry (same `invocation_id` and `command_path`) on all API calls. Helpers: `StartRecordingProxy`, `AssertTelemetryConsistent`.
 
-**Login telemetry tests** use the same proxy approach with **HOOKDECK_CLI_TESTING_CLI_KEY** (not the API/CI key), because the validate endpoint accepts CLI keys from interactive login; if unset, those tests are skipped. **TestTelemetryLoginProxy** runs `hookdeck login --api-key KEY` with `--api-base` set to the proxy and asserts exactly one recorded request (GET `/2025-07-01/cli-auth/validate`) with consistent telemetry. **TestTelemetryLoginCommandFlagsProxy** additionally asserts the telemetry JSON includes **`command_flags`** containing **`api-key`** or **`cli-key`** on the wire when that flag is passed. Other telemetry tests still use the normal API key via `NewCLIRunner`.
+**Login telemetry tests** use the same proxy approach with **HOOKDECK_CLI_TESTING_CLI_KEY** (a CLI client key, not a Project API key used with `hookdeck ci`). If unset, those tests are skipped. **TestTelemetryLoginProxy** runs `hookdeck login --api-key KEY` with `--api-base` set to the proxy and asserts exactly one recorded request (GET `/2025-07-01/cli-auth/validate`) with consistent telemetry. **TestTelemetryLoginCommandFlagsProxy** additionally asserts the telemetry JSON includes **`command_flags`** containing **`api-key`** or **`cli-key`** on the wire when that flag is passed. Other telemetry tests still use the normal Project API key via `NewCLIRunner`.
+
+See **README.md § [CLI authentication keys](../README.md#cli-authentication-keys)** for claimed vs unclaimed keys and how Project API keys relate to `hookdeck ci`.
 
 ## Setup
 
@@ -39,8 +43,8 @@ For local testing, create a `.env` file in this directory:
 ```bash
 # test/acceptance/.env
 HOOKDECK_CLI_TESTING_API_KEY=your_api_key_here
-# Optional: CLI key (from interactive login) required for project list tests only
-# HOOKDECK_CLI_TESTING_CLI_KEY=your_cli_key_here
+# Optional: CLI client key for project list tests only (claimed key; see README § CLI authentication keys)
+# HOOKDECK_CLI_TESTING_CLI_KEY=your_cli_client_key_here
 ```
 
 The `.env` file is automatically loaded when tests run. **This file is git-ignored and should never be committed.**
@@ -65,27 +69,27 @@ No test-name list in the workflow—tests are partitioned by **feature tags** (s
 ### Run all automated tests (one key)
 Pass all feature tags so every automated test file is included:
 ```bash
-go test -tags="basic connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation" ./test/acceptance/... -v
+go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation" ./test/acceptance/... -v
 ```
 
 ### Run one slice (for CI or local)
 Same commands as CI; use when debugging a subset or running in parallel:
 ```bash
 # Slice 0 (same tags as CI job 0)
-ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
+ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic guest connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update" ./test/acceptance/... -v -timeout 12m
 
 # Slice 1 (same tags as CI job 1)
 ACCEPTANCE_SLICE=1 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
 
 # Slice 2 (same tags as CI job 2)
-ACCEPTANCE_SLICE=2 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="attempt metrics issue transformation" ./test/acceptance/... -v -timeout 12m
+ACCEPTANCE_SLICE=2 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="attempt metrics issue transformation destination gateway" ./test/acceptance/... -v -timeout 12m
 
 # Telemetry (same as CI acceptance-telemetry: force telemetry on)
 ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=0 go test -tags=telemetry ./test/acceptance/... -v -timeout 12m
 ```
 For slice 1 set `HOOKDECK_CLI_TESTING_API_KEY_2`; for slice 2 set `HOOKDECK_CLI_TESTING_API_KEY_3` (or set `HOOKDECK_CLI_TESTING_API_KEY` to that key). For telemetry, use the slice 0 key and set `HOOKDECK_CLI_TELEMETRY_DISABLED=0` (overrides a global opt-out).
 
-**Project list tests** (`TestProjectListShowsType`, `TestProjectListJSONOutput`) require a **CLI key**, not an API or CI key: only keys created via interactive login can list or switch projects. Set `HOOKDECK_CLI_TESTING_CLI_KEY` in your `.env` (or environment) to run these tests; if unset, they are skipped with a clear message.
+**Project list tests** (`TestProjectListShowsType`, `TestProjectListJSONOutput`, and related filters) require a **CLI client key** (`HOOKDECK_CLI_TESTING_CLI_KEY`), not the Project API key used with `hookdeck ci`. Claimed keys from dashboard onboarding or Console CLI destination setup work; unclaimed device-auth keys are not suitable. If unset, these tests are skipped. See **README.md § [CLI authentication keys](../README.md#cli-authentication-keys)**.
 
 ### Run in parallel locally (three keys)
 From the **repository root**, run the script that runs three matrix slices plus telemetry in parallel (same as CI):
@@ -114,7 +118,7 @@ Use the same `-tags` as "Run all" if you want to skip the full acceptance set. A
 
 Tests are partitioned by **feature build tags** so CI and local runs can execute three matrix slices in parallel (each slice uses its own Hookdeck project and config file).
 
-- **Slice 0 features:** `basic`, `connection`, `source`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
+- **Slice 0 features:** `basic`, `guest`, `connection`, `source`, `mcp`, `listen`, `project_use`, `connection_list`, `connection_upsert`, `connection_error_hints`, `connection_oauth_aws`, `connection_update`
 - **Slice 1 features:** `request`, `event`
 - **Slice 2 features:** `attempt`, `metrics`, `issue`, `transformation`, `destination`, `gateway`
 - **Telemetry job:** `telemetry` only — separate CI job with telemetry **not** disabled (see [CI/CD](#cicd))

@@ -11,15 +11,18 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
 const (
-	maxEvents           = 1000                  // Maximum events to keep in memory (all navigable)
-	timeLayout          = "2006-01-02 15:04:05" // Time format for display
-	detailsInstructions = "[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page • [C] Copy request • [H] Copy headers • [B] Copy body"
-	copyStatusTimeout   = 5 * time.Second // How long the "Copied …" status stays before clearing
+	maxEvents               = 1000                  // Maximum events to keep in memory (all navigable)
+	timeLayout              = "2006-01-02 15:04:05" // Time format for display
+	guestURLRefreshInterval = 50 * time.Minute
+	detailsInstructions     = "[d] Return to event list • [↑↓] Scroll • [PgUp/PgDn] Page • [C] Copy request • [H] Copy headers • [B] Copy body"
+	copyStatusTimeout       = 5 * time.Second // How long the "Copied …" status stays before clearing
 )
 
 // EventInfo represents a single event with all its data
@@ -96,6 +99,7 @@ type Config struct {
 	Connections      []*hookdeck.Connection
 	Filters          interface{} // Session filters (stored as interface{} to avoid circular dependency)
 	APIClient        *hookdeck.Client
+	AppConfig        *configpkg.Config
 }
 
 // NewModel creates a new TUI model
@@ -113,9 +117,11 @@ func NewModel(cfg *Config) Model {
 
 // Init initializes the model (required by Bubble Tea)
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		tickWaitingAnimation(),
-	)
+	cmds := []tea.Cmd{tickWaitingAnimation()}
+	if m.cfg != nil && m.cfg.AppConfig != nil && m.cfg.AppConfig.Profile.GuestURL != "" {
+		cmds = append(cmds, refreshGuestURLCmd(m.cfg.AppConfig), tickGuestURLRefresh())
+	}
+	return tea.Batch(cmds...)
 }
 
 // AddEvent adds a new event to the history
@@ -503,6 +509,33 @@ func tickWaitingAnimation() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return TickWaitingMsg{}
 	})
+}
+
+// TickGuestURLRefreshMsg triggers a guest sign-in link refresh.
+type TickGuestURLRefreshMsg struct{}
+
+// GuestURLRefreshedMsg carries an updated guest sign-in URL.
+type GuestURLRefreshedMsg struct {
+	GuestURL string
+}
+
+func tickGuestURLRefresh() tea.Cmd {
+	return tea.Tick(guestURLRefreshInterval, func(t time.Time) tea.Msg {
+		return TickGuestURLRefreshMsg{}
+	})
+}
+
+func refreshGuestURLCmd(app_config *configpkg.Config) tea.Cmd {
+	if app_config == nil || app_config.Profile.GuestURL == "" || app_config.Profile.APIKey == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		guest_url := login.RefreshGuestSigninLink(app_config)
+		if guest_url == "" {
+			return nil
+		}
+		return GuestURLRefreshedMsg{GuestURL: guest_url}
+	}
 }
 
 // ServerHealthMsg is sent when server health status changes

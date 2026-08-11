@@ -24,3 +24,4 @@ test-scripts/.install-test/
 
 # Claude Code temporary worktrees
 .claude/worktrees/
+.worktrees/

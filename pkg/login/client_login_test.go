@@ -121,6 +121,88 @@ api_key = "hk_test_oldkey_abcdefghij"
 	require.Equal(t, "hk_test_newkey_abcdefghij", cfg.Profile.APIKey)
 }
 
+// TestLogin_guestProfileWithValidKeyStartsGuestUpgrade verifies that a guest Console
+// profile with a still-valid API key opens a refreshed guest signup link and waits for
+// the same key to validate as a permanent user.
+func TestLogin_guestProfileWithValidKeyStartsGuestUpgrade(t *testing.T) {
+	configpkg.ResetAPIClientForTesting()
+	t.Cleanup(configpkg.ResetAPIClientForTesting)
+
+	oldCan := canOpenBrowser
+	oldOpen := openBrowser
+	canOpenBrowser = func() bool { return false }
+	openBrowser = func(string) error { return nil }
+	t.Cleanup(func() {
+		canOpenBrowser = oldCan
+		openBrowser = oldOpen
+	})
+
+	validateHits := 0
+	guestRefreshHits := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/cli-auth/validate"):
+			validateHits++
+			resp := map[string]interface{}{
+				"user_id":           "usr_guest",
+				"user_name":         "Guest",
+				"user_email":        "guest@example.com",
+				"user_is_guest":     validateHits == 1,
+				"organization_name": "Org",
+				"organization_id":   "org_1",
+				"team_id":           "tm_console",
+				"team_name_no_org":  "Sandbox",
+				"team_mode":         "console",
+				"client_id":         "cl_guest",
+			}
+			enc, err := json.Marshal(resp)
+			require.NoError(t, err)
+			_, _ = w.Write(enc)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cli/guest"):
+			guestRefreshHits++
+			user, pass, ok := r.BasicAuth()
+			require.True(t, ok)
+			require.Equal(t, "hk_test_guestkey_abcdefghij", user)
+			require.Empty(t, pass)
+			var body map[string]string
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			require.Equal(t, "signup", body["link_context"])
+			enc, err := json.Marshal(map[string]string{
+				"id":   "usr_guest",
+				"key":  "hk_test_guestkey_abcdefghij",
+				"link": "https://example.test/signin/guest?token=fresh&redirect=signup",
+			})
+			require.NoError(t, err)
+			_, _ = w.Write(enc)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(ts.Close)
+
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`profile = "default"
+
+[default]
+api_key = "hk_test_guestkey_abcdefghij"
+guest_url = "https://console.test/signin/guest?token=abc"
+`), 0o600))
+
+	cfg, err := configpkg.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	cfg.APIBaseURL = ts.URL
+	cfg.DeviceName = "test-device"
+	cfg.LogLevel = "error"
+	cfg.TelemetryDisabled = true
+
+	err = Login(cfg, strings.NewReader("\n"))
+	require.NoError(t, err)
+	require.Equal(t, 2, validateHits)
+	require.Equal(t, 1, guestRefreshHits)
+	require.Equal(t, "hk_test_guestkey_abcdefghij", cfg.Profile.APIKey)
+	require.Empty(t, cfg.Profile.GuestURL)
+}
+
 func TestLogin_ciKeyHeadlessFailsFast(t *testing.T) {
 	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)

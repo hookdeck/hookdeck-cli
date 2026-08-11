@@ -53,6 +53,10 @@ func TestUseProjectLocal(t *testing.T) {
 		_, statErr := os.Stat(localConfigPath)
 		require.NoError(t, statErr, "config.toml should be created")
 
+		info, statErr := os.Stat(localConfigPath)
+		require.NoError(t, statErr)
+		assert.Equal(t, os.FileMode(0600), info.Mode().Perm(), "local config should be owner-read/write only")
+
 		var configData map[string]interface{}
 		_, decodeErr := toml.DecodeFile(localConfigPath, &configData)
 		require.NoError(t, decodeErr, "config.toml should be valid TOML")

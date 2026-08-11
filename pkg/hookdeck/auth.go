@@ -21,6 +21,7 @@ type ValidateAPIKeyResponse struct {
 	UserID           string `json:"user_id"`
 	UserName         string `json:"user_name"`
 	UserEmail        string `json:"user_email"`
+	UserIsGuest      bool   `json:"user_is_guest"`
 	OrganizationName string `json:"organization_name"`
 	OrganizationID   string `json:"organization_id"`
 	ProjectID        string `json:"team_id"`
@@ -104,7 +105,8 @@ func (c *Client) StartLogin(deviceName string) (*LoginSession, error) {
 // StartGuestLogin initiates a guest login flow and returns a session to wait for completion
 func (c *Client) StartGuestLogin(deviceName string) (*GuestSession, error) {
 	guest, err := c.CreateGuestUser(CreateGuestUserInput{
-		DeviceName: deviceName,
+		DeviceName:  deviceName,
+		LinkContext: "signup",
 	})
 	if err != nil {
 		return nil, err

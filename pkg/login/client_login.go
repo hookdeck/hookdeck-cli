@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/term"
@@ -25,6 +26,9 @@ var stdinIsTerminal = func() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
+const guestUpgradePollInterval = 2 * time.Second
+const guestUpgradeMaxAttempts = 2 * 60
+
 // Login function is used to obtain credentials via hookdeck dashboard.
 func Login(config *configpkg.Config, input io.Reader) error {
 	var s *spinner.Spinner
@@ -32,8 +36,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 	if config.Profile.APIKey != "" {
 		log.WithFields(log.Fields{
 			"prefix": "login.Login",
-			"APIKey": config.Profile.APIKey,
-		}).Debug("Logging in with API key")
+		}).Debug("Logging in with saved API key")
 
 		s = ansi.StartNewSpinner("Verifying credentials...", os.Stdout)
 		response, err := config.GetAPIClient().ValidateAPIKey()
@@ -47,21 +50,25 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			fmt.Fprintln(os.Stdout, "Your saved API key is no longer valid. Starting browser sign-in...")
 			config.Profile.APIKey = ""
 		} else if response.UserID != "" {
-			message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
-			ansi.StopSpinner(s, message, os.Stdout)
+			if config.Profile.GuestURL == "" || !response.UserIsGuest {
+				message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
+				ansi.StopSpinner(s, message, os.Stdout)
 
-			config.Profile.ApplyValidateAPIKeyResponse(response, true)
+				config.Profile.ApplyValidateAPIKeyResponse(response, true)
 
-			if err = config.Profile.SaveProfile(); err != nil {
-				return err
+				if err = config.Profile.SaveProfile(); err != nil {
+					return err
+				}
+				if err = config.Profile.UseProfile(); err != nil {
+					return err
+				}
+
+				config.RefreshCachedAPIClient()
+
+				return nil
 			}
-			if err = config.Profile.UseProfile(); err != nil {
-				return err
-			}
-
-			config.RefreshCachedAPIClient()
-
-			return nil
+			ansi.StopSpinner(s, "", os.Stdout)
+			return waitForGuestUpgrade(config, input)
 		} else {
 			ansi.StopSpinner(s, "", os.Stdout)
 			if !stdinIsTerminal() {
@@ -87,6 +94,12 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		return err
 	}
 
+	return waitForLoginSession(config, input, session)
+}
+
+func waitForLoginSession(config *configpkg.Config, input io.Reader, session *hookdeck.LoginSession) error {
+	var s *spinner.Spinner
+
 	if isSSH() || !canOpenBrowser() {
 		fmt.Printf("To authenticate with Hookdeck, please go to: %s\n", session.BrowserURL)
 
@@ -97,7 +110,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 
 		s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 
-		err = openBrowser(session.BrowserURL)
+		err := openBrowser(session.BrowserURL)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to open browser, please go to %s manually.", session.BrowserURL)
 			ansi.StopSpinner(s, msg, os.Stdout)
@@ -224,4 +237,65 @@ func isSSH() bool {
 	}
 
 	return false
+}
+
+func waitForGuestUpgrade(config *configpkg.Config, input io.Reader) error {
+	guestURL := RefreshGuestSigninLink(config)
+	if guestURL == "" {
+		return fmt.Errorf("unable to create guest sign-up link")
+	}
+
+	var s *spinner.Spinner
+	if isSSH() || !canOpenBrowser() {
+		fmt.Printf("To create a permanent Hookdeck account, please go to: %s\n", guestURL)
+		s = ansi.StartNewSpinner("Waiting for account creation...", os.Stdout)
+	} else {
+		fmt.Printf("Press Enter to open the browser (^C to quit)")
+		fmt.Fscanln(input)
+
+		s = ansi.StartNewSpinner("Waiting for account creation...", os.Stdout)
+
+		err := openBrowser(guestURL)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to open browser, please go to %s manually.", guestURL)
+			ansi.StopSpinner(s, msg, os.Stdout)
+			s = ansi.StartNewSpinner("Waiting for account creation...", os.Stdout)
+		}
+	}
+
+	response, err := waitForGuestUpgradeCompletion(config)
+	if err != nil {
+		return err
+	}
+
+	config.Profile.ApplyValidateAPIKeyResponse(response, true)
+
+	if err = config.Profile.SaveProfile(); err != nil {
+		return err
+	}
+	if err = config.Profile.UseProfile(); err != nil {
+		return err
+	}
+
+	config.RefreshCachedAPIClient()
+
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
+	ansi.StopSpinner(s, message, os.Stdout)
+
+	return nil
+}
+
+func waitForGuestUpgradeCompletion(config *configpkg.Config) (*hookdeck.ValidateAPIKeyResponse, error) {
+	for attempt := 0; attempt < guestUpgradeMaxAttempts; attempt++ {
+		response, err := config.GetAPIClient().ValidateAPIKey()
+		if err != nil {
+			return nil, err
+		}
+		if !response.UserIsGuest {
+			return response, nil
+		}
+		time.Sleep(guestUpgradePollInterval)
+	}
+
+	return nil, fmt.Errorf("exceeded max attempts waiting for guest account creation")
 }

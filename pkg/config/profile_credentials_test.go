@@ -63,7 +63,7 @@ func TestProfile_ApplyPollAPIKeyResponse(t *testing.T) {
 		require.Equal(t, "https://guest", p.GuestURL)
 	})
 
-	t.Run("clears-style guest with empty string", func(t *testing.T) {
+	t.Run("clears guest URL when empty string passed", func(t *testing.T) {
 		p := &Profile{GuestURL: "old"}
 		p.ApplyPollAPIKeyResponse(&hookdeck.PollAPIKeyResponse{
 			APIKey:      "k123456789012",

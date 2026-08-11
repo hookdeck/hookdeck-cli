@@ -117,10 +117,12 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 		}
 
 		deviceName, _ := os.Hostname()
+		if cfg.DeviceName == "" {
+			cfg.DeviceName = deviceName
+		}
 
-		// Initiate browser-based device auth flow.
 		authClient := &hookdeck.Client{BaseURL: parsedBaseURL, TelemetryDisabled: cfg.TelemetryDisabled}
-		session, err := authClient.StartLogin(deviceName)
+		session, err := authClient.StartLogin(cfg.DeviceName)
 		if err != nil {
 			return ErrorResult(fmt.Sprintf("Failed to start login: %s", err)), nil
 		}
