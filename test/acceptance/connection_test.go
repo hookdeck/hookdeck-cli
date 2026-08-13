@@ -2876,3 +2876,25 @@ func TestConnectionUpsertDestinationFields(t *testing.T) {
 		t.Logf("Successfully tested upsert source custom response: %s", connID)
 	})
 }
+
+// TestConnectionDeleteWithoutForceFailsNonInteractively covers #338 for
+// connections. See the destination equivalent for why this is per-command.
+func TestConnectionDeleteWithoutForceFailsNonInteractively(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	connID := createTestConnection(t, cli)
+	t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+	stdout, stderr, err := cli.Run("gateway", "connection", "delete", connID)
+
+	require.Error(t, err,
+		"delete without --force and without a terminal must fail, not exit 0 having done nothing")
+	assert.Contains(t, stdout+stderr, "--force")
+
+	var check Connection
+	require.NoError(t, cli.RunJSON(&check, "gateway", "connection", "get", connID))
+	assert.Equal(t, connID, check.ID, "connection must not have been deleted")
+}

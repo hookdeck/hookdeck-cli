@@ -5,6 +5,10 @@ package acceptance
 import (
 	"bytes"
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -133,6 +137,93 @@ func TestListenExplicitInteractiveWithoutTTYWarnsAndFallsBack(t *testing.T) {
 		"an explicit --output interactive on a non-terminal should warn; got:\n%s", combined)
 
 	t.Logf("Verified explicit --output interactive warns and falls back")
+}
+
+// TestListenForwardsEventsWithoutTTY is the end-to-end test for #333, and the
+// scenario that found it: start a local service, start a tunnel, send an event,
+// check it arrives. Previously the tunnel died at startup with a /dev/tty error
+// and `listen` exited 0, so from the outside it looked like nothing had been set
+// up at all — no tunnel, no delivery, and no error to attribute it to.
+//
+// Asserting on the absence of an error message is not enough here: the point of
+// the command is forwarding, so this asserts a real event reaches a real local
+// server with no --output flag and no terminal.
+func TestListenForwardsEventsWithoutTTY(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	// A local service standing in for the user's app.
+	received := make(chan string, 8)
+	localServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		select {
+		case received <- string(body):
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer localServer.Close()
+
+	localURL, err := url.Parse(localServer.URL)
+	require.NoError(t, err)
+	port := localURL.Port()
+	require.NotEmpty(t, port, "local test server should expose a port")
+
+	// A source and a CLI connection for listen to attach to.
+	sourceName := "test-fwd-" + timestamp
+	var conn Connection
+	require.NoError(t, cli.RunJSON(&conn,
+		"gateway", "connection", "create",
+		"--name", "test-fwd-conn-"+timestamp,
+		"--source-name", sourceName,
+		"--source-type", "WEBHOOK",
+		"--destination-name", "test-fwd-dst-"+timestamp,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/",
+	))
+	require.NotEmpty(t, conn.ID)
+	t.Cleanup(func() { deleteConnection(t, cli, conn.ID) })
+
+	var src Source
+	require.NoError(t, cli.RunJSON(&src, "gateway", "source", "get", conn.Source.ID))
+	require.NotEmpty(t, src.URL, "source URL")
+
+	// No --output: this is the default path an agent or CI job hits, and the one
+	// that used to fail.
+	_, stdout, stderr, done := startListenCapturingOutput(t, cli, "listen", port, sourceName)
+
+	t.Log("Waiting 12 seconds for the tunnel to connect...")
+	time.Sleep(12 * time.Second)
+
+	select {
+	case err := <-done:
+		t.Logf("STDOUT: %s", stdout.String())
+		t.Logf("STDERR: %s", stderr.String())
+		t.Fatalf("listen exited before forwarding anything (#333): %v", err)
+	default:
+	}
+
+	triggerTestEvent(t, src.URL)
+
+	select {
+	case body := <-received:
+		t.Logf("Local server received: %s", body)
+		assert.Contains(t, body, "test",
+			"the forwarded body should be the payload that was sent")
+	case <-time.After(45 * time.Second):
+		t.Logf("STDOUT: %s", stdout.String())
+		t.Logf("STDERR: %s", stderr.String())
+		t.Fatal("no event reached the local server within 45s — the tunnel is not forwarding (#333)")
+	}
+
+	combined := stdout.String() + stderr.String()
+	assert.NotContains(t, combined, "could not open a new TTY")
+	assert.NotContains(t, combined, "Bubble Tea error")
 }
 
 // TestListenUsesHookdeckAPIKeyInsteadOfGuestAccount is the regression test for

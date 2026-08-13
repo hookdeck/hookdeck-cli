@@ -408,3 +408,29 @@ func TestGatewayDestinationsAliasWorks(t *testing.T) {
 	stdout := cli.RunExpectSuccess("gateway", "destinations", "list")
 	assert.NotContains(t, stdout, "unknown command")
 }
+
+// TestDestinationDeleteWithoutForceFailsNonInteractively covers #338 for
+// destinations. The five delete/dismiss commands share one confirmation helper,
+// but each has to actually call it — a command that quietly stops doing so keeps
+// working and just stops catching the bug, which is exactly how this shipped.
+func TestDestinationDeleteWithoutForceFailsNonInteractively(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	destID := createTestDestination(t, cli)
+	t.Cleanup(func() { deleteDestination(t, cli, destID) })
+
+	// The test process has no controlling terminal: the CI shape.
+	stdout, stderr, err := cli.Run("gateway", "destination", "delete", destID)
+
+	require.Error(t, err,
+		"delete without --force and without a terminal must fail, not exit 0 having done nothing")
+	assert.Contains(t, stdout+stderr, "--force",
+		"the error must name the flag that makes this work non-interactively")
+
+	var check Destination
+	require.NoError(t, cli.RunJSON(&check, "gateway", "destination", "get", destID))
+	assert.Equal(t, destID, check.ID, "destination must not have been deleted")
+}

@@ -258,6 +258,63 @@ func TestCILocalDoesNotWriteGlobalConfig(t *testing.T) {
 	t.Logf("Verified ci --local wrote only the local config (project_id=%s)", projectId)
 }
 
+// TestCILocalDoesNotSwitchActiveProject asserts the user-visible symptom of #332,
+// not just the file contents. The report was not "a file changed" — it was that
+// every other `hookdeck` invocation on the machine silently moved to a different
+// project. `whoami` is where a user would actually notice, so that is what this
+// checks: after `ci --local` in some other directory, the global session must
+// still report the project it had before.
+func TestCILocalDoesNotSwitchActiveProject(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	tempDir, cleanup := createTempWorkingDir(t)
+	defer cleanup()
+
+	// Establish a "global" session in its own config file.
+	globalConfigPath := filepath.Join(tempDir, "global-config.toml")
+	globalEnv := map[string]string{"HOOKDECK_CONFIG_FILE": globalConfigPath}
+
+	_, _, err := cli.RunFromCwdWithEnv(globalEnv, "ci", "--api-key", cli.apiKey)
+	require.NoError(t, err, "setting up the global session should succeed")
+
+	beforeStdout, _, err := cli.RunFromCwdWithEnv(globalEnv, "whoami")
+	require.NoError(t, err, "whoami should work after ci")
+	t.Logf("whoami before:\n%s", beforeStdout)
+
+	globalBefore, err := os.ReadFile(globalConfigPath)
+	require.NoError(t, err)
+
+	// Now run ci --local in a subdirectory, as a project-local setup would.
+	subDir := filepath.Join(tempDir, "some-project")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+
+	origDir, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(subDir))
+	defer os.Chdir(origDir)
+
+	_, _, err = cli.RunFromCwdWithEnv(globalEnv, "ci", "--api-key", cli.apiKey, "--local")
+	require.NoError(t, err, "ci --local should succeed")
+
+	require.NoError(t, os.Chdir(origDir))
+
+	globalAfter, err := os.ReadFile(globalConfigPath)
+	require.NoError(t, err)
+	assert.Equal(t, string(globalBefore), string(globalAfter),
+		"ci --local must leave the global config byte-identical (#332)")
+
+	afterStdout, _, err := cli.RunFromCwdWithEnv(globalEnv, "whoami")
+	require.NoError(t, err, "whoami should still work")
+	t.Logf("whoami after:\n%s", afterStdout)
+
+	assert.Equal(t, beforeStdout, afterStdout,
+		"the active project reported by whoami must be unchanged after ci --local (#332)")
+}
+
 // TestLoginLocalDoesNotWriteGlobalConfigOnFailure covers the twin path in #332.
 // `hookdeck login --local` shares the same SaveProfile shape as ci. A full login
 // needs a browser, so this asserts the narrower invariant that matters for
