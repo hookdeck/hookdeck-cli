@@ -1474,7 +1474,7 @@ Install output is written to `test-scripts/.install-test/` (gitignored).
 
 This section describes the release process for the Hookdeck CLI.
 
-Maintainers using AI assistants: see **[skills/hookdeck-cli-release/](skills/hookdeck-cli-release/)** for the release skill (automation details and release-note workflow).
+Maintainers using AI assistants: see **[.agents/skills/hookdeck-cli-release/](.agents/skills/hookdeck-cli-release/)** for the release skill (automation details and release-note workflow).
 
 ## Release Process
 

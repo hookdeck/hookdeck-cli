@@ -13,7 +13,7 @@ description: >-
 
 ## Canonical documentation
 
-Follow **[README.md](../../README.md) § Releasing** for human-oriented steps (GitHub UI alternative, install commands for beta/stable).
+Follow **[README.md](../../../README.md) § Releasing** for human-oriented steps (GitHub UI alternative, install commands for beta/stable).
 
 **Agents:** perform the **publish** step with the **GitHub CLI** (`gh`) — see **Publish with GitHub CLI (`gh`)** below (temp notes file → `gh release create` → remove temp file).
 
@@ -23,7 +23,7 @@ This skill adds **how automation works**, **release note expectations**, and a *
 
 Follow **in order**. Treat items with **gate** as blocking unless the maintainer explicitly overrides.
 
-- [ ] **Release shape:** GA from **`main`** vs beta from **`main`** vs beta from **feature branch** — matches [README § Releasing](../../README.md) and maintainer intent.
+- [ ] **Release shape:** GA from **`main`** vs beta from **`main`** vs beta from **feature branch** — matches [README § Releasing](../../../README.md) and maintainer intent.
 - [ ] **`PREV_TAG` / `NEW_TAG`:** Confirmed (or proposed and agreed); baseline tag is correct for the line of development (e.g. last GA vs beta series).
 - [ ] **Change set:** Reviewed `git log PREV_TAG..HEAD` (and diff if needed); changes grouped for **user-facing** release notes (see **Research loop**).
 - [ ] **SemVer gate:** Proposed `NEW_TAG` matches **minimum** MAJOR/MINOR/PATCH for the delta (see **SemVer: validate the proposed version**). Stop and realign if under-bumped.
@@ -37,12 +37,12 @@ For commit-level detail while working through the checklist, use the **Research 
 
 ## What triggers a release?
 
-- **[.github/workflows/release.yml](../../.github/workflows/release.yml)** runs on **`push` of tags** matching `v*` (not on ordinary branch pushes).
+- **[.github/workflows/release.yml](../../../.github/workflows/release.yml)** runs on **`push` of tags** matching `v*` (not on ordinary branch pushes).
 - Publishing a release in the GitHub UI (with a new tag) or `git push origin vX.Y.Z` both create that tag push and start the workflow.
 
 ## What the workflow does (high level)
 
-1. **GoReleaser** (macOS, Linux, Windows jobs): builds binaries/archives, updates distribution channels per [.goreleaser/*.yml](../../.goreleaser/mac.yml) (Homebrew, Scoop, Docker, GitHub release artifacts). Config uses `release.mode: append` and `changelog.disable: true` — **GoReleaser does not write the release note body from git**; maintainers supply or edit the GitHub release description.
+1. **GoReleaser** (macOS, Linux, Windows jobs): builds binaries/archives, updates distribution channels per [.goreleaser/*.yml](../../../.goreleaser/mac.yml) (Homebrew, Scoop, Docker, GitHub release artifacts). Config uses `release.mode: append` and `changelog.disable: true` — **GoReleaser does not write the release note body from git**; maintainers supply or edit the GitHub release description.
 2. **`publish-npm` job**: Determines which branch contains the tag (prefers `main` / `master`, else first matching remote branch), checks out that branch, sets `package.json` version from the tag, builds npm binaries via GoReleaser, runs **`npm publish`** with `latest` for stable semver or a derived tag (e.g. `beta`) for pre-releases (see workflow `npm_tag` step).
 
 ## Stable (GA) release
@@ -186,6 +186,6 @@ Otherwise omit the **Contributors** section entirely.
 
 | Topic | Location |
 |--------|-----------|
-| Maintainer steps, install commands | [README.md § Releasing](../../README.md) |
-| CI entrypoint | [.github/workflows/release.yml](../../.github/workflows/release.yml) |
-| Artifacts / brew / scoop / docker | [.goreleaser/](../../.goreleaser/) |
+| Maintainer steps, install commands | [README.md § Releasing](../../../README.md) |
+| CI entrypoint | [.github/workflows/release.yml](../../../.github/workflows/release.yml) |
+| Artifacts / brew / scoop / docker | [.goreleaser/](../../../.goreleaser/) |
