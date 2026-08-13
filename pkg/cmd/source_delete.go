@@ -50,11 +50,15 @@ func (sc *sourceDeleteCmd) runSourceDeleteCmd(cmd *cobra.Command, args []string)
 	}
 
 	if !sc.force {
-		fmt.Printf("\nAre you sure you want to delete source '%s' (%s)? [y/N]: ", src.Name, sourceID)
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println("Deletion cancelled.")
+		proceed, err := confirmDestructiveAction(
+			fmt.Sprintf("\nAre you sure you want to delete source '%s' (%s)?", src.Name, sourceID),
+			"Deletion cancelled.",
+			"force",
+		)
+		if err != nil {
+			return err
+		}
+		if !proceed {
 			return nil
 		}
 	}

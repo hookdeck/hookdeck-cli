@@ -20,12 +20,16 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen"
+	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -181,7 +185,16 @@ This command will create a new Hookdeck Source if it doesn't exist (single
 source only).
 
 By default the Hookdeck Destination will be named "{source}-cli", and the
-Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
+Destination CLI path will be "/". To set the CLI path, use the "--path" flag.
+
+Authentication order: "--cli-key", then stored credentials from "hookdeck login"
+or "hookdeck ci", then HOOKDECK_API_KEY. Setting HOOKDECK_API_KEY to a Project
+API key is enough to run in CI — the CLI exchanges it for CLI credentials and
+saves them. With none of these, a temporary guest account is created, which has
+no delivery history, retries, or issue triggers.
+
+Without a terminal (CI, Docker, nohup, an AI agent) the interactive UI cannot
+run, so "--output" falls back to "compact" automatically.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("requires a port or forwarding URL to forward the events to")
@@ -240,7 +253,7 @@ Destination CLI path will be "/". To set the CLI path, use the "--path" flag.`,
 	lc.cmd.Flags().StringVar(&lc.path, "path", "", "Sets the path to which events are forwarded e.g., /webhooks or /api/stripe")
 	lc.cmd.Flags().IntVar(&lc.maxConnections, "max-connections", 50, "Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing)")
 
-	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only)")
+	lc.cmd.Flags().StringVar(&lc.output, "output", "interactive", "Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only). Falls back to compact automatically when there is no terminal.")
 
 	lc.cmd.Flags().BoolVar(&lc.noHealthcheck, "no-healthcheck", false, "Disable periodic health checks of the local server")
 
@@ -314,9 +327,91 @@ Examples:
 	return lc
 }
 
+// envAPIKey reads the Project API key from the environment.
+// Declared as a variable so tests can substitute it.
+var envAPIKey = func() string {
+	return strings.TrimSpace(os.Getenv("HOOKDECK_API_KEY"))
+}
+
+// shouldExchangeEnvAPIKey reports whether listen should authenticate from
+// HOOKDECK_API_KEY.
+//
+// Precedence is --cli-key > stored login > HOOKDECK_API_KEY > guest. The env var
+// deliberately loses to a stored login: someone already signed in must not have
+// their session repointed by a variable left in their shell.
+func shouldExchangeEnvAPIKey(currentAPIKey, envKey string) bool {
+	return currentAPIKey == "" && envKey != ""
+}
+
+// applyEnvAPIKey authenticates from HOOKDECK_API_KEY when nothing else has.
+//
+// HOOKDECK_API_KEY holds a *Project* API key, which the CLI-auth endpoints
+// reject — GET /cli-auth/validate answers 401 for it. `hookdeck ci` works by
+// exchanging it for a CLI client key via POST /cli-auth/ci, so that is what
+// happens here. Assigning the env var straight to Profile.APIKey, as the
+// original report suggested, would only swap one silent failure for another.
+//
+// Without this, listen fell through to GuestLogin and created a throwaway
+// account. Traffic still arrived locally, so it looked like it worked, but none
+// of it was in the caller's project: no connection, no delivery history, no
+// retries (#334).
+func (lc *listenCmd) applyEnvAPIKey() error {
+	envKey := envAPIKey()
+	if !shouldExchangeEnvAPIKey(Config.Profile.APIKey, envKey) {
+		return nil
+	}
+
+	// Exchange and persist, exactly as `hookdeck ci` does, so this costs one
+	// round trip per machine rather than one per listen invocation. CILogin
+	// reports the project it configured.
+	if err := login.CILogin(&Config, envKey, Config.DeviceName); err != nil {
+		return fmt.Errorf(
+			"could not authenticate with HOOKDECK_API_KEY: %w\n\n"+
+				"HOOKDECK_API_KEY must be a Project API key from the Hookdeck dashboard "+
+				"(Project Settings > API Keys). For a CLI key, use --cli-key instead.",
+			err,
+		)
+	}
+
+	Config.RefreshCachedAPIClient()
+
+	return nil
+}
+
+// stdoutIsTerminal reports whether stdout is attached to a terminal.
+// Declared as a variable so tests can substitute it.
+var stdoutIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+// resolveOutputMode downgrades the interactive renderer to compact when stdout is
+// not a terminal, and reports a warning to show when it does.
+//
+// explicit reports whether the user passed --output themselves. We only warn in
+// that case: someone who asked for interactive output deserves to know they did
+// not get it, while the defaulted path should stay quiet so ordinary CI logs are
+// not littered with a notice about a flag the caller never set.
+func resolveOutputMode(requested string, explicit, isTerminal bool) (mode string, warning string) {
+	if requested != "interactive" || isTerminal {
+		return requested, ""
+	}
+
+	if explicit {
+		return "compact", "Warning: --output interactive needs a terminal; falling back to --output compact."
+	}
+
+	return "compact", ""
+}
+
 // listenCmd represents the listen command
 func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	if err := lc.applyCliKey(cmd); err != nil {
+		return err
+	}
+
+	// Must run before listen.Listen, which falls back to a guest account when no
+	// credential is present (#334).
+	if err := lc.applyEnvAPIKey(); err != nil {
 		return err
 	}
 
@@ -337,6 +432,16 @@ func (lc *listenCmd) runListenCmd(cmd *cobra.Command, args []string) error {
 	if !validOutputModes[lc.output] {
 		return errors.New("invalid --output mode. Must be: interactive, compact, or quiet")
 	}
+
+	// The interactive renderer opens /dev/tty itself, so without a terminal it
+	// dies at startup and no events are forwarded (#333). Fall back rather than
+	// fail: forwarding is the point of the command, and the caller in CI, Docker
+	// or an agent has no way to know which flag to reach for.
+	mode, warning := resolveOutputMode(lc.output, cmd.Flags().Changed("output"), stdoutIsTerminal())
+	if warning != "" {
+		fmt.Fprintln(os.Stderr, warning)
+	}
+	lc.output = mode
 
 	_, err_port := strconv.ParseInt(args[0], 10, 64)
 	var url *url.URL

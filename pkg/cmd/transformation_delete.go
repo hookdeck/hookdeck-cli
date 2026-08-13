@@ -55,11 +55,15 @@ func (tc *transformationDeleteCmd) runTransformationDeleteCmd(cmd *cobra.Command
 	}
 
 	if !tc.force {
-		fmt.Printf("\nAre you sure you want to delete transformation '%s' (%s)? [y/N]: ", t.Name, trnID)
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println("Deletion cancelled.")
+		proceed, err := confirmDestructiveAction(
+			fmt.Sprintf("\nAre you sure you want to delete transformation '%s' (%s)?", t.Name, trnID),
+			"Deletion cancelled.",
+			"force",
+		)
+		if err != nil {
+			return err
+		}
+		if !proceed {
 			return nil
 		}
 	}

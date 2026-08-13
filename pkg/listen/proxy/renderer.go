@@ -34,6 +34,13 @@ type Renderer interface {
 
 	// Done returns a channel that signals when user wants to quit
 	Done() <-chan struct{}
+
+	// Err reports why the renderer stopped. It returns nil for a normal
+	// user-initiated quit, and non-nil when the renderer failed — for example
+	// when the interactive renderer cannot open a terminal. Callers must treat a
+	// non-nil value as a command failure: a renderer that dies at startup
+	// forwards no events, and reporting success would hide that entirely (#333).
+	Err() error
 }
 
 // EventResponse contains the HTTP response data

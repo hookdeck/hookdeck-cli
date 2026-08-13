@@ -65,6 +65,10 @@ func (lc *loginCmd) runLoginCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--cli-key cannot be used with --interactive")
 	}
 
+	// --local must redirect the credential write, not add a second one. Set this
+	// before any login flow, each of which persists the profile on success.
+	Config.SetLocalOnly(lc.local)
+
 	var err error
 	if cli_key != "" {
 		err = login.ConfigureFromClaimedCliKey(&Config, cli_key)

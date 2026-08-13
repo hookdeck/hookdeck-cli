@@ -68,6 +68,12 @@ func sourceUpdateRequestEmpty(req *hookdeck.SourceUpdateRequest) bool {
 }
 
 func (sc *sourceUpdateCmd) validateFlags(cmd *cobra.Command, args []string) error {
+	// An explicitly empty value for a secret or identity flag cannot mean
+	// anything, and is almost always an unexported shell variable (#335).
+	if err := rejectEmptyFlags(cmd); err != nil {
+		return err
+	}
+
 	if err := Config.Profile.ValidateAPIKey(); err != nil {
 		return err
 	}

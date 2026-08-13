@@ -21,6 +21,8 @@ import (
 	"strings"
 	"unicode"
 
+	"golang.org/x/term"
+
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
@@ -70,6 +72,51 @@ func addConnectionCmdTo(parent *cobra.Command) {
 	parent.AddCommand(newConnectionCmd().cmd)
 }
 
+// stdinIsTerminal reports whether stdin is attached to a terminal.
+// Declared as a variable so tests can substitute it.
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// authFallback describes what to do when a command fails because no credentials
+// are configured.
+type authFallback int
+
+const (
+	// authFallbackMCP reports the problem on stderr; stdout carries JSON-RPC.
+	authFallbackMCP authFallback = iota
+	// authFallbackNonInteractive reports how to authenticate without a terminal.
+	authFallbackNonInteractive
+	// authFallbackRunLogin drops into interactive browser sign-in.
+	authFallbackRunLogin
+)
+
+// resolveAuthFallback picks the recovery path for a missing-credentials failure.
+// Interactive sign-in is only viable with a terminal: it blocks on Enter, opens a
+// browser, and polls for ~4 minutes, so choosing it in CI, Docker or an agent
+// turns a fast, fixable error into a hang.
+func resolveAuthFallback(gatewayMCP, interactiveStdin bool) authFallback {
+	switch {
+	case gatewayMCP:
+		return authFallbackMCP
+	case !interactiveStdin:
+		return authFallbackNonInteractive
+	default:
+		return authFallbackRunLogin
+	}
+}
+
+// nonInteractiveAuthHelp lists the ways to authenticate without a terminal. It is
+// shown instead of dropping into browser sign-in, which cannot complete without
+// one.
+const nonInteractiveAuthHelp = `No terminal is attached, so browser sign-in cannot run.
+
+Authenticate without a terminal using one of:
+  hookdeck ci --api-key <project-api-key>   (or set HOOKDECK_API_KEY)
+  hookdeck login --cli-key <cli-key>
+
+Or run ` + "`hookdeck login`" + ` in an interactive terminal.`
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -84,9 +131,13 @@ func Execute() {
 			errRunes[0] = unicode.ToUpper(errRunes[0])
 			capitalized := string(errRunes)
 
-			if gatewayMCP {
+			switch resolveAuthFallback(gatewayMCP, stdinIsTerminal()) {
+			case authFallbackMCP:
 				// MCP uses JSON-RPC on stdout; do not run interactive login or print recovery text there.
 				fmt.Fprintf(os.Stderr, "%s. Use hookdeck_login in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized)
+				os.Exit(1)
+			case authFallbackNonInteractive:
+				fmt.Fprintf(os.Stderr, "%s.\n\n%s\n", capitalized, nonInteractiveAuthHelp)
 				os.Exit(1)
 			}
 

@@ -769,6 +769,45 @@ func (r *CLIRunner) RunFromCwd(args ...string) (stdout, stderr string, err error
 	})
 }
 
+// RunFromCwdWithEnv is RunFromCwd with additional environment overrides. Use it
+// when a test must pin HOOKDECK_CONFIG_FILE itself — for example to assert that
+// a command leaves the "global" config untouched — rather than relying on the
+// slice-derived path, which is empty when ACCEPTANCE_SLICE is unset.
+func (r *CLIRunner) RunFromCwdWithEnv(extraEnv map[string]string, args ...string) (stdout, stderr string, err error) {
+	r.t.Helper()
+
+	tmpBinary := filepath.Join(r.projectRoot, "hookdeck-test-"+generateTimestamp())
+	defer os.Remove(tmpBinary)
+
+	buildCmd := exec.Command("go", "build", "-o", tmpBinary, ".")
+	buildCmd.Dir = r.projectRoot
+	if err := buildCmd.Run(); err != nil {
+		return "", "", fmt.Errorf("failed to build CLI binary: %w", err)
+	}
+
+	summary := commandSummaryFor502Log(args)
+	return r.runWithHTTP502Retry(summary, args, func() (string, string, error) {
+		cmd := exec.Command(tmpBinary, args...)
+
+		env := os.Environ()
+		if r.configPath != "" {
+			env = appendEnvOverride(env, "HOOKDECK_CONFIG_FILE", r.configPath)
+		}
+		for k, v := range extraEnv {
+			env = appendEnvOverride(env, k, v)
+		}
+		cmd.Env = env
+
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+		cmd.Stdin = os.Stdin
+
+		runErr := cmd.Run()
+		return stdoutBuf.String(), stderrBuf.String(), runErr
+	})
+}
+
 // RunExpectSuccess runs the CLI command and fails the test if it returns an error
 // Returns only stdout for convenience
 func (r *CLIRunner) RunExpectSuccess(args ...string) string {

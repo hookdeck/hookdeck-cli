@@ -68,6 +68,10 @@ func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// --local must redirect the credential write, not add a second one. Set this
+	// before CILogin, which persists the profile as part of its normal flow.
+	Config.SetLocalOnly(lc.local)
+
 	if err := login.CILogin(&Config, lc.apiKey, lc.name); err != nil {
 		return err
 	}

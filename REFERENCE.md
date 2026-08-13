@@ -28,6 +28,7 @@ All commands support these global options:
 <!-- GENERATE_GLOBAL_FLAGS:START -->
 | Flag | Type | Description |
 |------|------|-------------|
+| `--cli-key` | `string` | Hookdeck CLI key (e.g. from dashboard onboarding or hookdeck login) |
 | `--color` | `string` | turn on/off color output (on, off, auto) |
 | `--device-name` | `string` | device name |
 | `--hookdeck-config` | `string` | path to CLI config file (default is $HOME/.config/hookdeck/config.toml) |
@@ -46,7 +47,15 @@ All commands support these global options:
 
 ## Login
 
-Login to your Hookdeck account to setup the CLI
+Login to your Hookdeck account to setup the CLI.
+
+With a guest Console profile (after hookdeck listen), hookdeck login opens the browser to sign you
+up and keep your sandbox data.
+
+Use `--cli-key` with a claimed CLI client key from the Hookdeck product (for example Event Gateway
+onboarding or Console CLI authorization). The CLI validates the key and saves your config, replacing
+a guest profile when present. Device login (hookdeck login without `--cli-key`) is required for guest
+upgrade and sandbox retention.
 
 **Usage:**
 
@@ -65,6 +74,8 @@ hookdeck login [flags]
 
 ```bash
 $ hookdeck login
+$ hookdeck login --cli-key <key>
+$ hookdeck logout && hookdeck login  # existing Platform account
 $ hookdeck login -i  # interactive mode (no browser)
 $ hookdeck login --local  # save credentials to .hookdeck/config.toml
 ```
@@ -183,6 +194,15 @@ source only).
 By default the Hookdeck Destination will be named "{source}-cli", and the
 Destination CLI path will be "/". To set the CLI path, use the "`--path`" flag.
 
+Authentication order: "`--cli-key`", then stored credentials from "hookdeck login"
+or "hookdeck ci", then HOOKDECK_API_KEY. Setting HOOKDECK_API_KEY to a Project
+API key is enough to run in CI — the CLI exchanges it for CLI credentials and
+saves them. With none of these, a temporary guest account is created, which has
+no delivery history, retries, or issue triggers.
+
+Without a terminal (CI, Docker, nohup, an AI agent) the interactive UI cannot
+run, so "`--output`" falls back to "compact" automatically.
+
 **Usage:**
 
 ```bash
@@ -207,7 +227,7 @@ hookdeck listen [port or forwarding URL] [source(s)] [connection] [flags]
 | `--filter-query` | `string` | Filter events by query parameters using Hookdeck filter syntax (JSON) |
 | `--max-connections` | `int` | Maximum concurrent connections to local endpoint (default: 50, increase for high-volume testing) (default "50") |
 | `--no-healthcheck` | `bool` | Disable periodic health checks of the local server |
-| `--output` | `string` | Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only) (default "interactive") |
+| `--output` | `string` | Output mode: interactive (full UI), compact (simple logs), quiet (errors and warnings only). Falls back to compact automatically when there is no terminal. (default "interactive") |
 | `--path` | `string` | Sets the path to which events are forwarded e.g., /webhooks or /api/stripe |
 <!-- GENERATE_END -->
 ## Gateway
