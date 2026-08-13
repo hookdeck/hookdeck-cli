@@ -337,10 +337,23 @@ var envAPIKey = func() string {
 // HOOKDECK_API_KEY.
 //
 // Precedence is --cli-key > stored login > HOOKDECK_API_KEY > guest. The env var
-// deliberately loses to a stored login: someone already signed in must not have
-// their session repointed by a variable left in their shell.
-func shouldExchangeEnvAPIKey(currentAPIKey, envKey string) bool {
-	return currentAPIKey == "" && envKey != ""
+// deliberately loses to a real stored login: someone already signed in must not
+// have their session repointed by a variable left in their shell.
+//
+// It does *not* lose to a guest profile. GuestLogin persists its key, so after a
+// single guest run Profile.APIKey is non-empty and a naive "no credentials" test
+// would treat the throwaway account as a real login — leaving every later run on
+// the guest project even with a Project API key exported. That is #334 again,
+// one run later. A guest profile is identified by GuestURL being set alongside
+// the key (see pkg/listen/listen.go).
+func shouldExchangeEnvAPIKey(currentAPIKey, guestURL, envKey string) bool {
+	if envKey == "" {
+		return false
+	}
+
+	isGuestProfile := guestURL != ""
+
+	return currentAPIKey == "" || isGuestProfile
 }
 
 // applyEnvAPIKey authenticates from HOOKDECK_API_KEY when nothing else has.
@@ -357,8 +370,20 @@ func shouldExchangeEnvAPIKey(currentAPIKey, envKey string) bool {
 // retries (#334).
 func (lc *listenCmd) applyEnvAPIKey() error {
 	envKey := envAPIKey()
-	if !shouldExchangeEnvAPIKey(Config.Profile.APIKey, envKey) {
+	if !shouldExchangeEnvAPIKey(Config.Profile.APIKey, Config.Profile.GuestURL, envKey) {
 		return nil
+	}
+
+	// Replacing a guest profile discards the link to that sandbox, so say so
+	// rather than silently swapping it out — the whole point of this change is
+	// that the CLI should not quietly use a different account than the caller
+	// named.
+	if Config.Profile.GuestURL != "" {
+		fmt.Fprintf(os.Stderr,
+			"HOOKDECK_API_KEY is set, so replacing the temporary guest profile with your project.\n"+
+				"To keep the guest sandbox instead, unset HOOKDECK_API_KEY, or claim it first at %s\n",
+			Config.Profile.GuestURL,
+		)
 	}
 
 	// Exchange and persist, exactly as `hookdeck ci` does, so this costs one

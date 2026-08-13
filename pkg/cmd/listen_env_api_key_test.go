@@ -16,6 +16,7 @@ func TestShouldExchangeEnvAPIKey(t *testing.T) {
 	tests := []struct {
 		name          string
 		currentAPIKey string
+		guestURL      string
 		envKey        string
 		want          bool
 	}{
@@ -43,11 +44,30 @@ func TestShouldExchangeEnvAPIKey(t *testing.T) {
 			envKey:        "proj_api_key",
 			want:          false,
 		},
+		{
+			// GuestLogin persists its key, so after one guest run Profile.APIKey
+			// is non-empty. Treating that as a real login would leave every later
+			// run on the throwaway project despite an exported Project API key —
+			// #334 again, one run later.
+			name:          "guest profile does NOT win over the env var",
+			currentAPIKey: "cli_guest_key",
+			guestURL:      "https://console.hookdeck.com/e/2v20grezcbj6yw",
+			envKey:        "proj_api_key",
+			want:          true,
+		},
+		{
+			name:          "guest profile with no env var is left alone",
+			currentAPIKey: "cli_guest_key",
+			guestURL:      "https://console.hookdeck.com/e/2v20grezcbj6yw",
+			envKey:        "",
+			want:          false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, shouldExchangeEnvAPIKey(tt.currentAPIKey, tt.envKey))
+			assert.Equal(t, tt.want,
+				shouldExchangeEnvAPIKey(tt.currentAPIKey, tt.guestURL, tt.envKey))
 		})
 	}
 }
@@ -61,7 +81,7 @@ func TestEnvAPIKeyReadsAndTrims(t *testing.T) {
 
 	t.Setenv("HOOKDECK_API_KEY", "   ")
 	assert.Empty(t, envAPIKey(), "a whitespace-only value must not trigger an exchange")
-	assert.False(t, shouldExchangeEnvAPIKey("", envAPIKey()))
+	assert.False(t, shouldExchangeEnvAPIKey("", "", envAPIKey()))
 
 	os.Unsetenv("HOOKDECK_API_KEY")
 	assert.Empty(t, envAPIKey())
@@ -73,5 +93,5 @@ func TestEnvAPIKeyIsInjectable(t *testing.T) {
 	t.Cleanup(func() { envAPIKey = original })
 
 	envAPIKey = func() string { return "proj_injected" }
-	assert.True(t, shouldExchangeEnvAPIKey("", envAPIKey()))
+	assert.True(t, shouldExchangeEnvAPIKey("", "", envAPIKey()))
 }

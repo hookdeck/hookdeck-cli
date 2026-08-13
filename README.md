@@ -527,7 +527,7 @@ $ export HOOKDECK_API_KEY="your-project-api-key"
 $ hookdeck listen 3000 shopify orders
 ```
 
-Without a Project API key `listen` still falls back to a temporary guest account, which is convenient locally but has no delivery history, retries, or issue triggers. If you meant to use your own project, make sure `HOOKDECK_API_KEY` is **exported** — an unexported variable expands to an empty string.
+Without a Project API key `listen` still falls back to a temporary guest account, which is convenient locally but has no delivery history, retries, or issue triggers. If you meant to use your own project, check that `HOOKDECK_API_KEY` is actually **set in the shell running the command** — a variable that is unset there expands to an empty string, and values in a `.env` file are not loaded automatically just because your application reads them.
 
 #### Output without a terminal
 

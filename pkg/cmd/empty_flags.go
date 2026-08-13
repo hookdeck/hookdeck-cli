@@ -109,15 +109,22 @@ func rejectEmptyFlags(cmd *cobra.Command) error {
 		flags = append(flags, "--"+name)
 	}
 
+	// Name the likely cause, precisely. The reported case was a secret living in
+	// a workspace .env that application code loaded but the shell never did, so
+	// the variable was simply not set in the shell running the command. "Check it
+	// is exported" would misdiagnose that, since exporting only matters for a
+	// variable that is set here but not visible to child processes.
 	if len(offenders) == 1 {
 		return fmt.Errorf(
-			"%s was empty. If you passed a shell variable, check it is exported",
+			"%s was empty. If you passed a shell variable, check it is set in this shell "+
+				"(values in a .env file are not loaded automatically)",
 			flags[0],
 		)
 	}
 
 	return fmt.Errorf(
-		"%s were empty. If you passed shell variables, check they are exported",
+		"%s were empty. If you passed shell variables, check they are set in this shell "+
+			"(values in a .env file are not loaded automatically)",
 		strings.Join(flags, ", "),
 	)
 }

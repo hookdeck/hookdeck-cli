@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,10 +21,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// syncBuffer is a bytes.Buffer safe for concurrent use.
+//
+// os/exec writes subprocess output from its own goroutine for as long as the
+// process is running, while these tests read the captured output mid-run to
+// check what has been printed so far. A bare bytes.Buffer races there and can
+// return partial output, so every read and write goes through the mutex.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 // startListenCapturingOutput starts `hookdeck listen` with the given extra args,
 // stdout and stderr wired to pipes (i.e. not a terminal — the condition that made
 // #333 fail), and returns the process plus buffers. The caller kills the process.
-func startListenCapturingOutput(t *testing.T, cli *CLIRunner, extraArgs ...string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer, chan error) {
+func startListenCapturingOutput(t *testing.T, cli *CLIRunner, extraArgs ...string) (*exec.Cmd, *syncBuffer, *syncBuffer, chan error) {
 	t.Helper()
 
 	projectRoot, err := filepath.Abs("../..")
@@ -44,7 +68,7 @@ func startListenCapturingOutput(t *testing.T, cli *CLIRunner, extraArgs ...strin
 	}
 	cmd.Env = env
 
-	var stdout, stderr bytes.Buffer
+	var stdout, stderr syncBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -264,7 +288,7 @@ func TestListenUsesHookdeckAPIKeyInsteadOfGuestAccount(t *testing.T) {
 		"HOOKDECK_API_KEY", cleanupCLI.apiKey,
 	)
 
-	var stdout, stderr bytes.Buffer
+	var stdout, stderr syncBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -473,4 +497,94 @@ func TestListenCommandWithContext(t *testing.T) {
 	}
 
 	t.Logf("Listen command terminated via context cancellation")
+}
+
+// TestListenPrefersEnvAPIKeyOverGuestProfile covers the follow-up to #334 raised
+// in review: a persisted guest profile has a non-empty api_key, so a naive "no
+// credentials stored" test treats the throwaway account as a real login. After a
+// single guest run, later runs would then stay on the guest project even with a
+// Project API key exported — the original bug, one run later.
+//
+// The guest profile here is synthetic (api_key plus guest_url, the shape
+// GuestLogin persists) so the test is deterministic and does not create a real
+// guest account on every CI run.
+func TestListenPrefersEnvAPIKeyOverGuestProfile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cleanupCLI := NewCLIRunner(t)
+
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err)
+
+	binary := filepath.Join(projectRoot, "hookdeck-guest-test-"+generateTimestamp())
+	buildCmd := exec.Command("go", "build", "-o", binary, ".")
+	buildCmd.Dir = projectRoot
+	require.NoError(t, buildCmd.Run(), "failed to build CLI binary")
+	t.Cleanup(func() { _ = os.Remove(binary) })
+
+	guestConfig := filepath.Join(t.TempDir(), "guest-profile.toml")
+	guestConfigBody := "profile = 'default'\n\n[default]\n" +
+		"api_key = 'cli_guest_key_placeholder_000000'\n" +
+		"guest_url = 'https://console.hookdeck.com/e/2v20grezcbj6yw'\n" +
+		"project_id = 'tm_guest_placeholder'\n" +
+		"project_mode = 'console'\n"
+	require.NoError(t, os.WriteFile(guestConfig, []byte(guestConfigBody), 0600))
+
+	sourceName := "test-guest-env-" + generateTimestamp()
+
+	cmd := exec.Command(binary, "listen", "8080", sourceName)
+	cmd.Dir = projectRoot
+	cmd.Env = appendEnvOverride(
+		appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", guestConfig),
+		"HOOKDECK_API_KEY", cleanupCLI.apiKey,
+	)
+
+	var stdout, stderr syncBuffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	t.Log("Waiting 10 seconds for listen to authenticate...")
+	time.Sleep(10 * time.Second)
+	_ = cmd.Process.Kill()
+	<-done
+
+	combined := stdout.String() + stderr.String()
+	t.Logf("Output:\n%s", combined)
+
+	t.Cleanup(func() {
+		var sources SourceListResponseForCleanup
+		if err := cleanupCLI.RunJSON(&sources, "gateway", "source", "list"); err != nil {
+			return
+		}
+		for _, s := range sources.Models {
+			if s.Name == sourceName {
+				_, _, _ = cleanupCLI.Run("gateway", "source", "delete", s.ID, "--force")
+			}
+		}
+	})
+
+	assert.Contains(t, combined, "configured on project",
+		"HOOKDECK_API_KEY must take precedence over a stored guest profile (#334)")
+	assert.Contains(t, combined, "replacing the temporary guest profile",
+		"replacing a guest profile is a side effect and must be announced, not silent")
+
+	// The guest credentials must be gone, replaced by the real project's.
+	configBytes, err := os.ReadFile(guestConfig)
+	require.NoError(t, err)
+	assert.NotContains(t, string(configBytes), "cli_guest_key_placeholder_000000",
+		"the guest key should have been replaced by the exchanged CLI client key")
+	assert.NotContains(t, string(configBytes), "console.hookdeck.com/e/",
+		"guest_url should be cleared once a real project is configured")
 }

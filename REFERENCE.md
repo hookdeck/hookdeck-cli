@@ -28,7 +28,6 @@ All commands support these global options:
 <!-- GENERATE_GLOBAL_FLAGS:START -->
 | Flag | Type | Description |
 |------|------|-------------|
-| `--cli-key` | `string` | Hookdeck CLI key (e.g. from dashboard onboarding or hookdeck login) |
 | `--color` | `string` | turn on/off color output (on, off, auto) |
 | `--device-name` | `string` | device name |
 | `--hookdeck-config` | `string` | path to CLI config file (default is $HOME/.config/hookdeck/config.toml) |
@@ -67,6 +66,7 @@ hookdeck login [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--cli-key` | `string` | CLI key from Hookdeck dashboard onboarding |
 | `-i, --interactive` | `bool` | Run interactive configuration mode if you cannot open a browser |
 | `--local` | `bool` | Save credentials to current directory (.hookdeck/config.toml) |
 
@@ -221,6 +221,7 @@ hookdeck listen [port or forwarding URL] [source(s)] [connection] [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--cli-key` | `string` | Hookdeck CLI key used to authenticate this command, e.g. the key shown in the Hookdeck Console |
 | `--filter-body` | `string` | Filter events by request body using Hookdeck filter syntax (JSON) |
 | `--filter-headers` | `string` | Filter events by request headers using Hookdeck filter syntax (JSON) |
 | `--filter-path` | `string` | Filter events by request path using Hookdeck filter syntax (JSON) |

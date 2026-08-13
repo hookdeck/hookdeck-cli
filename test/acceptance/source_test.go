@@ -547,8 +547,8 @@ func TestSourceRejectsEmptyWebhookSecret(t *testing.T) {
 		require.Error(t, err, "an empty --webhook-secret must fail, not create an unverified source")
 		combined := stdout + stderr
 		assert.Contains(t, combined, "--webhook-secret")
-		assert.Contains(t, combined, "exported",
-			"the error should name the likely cause: an unexported shell variable")
+		assert.Contains(t, combined, "set in this shell",
+			"the error should name the likely cause: a variable not set in this shell")
 
 		// Nothing may have been created.
 		listOutput := cli.RunExpectSuccess("gateway", "source", "list", "--name", sourceName)

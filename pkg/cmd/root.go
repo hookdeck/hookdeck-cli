@@ -272,6 +272,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&Config.Profile.Name, "profile", "p", "", fmt.Sprintf("profile name (default \"%s\")", hookdeck.DefaultProfileName))
 
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Hookdeck CLI key (e.g. from dashboard onboarding or hookdeck login)")
+	// Hidden for the same reason as --api-key below: authentication is a
+	// command-specific flag (`hookdeck login --cli-key`, `hookdeck listen
+	// --cli-key`, `hookdeck ci --api-key`), not a global one — see README
+	// "CLI authentication keys" and AGENTS.md. The flag keeps working for
+	// existing callers; it just stops being advertised as a global option in
+	// generated help and REFERENCE.md.
+	rootCmd.PersistentFlags().MarkHidden("cli-key")
 
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "api-key", "", "Your API key to use for the command")
 	rootCmd.PersistentFlags().MarkHidden("api-key")

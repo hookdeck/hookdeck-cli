@@ -51,13 +51,13 @@ func TestRejectEmptyFlags(t *testing.T) {
 			name:        "empty --webhook-secret is rejected",
 			args:        []string{"--webhook-secret", ""},
 			wantErr:     true,
-			errContains: []string{"--webhook-secret", "exported"},
+			errContains: []string{"--webhook-secret", "set in this shell"},
 		},
 		{
 			name:        "empty --source-webhook-secret is rejected",
 			args:        []string{"--source-webhook-secret", ""},
 			wantErr:     true,
-			errContains: []string{"--source-webhook-secret", "exported"},
+			errContains: []string{"--source-webhook-secret", "set in this shell"},
 		},
 		{
 			name:        "whitespace-only secret is rejected",
@@ -93,7 +93,7 @@ func TestRejectEmptyFlags(t *testing.T) {
 			name:        "several empty flags are reported together, sorted",
 			args:        []string{"--api-key", "", "--webhook-secret", ""},
 			wantErr:     true,
-			errContains: []string{"--api-key", "--webhook-secret", "exported"},
+			errContains: []string{"--api-key", "--webhook-secret", "set in this shell"},
 		},
 		{
 			name:    "a flag not on the list may be empty",
@@ -161,7 +161,7 @@ func TestRejectEmptyFlagsWiredIntoResourceCommands(t *testing.T) {
 			// proves the helper is actually wired into this command.
 			err = cmd.PreRunE(cmd, cmd.Flags().Args())
 			require.Error(t, err, "%s must reject an explicitly empty secret", tt.name)
-			assert.Contains(t, err.Error(), "exported",
+			assert.Contains(t, err.Error(), "set in this shell",
 				"%s should surface the empty-flag message", tt.name)
 		})
 	}

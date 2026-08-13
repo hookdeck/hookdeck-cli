@@ -775,8 +775,8 @@ func TestConnectionUpsertRejectsEmptySourceWebhookSecret(t *testing.T) {
 			"an empty --source-webhook-secret must fail, not create a source that verifies nothing")
 		combined := stdout + stderr
 		assert.Contains(t, combined, "--source-webhook-secret")
-		assert.Contains(t, combined, "exported",
-			"the error should name the likely cause: an unexported shell variable")
+		assert.Contains(t, combined, "set in this shell",
+			"the error should name the likely cause: a variable not set in this shell")
 
 		// Nothing may have been created.
 		listOutput := cli.RunExpectSuccess("gateway", "connection", "list", "--name", connName)
