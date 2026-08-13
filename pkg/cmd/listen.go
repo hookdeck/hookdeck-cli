@@ -193,6 +193,11 @@ API key is enough to run in CI — the CLI exchanges it for CLI credentials and
 saves them. With none of these, a temporary guest account is created, which has
 no delivery history, retries, or issue triggers.
 
+One exception: HOOKDECK_API_KEY does take precedence over a stored *guest*
+profile, so a machine that once ran "listen" without credentials still uses your
+project when the variable is set. Replacing a guest profile is announced, and
+discards the link to that sandbox — unset HOOKDECK_API_KEY to keep it.
+
 Without a terminal (CI, Docker, nohup, an AI agent) the interactive UI cannot
 run, so "--output" falls back to "compact" automatically.`,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -390,12 +395,15 @@ func (lc *listenCmd) applyEnvAPIKey() error {
 	// round trip per machine rather than one per listen invocation. CILogin
 	// reports the project it configured.
 	if err := login.CILogin(&Config, envKey, Config.DeviceName); err != nil {
-		return fmt.Errorf(
+		// Marked actionable so Execute keeps this message: a 401 here would
+		// otherwise be rewritten as the generic "API key is invalid or expired",
+		// losing the only useful part — which kind of key belongs where.
+		return newActionableError(fmt.Errorf(
 			"could not authenticate with HOOKDECK_API_KEY: %w\n\n"+
 				"HOOKDECK_API_KEY must be a Project API key from the Hookdeck dashboard "+
-				"(Project Settings > API Keys). For a CLI key, use --cli-key instead.",
+				"(Project Settings > API Keys). For a CLI client key, use --cli-key instead.",
 			err,
-		)
+		))
 	}
 
 	Config.RefreshCachedAPIClient()

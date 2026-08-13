@@ -527,6 +527,8 @@ $ export HOOKDECK_API_KEY="your-project-api-key"
 $ hookdeck listen 3000 shopify orders
 ```
 
+Authentication order is `--cli-key`, then stored credentials from `hookdeck login` or `hookdeck ci`, then `HOOKDECK_API_KEY`. A real stored login is never repointed by the environment — but a temporary **guest** profile is, so a machine that once ran `listen` without credentials still uses your project once the variable is set. Replacing a guest profile is announced on stderr and discards the link to that sandbox; unset `HOOKDECK_API_KEY` if you want to keep it.
+
 Without a Project API key `listen` still falls back to a temporary guest account, which is convenient locally but has no delivery history, retries, or issue triggers. If you meant to use your own project, check that `HOOKDECK_API_KEY` is actually **set in the shell running the command** — a variable that is unset there expands to an empty string, and values in a `.env` file are not loaded automatically just because your application reads them.
 
 #### Output without a terminal

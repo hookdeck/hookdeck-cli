@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -70,6 +71,31 @@ func RootCmd() *cobra.Command {
 // Command definitions live only in newConnectionCmd(); this just registers the result.
 func addConnectionCmdTo(parent *cobra.Command) {
 	parent.AddCommand(newConnectionCmd().cmd)
+}
+
+// actionableError carries recovery guidance specific to how a command failed,
+// and must be shown instead of Execute's generic recovery text.
+//
+// Without it, a wrapped API error loses its context: IsUnauthorizedError matches
+// through errors.As *and* through a "status code: 401" substring check, so any
+// 401 — however specific the cause — is rewritten as the generic "your API key
+// is invalid or expired" message. That is exactly wrong for a case like a
+// Project API key rejected from HOOKDECK_API_KEY, where the useful part is which
+// kind of key belongs in which flag.
+type actionableError struct {
+	err error
+}
+
+func (e *actionableError) Error() string { return e.err.Error() }
+
+// Unwrap keeps the underlying API error inspectable. Execute checks for
+// actionableError before its 401 handling, so exposing the cause here does not
+// let the generic message win.
+func (e *actionableError) Unwrap() error { return e.err }
+
+// newActionableError marks an error as carrying its own recovery guidance.
+func newActionableError(err error) error {
+	return &actionableError{err: err}
 }
 
 // stdinIsTerminal reports whether stdin is attached to a terminal.
@@ -169,6 +195,15 @@ func Execute() {
 				fmt.Fprintln(os.Stderr, msg)
 			} else {
 				fmt.Println(msg)
+			}
+
+		case errors.As(err, new(*actionableError)):
+			// The command already explained what to do; do not replace it with
+			// the generic recovery text below.
+			if gatewayMCP {
+				fmt.Fprintln(os.Stderr, err)
+			} else {
+				fmt.Println(err)
 			}
 
 		default:

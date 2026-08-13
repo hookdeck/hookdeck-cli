@@ -372,3 +372,36 @@ func TestIssueDismissForce(t *testing.T) {
 	assert.Contains(t, stdout, issueID)
 	assert.Contains(t, stdout, "dismissed")
 }
+
+// TestIssueDismissWithoutForceFailsNonInteractively is the fifth and final
+// destructive-command case for #338. The other four verify their caller invokes
+// the shared confirmation helper; without this one, `issue dismiss` could quietly
+// stop calling it and keep exiting 0 having dismissed nothing.
+//
+// No real issue is needed: runIssueDismissCmd confirms before it calls
+// DismissIssue, so a non-existent ID still exercises the guard and the test stays
+// fast and deterministic — creating a genuine issue takes ~40s of setup.
+func TestIssueDismissWithoutForceFailsNonInteractively(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	// The test process has no controlling terminal: the CI shape.
+	stdout, stderr, err := cli.Run("gateway", "issue", "dismiss", "iss_nonexistent_for_confirm_check")
+
+	require.Error(t, err,
+		"dismiss without --force and without a terminal must fail, not exit 0 having done nothing")
+
+	combined := stdout + stderr
+	assert.Contains(t, combined, "--force",
+		"the error must name the flag that makes this work non-interactively")
+	assert.Contains(t, combined, "no terminal is attached",
+		"the failure must be attributed to the missing terminal, not the issue ID")
+
+	// The confirmation guard must fire before the API call, so the run must not
+	// fail with a not-found error instead.
+	assert.NotContains(t, combined, "Dismiss cancelled.",
+		"it must not report a silent cancellation")
+}
