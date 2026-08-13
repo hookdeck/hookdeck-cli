@@ -181,6 +181,13 @@ func getLatestVersion() string {
 		return ""
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
+	// GitHub asks every API caller to identify itself, and rate limiting is
+	// applied per User-Agent. go-github set one; Go's default "Go-http-client/1.1"
+	// is accepted today but says nothing useful, so send our own.
+	//
+	// Built inline rather than via pkg/useragent: that package imports this one,
+	// so calling it here would be an import cycle.
+	req.Header.Set("User-Agent", "hookdeck-cli/"+Version)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

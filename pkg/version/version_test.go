@@ -57,10 +57,11 @@ func TestGetLatestVersion(t *testing.T) {
 	t.Cleanup(func() { githubAPIBaseURL = originalBase })
 
 	t.Run("returns the tag name from the latest release", func(t *testing.T) {
-		var gotPath, gotAccept string
+		var gotPath, gotAccept, gotUserAgent string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			gotPath = r.URL.Path
 			gotAccept = r.Header.Get("Accept")
+			gotUserAgent = r.Header.Get("User-Agent")
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"tag_name":"v2.5.0","name":"v2.5.0"}`)
 		}))
@@ -70,6 +71,10 @@ func TestGetLatestVersion(t *testing.T) {
 		assert.Equal(t, "v2.5.0", getLatestVersion())
 		assert.Equal(t, "/repos/hookdeck/hookdeck-cli/releases/latest", gotPath)
 		assert.Equal(t, "application/vnd.github+json", gotAccept)
+		// GitHub applies rate limits per User-Agent and asks callers to identify
+		// themselves; go-github used to do this for us.
+		assert.Contains(t, gotUserAgent, "hookdeck-cli/",
+			"the request should identify the CLI rather than send Go's default agent")
 	})
 
 	t.Run("returns empty string on a non-200 response", func(t *testing.T) {
