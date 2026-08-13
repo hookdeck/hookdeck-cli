@@ -3,6 +3,7 @@ package proxy
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +22,12 @@ type InteractiveRenderer struct {
 	teaProgram *tea.Program
 	teaModel   *tui.Model
 	doneCh     chan struct{}
+
+	// runErr holds the Bubble Tea failure, if any. Guarded by mu because it is
+	// written on the TUI goroutine and read by Proxy.Run. Only ever written
+	// before doneCh is closed.
+	mu     sync.Mutex
+	runErr error
 }
 
 // NewInteractiveRenderer creates a new interactive renderer with Bubble Tea
@@ -57,6 +64,12 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		if _, err := r.teaProgram.Run(); err != nil {
 			log.WithField("prefix", "proxy.InteractiveRenderer").
 				Errorf("Bubble Tea error: %v", err)
+
+			r.mu.Lock()
+			r.runErr = fmt.Errorf("interactive output failed to start: %w\n"+
+				"This usually means there is no terminal attached (CI, Docker, nohup, or an AI agent).\n"+
+				"Re-run with --output compact, or let the CLI detect it by not passing --output.", err)
+			r.mu.Unlock()
 		}
 		// Signal that TUI has exited
 		close(r.doneCh)
@@ -242,4 +255,12 @@ func (r *InteractiveRenderer) Cleanup() {
 // Done returns a channel that is closed when the renderer wants to quit
 func (r *InteractiveRenderer) Done() <-chan struct{} {
 	return r.doneCh
+}
+
+// Err reports a Bubble Tea startup or run failure, or nil if the user quit
+// normally. Safe to call once Done() has fired.
+func (r *InteractiveRenderer) Err() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.runErr
 }

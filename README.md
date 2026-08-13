@@ -518,24 +518,30 @@ $ hookdeck ci --api-key $HOOKDECK_API_KEY
 Done! The Hookdeck CLI is configured in project MyProject
 
 $ hookdeck listen 3000 shopify orders
-
-●── HOOKDECK CLI ──●
-
-Listening on 1 source • 1 connection • [i] Collapse
-
-Shopify Source
-│  Requests to → https://events.hookdeck.com/e/src_DAjaFWyyZXsFdZrTOKpuHnOH
-└─ Forwards to → http://localhost:3000/webhooks/shopify/orders (Orders Service)
-
-💡 Open dashboard to inspect, retry & bookmark events: https://dashboard.hookdeck.com/events/cli?team_id=...
-
-Events • [↑↓] Navigate ──────────────────────────────────────────────────────────
-
-> 2025-10-12 14:42:55 [200] POST http://localhost:3000/webhooks/shopify/orders (34ms) → https://dashboard.hookdeck.com/events/evt_...
-
-───────────────────────────────────────────────────────────────────────────────
-> ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data
 ```
+
+`HOOKDECK_API_KEY` is read automatically, so you can skip the `ci` step entirely — if no credentials are stored, `listen` exchanges the Project API key for CLI credentials and saves them, then connects to **your** project:
+
+```sh
+$ export HOOKDECK_API_KEY="your-project-api-key"
+$ hookdeck listen 3000 shopify orders
+```
+
+Authentication order is `--cli-key`, then stored credentials from `hookdeck login` or `hookdeck ci`, then `HOOKDECK_API_KEY`. A real stored login is never repointed by the environment — but a temporary **guest** profile is, so a machine that once ran `listen` without credentials still uses your project once the variable is set. Replacing a guest profile is announced on stderr and discards the link to that sandbox; unset `HOOKDECK_API_KEY` if you want to keep it.
+
+Without a Project API key `listen` still falls back to a temporary guest account, which is convenient locally but has no delivery history, retries, or issue triggers. If you meant to use your own project, check that `HOOKDECK_API_KEY` is actually **set in the shell running the command** — a variable that is unset there expands to an empty string, and values in a `.env` file are not loaded automatically just because your application reads them.
+
+#### Output without a terminal
+
+`listen` defaults to `--output interactive`, a full-screen UI that needs a terminal. In CI, Docker, `nohup`, or an AI agent there is no terminal, so it automatically falls back to `--output compact` — plain, line-based logs suited to a log file:
+
+```sh
+$ hookdeck listen 3000 shopify orders
+⏺ Ready! Forwarding events from Shopify Source to http://localhost:3000/webhooks/shopify/orders
+● 2025-10-12 14:42:55 [200] POST /webhooks/shopify/orders (34ms)
+```
+
+Pass `--output compact` (or `--output quiet` for warnings and errors only) explicitly if you want the same behaviour on a machine that *does* have a terminal.
 
 ### Event Gateway
 
@@ -863,12 +869,12 @@ Config files store a **CLI client key** as `api_key` after `hookdeck login`, `ho
   .hookdeck/
   ```
 
-- **CI/CD environments**: Use a Project API key via `HOOKDECK_API_KEY` and `hookdeck ci` (see [Running in CI](#running-in-ci)):
+- **CI/CD environments**: Use a Project API key via `HOOKDECK_API_KEY` (see [Running in CI](#running-in-ci)). `hookdeck ci` is optional — `listen` reads the variable itself:
   ```sh
   export HOOKDECK_API_KEY="your-project-api-key"
-  hookdeck ci
   hookdeck listen 3000
   ```
+  To keep credentials out of the shared global config entirely, pass `--hookdeck-config <path>`, or use `hookdeck ci --local` to write only `.hookdeck/config.toml` in the working directory.
 
 **Checking which config is active:**
 
@@ -1470,7 +1476,7 @@ Install output is written to `test-scripts/.install-test/` (gitignored).
 
 This section describes the release process for the Hookdeck CLI.
 
-Maintainers using AI assistants: see **[skills/hookdeck-cli-release/](skills/hookdeck-cli-release/)** for the release skill (automation details and release-note workflow).
+Maintainers using AI assistants: see **[.agents/skills/hookdeck-cli-release/](.agents/skills/hookdeck-cli-release/)** for the release skill (automation details and release-note workflow).
 
 ## Release Process
 

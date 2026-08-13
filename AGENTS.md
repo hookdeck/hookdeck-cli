@@ -583,10 +583,11 @@ Summary for code and docs work:
 
 ## Agent skills
 
-- **Location:** Repo-specific agent skills live under **`skills/`** at the repository root (e.g. `skills/hookdeck-cli-release/`).
-- **Cursor / Claude Code:** `.cursor/skills` and `.claude/skills` are **symlinks** to `../skills` so both tools load the same tree. Do not replace the whole `.cursor` directory with a symlink—only `skills`, so `.cursor/rules/` and similar can stay as normal files.
-- **Windows:** Git must create symlinks correctly (`core.symlinks` / Developer Mode). If symlinks are missing after clone, recreate them (`mklink /D` on Windows, or copy `skills/` into `.cursor/skills` and `.claude/skills` as a fallback).
-- **Releases:** For cutting GitHub releases, tags, npm/beta publish flow, and drafting release notes, use **`skills/hookdeck-cli-release/SKILL.md`**; human-facing steps remain in **README.md § Releasing**.
+- **Location:** Repo-specific agent skills live under **`.agents/skills/`** (e.g. `.agents/skills/hookdeck-cli-release/`). This is the cross-harness location: it is not tied to any one tool, so every agent reads the same tree.
+- **Harness directories are symlinks to it:** `.claude/skills` and `.cursor/skills` both point at `../.agents/skills`. Add a symlink for any new harness rather than a new copy. Do not replace the whole `.cursor` directory with a symlink—only `skills`, so `.cursor/rules/` and similar can stay as normal files.
+- **Never copy a skill into a second location.** `.agents/skills/` and a root `skills/` briefly held byte-identical copies, so a fix applied to one left the other wrong (see #336). One canonical directory, symlinks everywhere else.
+- **Windows:** Git must create symlinks correctly (`core.symlinks` / Developer Mode). If symlinks are missing after clone, recreate them (`mklink /D` on Windows, or copy `.agents/skills/` into `.cursor/skills` and `.claude/skills` as a fallback).
+- **Releases:** For cutting GitHub releases, tags, npm/beta publish flow, and drafting release notes, use **`.agents/skills/hookdeck-cli-release/SKILL.md`**; human-facing steps remain in **README.md § Releasing**.
 
 ---
 

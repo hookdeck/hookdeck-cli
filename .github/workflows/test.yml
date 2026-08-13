@@ -31,6 +31,28 @@ jobs:
       - name: Run unit tests
         run: go test -short ./pkg/...
 
+  # Keeps the vulnerability scan clean rather than asserting it once. Nothing ran
+  # govulncheck before, which is how GO-2026-5932 (x/crypto/openpgp, reached only
+  # through go-github v28's package init) went unnoticed until it was the last
+  # remaining finding. See #331.
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+      - name: Run govulncheck
+        # Pinned rather than @latest: a new govulncheck release could change
+        # behaviour or fail this job with no change to the repo. Bump
+        # deliberately. The vulnerability database is still fetched live, so
+        # newly disclosed issues are picked up without a version bump.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          govulncheck ./...
+
   build-mac:
     runs-on: macos-latest
     steps:

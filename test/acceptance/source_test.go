@@ -517,3 +517,100 @@ func TestStandaloneSourceThenConnection(t *testing.T) {
 	assert.Equal(t, "WEBHOOK", conn.Source.Type)
 	assert.Equal(t, destName, conn.Destination.Name)
 }
+
+// TestSourceRejectsEmptyWebhookSecret is the regression test for #335. An
+// unexported shell variable expands to "", and the CLI accepted it: hasAny() is a
+// pure != "" test, so the secret was dropped entirely and the source was created
+// with no verification at all while looking configured.
+//
+// This is the exact shape that caused two of three failures in the hookdeck/evals
+// benchmark, across two models and two providers.
+func TestSourceRejectsEmptyWebhookSecret(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	t.Run("source create with empty --webhook-secret", func(t *testing.T) {
+		sourceName := "test-empty-secret-" + timestamp
+
+		// Exactly what `--webhook-secret "$UNSET_VAR"` produces.
+		stdout, stderr, err := cli.Run(
+			"gateway", "source", "create",
+			"--name", sourceName,
+			"--type", "STRIPE",
+			"--webhook-secret", "",
+		)
+
+		require.Error(t, err, "an empty --webhook-secret must fail, not create an unverified source")
+		combined := stdout + stderr
+		assert.Contains(t, combined, "--webhook-secret")
+		assert.Contains(t, combined, "set in this shell",
+			"the error should name the likely cause: a variable not set in this shell")
+
+		// Nothing may have been created.
+		listOutput := cli.RunExpectSuccess("gateway", "source", "list", "--name", sourceName)
+		assert.NotContains(t, listOutput, sourceName,
+			"no source should exist after a rejected empty secret")
+	})
+
+	t.Run("source upsert with empty --webhook-secret", func(t *testing.T) {
+		stdout, stderr, err := cli.Run(
+			"gateway", "source", "upsert", "test-empty-upsert-"+timestamp,
+			"--type", "STRIPE",
+			"--webhook-secret", "",
+		)
+
+		require.Error(t, err, "an empty --webhook-secret must fail on upsert too")
+		assert.Contains(t, stdout+stderr, "--webhook-secret")
+	})
+
+	t.Run("a real webhook secret is still accepted", func(t *testing.T) {
+		sourceName := "test-real-secret-" + timestamp
+
+		var src Source
+		err := cli.RunJSON(&src,
+			"gateway", "source", "create",
+			"--name", sourceName,
+			"--type", "STRIPE",
+			"--webhook-secret", "whsec_acceptance_test_value",
+		)
+		require.NoError(t, err, "a real secret must still work — the fix must not block valid use")
+		require.NotEmpty(t, src.ID)
+		t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+	})
+}
+
+// TestSourceDeleteWithoutForceFailsNonInteractively covers the destructive-command
+// fix. These commands called fmt.Scanln and discarded its error, so with no
+// terminal the prompt was skipped, "Deletion cancelled." was printed and nil was
+// returned — a CI job deleted nothing and exited 0, looking like a success.
+func TestSourceDeleteWithoutForceFailsNonInteractively(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	sourceName := "test-del-noforce-" + generateTimestamp()
+
+	var src Source
+	require.NoError(t, cli.RunJSON(&src,
+		"gateway", "source", "create", "--name", sourceName, "--type", "WEBHOOK"))
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+
+	// Test processes have no controlling terminal, so this is the CI shape.
+	stdout, stderr, err := cli.Run("gateway", "source", "delete", src.ID)
+
+	require.Error(t, err, "delete without --force and without a terminal must fail, not no-op silently")
+	combined := stdout + stderr
+	assert.Contains(t, combined, "--force",
+		"the error must name the flag that makes this work non-interactively")
+
+	// And the source must still be there.
+	var check Source
+	require.NoError(t, cli.RunJSON(&check, "gateway", "source", "get", src.ID))
+	assert.Equal(t, src.ID, check.ID, "source must not have been deleted")
+}

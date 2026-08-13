@@ -68,11 +68,15 @@ func (cc *connectionDeleteCmd) runConnectionDeleteCmd(cmd *cobra.Command, args [
 
 	// Confirm deletion unless --force is used
 	if !cc.force {
-		fmt.Printf("\nAre you sure you want to delete connection '%s' (%s)? [y/N]: ", connectionName, connectionID)
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println("Deletion cancelled.")
+		proceed, err := confirmDestructiveAction(
+			fmt.Sprintf("\nAre you sure you want to delete connection '%s' (%s)?", connectionName, connectionID),
+			"Deletion cancelled.",
+			"force",
+		)
+		if err != nil {
+			return err
+		}
+		if !proceed {
 			return nil
 		}
 	}

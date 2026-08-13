@@ -210,3 +210,9 @@ func (r *SimpleRenderer) Cleanup() {
 func (r *SimpleRenderer) Done() <-chan struct{} {
 	return r.doneCh
 }
+
+// Err always returns nil: the simple renderer writes to already-open streams and
+// has no startup step that can fail.
+func (r *SimpleRenderer) Err() error {
+	return nil
+}

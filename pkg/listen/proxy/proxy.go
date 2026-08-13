@@ -249,10 +249,12 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			// before the context was cancelled.
 			return nil
 		case <-p.renderer.Done():
-			// Renderer wants to quit (user pressed q or similar)
+			// Renderer stopped: either the user quit (q/Ctrl-C), or it failed to
+			// start. Err() distinguishes the two — a failure must surface as a
+			// non-zero exit rather than a silent success with no tunnel (#333).
 			wsClient.Stop()
 			p.renderer.Cleanup()
-			return nil
+			return p.renderer.Err()
 		case <-wsClient.NotifyExpired:
 			// Stopping the client on shutdown closes NotifyExpired, so this case can
 			// win the race against signalCtx.Done(). That's an intentional exit, not a

@@ -1,8 +1,12 @@
 package version
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,4 +46,91 @@ func TestNeedsToUpgrade(t *testing.T) {
 
 	// Same pre-release — should NOT upgrade.
 	require.False(t, needsToUpgrade("1.9.0-beta.4", "1.9.0-beta.4"))
+}
+
+// TestGetLatestVersion covers the replacement of go-github with a direct GitHub
+// REST call (#331). The old implementation hardcoded github.NewClient(nil) with
+// no injectable transport, so this function — the only reason the dependency
+// existed — had no test coverage at all.
+func TestGetLatestVersion(t *testing.T) {
+	originalBase := githubAPIBaseURL
+	t.Cleanup(func() { githubAPIBaseURL = originalBase })
+
+	t.Run("returns the tag name from the latest release", func(t *testing.T) {
+		var gotPath, gotAccept, gotUserAgent string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotAccept = r.Header.Get("Accept")
+			gotUserAgent = r.Header.Get("User-Agent")
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"tag_name":"v2.5.0","name":"v2.5.0"}`)
+		}))
+		defer srv.Close()
+
+		githubAPIBaseURL = srv.URL
+		assert.Equal(t, "v2.5.0", getLatestVersion())
+		assert.Equal(t, "/repos/hookdeck/hookdeck-cli/releases/latest", gotPath)
+		assert.Equal(t, "application/vnd.github+json", gotAccept)
+		// GitHub applies rate limits per User-Agent and asks callers to identify
+		// themselves; go-github used to do this for us.
+		assert.Contains(t, gotUserAgent, "hookdeck-cli/",
+			"the request should identify the CLI rather than send Go's default agent")
+	})
+
+	t.Run("returns empty string on a non-200 response", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		defer srv.Close()
+
+		githubAPIBaseURL = srv.URL
+		// Rate limiting is the common case here; it must never surface to the user.
+		assert.Empty(t, getLatestVersion())
+	})
+
+	t.Run("returns empty string on malformed JSON", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `not json`)
+		}))
+		defer srv.Close()
+
+		githubAPIBaseURL = srv.URL
+		assert.Empty(t, getLatestVersion())
+	})
+
+	t.Run("returns empty string when the host is unreachable", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		srv.Close() // closed on purpose: nothing is listening
+
+		githubAPIBaseURL = srv.URL
+		assert.Empty(t, getLatestVersion(), "an offline machine must not break the CLI")
+	})
+
+	t.Run("a missing tag_name yields empty rather than panicking", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"name":"no tag here"}`)
+		}))
+		defer srv.Close()
+
+		githubAPIBaseURL = srv.URL
+		// The old code dereferenced *rep.TagName, which would panic on this shape.
+		assert.Empty(t, getLatestVersion())
+	})
+}
+
+// TestGetLatestVersionFeedsNeedsToUpgrade ties the fetch to its only consumer.
+func TestGetLatestVersionFeedsNeedsToUpgrade(t *testing.T) {
+	originalBase := githubAPIBaseURL
+	t.Cleanup(func() { githubAPIBaseURL = originalBase })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"tag_name":"v2.5.0"}`)
+	}))
+	defer srv.Close()
+	githubAPIBaseURL = srv.URL
+
+	latest := getLatestVersion()
+	assert.True(t, needsToUpgrade("v2.4.0", latest))
+	assert.False(t, needsToUpgrade("v2.5.0", latest))
+	assert.False(t, needsToUpgrade("v2.6.0", latest))
 }

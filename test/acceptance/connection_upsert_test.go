@@ -742,3 +742,63 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		assert.True(t, foundRetry, "Should have a retry rule")
 	})
 }
+
+// TestConnectionUpsertRejectsEmptySourceWebhookSecret is the connection-side
+// regression test for #335. This is the exact command shape that failed in the
+// hookdeck/evals benchmark: the provider secret lived in a workspace .env that
+// application code read but never exported, so the flag received "".
+//
+// The CLI accepted it, the agent reported the integration ready, and the source
+// rejected every webhook the provider sent.
+func TestConnectionUpsertRejectsEmptySourceWebhookSecret(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	t.Run("connection upsert with empty --source-webhook-secret", func(t *testing.T) {
+		connName := "test-empty-src-secret-" + timestamp
+
+		stdout, stderr, err := cli.Run(
+			"gateway", "connection", "upsert", connName,
+			"--source-name", "test-el-"+timestamp,
+			"--source-type", "ELEVENLABS",
+			"--source-webhook-secret", "",
+			"--destination-name", "test-dst-"+timestamp,
+			"--destination-type", "CLI",
+			"--destination-cli-path", "/webhooks",
+		)
+
+		require.Error(t, err,
+			"an empty --source-webhook-secret must fail, not create a source that verifies nothing")
+		combined := stdout + stderr
+		assert.Contains(t, combined, "--source-webhook-secret")
+		assert.Contains(t, combined, "set in this shell",
+			"the error should name the likely cause: a variable not set in this shell")
+
+		// Nothing may have been created.
+		listOutput := cli.RunExpectSuccess("gateway", "connection", "list", "--name", connName)
+		assert.NotContains(t, listOutput, connName,
+			"no connection should exist after a rejected empty secret")
+	})
+
+	t.Run("connection create with empty --source-webhook-secret", func(t *testing.T) {
+		connName := "test-empty-create-" + timestamp
+
+		stdout, stderr, err := cli.Run(
+			"gateway", "connection", "create",
+			"--name", connName,
+			"--source-name", "test-el-c-"+timestamp,
+			"--source-type", "ELEVENLABS",
+			"--source-webhook-secret", "",
+			"--destination-name", "test-dst-c-"+timestamp,
+			"--destination-type", "CLI",
+			"--destination-cli-path", "/webhooks",
+		)
+
+		require.Error(t, err, "an empty --source-webhook-secret must fail on create too")
+		assert.Contains(t, stdout+stderr, "--source-webhook-secret")
+	})
+}

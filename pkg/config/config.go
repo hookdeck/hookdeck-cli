@@ -52,8 +52,22 @@ type Config struct {
 	// Telemetry
 	TelemetryDisabled bool
 
+	// localOnly suppresses writes to the resolved (usually global) config file.
+	// Set by commands run with --local, which persist credentials to
+	// ./.hookdeck/config.toml via UseProjectLocal instead. Without it, the login
+	// flows save the profile globally before --local is ever inspected, silently
+	// repointing the active project for every other invocation on the machine.
+	localOnly bool
+
 	// Internal
 	fs ConfigFS
+}
+
+// SetLocalOnly directs profile writes to the local config file only. Call it
+// before any login flow that persists credentials; UseProjectLocal is
+// unaffected and remains the way the local file is written.
+func (c *Config) SetLocalOnly(localOnly bool) {
+	c.localOnly = localOnly
 }
 
 // InitConfig reads in profiles file and ENV variables if set.
@@ -315,6 +329,15 @@ func (c *Config) RemoveAllProfiles() error {
 }
 
 func (c *Config) writeConfig() error {
+	if c.localOnly {
+		log.WithFields(log.Fields{
+			"prefix": "config.Config.writeConfig",
+			"path":   c.viper.ConfigFileUsed(),
+		}).Debug("Skipping config write: --local is set")
+
+		return nil
+	}
+
 	if err := c.fs.makePath(c.viper.ConfigFileUsed()); err != nil {
 		return err
 	}

@@ -388,3 +388,25 @@ func TestTransformationListOutputJSON(t *testing.T) {
 	assert.NotNil(t, resp.Models)
 	assert.NotNil(t, resp.Pagination)
 }
+
+// TestTransformationDeleteWithoutForceFailsNonInteractively covers #338 for
+// transformations. See the destination equivalent for why this is per-command.
+func TestTransformationDeleteWithoutForceFailsNonInteractively(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	trnID := createTestTransformation(t, cli)
+	t.Cleanup(func() { deleteTransformation(t, cli, trnID) })
+
+	stdout, stderr, err := cli.Run("gateway", "transformation", "delete", trnID)
+
+	require.Error(t, err,
+		"delete without --force and without a terminal must fail, not exit 0 having done nothing")
+	assert.Contains(t, stdout+stderr, "--force")
+
+	var check Transformation
+	require.NoError(t, cli.RunJSON(&check, "gateway", "transformation", "get", trnID))
+	assert.Equal(t, trnID, check.ID, "transformation must not have been deleted")
+}

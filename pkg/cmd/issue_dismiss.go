@@ -48,11 +48,15 @@ func (ic *issueDismissCmd) runIssueDismissCmd(cmd *cobra.Command, args []string)
 	ctx := context.Background()
 
 	if !ic.force {
-		fmt.Printf("Are you sure you want to dismiss issue %s? [y/N]: ", issueID)
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println("Dismiss cancelled.")
+		proceed, err := confirmDestructiveAction(
+			fmt.Sprintf("Are you sure you want to dismiss issue %s?", issueID),
+			"Dismiss cancelled.",
+			"force",
+		)
+		if err != nil {
+			return err
+		}
+		if !proceed {
 			return nil
 		}
 	}

@@ -3,8 +3,11 @@
 package acceptance
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,4 +78,53 @@ func TestCLIBasics(t *testing.T) {
 		// This is a basic validation that the API key is working
 		t.Logf("Authenticated user info: %s", strings.TrimSpace(stdout))
 	})
+}
+
+// TestUnauthenticatedCommandFailsFastWithoutTerminal is the regression test for
+// #337. Any command failing for want of credentials used to drop into
+// interactive sign-in: it blocked on a prompt, opened a browser, then polled for
+// ~4 minutes (maxAttemptsDefault 120 x 2s) before failing. In CI, Docker or an
+// AI agent that is a hang, and the caller never learns which command fixes it.
+//
+// The timing assertion is the point of this test. Asserting only on the error
+// message would still pass if the command took four minutes to produce it.
+func TestUnauthenticatedCommandFailsFastWithoutTerminal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	// A config file with no credentials, so the command fails for want of auth.
+	emptyConfig := filepath.Join(t.TempDir(), "no-credentials.toml")
+	require.NoError(t, os.WriteFile(emptyConfig, []byte(""), 0600))
+
+	start := time.Now()
+	stdout, stderr, err := cli.RunFromCwdWithEnv(
+		map[string]string{"HOOKDECK_CONFIG_FILE": emptyConfig},
+		"gateway", "source", "list",
+	)
+	elapsed := time.Since(start)
+
+	combined := stdout + stderr
+	t.Logf("elapsed=%s output=%s", elapsed, combined)
+
+	require.Error(t, err, "an unauthenticated command must fail, not wait for a browser sign-in")
+
+	// The old path polled for ~240s. Allow generous headroom for the go build
+	// inside RunFromCwdWithEnv while still catching a reintroduced poll loop.
+	assert.Less(t, elapsed, 90*time.Second,
+		"unauthenticated command should fail immediately, not poll for a browser login (#337)")
+
+	assert.Contains(t, combined, "No terminal is attached",
+		"the error should explain why browser sign-in was not attempted")
+	assert.Contains(t, combined, "HOOKDECK_API_KEY",
+		"the error should name a way to authenticate without a terminal")
+	assert.Contains(t, combined, "--cli-key",
+		"the error should name the CLI key option too")
+
+	assert.NotContains(t, combined, "Press Enter",
+		"it must not prompt when there is no terminal")
+	assert.NotContains(t, combined, "Waiting for confirmation",
+		"it must not start the browser sign-in poll")
 }

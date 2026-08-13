@@ -16,10 +16,13 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"unicode"
+
+	"golang.org/x/term"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -70,6 +73,76 @@ func addConnectionCmdTo(parent *cobra.Command) {
 	parent.AddCommand(newConnectionCmd().cmd)
 }
 
+// actionableError carries recovery guidance specific to how a command failed,
+// and must be shown instead of Execute's generic recovery text.
+//
+// Without it, a wrapped API error loses its context: IsUnauthorizedError matches
+// through errors.As *and* through a "status code: 401" substring check, so any
+// 401 — however specific the cause — is rewritten as the generic "your API key
+// is invalid or expired" message. That is exactly wrong for a case like a
+// Project API key rejected from HOOKDECK_API_KEY, where the useful part is which
+// kind of key belongs in which flag.
+type actionableError struct {
+	err error
+}
+
+func (e *actionableError) Error() string { return e.err.Error() }
+
+// Unwrap keeps the underlying API error inspectable. Execute checks for
+// actionableError before its 401 handling, so exposing the cause here does not
+// let the generic message win.
+func (e *actionableError) Unwrap() error { return e.err }
+
+// newActionableError marks an error as carrying its own recovery guidance.
+func newActionableError(err error) error {
+	return &actionableError{err: err}
+}
+
+// stdinIsTerminal reports whether stdin is attached to a terminal.
+// Declared as a variable so tests can substitute it.
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// authFallback describes what to do when a command fails because no credentials
+// are configured.
+type authFallback int
+
+const (
+	// authFallbackMCP reports the problem on stderr; stdout carries JSON-RPC.
+	authFallbackMCP authFallback = iota
+	// authFallbackNonInteractive reports how to authenticate without a terminal.
+	authFallbackNonInteractive
+	// authFallbackRunLogin drops into interactive browser sign-in.
+	authFallbackRunLogin
+)
+
+// resolveAuthFallback picks the recovery path for a missing-credentials failure.
+// Interactive sign-in is only viable with a terminal: it blocks on Enter, opens a
+// browser, and polls for ~4 minutes, so choosing it in CI, Docker or an agent
+// turns a fast, fixable error into a hang.
+func resolveAuthFallback(gatewayMCP, interactiveStdin bool) authFallback {
+	switch {
+	case gatewayMCP:
+		return authFallbackMCP
+	case !interactiveStdin:
+		return authFallbackNonInteractive
+	default:
+		return authFallbackRunLogin
+	}
+}
+
+// nonInteractiveAuthHelp lists the ways to authenticate without a terminal. It is
+// shown instead of dropping into browser sign-in, which cannot complete without
+// one.
+const nonInteractiveAuthHelp = `No terminal is attached, so browser sign-in cannot run.
+
+Authenticate without a terminal using one of:
+  hookdeck ci --api-key <project-api-key>   (or set HOOKDECK_API_KEY)
+  hookdeck login --cli-key <cli-key>
+
+Or run ` + "`hookdeck login`" + ` in an interactive terminal.`
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -84,9 +157,13 @@ func Execute() {
 			errRunes[0] = unicode.ToUpper(errRunes[0])
 			capitalized := string(errRunes)
 
-			if gatewayMCP {
+			switch resolveAuthFallback(gatewayMCP, stdinIsTerminal()) {
+			case authFallbackMCP:
 				// MCP uses JSON-RPC on stdout; do not run interactive login or print recovery text there.
 				fmt.Fprintf(os.Stderr, "%s. Use hookdeck_login in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized)
+				os.Exit(1)
+			case authFallbackNonInteractive:
+				fmt.Fprintf(os.Stderr, "%s.\n\n%s\n", capitalized, nonInteractiveAuthHelp)
 				os.Exit(1)
 			}
 
@@ -118,6 +195,15 @@ func Execute() {
 				fmt.Fprintln(os.Stderr, msg)
 			} else {
 				fmt.Println(msg)
+			}
+
+		case errors.As(err, new(*actionableError)):
+			// The command already explained what to do; do not replace it with
+			// the generic recovery text below.
+			if gatewayMCP {
+				fmt.Fprintln(os.Stderr, err)
+			} else {
+				fmt.Println(err)
 			}
 
 		default:
@@ -221,6 +307,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&Config.Profile.Name, "profile", "p", "", fmt.Sprintf("profile name (default \"%s\")", hookdeck.DefaultProfileName))
 
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "cli-key", "", "Hookdeck CLI key (e.g. from dashboard onboarding or hookdeck login)")
+	// Hidden for the same reason as --api-key below: authentication is a
+	// command-specific flag (`hookdeck login --cli-key`, `hookdeck listen
+	// --cli-key`, `hookdeck ci --api-key`), not a global one — see README
+	// "CLI authentication keys" and AGENTS.md. The flag keeps working for
+	// existing callers; it just stops being advertised as a global option in
+	// generated help and REFERENCE.md.
+	rootCmd.PersistentFlags().MarkHidden("cli-key")
 
 	rootCmd.PersistentFlags().StringVar(&Config.Profile.APIKey, "api-key", "", "Your API key to use for the command")
 	rootCmd.PersistentFlags().MarkHidden("api-key")

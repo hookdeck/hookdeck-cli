@@ -2,12 +2,14 @@ package version
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/google/go-github/v28/github"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
@@ -147,18 +149,65 @@ func comparePreRelease(a, b string) int {
 	return 0
 }
 
-func getLatestVersion() string {
-	client := github.NewClient(nil)
-	rep, _, err := client.Repositories.GetLatestRelease(context.Background(), "hookdeck", "hookdeck-cli")
+// githubAPIBaseURL is the GitHub REST API root. Declared as a variable so tests
+// can point it at an httptest server.
+var githubAPIBaseURL = "https://api.github.com"
 
+// latestReleaseTimeout bounds the upgrade check. It runs before the user's actual
+// command, so it must never be what makes the CLI feel slow or hang offline.
+const latestReleaseTimeout = 5 * time.Second
+
+// getLatestVersion returns the tag of the newest published release, or "" if it
+// cannot be determined.
+//
+// This is a single unauthenticated GET, so it uses net/http directly rather than
+// a GitHub client library. Previously it pulled in go-github v28, whose only
+// other effect was to link golang.org/x/crypto/openpgp through package init —
+// the unmaintained package flagged by GO-2026-5932, for which no fixed version
+// exists (#331).
+//
+// Errors are deliberately swallowed to the debug log: a failed upgrade check must
+// never interfere with the command the user actually ran.
+func getLatestVersion() string {
 	l := log.StandardLogger()
 
+	ctx, cancel := context.WithTimeout(context.Background(), latestReleaseTimeout)
+	defer cancel()
+
+	url := githubAPIBaseURL + "/repos/hookdeck/hookdeck-cli/releases/latest"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		// We don't want to fail any functionality or display errors for this
-		// so fail silently and output to debug log
+		l.Debug(err)
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	// GitHub asks every API caller to identify itself, and rate limiting is
+	// applied per User-Agent. go-github set one; Go's default "Go-http-client/1.1"
+	// is accepted today but says nothing useful, so send our own.
+	//
+	// Built inline rather than via pkg/useragent: that package imports this one,
+	// so calling it here would be an import cycle.
+	req.Header.Set("User-Agent", "hookdeck-cli/"+Version)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		l.Debug(err)
+		return ""
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		l.Debugf("unexpected status checking latest release: %s", res.Status)
+		return ""
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&release); err != nil {
 		l.Debug(err)
 		return ""
 	}
 
-	return *rep.TagName
+	return release.TagName
 }
