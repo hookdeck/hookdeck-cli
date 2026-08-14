@@ -192,13 +192,13 @@ func TestValidateFields(t *testing.T) {
 	t.Run("reports a missing required field using its flag name", func(t *testing.T) {
 		err := ValidateFields(configFields, map[string]interface{}{}, "config")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--config-url is required")
+		assert.Contains(t, err.Error(), "--config url=<value> is required")
 	})
 
 	t.Run("treats a blank required value as missing", func(t *testing.T) {
 		err := ValidateFields(configFields, map[string]interface{}{"url": "  "}, "config")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--config-url is required")
+		assert.Contains(t, err.Error(), "--config url=<value> is required")
 	})
 
 	t.Run("rejects an unknown field", func(t *testing.T) {
@@ -207,13 +207,13 @@ func TestValidateFields(t *testing.T) {
 			"unknown": "x",
 		}, "config")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--config-unknown is not a valid config field")
+		assert.Contains(t, err.Error(), `"unknown" is not a valid config field`)
 	})
 
-	t.Run("converts underscores in keys to dashes in flag names", func(t *testing.T) {
+	t.Run("uses the schema key verbatim, matching the key=value flag form", func(t *testing.T) {
 		err := ValidateFields([]Field{{Key: "queue_url", Required: true}}, map[string]interface{}{}, "config")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--config-queue-url is required")
+		assert.Contains(t, err.Error(), "--config queue_url=<value> is required")
 	})
 
 	t.Run("rejects a value outside the declared options", func(t *testing.T) {
@@ -222,13 +222,13 @@ func TestValidateFields(t *testing.T) {
 			"region": "mars-1",
 		}, "config")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--config-region must be one of: us-east-1, eu-west-2")
+		assert.Contains(t, err.Error(), "--config region must be one of: us-east-1, eu-west-2")
 	})
 
 	t.Run("rejects a value failing the declared pattern", func(t *testing.T) {
 		err := ValidateFields(configFields, map[string]interface{}{"url": "ftp://example.com"}, "config")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--config-url does not match the expected format")
+		assert.Contains(t, err.Error(), "--config url does not match the expected format")
 	})
 
 	t.Run("ignores a pattern the schema declares but Go cannot compile", func(t *testing.T) {
@@ -242,6 +242,6 @@ func TestValidateFields(t *testing.T) {
 	t.Run("names the credential group when validating credentials", func(t *testing.T) {
 		err := ValidateFields([]Field{{Key: "secret", Required: true}}, map[string]interface{}{}, "credential")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--credential-secret is required")
+		assert.Contains(t, err.Error(), "--credential secret=<value> is required")
 	})
 }

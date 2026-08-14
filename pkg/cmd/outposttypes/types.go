@@ -96,14 +96,14 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 		}
 		value, present := values[field.Key]
 		if !present || isEmptyValue(value) {
-			problems = append(problems, fmt.Sprintf("--%s-%s is required", kind, flagName(field.Key)))
+			problems = append(problems, fmt.Sprintf("--%s %s=<value> is required", kind, field.Key))
 		}
 	}
 
 	for key, value := range values {
 		field, ok := known[key]
 		if !ok {
-			problems = append(problems, fmt.Sprintf("--%s-%s is not a valid %s field", kind, flagName(key), kind))
+			problems = append(problems, fmt.Sprintf("%q is not a valid %s field", key, kind))
 			continue
 		}
 
@@ -113,8 +113,8 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 		}
 
 		if options := field.OptionValues(); len(options) > 0 && !containsFold(options, text) {
-			problems = append(problems, fmt.Sprintf("--%s-%s must be one of: %s",
-				kind, flagName(key), strings.Join(options, ", ")))
+			problems = append(problems, fmt.Sprintf("--%s %s must be one of: %s",
+				kind, key, strings.Join(options, ", ")))
 			continue
 		}
 
@@ -123,8 +123,8 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 			// schema, not the user's input, so it is ignored rather than
 			// reported as a validation failure.
 			if re, err := regexp.Compile(field.Pattern); err == nil && !re.MatchString(text) {
-				problems = append(problems, fmt.Sprintf("--%s-%s does not match the expected format (%s)",
-					kind, flagName(key), field.Pattern))
+				problems = append(problems, fmt.Sprintf("--%s %s does not match the expected format (%s)",
+					kind, key, field.Pattern))
 			}
 		}
 	}
@@ -135,11 +135,6 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 
 	sort.Strings(problems)
 	return fmt.Errorf("%s", strings.Join(problems, "\n"))
-}
-
-// flagName converts a schema field key to the CLI flag spelling.
-func flagName(key string) string {
-	return strings.ReplaceAll(key, "_", "-")
 }
 
 func containsFold(options []string, value string) bool {
