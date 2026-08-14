@@ -101,6 +101,14 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 	}
 
 	for key, value := range values {
+		// A nested value came from a dotted path. The schema describes flat
+		// fields today, so it cannot say whether a nested shape is valid, and
+		// rejecting one here would block a command the API would have accepted.
+		// Defer to the API, which is the authority.
+		if _, nested := value.(map[string]interface{}); nested {
+			continue
+		}
+
 		field, ok := known[key]
 		if !ok {
 			problems = append(problems, fmt.Sprintf("%q is not a valid %s field", key, kind))

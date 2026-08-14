@@ -130,9 +130,72 @@ func resolveOutpostFieldMap(pairs []string, file, kind string) (map[string]inter
 		if !found || key == "" {
 			return nil, fmt.Errorf("--%s %q must be in key=value form", kind, pair)
 		}
-		values[key] = value
+		if err := setNestedValue(values, key, value, kind); err != nil {
+			return nil, err
+		}
 	}
 	return values, nil
+}
+
+// setNestedValue assigns value at a dotted path, creating intermediate maps.
+//
+// Outpost's destination config is flat today — every field is a top-level string
+// — so in practice this is a plain assignment. It supports paths because
+// destination types are defined by the deployment rather than the CLI: if a
+// nested type ships, `--config a.b=c` expresses it with no CLI release, which is
+// the whole point of not hardcoding a server-owned schema.
+//
+// A literal dot in a key can be escaped as `\.`. No current field key in either
+// product contains one, so this exists to avoid painting us into a corner rather
+// than to solve a present problem.
+func setNestedValue(target map[string]interface{}, key, value, kind string) error {
+	segments := splitDottedPath(key)
+
+	for i, segment := range segments {
+		if segment == "" {
+			return fmt.Errorf("--%s %q has an empty path segment", kind, key)
+		}
+
+		if i == len(segments)-1 {
+			target[segment] = value
+			break
+		}
+
+		switch existing := target[segment].(type) {
+		case nil:
+			next := map[string]interface{}{}
+			target[segment] = next
+			target = next
+		case map[string]interface{}:
+			target = existing
+		default:
+			// e.g. --config a=1 --config a.b=2, where "a" cannot be both.
+			return fmt.Errorf("--%s %q conflicts with an earlier value for %q", kind, key, segment)
+		}
+	}
+
+	return nil
+}
+
+// splitDottedPath splits on unescaped dots, so `a\.b` stays a single segment.
+func splitDottedPath(key string) []string {
+	var segments []string
+	var current strings.Builder
+
+	for i := 0; i < len(key); i++ {
+		switch {
+		case key[i] == '\\' && i+1 < len(key) && key[i+1] == '.':
+			current.WriteByte('.')
+			i++
+		case key[i] == '.':
+			segments = append(segments, current.String())
+			current.Reset()
+		default:
+			current.WriteByte(key[i])
+		}
+	}
+
+	return append(segments, current.String())
 }
 
 // validateOutpostDestinationFields checks config and credentials against the
