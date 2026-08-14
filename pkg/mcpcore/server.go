@@ -36,6 +36,12 @@ type Options struct {
 	// the client for its own API.
 	Client *hookdeck.Client
 
+	// AccountClient answers the account-level requests that are not part of a
+	// product API: listing projects and validating credentials. A product served
+	// from its own host cannot answer those, so it must supply the account API
+	// client here. Defaults to Client.
+	AccountClient *hookdeck.Client
+
 	// Config is the CLI configuration, used by the login tool to persist
 	// credentials.
 	Config *config.Config
@@ -54,10 +60,11 @@ type Options struct {
 
 // Server wraps the MCP SDK server and the Hookdeck API client.
 type Server struct {
-	opts      Options
-	client    *hookdeck.Client
-	cfg       *config.Config
-	mcpServer *mcpsdk.Server
+	opts          Options
+	client        *hookdeck.Client
+	accountClient *hookdeck.Client
+	cfg           *config.Config
+	mcpServer     *mcpsdk.Server
 
 	// sessionCtx is the context passed to RunStdio. It is cancelled when the
 	// MCP transport closes (stdin EOF). Background goroutines (e.g. login
@@ -73,7 +80,10 @@ type Server struct {
 // via the projects tool's use action) affects subsequent calls within the same
 // session.
 func NewServer(opts Options) *Server {
-	s := &Server{opts: opts, client: opts.Client, cfg: opts.Config}
+	s := &Server{opts: opts, client: opts.Client, accountClient: opts.AccountClient, cfg: opts.Config}
+	if s.accountClient == nil {
+		s.accountClient = opts.Client
+	}
 
 	s.mcpServer = mcpsdk.NewServer(
 		&mcpsdk.Implementation{
@@ -94,6 +104,20 @@ func NewServer(opts Options) *Server {
 
 // Client returns the API client shared by this server's tool handlers.
 func (s *Server) Client() *hookdeck.Client { return s.client }
+
+// AccountClient returns the client used for account-level requests: listing
+// projects and validating credentials.
+func (s *Server) AccountClient() *hookdeck.Client { return s.accountClient }
+
+// projectClients returns every client whose project and credentials must stay
+// in step. The account client is only listed separately when it is a different
+// client from the product one.
+func (s *Server) projectClients() []*hookdeck.Client {
+	if s.accountClient == nil || s.accountClient == s.client {
+		return []*hookdeck.Client{s.client}
+	}
+	return []*hookdeck.Client{s.client, s.accountClient}
+}
 
 // Config returns the CLI configuration this server was built with.
 func (s *Server) Config() *config.Config { return s.cfg }
@@ -165,7 +189,7 @@ func (s *Server) wrapWithTelemetry(toolName string, handler mcpsdk.ToolHandler) 
 
 		deviceName, _ := os.Hostname()
 
-		s.client.Telemetry = &hookdeck.CLITelemetry{
+		telemetry := &hookdeck.CLITelemetry{
 			Source:       "mcp",
 			Environment:  hookdeck.DetectEnvironment(),
 			CommandPath:  commandPath,
@@ -173,9 +197,19 @@ func (s *Server) wrapWithTelemetry(toolName string, handler mcpsdk.ToolHandler) 
 			DeviceName:   deviceName,
 			MCPClient:    mcpClientInfo(req),
 		}
-		defer func() { s.client.Telemetry = nil }()
+		// One invocation can reach both APIs (a projects call lists through the
+		// account API and then scopes the product one), so both carry the same
+		// telemetry rather than only the first.
+		for _, c := range s.projectClients() {
+			c.Telemetry = telemetry
+		}
+		defer func() {
+			for _, c := range s.projectClients() {
+				c.Telemetry = nil
+			}
+		}()
 
-		FillProjectDisplayNameIfNeeded(s.client)
+		FillProjectDisplayNameIfNeeded(s.accountClient, s.client)
 
 		return handler(ctx, req)
 	}

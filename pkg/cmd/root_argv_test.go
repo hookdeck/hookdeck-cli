@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestArgvContainsGatewayMCP(t *testing.T) {
+func TestArgvContainsMCP(t *testing.T) {
 	tests := []struct {
 		name string
 		argv []string
@@ -25,10 +25,29 @@ func TestArgvContainsGatewayMCP(t *testing.T) {
 		// globalPositionalArgs treats them as single-token flags and skips them.
 		{"bool flag before gateway", []string{"hookdeck", "--insecure", "gateway", "mcp"}, true},
 		{"bool flag between gateway and mcp", []string{"hookdeck", "gateway", "--insecure", "mcp"}, false},
+
+		// Outpost has its own MCP server and needs the same stdout hygiene.
+		{"outpost minimal", []string{"hookdeck", "outpost", "mcp"}, true},
+		{"outpost with profile", []string{"hookdeck", "--profile", "p1", "outpost", "mcp"}, true},
+		{"outpost with allow-write", []string{"hookdeck", "outpost", "mcp", "--allow-write"}, true},
+		{"outpost not mcp", []string{"hookdeck", "outpost", "tenant", "list"}, false},
+
+		{"unrelated group", []string{"hookdeck", "project", "mcp"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, argvContainsGatewayMCP(tt.argv))
+			assert.Equal(t, tt.want, argvContainsMCP(tt.argv))
 		})
 	}
+}
+
+func TestArgvMCPGroupNamesTheLoginTool(t *testing.T) {
+	assert.Equal(t, "gateway", argvMCPGroup([]string{"hookdeck", "gateway", "mcp"}))
+	assert.Equal(t, "outpost", argvMCPGroup([]string{"hookdeck", "outpost", "mcp"}))
+	assert.Equal(t, "", argvMCPGroup([]string{"hookdeck", "listen", "3000"}))
+
+	assert.Equal(t, "hookdeck_login", mcpLoginToolName("gateway"))
+	assert.Equal(t, "outpost_login", mcpLoginToolName("outpost"))
+	// A non-MCP invocation still needs a sensible name for the shared message.
+	assert.Equal(t, "hookdeck_login", mcpLoginToolName(""))
 }

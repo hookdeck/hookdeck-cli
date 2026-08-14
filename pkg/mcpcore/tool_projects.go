@@ -64,14 +64,18 @@ type projectEntry struct {
 	Current bool   `json:"current"`
 }
 
-// listProjectItems fetches the projects visible to the client, restricted to the
-// server's project type when one is configured.
+// listProjectItems fetches the projects visible to the credentials, restricted
+// to the server's project type when one is configured.
+//
+// The list comes from the account API, not the product one: a product served
+// from its own host does not answer account-level requests.
 func listProjectItems(srv *Server, client *hookdeck.Client) ([]project.ProjectListItem, error) {
-	if err := project.EnsureUserAssociatedClient(client); err != nil {
+	accountClient := srv.AccountClient()
+	if err := project.EnsureUserAssociatedClient(accountClient); err != nil {
 		return nil, err
 	}
 
-	projects, err := client.ListProjects()
+	projects, err := accountClient.ListProjects()
 	if err != nil {
 		return nil, err
 	}
@@ -142,9 +146,13 @@ func projectsUse(srv *Server, client *hookdeck.Client, in Input) (*mcpsdk.CallTo
 		return ErrorResult(fmt.Sprintf("project %q not found", id)), nil
 	}
 
-	client.ProjectID = id
-	client.ProjectOrg = found.Org
-	client.ProjectName = found.Project
+	// Every client this server holds has to move together, or a later call would
+	// still be scoped to the previous project.
+	for _, c := range srv.projectClients() {
+		c.ProjectID = id
+		c.ProjectOrg = found.Org
+		c.ProjectName = found.Project
+	}
 
 	out := map[string]string{
 		"project_id":   id,

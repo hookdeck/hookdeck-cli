@@ -59,6 +59,9 @@ func (s *Server) LoginToolDef(description string) ToolDef {
 func handleLogin(srv *Server) mcpsdk.ToolHandler {
 	loginTool := srv.LoginToolName()
 	client := srv.client
+	// Credential checks are account-level, so they go to the account API rather
+	// than a product API that would not answer them.
+	accountClient := srv.accountClient
 	cfg := srv.cfg
 	var stateMu sync.Mutex
 	var state *loginState
@@ -88,16 +91,18 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			if err := cfg.ClearActiveProfileCredentials(); err != nil {
 				return ErrorResult(fmt.Sprintf("reauth: could not clear stored credentials: %v", err)), nil
 			}
-			client.APIKey = ""
-			client.ProjectID = ""
-			client.ProjectOrg = ""
-			client.ProjectName = ""
+			for _, c := range srv.projectClients() {
+				c.APIKey = ""
+				c.ProjectID = ""
+				c.ProjectOrg = ""
+				c.ProjectName = ""
+			}
 		}
 
 		// Already authenticated with a user-associated key — nothing to do.
 		loginPrefix := ""
 		if client.APIKey != "" {
-			lacks_user, err := project.CredentialsLackUserAssociation(client)
+			lacks_user, err := project.CredentialsLackUserAssociation(accountClient)
 			if err != nil && !hookdeck.IsUnauthorizedError(err) {
 				return ErrorResult(fmt.Sprintf("Failed to verify credentials: %s", err)), nil
 			}
@@ -202,8 +207,6 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			// Update the server-held client (in production this is the same pointer as
 			// config.GetAPIClient(); tests inject a separate *hookdeck.Client, so we must
 			// mutate this handle — RefreshCachedAPIClient only touches the global singleton).
-			client.APIKey = response.APIKey
-			client.ProjectID = response.ProjectID
 			org, proj, err := project.ParseProjectName(response.ProjectName)
 			if err != nil {
 				org, proj = "", response.ProjectName
@@ -211,8 +214,12 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			if o := strings.TrimSpace(response.OrganizationName); o != "" {
 				org = o
 			}
-			client.ProjectOrg = org
-			client.ProjectName = proj
+			for _, c := range srv.projectClients() {
+				c.APIKey = response.APIKey
+				c.ProjectID = response.ProjectID
+				c.ProjectOrg = org
+				c.ProjectName = proj
+			}
 
 			log.WithFields(log.Fields{
 				"user":    response.UserName,

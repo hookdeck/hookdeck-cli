@@ -107,6 +107,7 @@ These commands require an Outpost project. Use 'hookdeck project use' to switch.
 	oc.cmd.AddCommand(newOutpostPublishCmd().cmd)
 	oc.cmd.AddCommand(newOutpostMetricsCmd().cmd)
 	oc.cmd.AddCommand(newOutpostConfigCmd().cmd)
+	addOutpostMCPCmdTo(oc.cmd)
 
 	return oc
 }

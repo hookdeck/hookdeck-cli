@@ -37,6 +37,7 @@ For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE
   - [Event Gateway](#event-gateway)
   - [Event Gateway MCP](#event-gateway-mcp)
   - [Outpost](#outpost)
+  - [Outpost MCP](#outpost-mcp)
   - [Manage connections](#manage-connections)
   - [Transformations](#transformations)
   - [Requests, events, and attempts](#requests-events-and-attempts)
@@ -720,6 +721,56 @@ Create a Project API key in the Hookdeck dashboard under your project's settings
 Publishing is asynchronous: a successful response means the event was accepted, not delivered. Use `hookdeck outpost attempt list` to see the outcome.
 
 For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
+
+### Outpost MCP
+
+`hookdeck outpost mcp` starts an [MCP](https://modelcontextprotocol.io/) server exposing your Outpost project to AI agents: tenants, their destinations, the events published to them, and every delivery attempt. Tools are prefixed `outpost_`, so this server and [Event Gateway MCP](#event-gateway-mcp) can be configured in the same client.
+
+```json
+{
+  "mcpServers": {
+    "hookdeck-outpost": {
+      "command": "hookdeck",
+      "args": ["outpost", "mcp"]
+    }
+  }
+}
+```
+
+The client starts `hookdeck outpost mcp` as a stdio subprocess. If you haven't authenticated yet, the `outpost_login` tool logs in via the browser. The active project must be an Outpost project; `outpost_projects` lists the Outpost projects available to you and switches between them.
+
+#### Read-only by default
+
+The server starts read-only. Each tool advertises only the actions that read data, so an agent is never offered an action it cannot perform. Add `--allow-write` (or set `HOOKDECK_MCP_ALLOW_WRITE=true`; the flag wins) to enable the rest:
+
+```json
+"args": ["outpost", "mcp", "--allow-write"]
+```
+
+`--read-only` is accepted as an explicit way to ask for the default, and wins if both are passed.
+
+Two actions that only read are gated with the writes, because both return a reusable credential: `outpost_tenants` `token` mints a tenant-scoped access token, and `outpost_tenants` `portal` returns a URL granting access to a tenant's portal.
+
+Publishing needs a Hookdeck **Project API key**, which the credentials stored by `hookdeck login` cannot substitute for. Without one the `outpost_publish` tool is not registered at all; pass `--api-key` or set `HOOKDECK_API_KEY` to enable it.
+
+#### Available tools
+
+| Tool | Description |
+|------|-------------|
+| `outpost_projects` | List Outpost projects or switch the active one for this session |
+| `outpost_tenants` | Inspect tenants (list, get) and manage them (upsert, delete, token, portal) |
+| `outpost_destinations` | Inspect a tenant's destinations (list, get) and manage them (create, update, delete, enable, disable) |
+| `outpost_events` | Query published events (list, get) and retry delivery |
+| `outpost_attempts` | Query delivery attempts — status, response codes, retry history |
+| `outpost_publish` | Publish an event to a topic |
+| `outpost_topics` | List the topics available in the project |
+| `outpost_destination_types` | Inspect destination types and the config and credential fields each accepts |
+| `outpost_metrics` | Query aggregate publish and delivery metrics |
+| `outpost_config` | Read and change project configuration, including the portal's custom domain |
+| `outpost_status` | Show the deployment status |
+| `outpost_help` | Discover the available tools, their actions, and the current mode |
+
+Call `outpost_help` at any time to see which mode the session is in and which actions it can perform.
 
 ### Manage connections
 

@@ -3,7 +3,6 @@
 package acceptance
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,27 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-const mcpInitializeJSON = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}`
-
-func firstJSONRPCMessageLine(t *testing.T, stdout string) map[string]any {
-	t.Helper()
-	for _, line := range strings.Split(stdout, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		var msg map[string]any
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			continue
-		}
-		if _, ok := msg["jsonrpc"]; ok {
-			return msg
-		}
-	}
-	t.Fatalf("no JSON-RPC line in stdout: %q", stdout)
-	return nil
-}
 
 func assertGatewayMCPStdioHygiene(t *testing.T, stdout, stderr string) {
 	t.Helper()
