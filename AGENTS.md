@@ -9,7 +9,7 @@ This repository contains the Hookdeck CLI, a Go-based command-line tool for mana
 - `pkg/hookdeck/` - API client and models
 - `pkg/config/` - Configuration management
 - `pkg/listen/` - Local webhook forwarding functionality
-- `cmd/hookdeck/` - Main entry point
+- `main.go` - Main entry point (repo root)
 - `REFERENCE.md` - Complete CLI documentation and examples
 
 ### Key Files
@@ -240,7 +240,7 @@ This applies to **`go test`**, **`go mod download`**, **`git`**, **`gh`**, build
 ### Building and Testing
 ```bash
 # Build the CLI
-go build -o hookdeck cmd/hookdeck/main.go
+go build -o hookdeck .
 
 # Run all unit tests (default packages; run from repo root)
 go test ./...
@@ -317,10 +317,10 @@ go vet ./...
 ### Local Development
 ```bash
 # Run CLI directly during development
-go run cmd/hookdeck/main.go <command>
+go run . <command>
 
 # Example: Test login command
-go run cmd/hookdeck/main.go login --help
+go run . login --help
 ```
 
 ### Sandbox and command execution
@@ -430,8 +430,8 @@ Acceptance tests in `test/acceptance/` are partitioned by **feature build tags**
 
 | Command | Purpose |
 |---------|---------|
-| `go run cmd/hookdeck/main.go --help` | View CLI help |
-| `go build -o hookdeck cmd/hookdeck/main.go` | Build CLI binary |
+| `go run . --help` | View CLI help |
+| `go build -o hookdeck .` | Build CLI binary |
 | `go test ./...` | All unit tests (repo root; agents: run with `required_permissions: ["all"]`) |
 | `go test ./pkg/cmd/` | Test command implementations only |
 | `go generate ./...` | Run code generation (if used) |
