@@ -109,12 +109,12 @@ func TestProjectsTool_ToolNamesFollowThePrefix(t *testing.T) {
 	api := projectsAPI(t)
 	srv, _ := newProjectsServer(t, api, config.ProjectTypeOutpost)
 
-	assert.Equal(t, "outpost_projects", srv.ProjectsToolName())
-	assert.Equal(t, "outpost_login", srv.LoginToolName())
+	assert.Equal(t, "hookdeck_projects", srv.ProjectsToolName())
+	assert.Equal(t, "hookdeck_login", srv.LoginToolName())
 	assert.Equal(t, "outpost_events", srv.ToolName("events"))
 	assert.Equal(t, "outpost_", srv.ToolPrefix())
 
 	def := srv.ProjectsToolDef("desc")
-	assert.Equal(t, "outpost_projects", def.Tool.Name)
+	assert.Equal(t, "hookdeck_projects", def.Tool.Name)
 	assert.Equal(t, "desc", def.Tool.Description)
 }

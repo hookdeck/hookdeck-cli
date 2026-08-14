@@ -40,7 +40,7 @@ Successful tool calls that return JSON share one envelope. Parse the tool result
     unresolved. "active_project_org" (string) is included when known; omitted when empty.
     If no project id is set, "meta" is {}.
 
-Plain text (not this shape): outpost_help text, outpost_login prompts, and error messages.
+Plain text (not this shape): outpost_help text, hookdeck_login prompts, and error messages.
 Errors use the host error flag; bodies are plain text, not JSON envelopes.`
 
 // formatCurrentProject builds a display label from org + short name, and
@@ -107,7 +107,7 @@ Current project: %s
 
 %s
 
-All tools operate on the active project, which must be an Outpost project. Call outpost_projects
+All tools operate on the active project, which must be an Outpost project. Call hookdeck_projects
 first when the user references a project by name, or when unsure which project is active.
 
 %s
@@ -171,7 +171,7 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 // never documents an action this session cannot perform.
 func toolHelp(srv *mcpcore.Server) map[string]string {
 	topics := map[string]string{
-		srv.ProjectsToolName(): `outpost_projects — List or switch the active project
+		srv.ProjectsToolName(): `hookdeck_projects — List or switch the active project
 
 Always call this first when the user references a specific project by name. Every other tool is
 scoped to the active project. Only Outpost projects are listed and only an Outpost project can be
@@ -185,7 +185,7 @@ Parameters:
   action      (string, required) — "list" or "use"
   project_id  (string)           — Required for "use"`,
 
-		srv.LoginToolName(): `outpost_login — Browser sign-in for the Hookdeck CLI inside MCP
+		srv.LoginToolName(): `hookdeck_login — Browser sign-in for the Hookdeck CLI inside MCP
 
 Without arguments when already authenticated: confirms the session is active.
 When not authenticated: returns a URL the user opens in a browser; poll by calling this tool again.
@@ -194,7 +194,7 @@ Note: signing in here does not supply a Project API key, which outpost_publish n
 
 Parameters:
   reauth  (boolean) — If true, clears stored credentials and starts a new browser login. Use when
-                      outpost_projects list fails and the key may be a single-project or dashboard
+                      hookdeck_projects list fails and the key may be a single-project or dashboard
                       API key that cannot list projects.`,
 
 		helpToolName: `outpost_help — Overview of the Outpost tools, or detailed help for one

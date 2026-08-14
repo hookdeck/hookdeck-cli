@@ -16,10 +16,14 @@ import (
 // suffix is appended to every topic that resolves — products use it to repeat
 // shared documentation such as the JSON response shape.
 func HelpTopic(prefix string, topics map[string]string, topic, suffix string) *mcpsdk.CallToolResult {
-	if prefix != "" && !strings.HasPrefix(topic, prefix) {
-		topic = prefix + topic
-	}
+	// An exact tool name always wins. Platform tools (hookdeck_login,
+	// hookdeck_projects) do not carry the product prefix, so prepending it
+	// unconditionally would turn a valid topic into a miss.
 	text, ok := topics[topic]
+	if !ok && prefix != "" && !strings.HasPrefix(topic, prefix) {
+		topic = prefix + topic
+		text, ok = topics[topic]
+	}
 	if ok {
 		if suffix != "" {
 			return TextResult(text + "\n\n" + suffix)

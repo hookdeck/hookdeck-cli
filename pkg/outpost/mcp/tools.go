@@ -18,8 +18,8 @@ const (
 	helpToolName    = toolPrefix + "_help"
 	helpTopicPrefix = toolPrefix + "_"
 
-	loginToolDesc    = "Authenticate the Hookdeck CLI or sign in again. Without arguments, returns a URL for browser login when not yet authenticated, or confirms if already signed in. Set reauth: true to clear the current session and start a new browser login (use when outpost_projects list fails and the stored key may be a single-project or dashboard API key)."
-	projectsToolDesc = "Always call this first when the user references a specific project by name. List available Outpost projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. Every other tool is scoped to the active project — if the wrong project is active, all results will be wrong. Only Outpost projects are listed: this server has no access to Event Gateway projects. If list or use fails (especially 401/403), the error may suggest outpost_login with reauth: true. JSON successes use a standard data/meta envelope; see outpost_help."
+	loginToolDesc    = "Authenticate the Hookdeck CLI or sign in again. Without arguments, returns a URL for browser login when not yet authenticated, or confirms if already signed in. Set reauth: true to clear the current session and start a new browser login (use when hookdeck_projects list fails and the stored key may be a single-project or dashboard API key)."
+	projectsToolDesc = "Always call this first when the user references a specific project by name. List available Outpost projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. Every other tool is scoped to the active project — if the wrong project is active, all results will be wrong. Only Outpost projects are listed: this server has no access to Event Gateway projects. If list or use fails (especially 401/403), the error may suggest hookdeck_login with reauth: true. JSON successes use a standard data/meta envelope; see outpost_help."
 )
 
 // ServerOptions configure the Outpost MCP server.

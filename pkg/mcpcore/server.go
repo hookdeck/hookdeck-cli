@@ -31,6 +31,11 @@ type Options struct {
 	// without colliding.
 	ToolPrefix string
 
+	// PlatformPrefix namespaces tools that belong to the Hookdeck platform
+	// rather than to a single product (login, projects). Defaults to
+	// DefaultPlatformPrefix, which is what every server should use.
+	PlatformPrefix string
+
 	// Client is the API client shared by every tool handler. Handlers mutate it
 	// in place (e.g. ProjectID on a project switch), so each server must be given
 	// the client for its own API.
@@ -146,10 +151,31 @@ func (s *Server) ToolPrefix() string {
 }
 
 // LoginToolName returns the name of this server's login tool.
-func (s *Server) LoginToolName() string { return s.ToolName("login") }
+func (s *Server) LoginToolName() string { return s.platformToolName("login") }
+
+// DefaultPlatformPrefix is the prefix for platform-level tools. You log in to
+// Hookdeck and switch Hookdeck projects, whichever product's server you are in.
+const DefaultPlatformPrefix = "hookdeck"
 
 // ProjectsToolName returns the name of this server's projects tool.
-func (s *Server) ProjectsToolName() string { return s.ToolName("projects") }
+func (s *Server) ProjectsToolName() string { return s.platformToolName("projects") }
+
+// platformToolName names a tool that belongs to the Hookdeck platform rather
+// than to one product.
+//
+// Logging in and switching projects are Hookdeck operations, not Gateway or
+// Outpost ones, so they keep the platform prefix in every server. Product tools
+// (ToolName) take the product's own prefix. Both servers therefore expose the
+// same hookdeck_login and hookdeck_projects, which is correct: it is the same
+// operation, and a client that has both configured sees one consistent name for
+// it.
+func (s *Server) platformToolName(resource string) string {
+	prefix := s.opts.PlatformPrefix
+	if prefix == "" {
+		prefix = DefaultPlatformPrefix
+	}
+	return prefix + "_" + resource
+}
 
 // RequireAuth guards a handler on an unauthenticated session, naming this
 // server's login tool.

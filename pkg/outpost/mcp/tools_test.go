@@ -131,7 +131,7 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 
 	t.Run("registers every read tool", func(t *testing.T) {
 		for _, name := range []string{
-			"outpost_projects", "outpost_login", "outpost_help",
+			"hookdeck_projects", "hookdeck_login", "outpost_help",
 			"outpost_tenants", "outpost_destinations", "outpost_events",
 			"outpost_attempts", "outpost_topics", "outpost_destination_types",
 			"outpost_metrics", "outpost_config", "outpost_status",
@@ -291,19 +291,33 @@ func TestUnknownAction(t *testing.T) {
 // Authentication
 // ---------------------------------------------------------------------------
 
-func TestUnauthenticated_PointsAtTheOutpostLoginTool(t *testing.T) {
+// TestUnauthenticated_PointsAtALoginToolThatExists guards the platform/product
+// prefix split: login is a Hookdeck operation, not an Outpost one, so it keeps
+// the platform prefix here and in the Gateway server. An unauthenticated tool
+// must name a tool this session actually registers.
+func TestUnauthenticated_PointsAtALoginToolThatExists(t *testing.T) {
 	api := mockAPI(t, nil)
 	client := newTestClient(t, api.URL)
 	client.APIKey = ""
 	session := connect(t, ServerOptions{Client: client})
 
-	for _, name := range []string{"outpost_tenants", "outpost_events", "outpost_status", "outpost_projects"} {
+	registered := map[string]bool{}
+	for name := range listTools(t, session) {
+		registered[name] = true
+	}
+	require.True(t, registered["hookdeck_login"], "login is platform-level, so it is hookdeck_login in every server")
+	require.False(t, registered["outpost_login"], "the product prefix must not be used for a platform tool")
+
+	for _, name := range []string{"outpost_tenants", "outpost_events", "outpost_status", "hookdeck_projects"} {
 		t.Run(name, func(t *testing.T) {
 			result := callTool(t, session, name, map[string]any{"action": "list"})
 			require.True(t, result.IsError)
+
 			text := resultText(t, result)
-			assert.Contains(t, text, "outpost_login")
-			assert.NotContains(t, text, "hookdeck_login", "the gateway tool does not exist in this session")
+			assert.Contains(t, text, "hookdeck_login")
+			// Naming a tool the session does not expose would send an agent
+			// chasing something that cannot be called.
+			assert.True(t, registered["hookdeck_login"])
 		})
 	}
 }
@@ -677,8 +691,8 @@ func TestServerIdentity(t *testing.T) {
 
 	// The Outpost server must only ever serve Outpost projects.
 	assert.Equal(t, config.ProjectTypeOutpost, srv.ProjectFilter())
-	assert.Equal(t, "outpost_projects", srv.ProjectsToolName())
-	assert.Equal(t, "outpost_login", srv.LoginToolName())
+	assert.Equal(t, "hookdeck_projects", srv.ProjectsToolName())
+	assert.Equal(t, "hookdeck_login", srv.LoginToolName())
 
 	var _ *mcpcore.Server = srv
 }

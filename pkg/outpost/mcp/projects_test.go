@@ -52,7 +52,7 @@ func TestProjectsTool_UsesTheAccountAPIAndSwitchesTheOutpostClient(t *testing.T)
 	session := connect(t, ServerOptions{Client: outpostClient, AccountClient: accountClient})
 
 	t.Run("list returns only Outpost projects", func(t *testing.T) {
-		result := callTool(t, session, "outpost_projects", map[string]any{"action": "list"})
+		result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "list"})
 		require.False(t, result.IsError, resultText(t, result))
 		text := resultText(t, result)
 		assert.Contains(t, text, "outpost-project")
@@ -61,7 +61,7 @@ func TestProjectsTool_UsesTheAccountAPIAndSwitchesTheOutpostClient(t *testing.T)
 	})
 
 	t.Run("use switches the Outpost client, not just the account one", func(t *testing.T) {
-		result := callTool(t, session, "outpost_projects", map[string]any{
+		result := callTool(t, session, "hookdeck_projects", map[string]any{
 			"action":     "use",
 			"project_id": "proj_other",
 		})
@@ -73,7 +73,7 @@ func TestProjectsTool_UsesTheAccountAPIAndSwitchesTheOutpostClient(t *testing.T)
 	})
 
 	t.Run("use refuses a Gateway project", func(t *testing.T) {
-		result := callTool(t, session, "outpost_projects", map[string]any{
+		result := callTool(t, session, "hookdeck_projects", map[string]any{
 			"action":     "use",
 			"project_id": "proj_gateway",
 		})
