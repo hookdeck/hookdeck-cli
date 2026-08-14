@@ -104,6 +104,13 @@ func TestOutpostTenantLifecycle(t *testing.T) {
 	stdout = cli.RunExpectSuccess("outpost", "tenant", "list", "--id", tenantID, "--output", "json")
 	assert.Contains(t, stdout, tenantID)
 
+	// The token is a real credential scoped to this tenant, so assert its shape
+	// rather than its contents: three dot-separated JWT segments, nothing logged.
+	stdout = cli.RunExpectSuccess("outpost", "tenant", "token", tenantID)
+	token := strings.TrimSpace(stdout)
+	assert.Len(t, strings.Split(token, "."), 3, "expected a JWT")
+	assert.NotContains(t, token, tenantID, "the raw tenant id should not be readable in the token")
+
 	cli.RunExpectSuccess("outpost", "tenant", "delete", tenantID, "--force")
 
 	_, _, err := cli.Run("outpost", "tenant", "get", tenantID)
@@ -231,8 +238,52 @@ func TestOutpostPublishAndInspect(t *testing.T) {
 		return json.Unmarshal([]byte(out), &events) == nil && len(events.Models) > 0
 	}, 30*time.Second, 2*time.Second, "the published event never appeared")
 
-	stdout = cli.RunExpectSuccess("outpost", "attempt", "list", "--tenant-id", tenantID, "--limit", "5")
-	assert.NotEmpty(t, stdout)
+	// Fetch one event by id, using an id from the list above rather than
+	// assuming the publish response id is queryable yet.
+	listed := cli.RunExpectSuccess("outpost", "event", "list", "--tenant-id", tenantID, "--output", "json")
+	var events struct {
+		Models []struct {
+			ID    string `json:"id"`
+			Topic string `json:"topic"`
+		} `json:"models"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(listed), &events))
+	require.NotEmpty(t, events.Models)
+
+	stdout = cli.RunExpectSuccess("outpost", "event", "get", events.Models[0].ID, "--tenant-id", tenantID, "--output", "json")
+	assert.Contains(t, stdout, events.Models[0].ID)
+	assert.Contains(t, stdout, "acceptance", "the published payload should come back")
+
+	// Delivery to example.com fails, but a failed attempt still exercises the
+	// read path, which is what is being checked here.
+	var attempts struct {
+		Models []struct {
+			ID string `json:"id"`
+		} `json:"models"`
+	}
+	require.Eventually(t, func() bool {
+		out, _, err := cli.Run("outpost", "attempt", "list", "--tenant-id", tenantID, "--output", "json")
+		if err != nil {
+			return false
+		}
+		return json.Unmarshal([]byte(out), &attempts) == nil && len(attempts.Models) > 0
+	}, 60*time.Second, 3*time.Second, "no delivery attempt was recorded")
+
+	stdout = cli.RunExpectSuccess("outpost", "attempt", "get", attempts.Models[0].ID, "--tenant-id", tenantID)
+	assert.Contains(t, stdout, attempts.Models[0].ID)
+
+	t.Run("retry queues another attempt", func(t *testing.T) {
+		destinations := cli.RunExpectSuccess("outpost", "destination", "list", "--tenant-id", tenantID, "--output", "json")
+		var dests []struct {
+			ID string `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(destinations), &dests))
+		require.NotEmpty(t, dests)
+
+		out := cli.RunExpectSuccess("outpost", "event", "retry",
+			"--event-id", events.Models[0].ID, "--destination-id", dests[0].ID)
+		assert.Contains(t, out, "Retry accepted")
+	})
 }
 
 func TestOutpostPublishRequiresProjectAPIKey(t *testing.T) {
