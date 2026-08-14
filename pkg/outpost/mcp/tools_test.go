@@ -634,7 +634,11 @@ func TestHelpOverview_WriteMode(t *testing.T) {
 		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{}))
 		assert.Contains(t, text, "Mode: write enabled")
 		assert.Contains(t, text, "outpost_publish is not registered")
-		assert.Contains(t, text, "HOOKDECK_API_KEY")
+		assert.Contains(t, text, "HOOKDECK_OUTPOST_PUBLISH_API_KEY")
+		// HOOKDECK_API_KEY means "exchange this for CLI credentials" elsewhere in
+		// the CLI and is commonly exported for CI. Naming it here would suggest an
+		// ambient variable is enough to start sending real events.
+		assert.NotContains(t, text, "set HOOKDECK_API_KEY")
 	})
 }
 

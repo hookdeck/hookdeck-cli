@@ -21,7 +21,7 @@ var destinationsActions = actionSet{
 
 var destinationsSpec = toolSpec{
 	resource: "destinations",
-	summary:  "Inspect and manage the destinations events are delivered to. Every destination belongs to a tenant, so tenant_id is always required. Config and credentials are specific to the destination type — call outpost_destination_types to see the fields a type accepts before creating or updating one.",
+	summary:  "Inspect and manage the destinations events are delivered to. Every destination belongs to a tenant, so tenant_id is always required. Config and credentials are specific to the destination type — call outpost_destination_types to see the fields a type accepts before creating or updating one. Destinations have no name: identify one to a human by its type and target (for example \"webhook -> https://example.com/hooks\"), not by its id, which means nothing on its own.",
 	actions:  destinationsActions,
 	required: []string{"tenant_id"},
 	props: map[string]mcpcore.Prop{

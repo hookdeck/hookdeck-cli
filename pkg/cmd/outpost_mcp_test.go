@@ -58,9 +58,14 @@ func TestOutpostMCPCommandIsRegistered(t *testing.T) {
 	assert.Equal(t, "mcp", cmd.Name())
 	require.True(t, isOutpostMCPLeafCommand(cmd), "the project gate must let MCP start unauthenticated")
 
-	for _, name := range []string{"allow-write", "read-only", "api-key"} {
+	for _, name := range []string{"allow-write", "read-only", "publish-api-key"} {
 		assert.NotNil(t, cmd.Flags().Lookup(name), "missing --%s", name)
 	}
+
+	// The credential is publish-specific on purpose. A generic --api-key would
+	// read as the server's own authentication, which is the stored CLI login,
+	// and publishing is the one action here that cannot be undone.
+	assert.Nil(t, cmd.Flags().Lookup("api-key"), "the publish credential must not be named as if it authenticated the server")
 
 	// Read-only is the default, so its help must not promise otherwise.
 	assert.Equal(t, "false", cmd.Flags().Lookup("allow-write").DefValue)

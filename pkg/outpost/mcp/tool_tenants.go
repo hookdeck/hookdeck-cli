@@ -20,7 +20,7 @@ var tenantsActions = actionSet{
 
 var tenantsSpec = toolSpec{
 	resource: "tenants",
-	summary:  "Inspect and manage tenants — the end customers whose destinations events are delivered to. Tenant IDs are chosen by the operator, not generated, so upsert is the way to create one.",
+	summary:  "Inspect and manage tenants — the end customers whose destinations events are delivered to. Tenant IDs are chosen by the operator, not generated, so upsert is the way to create one — which also means the id is usually meaningful to a human and worth quoting directly.",
 	actions:  tenantsActions,
 	props: map[string]mcpcore.Prop{
 		"id":       {Type: "string", Desc: "Tenant ID. Required for get/upsert/delete/token/portal. On list, filters by tenant ID(s). " + descListValue},

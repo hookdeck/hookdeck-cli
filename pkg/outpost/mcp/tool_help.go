@@ -39,6 +39,8 @@ Successful tool calls that return JSON share one envelope. Parse the tool result
     "active_project_name" (string, short name without org) are always present; name may be "" if
     unresolved. "active_project_org" (string) is included when known; omitted when empty.
     If no project id is set, "meta" is {}.
+    When reporting which project is active, use "active_project_org" and
+    "active_project_name" — a bare project id tells a human nothing.
 
 Plain text (not this shape): outpost_help text, hookdeck_login prompts, and error messages.
 Errors use the host error flag; bodies are plain text, not JSON envelopes.`
@@ -76,7 +78,7 @@ change or delete data. Destructive actions (delete, config set, publish) are rea
 		if opts.PublishAPIKey == "" {
 			text += "\n\noutpost_publish is not registered in this session: publishing needs a Hookdeck Project API key,\n" +
 				"which the credentials stored by 'hookdeck login' cannot substitute for. Restart the server with\n" +
-				"--api-key <project-api-key>, or set HOOKDECK_API_KEY, to publish."
+				"--publish-api-key <project-api-key>, or set HOOKDECK_OUTPOST_PUBLISH_API_KEY, to publish."
 		}
 		return text
 	}
@@ -89,7 +91,7 @@ must not be able to produce them. outpost_publish is not registered at all.
 
 To enable everything, restart the server with --allow-write, or set HOOKDECK_MCP_ALLOW_WRITE=true
 (the flag wins). Publishing additionally needs a Hookdeck Project API key via --api-key or
-HOOKDECK_API_KEY.`
+HOOKDECK_OUTPOST_PUBLISH_API_KEY.`
 }
 
 func helpOverview(srv *mcpcore.Server, opts ServerOptions, client *hookdeck.Client) *mcpsdk.CallToolResult {
@@ -179,7 +181,12 @@ switched to: this server talks to the Outpost API and has no access to Event Gat
 
 Actions:
   list  — List the Outpost projects available to your credentials
-  use   — Switch the active project for this session (in-memory only)
+  use   — Switch the active project for this session
+
+Switching affects this session only. Unlike 'hookdeck project use' on the command line, it does not
+write to the config file, so it will not change which project the user's own CLI is pointed at. Say
+so if the user asks whether their CLI was affected. Signing in does persist, because that is an
+explicit action the user took.
 
 Parameters:
   action      (string, required) — "list" or "use"

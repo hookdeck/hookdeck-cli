@@ -15,6 +15,14 @@ import (
 // config makes environment variables easier to set than arguments.
 const allowWriteEnvVar = "HOOKDECK_MCP_ALLOW_WRITE"
 
+// publishAPIKeyEnvVar carries the Project API key the publish tool needs.
+//
+// It is deliberately distinct from HOOKDECK_API_KEY. That variable means
+// "exchange this for CLI credentials" everywhere else in the CLI, and is
+// commonly exported for CI; reusing it here would give one name two meanings and
+// let an ambient variable silently enable sending real events.
+const publishAPIKeyEnvVar = "HOOKDECK_OUTPOST_PUBLISH_API_KEY"
+
 type outpostMCPCmd struct {
 	cmd *cobra.Command
 
@@ -45,7 +53,12 @@ granting access to a tenant's portal.
 
 Publishing needs a Hookdeck Project API key, which the credentials stored by
 'hookdeck login' cannot substitute for. Without one the publish tool is not
-registered at all; pass --api-key or set HOOKDECK_API_KEY to enable it.
+registered at all; pass --publish-api-key or set HOOKDECK_OUTPOST_PUBLISH_API_KEY.
+
+This deliberately does not read HOOKDECK_API_KEY, which elsewhere in the CLI
+means "a key to exchange for CLI credentials". Publishing sends real events to
+real destinations and cannot be undone, so it should not be switched on by a
+variable that happens to be exported for something else.
 
 If the CLI is already authenticated, all tools are available immediately. If
 not, the server still starts and outpost_login initiates browser-based sign-in.
@@ -58,7 +71,7 @@ before the server runs go to stderr.`),
   hookdeck outpost mcp --allow-write
 
   # Allow writes, including publishing events
-  hookdeck outpost mcp --allow-write --api-key $HOOKDECK_API_KEY
+  hookdeck outpost mcp --allow-write --publish-api-key $HOOKDECK_OUTPOST_PUBLISH_API_KEY
 
   # Pipe a JSON-RPC initialize request for testing
   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}' | hookdeck outpost mcp`,
@@ -71,7 +84,7 @@ before the server runs go to stderr.`),
 	mc.cmd.Flags().BoolVar(&mc.readOnly, "read-only", false, "Run without write actions. This is the default; the flag is accepted so it can be passed explicitly, and wins over --allow-write.")
 	// The env var is read at run time rather than used as the flag default, so a
 	// key that is already in the environment is not printed back out by --help.
-	mc.cmd.Flags().StringVar(&mc.apiKey, "api-key", "", "Hookdeck Project API key, required by the publish tool. Read from HOOKDECK_API_KEY when not provided.")
+	mc.cmd.Flags().StringVar(&mc.apiKey, "publish-api-key", "", "Hookdeck Project API key, required by the publish tool. Also read from "+publishAPIKeyEnvVar+". HOOKDECK_API_KEY is deliberately not used here.")
 
 	return mc
 }
@@ -109,9 +122,13 @@ func (mc *outpostMCPCmd) runOutpostMCPCmd(cmd *cobra.Command, args []string) err
 	// would leave every Outpost call pointed at the previous project.
 	client := Config.GetOutpostAPIClient()
 
+	// Deliberately not HOOKDECK_API_KEY. That variable means "exchange this for
+	// CLI credentials" for `hookdeck ci` and `listen`, and the CLI encourages
+	// exporting it for CI — so reading it here would let an unrelated ambient
+	// variable silently grant an agent the ability to send real events.
 	publishAPIKey := mc.apiKey
 	if publishAPIKey == "" {
-		publishAPIKey = os.Getenv("HOOKDECK_API_KEY")
+		publishAPIKey = os.Getenv(publishAPIKeyEnvVar)
 	}
 
 	writeEnabled := resolveAllowWrite(
