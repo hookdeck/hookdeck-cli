@@ -15,9 +15,9 @@ import (
 )
 
 type sourceGetCmd struct {
-	cmd              *cobra.Command
-	output           string
-	includeAuth      bool
+	cmd         *cobra.Command
+	output      string
+	includeAuth bool
 }
 
 func newSourceGetCmd() *sourceGetCmd {

@@ -12,8 +12,8 @@ import (
 )
 
 type requestRetryCmd struct {
-	cmd            *cobra.Command
-	connectionIDs  string
+	cmd           *cobra.Command
+	connectionIDs string
 }
 
 func newRequestRetryCmd() *requestRetryCmd {

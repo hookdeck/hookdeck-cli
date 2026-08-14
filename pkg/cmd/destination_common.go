@@ -11,21 +11,21 @@ import (
 // Used by destination create, upsert, update. When both --config/--config-file and
 // individual flags are set, --config/--config-file take precedence.
 type destinationConfigFlags struct {
-	URL                     string
-	CliPath                 string
-	AuthMethod              string
-	BearerToken             string
-	BasicAuthUser           string
-	BasicAuthPass           string
-	APIKey                  string
-	APIKeyHeader            string
-	APIKeyTo                string
-	CustomSignatureSecret   string
-	CustomSignatureKey      string
-	RateLimit               int
-	RateLimitPeriod         string
-	PathForwardingDisabled  *bool
-	HTTPMethod              string
+	URL                    string
+	CliPath                string
+	AuthMethod             string
+	BearerToken            string
+	BasicAuthUser          string
+	BasicAuthPass          string
+	APIKey                 string
+	APIKeyHeader           string
+	APIKeyTo               string
+	CustomSignatureSecret  string
+	CustomSignatureKey     string
+	RateLimit              int
+	RateLimitPeriod        string
+	PathForwardingDisabled *bool
+	HTTPMethod             string
 }
 
 // hasAnyDestinationConfig returns true if any individual destination config flag is set.

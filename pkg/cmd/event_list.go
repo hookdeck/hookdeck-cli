@@ -15,32 +15,32 @@ import (
 type eventListCmd struct {
 	cmd *cobra.Command
 
-	id              string
-	connectionID    string
-	sourceID        string
-	destinationID   string
-	status          string
-	attempts        string
-	responseStatus  string
-	errorCode       string
-	cliID           string
-	issueID         string
-	createdAfter    string
-	createdBefore   string
-	successfulAfter string
-	successfulBefore string
+	id                string
+	connectionID      string
+	sourceID          string
+	destinationID     string
+	status            string
+	attempts          string
+	responseStatus    string
+	errorCode         string
+	cliID             string
+	issueID           string
+	createdAfter      string
+	createdBefore     string
+	successfulAfter   string
+	successfulBefore  string
 	lastAttemptAfter  string
 	lastAttemptBefore string
-	headers         string
-	body            string
-	path            string
-	parsedQuery     string
-	orderBy         string
-	dir             string
-	limit           int
-	next            string
-	prev            string
-	output          string
+	headers           string
+	body              string
+	path              string
+	parsedQuery       string
+	orderBy           string
+	dir               string
+	limit             int
+	next              string
+	prev              string
+	output            string
 }
 
 func newEventListCmd() *eventListCmd {

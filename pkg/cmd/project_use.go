@@ -24,10 +24,10 @@ func newProjectUseCmd() *projectUseCmd {
 	lc := &projectUseCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:     "use [<organization_name> [<project_name>]]",
-		Args:    validators.MaximumNArgs(2),
-		Short:   "Set the active project for future commands",
-		RunE:    lc.runProjectUseCmd,
+		Use:   "use [<organization_name> [<project_name>]]",
+		Args:  validators.MaximumNArgs(2),
+		Short: "Set the active project for future commands",
+		RunE:  lc.runProjectUseCmd,
 		Example: `$ hookdeck project use
 Use the arrow keys to navigate: ↓ ↑ → ←
 ? Select Project:

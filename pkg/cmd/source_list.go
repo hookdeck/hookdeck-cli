@@ -15,11 +15,11 @@ import (
 type sourceListCmd struct {
 	cmd *cobra.Command
 
-	name     string
+	name       string
 	sourceType string
-	disabled bool
-	limit    int
-	output   string
+	disabled   bool
+	limit      int
+	output     string
 }
 
 func newSourceListCmd() *sourceListCmd {

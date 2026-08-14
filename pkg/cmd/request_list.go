@@ -15,25 +15,25 @@ import (
 type requestListCmd struct {
 	cmd *cobra.Command
 
-	id              string
-	sourceID        string
-	status          string
-	verified        string
-	rejectionCause  string
-	createdAfter    string
-	createdBefore   string
-	ingestedAfter   string
-	ingestedBefore  string
-	headers         string
-	body            string
-	path            string
-	parsedQuery     string
-	orderBy         string
-	dir             string
-	limit           int
-	next            string
-	prev            string
-	output          string
+	id             string
+	sourceID       string
+	status         string
+	verified       string
+	rejectionCause string
+	createdAfter   string
+	createdBefore  string
+	ingestedAfter  string
+	ingestedBefore string
+	headers        string
+	body           string
+	path           string
+	parsedQuery    string
+	orderBy        string
+	dir            string
+	limit          int
+	next           string
+	prev           string
+	output         string
 }
 
 func newRequestListCmd() *requestListCmd {

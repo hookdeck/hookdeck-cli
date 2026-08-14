@@ -14,15 +14,15 @@ import (
 // --source-* flags; when both --config/--config-file and individual flags are
 // set, --config/--config-file take precedence.
 type sourceConfigFlags struct {
-	WebhookSecret        string
-	APIKey               string
-	BasicAuthUser        string
-	BasicAuthPass        string
-	HMACSecret           string
-	HMACAlgo             string
-	AllowedHTTPMethods   string
-	CustomResponseBody   string
-	CustomResponseType   string
+	WebhookSecret      string
+	APIKey             string
+	BasicAuthUser      string
+	BasicAuthPass      string
+	HMACSecret         string
+	HMACAlgo           string
+	AllowedHTTPMethods string
+	CustomResponseBody string
+	CustomResponseType string
 }
 
 // hasAny returns true if any individual config flag is set.

@@ -18,9 +18,9 @@ type connectionUpdateCmd struct {
 	output string
 
 	// Connection fields (update-by-ID only; no inline source/destination)
-	name        string
-	description string
-	sourceID    string
+	name          string
+	description   string
+	sourceID      string
 	destinationID string
 
 	// Rule flags shared with create/upsert
@@ -187,4 +187,3 @@ func (cu *connectionUpdateCmd) displayConnection(conn *hookdeck.Connection, upda
 		}
 	}
 }
-

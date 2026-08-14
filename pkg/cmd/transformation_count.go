@@ -11,8 +11,8 @@ import (
 )
 
 type transformationCountCmd struct {
-	cmd   *cobra.Command
-	name  string
+	cmd    *cobra.Command
+	name   string
 	output string
 }
 

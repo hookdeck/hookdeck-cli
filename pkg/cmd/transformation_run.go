@@ -13,15 +13,15 @@ import (
 )
 
 type transformationRunCmd struct {
-	cmd               *cobra.Command
-	code              string
-	codeFile          string
-	transformationID  string
-	request           string
-	requestFile       string
-	connectionID      string
-	env               string
-	output            string
+	cmd              *cobra.Command
+	code             string
+	codeFile         string
+	transformationID string
+	request          string
+	requestFile      string
+	connectionID     string
+	env              string
+	output           string
 }
 
 func newTransformationRunCmd() *transformationRunCmd {
@@ -115,9 +115,9 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 	}
 
 	req := &hookdeck.TransformationRunRequest{
-		Request:     &requestInput,
-		Env:         envMap,
-		WebhookID:   tc.connectionID,
+		Request:   &requestInput,
+		Env:       envMap,
+		WebhookID: tc.connectionID,
 	}
 	if code != "" {
 		req.Code = code

@@ -13,9 +13,9 @@ import (
 type sourceCountCmd struct {
 	cmd *cobra.Command
 
-	name     string
+	name       string
 	sourceType string
-	disabled bool
+	disabled   bool
 }
 
 func newSourceCountCmd() *sourceCountCmd {
