@@ -100,6 +100,13 @@ These commands require an Outpost project. Use 'hookdeck project use' to switch.
 	oc.cmd.AddCommand(newOutpostTenantCmd().cmd)
 	oc.cmd.AddCommand(newOutpostDestinationCmd().cmd)
 	oc.cmd.AddCommand(newOutpostDestinationTypeCmd().cmd)
+	oc.cmd.AddCommand(newOutpostEventCmd().cmd)
+	oc.cmd.AddCommand(newOutpostAttemptCmd().cmd)
+	oc.cmd.AddCommand(newOutpostTopicCmd().cmd)
+	oc.cmd.AddCommand(newOutpostStatusCmd().cmd)
+	oc.cmd.AddCommand(newOutpostPublishCmd().cmd)
+	oc.cmd.AddCommand(newOutpostMetricsCmd().cmd)
+	oc.cmd.AddCommand(newOutpostConfigCmd().cmd)
 
 	return oc
 }
