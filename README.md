@@ -36,6 +36,7 @@ For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE
   - [Running in CI](#running-in-ci)
   - [Event Gateway](#event-gateway)
   - [Event Gateway MCP](#event-gateway-mcp)
+  - [Outpost](#outpost)
   - [Manage connections](#manage-connections)
   - [Transformations](#transformations)
   - [Requests, events, and attempts](#requests-events-and-attempts)
@@ -662,6 +663,63 @@ Once the MCP server is configured, you can ask your agent questions like:
 "Show failed events that had delivery attempts in the last 24 hours."
 → Agent uses hookdeck_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
 ```
+
+### Outpost
+
+Manage [Hookdeck Outpost](https://hookdeck.com/docs/outpost) — your users (tenants), the destinations they own, and the events delivered to them.
+
+These commands require an Outpost project. Switch with `hookdeck project use`; pointing them at an Event Gateway project reports which type the project is rather than failing obscurely.
+
+```sh
+hookdeck outpost [command]
+
+# Available commands
+hookdeck outpost tenant            # Manage tenants
+hookdeck outpost destination       # Manage a tenant's destinations
+hookdeck outpost destination-type  # Inspect available destination types and their fields
+hookdeck outpost event             # Inspect published events, and retry delivery
+hookdeck outpost attempt           # Inspect delivery attempts
+hookdeck outpost publish           # Publish an event
+hookdeck outpost topic             # Inspect available topics
+hookdeck outpost metrics           # Query aggregate metrics
+hookdeck outpost config            # Manage project configuration and the portal domain
+hookdeck outpost status            # Show the deployment status
+```
+
+#### Destination config
+
+Config and credential fields differ per destination type, and are defined by the Outpost deployment rather than the CLI, so they are passed as repeatable `key=value` pairs:
+
+```sh
+hookdeck outpost tenant upsert acme
+
+hookdeck outpost destination create --tenant-id acme --type webhook \
+  --config url=https://example.com/hooks --topics user.created
+```
+
+To find out what a type accepts, either ask for it directly or add `--type` to `--help`:
+
+```sh
+hookdeck outpost destination-type get kafka
+hookdeck outpost destination create --type kafka --help
+```
+
+Both list every field with whether it is required, whether it is sensitive, and any values or format it is constrained to. `--config-file` accepts a JSON object, and nested values — should a type ever need them — use dotted paths (`--config a.b=c`).
+
+#### Publishing
+
+`hookdeck outpost publish` is the one command that does **not** use the credentials stored by `hookdeck login`. The publish API requires a Hookdeck **Project API key**, so pass `--api-key` or set `HOOKDECK_API_KEY`:
+
+```sh
+hookdeck outpost publish --tenant-id acme --topic user.created \
+  --data '{"user_id":"123"}' --api-key $HOOKDECK_API_KEY
+```
+
+Create a Project API key in the Hookdeck dashboard under your project's settings. See [CLI authentication keys](#cli-authentication-keys) for how the key types differ.
+
+Publishing is asynchronous: a successful response means the event was accepted, not delivered. Use `hookdeck outpost attempt list` to see the outcome.
+
+For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
 
 ### Manage connections
 
