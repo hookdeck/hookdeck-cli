@@ -1,4 +1,4 @@
-package mcp
+package mcpcore
 
 import (
 	"encoding/json"
@@ -6,24 +6,24 @@ import (
 	"strconv"
 )
 
-// input is a thin wrapper around the raw JSON arguments from an MCP tool call.
+// Input is a thin wrapper around the raw JSON arguments from an MCP tool call.
 // It provides typed accessors that return zero values when a key is missing.
-type input map[string]interface{}
+type Input map[string]interface{}
 
-// parseInput unmarshals the raw JSON arguments into an input map.
-func parseInput(raw json.RawMessage) (input, error) {
+// ParseInput unmarshals the raw JSON arguments into an Input map.
+func ParseInput(raw json.RawMessage) (Input, error) {
 	if len(raw) == 0 {
-		return input{}, nil
+		return Input{}, nil
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
-	return input(m), nil
+	return Input(m), nil
 }
 
 // String returns the string value for a key, or "" if missing/wrong type.
-func (in input) String(key string) string {
+func (in Input) String(key string) string {
 	v, ok := in[key]
 	if !ok {
 		return ""
@@ -36,7 +36,7 @@ func (in input) String(key string) string {
 }
 
 // Int returns the integer value for a key, or the given default if missing.
-func (in input) Int(key string, def int) int {
+func (in Input) Int(key string, def int) int {
 	v, ok := in[key]
 	if !ok {
 		return def
@@ -56,7 +56,7 @@ func (in input) Int(key string, def int) int {
 }
 
 // Bool returns the boolean value for a key, or false if missing.
-func (in input) Bool(key string) bool {
+func (in Input) Bool(key string) bool {
 	v, ok := in[key]
 	if !ok {
 		return false
@@ -69,7 +69,7 @@ func (in input) Bool(key string) bool {
 }
 
 // BoolPtr returns a *bool for a key, or nil if missing.
-func (in input) BoolPtr(key string) *bool {
+func (in Input) BoolPtr(key string) *bool {
 	v, ok := in[key]
 	if !ok {
 		return nil
@@ -82,7 +82,7 @@ func (in input) BoolPtr(key string) *bool {
 }
 
 // StringSlice returns the string slice for a key, or nil if missing.
-func (in input) StringSlice(key string) []string {
+func (in Input) StringSlice(key string) []string {
 	v, ok := in[key]
 	if !ok {
 		return nil
@@ -100,15 +100,15 @@ func (in input) StringSlice(key string) []string {
 	return result
 }
 
-// setIfNonEmpty adds the value to the map if it is not empty.
-func setIfNonEmpty(params map[string]string, key, value string) {
+// SetIfNonEmpty adds the value to the map if it is not empty.
+func SetIfNonEmpty(params map[string]string, key, value string) {
 	if value != "" {
 		params[key] = value
 	}
 }
 
-// setInt adds the int value to the map if it is > 0.
-func setInt(params map[string]string, key string, value int) {
+// SetInt adds the int value to the map if it is > 0.
+func SetInt(params map[string]string, key string, value int) {
 	if value > 0 {
 		params[key] = strconv.Itoa(value)
 	}
@@ -116,7 +116,7 @@ func setInt(params map[string]string, key string, value int) {
 
 // JSONFilterParam returns a JSON filter value for API query params (body, headers, etc.).
 // Accepts a JSON string or object from MCP tool arguments.
-func (in input) JSONFilterParam(key string) (string, error) {
+func (in Input) JSONFilterParam(key string) (string, error) {
 	v, ok := in[key]
 	if !ok {
 		return "", nil
@@ -135,20 +135,20 @@ func (in input) JSONFilterParam(key string) (string, error) {
 	}
 }
 
-// setJSONFilter adds a JSON filter param when present and valid.
-func setJSONFilter(params map[string]string, key string, in input) error {
+// SetJSONFilter adds a JSON filter param when present and valid.
+func SetJSONFilter(params map[string]string, key string, in Input) error {
 	value, err := in.JSONFilterParam(key)
 	if err != nil {
 		return err
 	}
-	setIfNonEmpty(params, key, value)
+	SetIfNonEmpty(params, key, value)
 	return nil
 }
 
-// setPayloadSearchFilters forwards body, headers, parsed_query, and path list filters.
-func setPayloadSearchFilters(params map[string]string, in input) error {
+// SetPayloadSearchFilters forwards body, headers, parsed_query, and path list filters.
+func SetPayloadSearchFilters(params map[string]string, in Input) error {
 	for _, key := range []string{"body", "headers", "parsed_query", "path"} {
-		if err := setJSONFilter(params, key, in); err != nil {
+		if err := SetJSONFilter(params, key, in); err != nil {
 			return err
 		}
 	}

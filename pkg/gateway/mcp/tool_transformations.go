@@ -7,17 +7,18 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
 func handleTransformations(client *hookdeck.Client) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		if r := requireAuth(client); r != nil {
+		if r := mcpcore.RequireAuth(client, loginToolName); r != nil {
 			return r, nil
 		}
 
-		in, err := parseInput(req.Params.Arguments)
+		in, err := mcpcore.ParseInput(req.Params.Arguments)
 		if err != nil {
-			return ErrorResult(err.Error()), nil
+			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
 		action := in.String("action")
@@ -27,33 +28,33 @@ func handleTransformations(client *hookdeck.Client) mcpsdk.ToolHandler {
 		case "get":
 			return transformationsGet(ctx, client, in)
 		default:
-			return ErrorResult(fmt.Sprintf("unknown action %q; expected list or get", action)), nil
+			return mcpcore.ErrorResult(fmt.Sprintf("unknown action %q; expected list or get", action)), nil
 		}
 	}
 }
 
-func transformationsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func transformationsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	params := make(map[string]string)
-	setIfNonEmpty(params, "name", in.String("name"))
-	setInt(params, "limit", in.Int("limit", 0))
-	setIfNonEmpty(params, "next", in.String("next"))
-	setIfNonEmpty(params, "prev", in.String("prev"))
+	mcpcore.SetIfNonEmpty(params, "name", in.String("name"))
+	mcpcore.SetInt(params, "limit", in.Int("limit", 0))
+	mcpcore.SetIfNonEmpty(params, "next", in.String("next"))
+	mcpcore.SetIfNonEmpty(params, "prev", in.String("prev"))
 
 	result, err := client.ListTransformations(ctx, params)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
-func transformationsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func transformationsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	id := in.String("id")
 	if id == "" {
-		return ErrorResult("id is required for the get action"), nil
+		return mcpcore.ErrorResult("id is required for the get action"), nil
 	}
 	t, err := client.GetTransformation(ctx, id)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(t, client)
+	return mcpcore.JSONResultEnvelopeForClient(t, client)
 }

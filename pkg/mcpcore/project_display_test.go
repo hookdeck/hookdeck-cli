@@ -1,4 +1,4 @@
-package mcp
+package mcpcore
 
 import (
 	"encoding/json"
@@ -30,13 +30,13 @@ func TestFillProjectDisplayNameIfNeeded_SetsNameFromAPI(t *testing.T) {
 		APIKey:    "k",
 		ProjectID: "proj_x",
 	}
-	fillProjectDisplayNameIfNeeded(client)
+	FillProjectDisplayNameIfNeeded(client)
 	require.Equal(t, "Acme", client.ProjectOrg)
 	require.Equal(t, "production", client.ProjectName)
 }
 
 func TestFillProjectDisplayNameIfNeeded_NoOpWhenNameSet(t *testing.T) {
 	client := &hookdeck.Client{ProjectID: "p", ProjectName: "already"}
-	fillProjectDisplayNameIfNeeded(client)
+	FillProjectDisplayNameIfNeeded(client)
 	require.Equal(t, "already", client.ProjectName)
 }

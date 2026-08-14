@@ -3,18 +3,18 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
 func handleHelp(client *hookdeck.Client) mcpsdk.ToolHandler {
 	return func(_ context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		in, err := parseInput(req.Params.Arguments)
+		in, err := mcpcore.ParseInput(req.Params.Arguments)
 		if err != nil {
-			return ErrorResult(err.Error()), nil
+			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
 		topic := in.String("topic")
@@ -92,7 +92,7 @@ hookdeck_help            — This help text
 Use hookdeck_help with topic="<tool_name>" for detailed help on a specific tool; each topic
 repeats the common JSON response shape above for convenience.`, projectInfo, mcpJSONSuccessResponseHelp)
 
-	return TextResult(text)
+	return mcpcore.TextResult(text)
 }
 
 var toolHelp = map[string]string{
@@ -326,24 +326,8 @@ Parameters:
   topic  (string) — Tool name for detailed help (e.g. "hookdeck_events"). Omit for overview.`,
 }
 
+// helpTopic resolves a topic name, accepting both the "hookdeck_events" and
+// "events" forms.
 func helpTopic(topic string) *mcpsdk.CallToolResult {
-	// Allow both "hookdeck_events" and "events" forms
-	if !strings.HasPrefix(topic, "hookdeck_") {
-		topic = "hookdeck_" + topic
-	}
-	text, ok := toolHelp[topic]
-	if ok {
-		return TextResult(text + "\n\n" + mcpJSONSuccessResponseHelp)
-	}
-
-	// If the topic doesn't match a tool name exactly, it may be a natural
-	// language question. List all available tools so the caller can pick.
-	var names []string
-	for k := range toolHelp {
-		names = append(names, k)
-	}
-	return ErrorResult(fmt.Sprintf(
-		"No help found for %q. The topic parameter expects a tool name, not a question.\n\nAvailable tools: %s\n\nOmit the topic parameter for a general overview.",
-		topic, strings.Join(names, ", "),
-	))
+	return mcpcore.HelpTopic(helpTopicPrefix, toolHelp, topic, mcpJSONSuccessResponseHelp)
 }

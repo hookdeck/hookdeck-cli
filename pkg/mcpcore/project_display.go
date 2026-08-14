@@ -1,4 +1,4 @@
-package mcp
+package mcpcore
 
 import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -9,7 +9,7 @@ import (
 // ListProjects when the client has an API key and project id but no cached org/name
 // (typical after loading profile from disk). Fails silently on API errors.
 // Stdio MCP invokes tools sequentially, so this is safe without locking.
-func fillProjectDisplayNameIfNeeded(client *hookdeck.Client) {
+func FillProjectDisplayNameIfNeeded(client *hookdeck.Client) {
 	if client == nil || client.APIKey == "" || client.ProjectID == "" {
 		return
 	}

@@ -1,7 +1,8 @@
-package mcp
+package mcpcore
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -9,12 +10,13 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 )
 
-const listProjectsReauthHint = `This may happen if the stored key is a dashboard or single-project API key that cannot list all teams/projects. Try hookdeck_login with reauth: true so the user can sign in via the browser and replace the credential with a full CLI session, then retry hookdeck_projects.`
+const listProjectsReauthHintFormat = `This may happen if the stored key is a dashboard or single-project API key that cannot list all teams/projects. Try %s with reauth: true so the user can sign in via the browser and replace the credential with a full CLI session, then retry %s.`
 
-func listProjectsFailureMessage(err error) string {
+func listProjectsFailureMessage(srv *Server, err error) string {
 	base := TranslateAPIError(err)
 	if shouldSuggestReauthAfterListProjectsFailure(err) {
-		return base + "\n\n" + listProjectsReauthHint
+		hint := fmt.Sprintf(listProjectsReauthHintFormat, srv.LoginToolName(), srv.ProjectsToolName())
+		return base + "\n\n" + hint
 	}
 	return base
 }

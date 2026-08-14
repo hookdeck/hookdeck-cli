@@ -7,17 +7,18 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
 func handleMetrics(client *hookdeck.Client) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		if r := requireAuth(client); r != nil {
+		if r := mcpcore.RequireAuth(client, loginToolName); r != nil {
 			return r, nil
 		}
 
-		in, err := parseInput(req.Params.Arguments)
+		in, err := mcpcore.ParseInput(req.Params.Arguments)
 		if err != nil {
-			return ErrorResult(err.Error()), nil
+			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
 		action := in.String("action")
@@ -31,12 +32,12 @@ func handleMetrics(client *hookdeck.Client) mcpsdk.ToolHandler {
 		case "transformations":
 			return metricsTransformations(ctx, client, in)
 		default:
-			return ErrorResult(fmt.Sprintf("unknown action %q; expected events, requests, attempts, or transformations", action)), nil
+			return mcpcore.ErrorResult(fmt.Sprintf("unknown action %q; expected events, requests, attempts, or transformations", action)), nil
 		}
 	}
 }
 
-func buildMetricsParams(in input) (hookdeck.MetricsQueryParams, error) {
+func buildMetricsParams(in mcpcore.Input) (hookdeck.MetricsQueryParams, error) {
 	start := in.String("start")
 	end := in.String("end")
 	if start == "" || end == "" {
@@ -73,10 +74,10 @@ func containsAny(haystack []string, needles ...string) bool {
 	return false
 }
 
-func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func metricsEvents(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	params, err := buildMetricsParams(in)
 	if err != nil {
-		return ErrorResult(err.Error()), nil
+		return mcpcore.ErrorResult(err.Error()), nil
 	}
 
 	// Route to the correct events metrics endpoint based on measures/dimensions
@@ -93,43 +94,43 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 	}
 
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
-func metricsRequests(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func metricsRequests(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	params, err := buildMetricsParams(in)
 	if err != nil {
-		return ErrorResult(err.Error()), nil
+		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	result, err := client.QueryRequestMetrics(ctx, params)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
-func metricsAttempts(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func metricsAttempts(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	params, err := buildMetricsParams(in)
 	if err != nil {
-		return ErrorResult(err.Error()), nil
+		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	result, err := client.QueryAttemptMetrics(ctx, params)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
-func metricsTransformations(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func metricsTransformations(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	params, err := buildMetricsParams(in)
 	if err != nil {
-		return ErrorResult(err.Error()), nil
+		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	result, err := client.QueryTransformationMetrics(ctx, params)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
