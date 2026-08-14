@@ -21,10 +21,19 @@ jobs:
           - slice: "2"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_3
             tags: "attempt metrics issue transformation destination gateway"
+          # Outpost needs its own project: every `hookdeck outpost` command
+          # requires an Outpost project, which the Gateway keys above cannot
+          # satisfy. The key is a Project API key, used both to authenticate via
+          # `hookdeck ci` and directly for `outpost publish`, which does not
+          # accept CLI credentials.
+          - slice: "3"
+            api_key_secret: HOOKDECK_CLI_OUTPOST_TESTING_API_KEY
+            tags: "outpost"
     runs-on: ubuntu-latest
     env:
       ACCEPTANCE_SLICE: ${{ matrix.slice }}
       HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets[matrix.api_key_secret] }}
+      HOOKDECK_CLI_OUTPOST_TESTING_API_KEY: ${{ secrets.HOOKDECK_CLI_OUTPOST_TESTING_API_KEY }}
       HOOKDECK_CLI_TELEMETRY_DISABLED: "1"
     steps:
       - name: Check out code

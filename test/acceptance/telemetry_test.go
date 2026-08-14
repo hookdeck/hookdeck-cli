@@ -761,7 +761,7 @@ func TestTelemetryGatewaySourceUpsertProxy(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	runTelemetryProxyTestSuccess(t,
-		[]string{"gateway", "source", "upsert", "telemetry-src-upsert-"+generateTimestamp(), "--type", "WEBHOOK"},
+		[]string{"gateway", "source", "upsert", "telemetry-src-upsert-" + generateTimestamp(), "--type", "WEBHOOK"},
 		"hookdeck gateway source upsert")
 }
 func TestTelemetryGatewaySourceCountProxy(t *testing.T) {
@@ -875,7 +875,7 @@ func TestTelemetryGatewayDestinationUpsertProxy(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	runTelemetryProxyTestSuccess(t,
-		[]string{"gateway", "destination", "upsert", "telemetry-dst-upsert-"+generateTimestamp(), "--type", "HTTP", "--url", "https://example.com"},
+		[]string{"gateway", "destination", "upsert", "telemetry-dst-upsert-" + generateTimestamp(), "--type", "HTTP", "--url", "https://example.com"},
 		"hookdeck gateway destination upsert")
 }
 func TestTelemetryGatewayDestinationCountProxy(t *testing.T) {
@@ -968,7 +968,7 @@ func TestTelemetryGatewayTransformationUpsertProxy(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	runTelemetryProxyTestSuccess(t,
-		[]string{"gateway", "transformation", "upsert", "telemetry-trn-upsert-"+generateTimestamp(), "--code", `addHandler("transform", (request, context) => { return request; });`},
+		[]string{"gateway", "transformation", "upsert", "telemetry-trn-upsert-" + generateTimestamp(), "--code", `addHandler("transform", (request, context) => { return request; });`},
 		"hookdeck gateway transformation upsert")
 }
 func TestTelemetryGatewayTransformationCountProxy(t *testing.T) {

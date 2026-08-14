@@ -424,6 +424,34 @@ func getAcceptanceAPIKey(t *testing.T) string {
 	return os.Getenv("HOOKDECK_CLI_TESTING_API_KEY")
 }
 
+// NewOutpostCLIRunner creates a runner authenticated against the Outpost test
+// project.
+//
+// It cannot share the keys the other slices use: every `hookdeck outpost`
+// command requires an Outpost project, and those keys belong to Gateway
+// projects, so the project gate would reject them before any request is made.
+func NewOutpostCLIRunner(t *testing.T) *CLIRunner {
+	t.Helper()
+
+	apiKey := os.Getenv("HOOKDECK_CLI_OUTPOST_TESTING_API_KEY")
+	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_OUTPOST_TESTING_API_KEY must be set (a Project API key for an Outpost project)")
+
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
+	runner := &CLIRunner{
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
+		configPath:  getAcceptanceConfigPath(),
+	}
+
+	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
+	require.NoError(t, err, "Failed to authenticate CLI against the Outpost project: stdout=%s, stderr=%s", stdout, stderr)
+
+	return runner
+}
+
 // NewCLIRunnerWithKey creates a new CLI runner authenticated with the given CLI key via
 // hookdeck login --api-key. Used only for project list/use tests (HOOKDECK_CLI_TESTING_CLI_KEY);
 // API and CI keys cannot list or switch projects, so those tests require a CLI key and login auth.

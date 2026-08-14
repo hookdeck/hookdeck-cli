@@ -143,11 +143,11 @@ func TestMCPRequestsList_DateRangeAndBodyFilter(t *testing.T) {
 	}
 	cli := NewCLIRunner(t)
 	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_requests", map[string]any{
-		"action":          "list",
-		"ingested_after":  "2020-01-01T00:00:00Z",
-		"created_before":  "2030-01-01T00:00:00Z",
-		"body":            map[string]any{},
-		"limit":           5,
+		"action":         "list",
+		"ingested_after": "2020-01-01T00:00:00Z",
+		"created_before": "2030-01-01T00:00:00Z",
+		"body":           map[string]any{},
+		"limit":          5,
 	}, 20*time.Second)
 	assert.False(t, result.IsError, "tool error: %s", result.Text)
 	assert.Contains(t, result.Text, `"data"`)

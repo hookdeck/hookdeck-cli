@@ -69,7 +69,7 @@ No test-name list in the workflow—tests are partitioned by **feature tags** (s
 ### Run all automated tests (one key)
 Pass all feature tags so every automated test file is included:
 ```bash
-go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation" ./test/acceptance/... -v
+go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation outpost" ./test/acceptance/... -v
 ```
 
 ### Run one slice (for CI or local)
@@ -80,6 +80,9 @@ ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic guest 
 
 # Slice 1 (same tags as CI job 1)
 ACCEPTANCE_SLICE=1 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
+
+# Slice 3 (same tags as CI job 3) - requires HOOKDECK_CLI_OUTPOST_TESTING_API_KEY
+ACCEPTANCE_SLICE=3 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="outpost" ./test/acceptance/... -v -timeout 12m
 
 # Slice 2 (same tags as CI job 2)
 ACCEPTANCE_SLICE=2 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="attempt metrics issue transformation destination gateway" ./test/acceptance/... -v -timeout 12m
