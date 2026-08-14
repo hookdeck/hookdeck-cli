@@ -82,3 +82,44 @@ func (c *Client) PublishOutpostEvent(ctx context.Context, apiKey string, req *Ou
 
 	return &result, nil
 }
+
+// TenantExistsForPublish reports whether a tenant exists in the project the
+// publish credential routes to.
+//
+// This matters because publishing follows the credential, not the client's
+// active project. A publish for a tenant that does not exist there is accepted
+// with a 202 and an event id, matches nothing, is never delivered, and does not
+// appear in any event list — so the caller sees a success and no trace of it.
+// Checking first turns that into an answerable error.
+//
+// The lookup deliberately uses the same credential and host as the publish, so
+// it resolves to the same project the event would go to.
+func (c *Client) TenantExistsForPublish(ctx context.Context, apiKey, tenantID string) (bool, error) {
+	if apiKey == "" || tenantID == "" {
+		return false, fmt.Errorf("an API key and tenant are required to check a tenant")
+	}
+
+	lookup := c.withoutStoredAuth()
+	// Publishing resolves the project from the credential alone. Resource reads
+	// additionally honour the project header, so leaving it set would check a
+	// different project from the one the event goes to — and, when the key is not
+	// valid for it, fail with a 401 that hides the answer entirely.
+	lookup.ProjectID = ""
+
+	req, err := lookup.newRequest(ctx, http.MethodGet, outpostPath("tenants", tenantID), nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := lookup.PerformRequest(ctx, req)
+	if err != nil {
+		if IsNotFoundError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	return true, nil
+}

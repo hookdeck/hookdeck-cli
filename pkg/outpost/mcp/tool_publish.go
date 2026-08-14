@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -72,6 +73,26 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
+		// Publishing follows the credential, not the active project, and the two
+		// can disagree: the credential is fixed at startup while the active
+		// project moves with hookdeck_projects use. When they disagree the event
+		// is accepted, matches nothing, and leaves no trace — a success response
+		// for something that never happened.
+		//
+		// Checking the tenant with the publish credential resolves to the same
+		// project the event would go to, so it catches that and a mistyped or
+		// unprovisioned tenant alike.
+		exists, checkErr := client.TenantExistsForPublish(ctx, apiKey, tenantID)
+		if checkErr == nil && !exists {
+			return mcpcore.ErrorResult(fmt.Sprintf(
+				"tenant %q does not exist in the project the publish credential belongs to, so this event "+
+					"would be accepted, delivered nowhere, and leave no trace. Publishing follows the credential "+
+					"rather than the active project (%s), and the two can differ. Check the tenant id, or restart "+
+					"the server with a publish key for the project you are working in.",
+				tenantID, client.ProjectID,
+			)), nil
+		}
+
 		result, err := client.PublishOutpostEvent(ctx, apiKey, &hookdeck.OutpostPublishRequest{
 			ID:               in.String("event_id"),
 			TenantID:         tenantID,
@@ -84,6 +105,18 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 		if err != nil {
 			return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 		}
-		return mcpcore.JSONResultEnvelopeForClient(result, client)
+
+		// An event matching nothing is accepted, given an id, and then leaves no
+		// trace: it is not delivered and does not appear in the events list. A
+		// bare success response is indistinguishable from one that was delivered,
+		// so say plainly that nothing will happen.
+		payload := map[string]any{"result": result}
+		if len(result.DestinationIDs) == 0 {
+			payload["warning"] = "This event matched no destinations, so it will not be delivered and will not " +
+				"appear in the events list. Check that the tenant exists and has a destination subscribed to this topic — " +
+				"publishing for a tenant that does not exist is accepted rather than rejected."
+		}
+
+		return mcpcore.JSONResultEnvelopeForClient(payload, client)
 	}
 }

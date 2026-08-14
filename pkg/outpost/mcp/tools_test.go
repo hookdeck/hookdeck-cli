@@ -554,6 +554,11 @@ func TestConfigSetSendsValuesAndUnsets(t *testing.T) {
 func TestPublishUsesTheProjectAPIKeyAsBearer(t *testing.T) {
 	var authHeader string
 	api := mockAPI(t, map[string]http.HandlerFunc{
+		// Publishing first checks the tenant exists in the project the publish
+		// credential routes to.
+		"GET /2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "acme"})
+		},
 		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
 			authHeader = r.Header.Get("Authorization")
 			w.WriteHeader(http.StatusAccepted)
@@ -699,4 +704,63 @@ func TestServerIdentity(t *testing.T) {
 	assert.Equal(t, "hookdeck_login", srv.LoginToolName())
 
 	var _ *mcpcore.Server = srv
+}
+
+// TestPublishRefusesATenantTheCredentialCannotSee covers the failure that
+// prompted this guard: the publish credential and the active project disagreed,
+// so events were accepted, delivered nowhere, and left no trace.
+func TestPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
+	var published bool
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/tenants/ghost": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"message": "tenant not found"})
+		},
+		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
+			published = true
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "evt_1", "destination_ids": []string{}})
+		},
+	})
+	session := connect(t, ServerOptions{
+		Client:        newTestClient(t, api.URL),
+		WriteEnabled:  true,
+		PublishAPIKey: "project-api-key",
+	})
+
+	result := callTool(t, session, "outpost_publish", map[string]any{
+		"action": "publish", "tenant_id": "ghost", "topic": "user.created",
+	})
+
+	require.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "does not exist in the project the publish credential belongs to")
+	assert.False(t, published, "nothing should be published once the tenant is known to be missing")
+}
+
+// TestPublishWarnsWhenNothingMatched covers the other half: the tenant exists,
+// but no destination subscribes to the topic. The API accepts it and the event
+// is never delivered or recorded, so a bare success would be misleading.
+func TestPublishWarnsWhenNothingMatched(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "acme"})
+		},
+		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "evt_1", "destination_ids": []string{}})
+		},
+	})
+	session := connect(t, ServerOptions{
+		Client:        newTestClient(t, api.URL),
+		WriteEnabled:  true,
+		PublishAPIKey: "project-api-key",
+	})
+
+	result := callTool(t, session, "outpost_publish", map[string]any{
+		"action": "publish", "tenant_id": "acme", "topic": "user.created",
+	})
+
+	require.False(t, result.IsError, resultText(t, result))
+	assert.Contains(t, resultText(t, result), "matched no destinations")
 }
