@@ -55,6 +55,9 @@ Topics default to all ("*") when --topics is omitted.`,
 	addOutpostDestinationFieldFlags(dc.cmd, &dc.fields)
 	dc.cmd.MarkFlagRequired("type")
 
+	// `--type X --help` lists that type's fields; plain `--help` is untouched.
+	addOutpostDestinationTypeHelp(dc.cmd, &dc.destType)
+
 	return dc
 }
 

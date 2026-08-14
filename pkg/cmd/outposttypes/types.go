@@ -203,3 +203,16 @@ func writeCache(path string, schemas []Schema) {
 	}
 	_ = os.WriteFile(path, data, 0o600)
 }
+
+// LookupCached returns a destination type's schema from the on-disk cache only,
+// never touching the network.
+//
+// It exists for paths that must not block or fail, such as augmenting --help:
+// a miss simply means the caller shows less, not that anything went wrong.
+func LookupCached(client *hookdeck.Client, destinationType string) (Schema, bool) {
+	schemas, ok := readCache(cachePathFor(client))
+	if !ok {
+		return Schema{}, false
+	}
+	return Find(schemas, destinationType)
+}
