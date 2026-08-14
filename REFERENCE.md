@@ -3054,7 +3054,12 @@ granting access to a tenant's portal.
 
 Publishing needs a Hookdeck Project API key, which the credentials stored by
 'hookdeck login' cannot substitute for. Without one the publish tool is not
-registered at all; pass `--api-key` or set HOOKDECK_API_KEY to enable it.
+registered at all; pass `--publish-api-key` or set HOOKDECK_OUTPOST_PUBLISH_API_KEY.
+
+This deliberately does not read HOOKDECK_API_KEY, which elsewhere in the CLI
+means "a key to exchange for CLI credentials". Publishing sends real events to
+real destinations and cannot be undone, so it should not be switched on by a
+variable that happens to be exported for something else.
 
 If the CLI is already authenticated, all tools are available immediately. If
 not, the server still starts and outpost_login initiates browser-based sign-in.
@@ -3075,7 +3080,7 @@ hookdeck outpost mcp [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--allow-write` | `bool` | Enable tools that create, change or delete data, and that return tenant credentials. Also read from HOOKDECK_MCP_ALLOW_WRITE; the flag wins. |
-| `--api-key` | `string` | Hookdeck Project API key, required by the publish tool. Read from HOOKDECK_API_KEY when not provided. |
+| `--publish-api-key` | `string` | Hookdeck Project API key, required by the publish tool. Also read from HOOKDECK_OUTPOST_PUBLISH_API_KEY. HOOKDECK_API_KEY is deliberately not used here. |
 | `--read-only` | `bool` | Run without write actions. This is the default; the flag is accepted so it can be passed explicitly, and wins over `--allow-write`. |
 
 **Examples:**
@@ -3088,7 +3093,7 @@ hookdeck outpost mcp
 hookdeck outpost mcp --allow-write
 
 # Allow writes, including publishing events
-hookdeck outpost mcp --allow-write --api-key $HOOKDECK_API_KEY
+hookdeck outpost mcp --allow-write --publish-api-key $HOOKDECK_OUTPOST_PUBLISH_API_KEY
 
 # Pipe a JSON-RPC initialize request for testing
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}' | hookdeck outpost mcp
