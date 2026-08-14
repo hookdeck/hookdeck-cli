@@ -245,18 +245,19 @@ func argvContainsGatewayMCP(argv []string) bool {
 // flagNeedsNextArg lists global flags that consume the next argv token as their value.
 // Keep in sync with the PersistentFlags registered in init() below.
 var flagNeedsNextArg = map[string]bool{
-	"profile":         true,
-	"p":               true,
-	"cli-key":         true,
-	"api-key":         true,
-	"hookdeck-config": true,
-	"device-name":     true,
-	"log-level":       true,
-	"color":           true,
-	"api-base":        true,
-	"dashboard-base":  true,
-	"console-base":    true,
-	"ws-base":         true,
+	"profile":          true,
+	"p":                true,
+	"cli-key":          true,
+	"api-key":          true,
+	"hookdeck-config":  true,
+	"device-name":      true,
+	"log-level":        true,
+	"color":            true,
+	"api-base":         true,
+	"outpost-api-base": true,
+	"dashboard-base":   true,
+	"console-base":     true,
+	"ws-base":          true,
 }
 
 // globalPositionalArgs returns argv arguments that are not global flags or flag values,
@@ -331,6 +332,9 @@ func init() {
 	// Hidden configuration flags, useful for dev/debugging
 	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", "", fmt.Sprintf("Sets the API base URL (default \"%s\")", hookdeck.DefaultAPIBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("api-base")
+
+	rootCmd.PersistentFlags().StringVar(&Config.OutpostAPIBaseURL, "outpost-api-base", "", fmt.Sprintf("Sets the Outpost API base URL (default \"%s\")", hookdeck.DefaultOutpostAPIBaseURL))
+	rootCmd.PersistentFlags().MarkHidden("outpost-api-base")
 
 	rootCmd.PersistentFlags().StringVar(&Config.DashboardBaseURL, "dashboard-base", "", fmt.Sprintf("Sets the web dashboard base URL (default \"%s\")", hookdeck.DefaultDashboardBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("dashboard-base")

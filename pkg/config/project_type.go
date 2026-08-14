@@ -53,6 +53,17 @@ func IsGatewayProject(typeOrMode string) bool {
 	}
 }
 
+// IsOutpostProject returns true if the given type or mode represents an Outpost project.
+// Unlike IsGatewayProject, Outpost has a single type and mode, so there are no aliases.
+func IsOutpostProject(typeOrMode string) bool {
+	switch typeOrMode {
+	case ProjectTypeOutpost, "outpost":
+		return true
+	default:
+		return false
+	}
+}
+
 // ProjectTypeToJSON returns the lowercase type for JSON output (gateway, outpost, console).
 func ProjectTypeToJSON(projectType string) string {
 	switch projectType {

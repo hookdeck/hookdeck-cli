@@ -266,8 +266,8 @@ type DestinationUpdateRequest struct {
 
 // DestinationListResponse represents the response from listing destinations
 type DestinationListResponse struct {
-	Models     []Destination        `json:"models"`
-	Pagination PaginationResponse   `json:"pagination"`
+	Models     []Destination      `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
 }
 
 // DestinationCountResponse represents the response from counting destinations

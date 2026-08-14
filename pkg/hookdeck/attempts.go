@@ -9,28 +9,28 @@ import (
 
 // EventAttempt represents a single delivery attempt for an event
 type EventAttempt struct {
-	ID              string     `json:"id"`
-	TeamID          string     `json:"team_id"`
-	EventID         string     `json:"event_id"`
-	DestinationID   string     `json:"destination_id"`
-	ResponseStatus  *int       `json:"response_status,omitempty"`
-	AttemptNumber   int        `json:"attempt_number"`
-	Trigger         string     `json:"trigger"`
-	ErrorCode       *string    `json:"error_code,omitempty"`
-	Body            interface{} `json:"body,omitempty"` // API may return string or object
-	RequestedURL    string     `json:"requested_url"`
-	HTTPMethod      string     `json:"http_method"`
-	BulkRetryID     *string    `json:"bulk_retry_id,omitempty"`
-	Status          string     `json:"status"`
-	SuccessfulAt    *time.Time `json:"successful_at,omitempty"`
-	DeliveredAt     *time.Time `json:"delivered_at,omitempty"`
+	ID             string      `json:"id"`
+	TeamID         string      `json:"team_id"`
+	EventID        string      `json:"event_id"`
+	DestinationID  string      `json:"destination_id"`
+	ResponseStatus *int        `json:"response_status,omitempty"`
+	AttemptNumber  int         `json:"attempt_number"`
+	Trigger        string      `json:"trigger"`
+	ErrorCode      *string     `json:"error_code,omitempty"`
+	Body           interface{} `json:"body,omitempty"` // API may return string or object
+	RequestedURL   string      `json:"requested_url"`
+	HTTPMethod     string      `json:"http_method"`
+	BulkRetryID    *string     `json:"bulk_retry_id,omitempty"`
+	Status         string      `json:"status"`
+	SuccessfulAt   *time.Time  `json:"successful_at,omitempty"`
+	DeliveredAt    *time.Time  `json:"delivered_at,omitempty"`
 }
 
 // EventAttemptListResponse is the response from listing attempts (EventAttemptPaginatedResult)
 type EventAttemptListResponse struct {
-	Models     []EventAttempt      `json:"models"`
-	Pagination PaginationResponse   `json:"pagination"`
-	Count      *int                `json:"count,omitempty"`
+	Models     []EventAttempt     `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
+	Count      *int               `json:"count,omitempty"`
 }
 
 // ListAttempts retrieves attempts for an event (params: event_id required; order_by, dir, limit, next, prev)

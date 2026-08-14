@@ -31,11 +31,12 @@ type Config struct {
 	DeviceName string
 
 	// Helpers
-	APIBaseURL       string
-	DashboardBaseURL string
-	ConsoleBaseURL   string
-	WSBaseURL        string
-	Insecure         bool
+	APIBaseURL        string
+	OutpostAPIBaseURL string
+	DashboardBaseURL  string
+	ConsoleBaseURL    string
+	WSBaseURL         string
+	Insecure          bool
 
 	// Config
 	ConfigFileFlag string // flag -- should NOT use this directly
@@ -355,6 +356,7 @@ func (c *Config) constructConfig() {
 	c.Color = stringCoalesce(c.Color, c.viper.GetString(("color")), "auto")
 	c.LogLevel = stringCoalesce(c.LogLevel, c.viper.GetString(("log")), "info")
 	c.APIBaseURL = stringCoalesce(c.APIBaseURL, c.viper.GetString(("api_base")), hookdeck.DefaultAPIBaseURL)
+	c.OutpostAPIBaseURL = stringCoalesce(c.OutpostAPIBaseURL, c.viper.GetString(("outpost_api_base")), hookdeck.DefaultOutpostAPIBaseURL)
 	c.DashboardBaseURL = stringCoalesce(c.DashboardBaseURL, c.viper.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
 	c.ConsoleBaseURL = stringCoalesce(c.ConsoleBaseURL, c.viper.GetString(("console_base")), hookdeck.DefaultConsoleBaseURL)
 	c.WSBaseURL = stringCoalesce(c.WSBaseURL, c.viper.GetString(("ws_base")), hookdeck.DefaultWebsocektURL)

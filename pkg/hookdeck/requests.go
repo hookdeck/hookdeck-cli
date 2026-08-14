@@ -11,19 +11,19 @@ import (
 
 // Request represents a raw inbound webhook received by a source
 type Request struct {
-	ID                   string                 `json:"id"`
-	SourceID             string                 `json:"source_id"`
-	Verified             bool                   `json:"verified"`
-	RejectionCause       *string                `json:"rejection_cause,omitempty"`
-	EventsCount          int                    `json:"events_count"`
-	CliEventsCount       int                    `json:"cli_events_count"`
-	IgnoredCount         int                    `json:"ignored_count"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
-	IngestedAt           *time.Time             `json:"ingested_at,omitempty"`
-	OriginalEventDataID  *string                `json:"original_event_data_id,omitempty"`
-	Data                 *RequestData           `json:"data,omitempty"`
-	TeamID               string                 `json:"team_id"`
+	ID                  string       `json:"id"`
+	SourceID            string       `json:"source_id"`
+	Verified            bool         `json:"verified"`
+	RejectionCause      *string      `json:"rejection_cause,omitempty"`
+	EventsCount         int          `json:"events_count"`
+	CliEventsCount      int          `json:"cli_events_count"`
+	IgnoredCount        int          `json:"ignored_count"`
+	CreatedAt           time.Time    `json:"created_at"`
+	UpdatedAt           time.Time    `json:"updated_at"`
+	IngestedAt          *time.Time   `json:"ingested_at,omitempty"`
+	OriginalEventDataID *string      `json:"original_event_data_id,omitempty"`
+	Data                *RequestData `json:"data,omitempty"`
+	TeamID              string       `json:"team_id"`
 }
 
 // RequestData holds optional request snapshot
@@ -36,8 +36,8 @@ type RequestData struct {
 
 // RequestListResponse is the response from listing requests
 type RequestListResponse struct {
-	Models     []Request            `json:"models"`
-	Pagination PaginationResponse  `json:"pagination"`
+	Models     []Request          `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
 }
 
 // RequestRetryRequest is the body for POST /requests/{id}/retry. WebhookIDs limits retry to those connections; omit or empty for all.

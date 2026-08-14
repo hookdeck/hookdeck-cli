@@ -21,6 +21,12 @@ import (
 // DefaultAPIBaseURL is the default base URL for API requests
 const DefaultAPIBaseURL = "https://api.hookdeck.com"
 
+// DefaultOutpostAPIBaseURL is the default base URL for Hookdeck Outpost API
+// requests. Outpost is served from its own host, not from DefaultAPIBaseURL,
+// but shares the same calendar-versioned path prefix (APIPathPrefix) and the
+// same authentication, so the same Client type serves both.
+const DefaultOutpostAPIBaseURL = "https://api.outpost.hookdeck.com"
+
 // DefaultDashboardURL is the default base URL for web links
 const DefaultDashboardURL = "https://dashboard.hookdeck.com"
 
@@ -67,6 +73,14 @@ type Client struct {
 	// rate limiting is expected.
 	SuppressRateLimitErrors bool
 
+	// AcceptAnySuccessStatus treats any 2xx as success rather than 200 alone.
+	//
+	// The Event Gateway API answers 200 to every successful request, so the
+	// default keeps that stricter check. The Outpost API uses the full range —
+	// 201 when a resource is created, 202 when a publish or retry is accepted,
+	// 204 on delete — and reporting those as errors would fail every write.
+	AcceptAnySuccessStatus bool
+
 	// Per-request telemetry override. When non-nil, this is used instead of
 	// the global telemetry singleton. Used by MCP tool handlers to set
 	// per-invocation context.
@@ -92,6 +106,7 @@ func (c *Client) WithTelemetry(t *CLITelemetry) *Client {
 		ProjectName:             c.ProjectName,
 		Verbose:                 c.Verbose,
 		SuppressRateLimitErrors: c.SuppressRateLimitErrors,
+		AcceptAnySuccessStatus:  c.AcceptAnySuccessStatus,
 		Telemetry:               t,
 		TelemetryDisabled:       c.TelemetryDisabled,
 		httpClient:              c.httpClient,
@@ -215,7 +230,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 		return nil, err
 	}
 
-	err = checkAndPrintError(resp)
+	err = c.checkResponseStatus(resp)
 	if err != nil {
 		// Allow callers to suppress rate limit error logging for polling scenarios
 		if c.SuppressRateLimitErrors && resp.StatusCode == http.StatusTooManyRequests {
@@ -308,6 +323,16 @@ func (c *Client) Put(ctx context.Context, path string, data []byte, configure fu
 	}
 
 	return c.PerformRequest(ctx, req)
+}
+
+// checkResponseStatus applies the client's success-status policy. It exists so
+// AcceptAnySuccessStatus can widen what counts as success without changing
+// checkAndPrintError, which other callers still use directly.
+func (c *Client) checkResponseStatus(res *http.Response) error {
+	if c.AcceptAnySuccessStatus && res.StatusCode >= 200 && res.StatusCode < 300 {
+		return nil
+	}
+	return checkAndPrintError(res)
 }
 
 func checkAndPrintError(res *http.Response) error {

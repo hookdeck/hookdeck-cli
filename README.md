@@ -1622,6 +1622,31 @@ These settings ensure that all changes to `main` go through proper review and te
 
 Reference for how Hookdeck credentials relate to CLI commands. After any successful login or `hookdeck ci`, the CLI stores a **CLI client key** in your config file as `api_key` (see [Configuration files](#configuration-files)). The same field name is used regardless of how the key was obtained.
 
+> **The `api_key` field in your config is not a Project API key.** It holds whichever CLI client key the last login produced. The field name is historical, so you cannot tell from the config file alone which kind of credential you have, or what it is allowed to do.
+
+### Which key can do what
+
+| | `hookdeck login`<br>`hookdeck login --cli-key` | `hookdeck ci --api-key` | Project API key<br>(dashboard) |
+|---|---|---|---|
+| What it is | CLI client key, tied to your user | CLI client key, tied to one project | Long-lived key from project settings |
+| Stored in config as `api_key` | Yes | Yes | No — exchanged, never stored |
+| `hookdeck listen`, `hookdeck gateway …` | Yes | Yes | No |
+| `hookdeck project list` / `project use` | **Yes** | **No** — single project, no user | No |
+| Accepted by `hookdeck ci --api-key` | No | No | **Yes** |
+
+The distinction that catches people out is the middle column: a key from `hookdeck ci` works fine for everyday commands but is pinned to one project, so anything that spans projects fails.
+
+### Check which key you have
+
+`hookdeck whoami` shows the active project but not the key's scope. To tell the two CLI client keys apart, ask for something only a user-associated key can do:
+
+```sh
+hookdeck project list
+```
+
+- **A list of projects** — you have a user-associated key and can switch projects.
+- **An error saying the credential is scoped to a single project** — you have a project-scoped key from `hookdeck ci`. Run `hookdeck login` (or `hookdeck login --cli-key <key>`) for account-wide access.
+
 ### CLI client keys (what the CLI runs as)
 
 A **CLI client key** identifies the Hookdeck CLI to the API (`cli` authentication). It powers `hookdeck listen`, `hookdeck gateway …`, and most other commands after you are configured.

@@ -40,8 +40,8 @@ type EventData struct {
 
 // EventListResponse is the response from listing events
 type EventListResponse struct {
-	Models     []Event             `json:"models"`
-	Pagination PaginationResponse  `json:"pagination"`
+	Models     []Event            `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
 }
 
 // ListEvents retrieves events with optional filters (params: webhook_id, status, source_id, destination_id, limit, order_by, dir, next, prev, etc.)

@@ -579,6 +579,24 @@ Summary for code and docs work:
 - **Guest** — `listen` without login may call `POST /cli/guest`; separate from `--cli-key` onboarding.
 - **`project list`** — Requires a user-associated CLI client key (`hookdeck login` or `hookdeck login --cli-key`). CI keys from `hookdeck ci` and raw Project API keys cannot list or switch projects (acceptance: `HOOKDECK_CLI_TESTING_CLI_KEY`).
 
+### Diagnosing a key before you debug anything else
+
+The config file cannot tell you which credential you hold — `api_key` is the field name for every CLI client key regardless of origin. When a command fails with a permission or project error, establish the key's scope first:
+
+- `hookdeck whoami` — the active project and its type. Does **not** reveal the key's scope.
+- `hookdeck project list` — succeeds only with a user-associated key. A "scoped to a single project" error means the key came from `hookdeck ci`.
+
+A project-scoped key is bound to one project, so it also ignores any attempt to target another project. Do not chase a project-selection bug before ruling this out.
+
+### Keys used by acceptance tests
+
+| Env var | Kind | Used for |
+|---|---|---|
+| `HOOKDECK_CLI_TESTING_API_KEY` (`_2`, `_3`) | Project API key, one per slice | The default runner; exchanged via `hookdeck ci` (`getAcceptanceAPIKey` in `test/acceptance/helpers.go`) |
+| `HOOKDECK_CLI_TESTING_CLI_KEY` | User-associated CLI key | Only `project list` / `project use` tests, via `NewCLIRunnerWithKey` |
+
+Each slice's key belongs to a **different project**, which is why tests must use unique resource names rather than assuming an empty project.
+
 ---
 
 ## Agent skills

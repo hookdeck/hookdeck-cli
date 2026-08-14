@@ -10,12 +10,12 @@ import (
 
 // Transformation represents a Hookdeck transformation
 type Transformation struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name"`
-	Code      string                 `json:"code"`
-	Env       map[string]string      `json:"env,omitempty"`
-	UpdatedAt time.Time              `json:"updated_at"`
-	CreatedAt time.Time              `json:"created_at"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Code      string            `json:"code"`
+	Env       map[string]string `json:"env,omitempty"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	CreatedAt time.Time         `json:"created_at"`
 }
 
 // TransformationCreateRequest is the request body for create and upsert (POST/PUT /transformations).
@@ -48,28 +48,28 @@ type TransformationCountResponse struct {
 // TransformationRunRequest is the request body for PUT /transformations/run.
 // Either Code or TransformationID must be set. Request.Headers is required (can be empty object).
 type TransformationRunRequest struct {
-	Code             string                    `json:"code,omitempty"`
-	TransformationID string                    `json:"transformation_id,omitempty"`
-	WebhookID        string                    `json:"webhook_id,omitempty"`
-	Env              map[string]string         `json:"env,omitempty"`
+	Code             string                         `json:"code,omitempty"`
+	TransformationID string                         `json:"transformation_id,omitempty"`
+	WebhookID        string                         `json:"webhook_id,omitempty"`
+	Env              map[string]string              `json:"env,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
 }
 
 // TransformationRunRequestInput is the "request" object for run (required headers; optional body, path, query).
 type TransformationRunRequestInput struct {
-	Headers    map[string]string      `json:"headers"`
-	Body       interface{}            `json:"body,omitempty"`
-	Path       string                 `json:"path,omitempty"`
-	Query      string                 `json:"query,omitempty"`
+	Headers     map[string]string      `json:"headers"`
+	Body        interface{}            `json:"body,omitempty"`
+	Path        string                 `json:"path,omitempty"`
+	Query       string                 `json:"query,omitempty"`
 	ParsedQuery map[string]interface{} `json:"parsed_query,omitempty"`
 }
 
 // TransformationRunResponse is the response from PUT /transformations/run.
 // Matches OpenAPI schema TransformationExecutorOutput.
 type TransformationRunResponse struct {
-	RequestID        string                 `json:"request_id,omitempty"`
-	TransformationID string                 `json:"transformation_id,omitempty"`
-	ExecutionID      string                 `json:"execution_id,omitempty"`
+	RequestID        string                         `json:"request_id,omitempty"`
+	TransformationID string                         `json:"transformation_id,omitempty"`
+	ExecutionID      string                         `json:"execution_id,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
 }
 

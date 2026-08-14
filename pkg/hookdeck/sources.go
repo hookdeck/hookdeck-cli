@@ -51,8 +51,8 @@ type SourceUpdateRequest struct {
 
 // SourceListResponse represents the response from listing sources
 type SourceListResponse struct {
-	Models     []Source             `json:"models"`
-	Pagination PaginationResponse   `json:"pagination"`
+	Models     []Source           `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
 }
 
 // SourceCountResponse represents the response from counting sources
