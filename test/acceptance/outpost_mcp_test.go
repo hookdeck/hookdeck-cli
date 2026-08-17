@@ -82,13 +82,19 @@ func TestOutpostMCPStdio_ReadOnlyByDefault(t *testing.T) {
 	tools, stdout, _ := ListMCPTools(t, cli.projectRoot, cli.configPath, outpostMCPCommand, 10*time.Second)
 	assertMCPStdoutIsJSONRPCOnly(t, stdout)
 
+	// Platform tools keep the hookdeck_ prefix in every server: you log in to
+	// Hookdeck and switch a Hookdeck project, whichever product you are using.
 	for _, name := range []string{
-		"outpost_projects", "outpost_login", "outpost_help", "outpost_tenants",
+		"hookdeck_projects", "hookdeck_login",
+		"outpost_help", "outpost_tenants",
 		"outpost_destinations", "outpost_events", "outpost_attempts",
 		"outpost_topics", "outpost_destination_types", "outpost_metrics",
 		"outpost_config", "outpost_status",
 	} {
 		assert.Contains(t, tools, name)
+	}
+	for _, name := range []string{"outpost_login", "outpost_projects"} {
+		assert.NotContains(t, tools, name, "platform tools must not carry the product prefix")
 	}
 
 	// Nothing that changes data, and nothing that hands back a credential.
