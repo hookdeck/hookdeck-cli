@@ -1,4 +1,4 @@
-package mcp
+package mcpcore
 
 import (
 	"context"
@@ -19,12 +19,14 @@ import (
 )
 
 const (
-	loginPollInterval = 2 * time.Second
+	// LoginPollInterval is how long the login tool waits between polls while the
+	// user completes browser sign-in.
+	LoginPollInterval = 2 * time.Second
 	loginMaxAttempts  = 120 // ~4 minutes
 )
 
-// loginState tracks a background login poll so that repeated calls to
-// hookdeck_login don't start duplicate auth flows.
+// loginState tracks a background login poll so that repeated calls to the
+// login tool don't start duplicate auth flows.
 //
 // Synchronization: err is written by the goroutine before close(done).
 // The handler only reads err after receiving from done, so the channel
@@ -35,14 +37,37 @@ type loginState struct {
 	err        error         // non-nil if polling failed
 }
 
+// LoginToolDef returns the login tool for this server, named "<prefix>_login".
+//
+// It is always registered: it signs in when unauthenticated, or with
+// reauth: true clears stored credentials and starts a fresh browser login.
+// The description is supplied by the product so it can speak about its own
+// tools; the behaviour is shared.
+func (s *Server) LoginToolDef(description string) ToolDef {
+	return ToolDef{
+		Tool: &mcpsdk.Tool{
+			Name:        s.LoginToolName(),
+			Description: description,
+			InputSchema: Schema(map[string]Prop{
+				"reauth": {Type: "boolean", Desc: fmt.Sprintf("If true, clear stored credentials and start a new browser login. Use when project listing fails — complete login in the browser, then retry %s.", s.ProjectsToolName())},
+			}),
+		},
+		Handler: handleLogin(s),
+	}
+}
+
 func handleLogin(srv *Server) mcpsdk.ToolHandler {
+	loginTool := srv.LoginToolName()
 	client := srv.client
+	// Credential checks are account-level, so they go to the account API rather
+	// than a product API that would not answer them.
+	accountClient := srv.accountClient
 	cfg := srv.cfg
 	var stateMu sync.Mutex
 	var state *loginState
 
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		in, err := parseInput(req.Params.Arguments)
+		in, err := ParseInput(req.Params.Arguments)
 		if err != nil {
 			return ErrorResult(err.Error()), nil
 		}
@@ -57,24 +82,27 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 				case <-state.done:
 					state = nil
 				default:
-					return ErrorResult(
-						"A login flow is already in progress. Call hookdeck_login again after it completes, then use reauth: true if you still need to sign in again.",
-					), nil
+					return ErrorResult(fmt.Sprintf(
+						"A login flow is already in progress. Call %s again after it completes, then use reauth: true if you still need to sign in again.",
+						loginTool,
+					)), nil
 				}
 			}
 			if err := cfg.ClearActiveProfileCredentials(); err != nil {
 				return ErrorResult(fmt.Sprintf("reauth: could not clear stored credentials: %v", err)), nil
 			}
-			client.APIKey = ""
-			client.ProjectID = ""
-			client.ProjectOrg = ""
-			client.ProjectName = ""
+			for _, c := range srv.projectClients() {
+				c.APIKey = ""
+				c.ProjectID = ""
+				c.ProjectOrg = ""
+				c.ProjectName = ""
+			}
 		}
 
 		// Already authenticated with a user-associated key — nothing to do.
 		loginPrefix := ""
 		if client.APIKey != "" {
-			lacks_user, err := project.CredentialsLackUserAssociation(client)
+			lacks_user, err := project.CredentialsLackUserAssociation(accountClient)
 			if err != nil && !hookdeck.IsUnauthorizedError(err) {
 				return ErrorResult(fmt.Sprintf("Failed to verify credentials: %s", err)), nil
 			}
@@ -96,8 +124,8 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 					browserURL := state.browserURL
 					state = nil // allow a fresh retry
 					return ErrorResult(fmt.Sprintf(
-						"Authentication failed: %s\n\nPlease call hookdeck_login again to retry.\nThe user needs to open this URL in their browser:\n\n%s",
-						errMsg, browserURL,
+						"Authentication failed: %s\n\nPlease call %s again to retry.\nThe user needs to open this URL in their browser:\n\n%s",
+						errMsg, loginTool, browserURL,
 					)), nil
 				}
 				// Success was already handled by the goroutine (client.APIKey set).
@@ -105,8 +133,8 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			default:
 				// Still polling — remind the agent about the URL.
 				return TextResult(fmt.Sprintf(
-					"Login is already in progress. Waiting for the user to complete authentication.\n\nThe user needs to open this URL in their browser:\n\n%s\n\nCall hookdeck_login again to check status.",
-					state.browserURL,
+					"Login is already in progress. Waiting for the user to complete authentication.\n\nThe user needs to open this URL in their browser:\n\n%s\n\nCall %s again to check status.",
+					state.browserURL, loginTool,
 				)), nil
 			}
 		}
@@ -147,7 +175,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			}
 			ch := make(chan pollResult, 1)
 			go func() {
-				resp, err := session.WaitForAPIKey(loginPollInterval, loginMaxAttempts)
+				resp, err := session.WaitForAPIKey(LoginPollInterval, loginMaxAttempts)
 				ch <- pollResult{resp, err}
 			}()
 
@@ -179,8 +207,6 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			// Update the server-held client (in production this is the same pointer as
 			// config.GetAPIClient(); tests inject a separate *hookdeck.Client, so we must
 			// mutate this handle — RefreshCachedAPIClient only touches the global singleton).
-			client.APIKey = response.APIKey
-			client.ProjectID = response.ProjectID
 			org, proj, err := project.ParseProjectName(response.ProjectName)
 			if err != nil {
 				org, proj = "", response.ProjectName
@@ -188,8 +214,12 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			if o := strings.TrimSpace(response.OrganizationName); o != "" {
 				org = o
 			}
-			client.ProjectOrg = org
-			client.ProjectName = proj
+			for _, c := range srv.projectClients() {
+				c.APIKey = response.APIKey
+				c.ProjectID = response.ProjectID
+				c.ProjectOrg = org
+				c.ProjectName = proj
+			}
 
 			log.WithFields(log.Fields{
 				"user":    response.UserName,
@@ -199,9 +229,10 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 
 		// Return the URL immediately so the agent can show it to the user.
 		return TextResult(fmt.Sprintf(
-			"%sLogin initiated. The user must open the following URL in their browser to authenticate:\n\n%s\n\nOnce the user completes authentication in the browser, all Hookdeck tools will become available.\nCall hookdeck_login again to check if authentication has completed.",
+			"%sLogin initiated. The user must open the following URL in their browser to authenticate:\n\n%s\n\nOnce the user completes authentication in the browser, all Hookdeck tools will become available.\nCall %s again to check if authentication has completed.",
 			loginPrefix,
 			session.BrowserURL,
+			loginTool,
 		)), nil
 	}
 }

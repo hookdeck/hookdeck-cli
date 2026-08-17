@@ -9,17 +9,18 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
 func handleConnections(client *hookdeck.Client) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		if r := requireAuth(client); r != nil {
+		if r := mcpcore.RequireAuth(client, loginToolName); r != nil {
 			return r, nil
 		}
 
-		in, err := parseInput(req.Params.Arguments)
+		in, err := mcpcore.ParseInput(req.Params.Arguments)
 		if err != nil {
-			return ErrorResult(err.Error()), nil
+			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
 		action := in.String("action")
@@ -33,19 +34,19 @@ func handleConnections(client *hookdeck.Client) mcpsdk.ToolHandler {
 		case "unpause":
 			return connectionsUnpause(ctx, client, in)
 		default:
-			return ErrorResult(fmt.Sprintf("unknown action %q; expected list, get, pause, or unpause", action)), nil
+			return mcpcore.ErrorResult(fmt.Sprintf("unknown action %q; expected list, get, pause, or unpause", action)), nil
 		}
 	}
 }
 
-func connectionsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func connectionsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	params := make(map[string]string)
-	setIfNonEmpty(params, "name", in.String("name"))
-	setIfNonEmpty(params, "source_id", in.String("source_id"))
-	setIfNonEmpty(params, "destination_id", in.String("destination_id"))
-	setInt(params, "limit", in.Int("limit", 0))
-	setIfNonEmpty(params, "next", in.String("next"))
-	setIfNonEmpty(params, "prev", in.String("prev"))
+	mcpcore.SetIfNonEmpty(params, "name", in.String("name"))
+	mcpcore.SetIfNonEmpty(params, "source_id", in.String("source_id"))
+	mcpcore.SetIfNonEmpty(params, "destination_id", in.String("destination_id"))
+	mcpcore.SetInt(params, "limit", in.Int("limit", 0))
+	mcpcore.SetIfNonEmpty(params, "next", in.String("next"))
+	mcpcore.SetIfNonEmpty(params, "prev", in.String("prev"))
 
 	if bp := in.BoolPtr("disabled"); bp != nil {
 		if *bp {
@@ -55,57 +56,57 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in input) (*m
 
 	result, err := client.ListConnections(ctx, params)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
-func connectionsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func connectionsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	idOrName := in.String("id")
 	if idOrName == "" {
-		return ErrorResult("id or name is required for the get action"), nil
+		return mcpcore.ErrorResult("id or name is required for the get action"), nil
 	}
 	id, err := resolveMCPConnectionID(ctx, client, idOrName)
 	if err != nil {
-		return ErrorResult(err.Error()), nil
+		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	conn, err := client.GetConnection(ctx, id)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(conn, client)
+	return mcpcore.JSONResultEnvelopeForClient(conn, client)
 }
 
-func connectionsPause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func connectionsPause(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	idOrName := in.String("id")
 	if idOrName == "" {
-		return ErrorResult("id or name is required for the pause action"), nil
+		return mcpcore.ErrorResult("id or name is required for the pause action"), nil
 	}
 	id, err := resolveMCPConnectionID(ctx, client, idOrName)
 	if err != nil {
-		return ErrorResult(err.Error()), nil
+		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	conn, err := client.PauseConnection(ctx, id)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(conn, client)
+	return mcpcore.JSONResultEnvelopeForClient(conn, client)
 }
 
-func connectionsUnpause(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func connectionsUnpause(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	idOrName := in.String("id")
 	if idOrName == "" {
-		return ErrorResult("id or name is required for the unpause action"), nil
+		return mcpcore.ErrorResult("id or name is required for the unpause action"), nil
 	}
 	id, err := resolveMCPConnectionID(ctx, client, idOrName)
 	if err != nil {
-		return ErrorResult(err.Error()), nil
+		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	conn, err := client.UnpauseConnection(ctx, id)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(conn, client)
+	return mcpcore.JSONResultEnvelopeForClient(conn, client)
 }
 
 // resolveMCPConnectionID resolves a connection ID or name to an ID.
@@ -118,14 +119,14 @@ func resolveMCPConnectionID(ctx context.Context, client *hookdeck.Client, idOrNa
 			return idOrName, nil
 		}
 		if !hookdeck.IsNotFoundError(err) {
-			return "", errors.New(TranslateAPIError(err))
+			return "", errors.New(mcpcore.TranslateAPIError(err))
 		}
 	}
 
 	params := map[string]string{"name": idOrName}
 	result, err := client.ListConnections(ctx, params)
 	if err != nil {
-		return "", errors.New(TranslateAPIError(err))
+		return "", errors.New(mcpcore.TranslateAPIError(err))
 	}
 	if result.Pagination.Limit == 0 || len(result.Models) == 0 {
 		return "", fmt.Errorf("connection not found: '%s'", idOrName)

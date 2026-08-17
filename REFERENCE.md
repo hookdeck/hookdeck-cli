@@ -3027,6 +3027,78 @@ hookdeck outpost status [flags]
 hookdeck outpost status
 ```
 <!-- GENERATE_END -->
+### Outpost MCP server
+
+`hookdeck outpost mcp` exposes the Outpost resources above as MCP tools, prefixed `outpost_` so it can be configured alongside `hookdeck gateway mcp` in the same client.
+
+It starts **read-only**: each tool advertises only the actions that read data, so an agent is never offered an action it cannot perform. `--allow-write` enables the rest. Two reads are gated with the writes because both return a reusable credential — `outpost_tenants token` mints a tenant-scoped access token, and `outpost_tenants portal` returns a URL granting access to a tenant's portal.
+
+The publish tool is only registered when a Hookdeck Project API key is available, since the publish API does not accept the credentials stored by `hookdeck login`.
+
+<!-- GENERATE:outpost mcp:START -->
+### hookdeck outpost mcp
+
+Starts a Model Context Protocol (MCP) server over stdio.
+
+The server exposes Hookdeck Outpost resources — tenants, destinations, events,
+attempts, topics, metrics and project configuration — as MCP tools that AI
+agents and LLM-based clients can invoke. Tools are prefixed outpost_, so this
+server and 'hookdeck gateway mcp' can be configured in the same client.
+
+The server starts read-only: tools advertise only the actions that read data,
+so an agent is never offered an action it cannot perform. Pass `--allow-write` to
+enable creating, changing and deleting. Two reads count as writes and are also
+gated, because both return a reusable credential: 'outpost_tenants token' mints
+a tenant-scoped access token, and 'outpost_tenants portal' returns a URL
+granting access to a tenant's portal.
+
+Publishing needs a Hookdeck Project API key, which the credentials stored by
+'hookdeck login' cannot substitute for. Without one the publish tool is not
+registered at all; pass `--publish-api-key` or set HOOKDECK_OUTPOST_PUBLISH_API_KEY.
+
+This deliberately does not read HOOKDECK_API_KEY, which elsewhere in the CLI
+means "a key to exchange for CLI credentials". Publishing sends real events to
+real destinations and cannot be undone, so it should not be switched on by a
+variable that happens to be exported for something else.
+
+If the CLI is already authenticated, all tools are available immediately. If
+not, the server still starts and outpost_login initiates browser-based sign-in.
+Protocol traffic uses stdout only (JSON-RPC); status and errors from the CLI
+before the server runs go to stderr.
+
+[BETA] This feature is in beta. Please share bugs and feedback via:
+https://github.com/hookdeck/hookdeck-cli/issues
+
+**Usage:**
+
+```bash
+hookdeck outpost mcp [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--allow-write` | `bool` | Enable tools that create, change or delete data, and that return tenant credentials. Also read from HOOKDECK_MCP_ALLOW_WRITE; the flag wins. |
+| `--publish-api-key` | `string` | Hookdeck Project API key, required by the publish tool. Also read from HOOKDECK_OUTPOST_PUBLISH_API_KEY. HOOKDECK_API_KEY is deliberately not used here. |
+| `--read-only` | `bool` | Run without write actions. This is the default; the flag is accepted so it can be passed explicitly, and wins over `--allow-write`. |
+
+**Examples:**
+
+```bash
+# Start the MCP server, read-only (stdio transport)
+hookdeck outpost mcp
+
+# Allow tools that change data
+hookdeck outpost mcp --allow-write
+
+# Allow writes, including publishing events
+hookdeck outpost mcp --allow-write --publish-api-key $HOOKDECK_OUTPOST_PUBLISH_API_KEY
+
+# Pipe a JSON-RPC initialize request for testing
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}' | hookdeck outpost mcp
+```
+<!-- GENERATE_END -->
 ## Utilities
 
 <!-- GENERATE:completion|ci:START -->

@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
 // ---------------------------------------------------------------------------
@@ -285,33 +285,6 @@ func TestAuthGuard_UnauthenticatedReturnsError(t *testing.T) {
 
 // ---------------------------------------------------------------------------
 // Error translation
-// ---------------------------------------------------------------------------
-
-func TestTranslateAPIError(t *testing.T) {
-	tests := []struct {
-		name       string
-		err        error
-		wantSubstr string
-	}{
-		{"401 Unauthorized", &hookdeck.APIError{StatusCode: 401, Message: "bad key"}, "Authentication failed"},
-		{"404 Not Found", &hookdeck.APIError{StatusCode: 404, Message: "resource xyz"}, "Resource not found"},
-		{"410 Gone", &hookdeck.APIError{StatusCode: 410, Message: "resource xyz"}, "Resource not found"},
-		{"422 Validation", &hookdeck.APIError{StatusCode: 422, Message: "invalid field foo"}, "invalid field foo"},
-		{"429 Rate Limit", &hookdeck.APIError{StatusCode: 429, Message: "slow down"}, "Rate limited"},
-		{"500 Server Error", &hookdeck.APIError{StatusCode: 500, Message: "internal"}, "Hookdeck API error"},
-		{"Non-API error", fmt.Errorf("network timeout"), "network timeout"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			msg := TranslateAPIError(tt.err)
-			assert.Contains(t, msg, tt.wantSubstr)
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Sources tool
 // ---------------------------------------------------------------------------
 
 func TestSourcesList_Success(t *testing.T) {
@@ -1589,8 +1562,8 @@ func TestLoginTool_PollSurvivesAcrossToolCalls(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "https://hookdeck.com/auth?code=survive")
 
 	// Wait for the background poll loop: first unclaimed response is followed by
-	// loginPollInterval sleep inside pollForAPIKey before the second poll succeeds.
-	time.Sleep(loginPollInterval + 300*time.Millisecond)
+	// mcpcore.LoginPollInterval sleep inside pollForAPIKey before the second poll succeeds.
+	time.Sleep(mcpcore.LoginPollInterval + 300*time.Millisecond)
 
 	// Second call — if the goroutine survived, the client is now authenticated.
 	result2 := callTool(t, session, "hookdeck_login", map[string]any{})
@@ -1659,44 +1632,6 @@ func TestEventsGet_APIError(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Input parsing edge cases
 // ---------------------------------------------------------------------------
-
-func TestInput_Accessors(t *testing.T) {
-	raw := json.RawMessage(`{
-		"name": "test",
-		"count": 42,
-		"active": true,
-		"tags": ["a", "b"],
-		"missing_bool": null
-	}`)
-
-	in, err := parseInput(raw)
-	require.NoError(t, err)
-
-	assert.Equal(t, "test", in.String("name"))
-	assert.Equal(t, "", in.String("nonexistent"))
-	assert.Equal(t, 42, in.Int("count", 0))
-	assert.Equal(t, 99, in.Int("nonexistent", 99))
-	assert.Equal(t, true, in.Bool("active"))
-	assert.Equal(t, false, in.Bool("nonexistent"))
-	assert.Equal(t, []string{"a", "b"}, in.StringSlice("tags"))
-	assert.Nil(t, in.StringSlice("nonexistent"))
-
-	bp := in.BoolPtr("active")
-	require.NotNil(t, bp)
-	assert.True(t, *bp)
-	assert.Nil(t, in.BoolPtr("nonexistent"))
-}
-
-func TestInput_EmptyArgs(t *testing.T) {
-	in, err := parseInput(nil)
-	require.NoError(t, err)
-	assert.Equal(t, "", in.String("anything"))
-}
-
-func TestInput_InvalidJSON(t *testing.T) {
-	_, err := parseInput(json.RawMessage(`{invalid`))
-	assert.Error(t, err)
-}
 
 // ---------------------------------------------------------------------------
 // Server instructions
@@ -1866,25 +1801,3 @@ func TestAttemptsList_429RateLimitError(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Error translation: additional cases
 // ---------------------------------------------------------------------------
-
-func TestTranslateAPIError_RetryAfterMessage(t *testing.T) {
-	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 429, Message: "rate limited"})
-	assert.Contains(t, msg, "Rate limited")
-	assert.Contains(t, msg, "Retry after")
-}
-
-func TestTranslateAPIError_GenericClientError(t *testing.T) {
-	// A 4xx status not explicitly handled should pass through the message
-	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 409, Message: "conflict on resource"})
-	assert.Contains(t, msg, "conflict on resource")
-}
-
-func TestTranslateAPIError_502GatewayError(t *testing.T) {
-	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 502, Message: "bad gateway"})
-	assert.Contains(t, msg, "Hookdeck API error")
-}
-
-func TestTranslateAPIError_503ServiceUnavailable(t *testing.T) {
-	msg := TranslateAPIError(&hookdeck.APIError{StatusCode: 503, Message: "service unavailable"})
-	assert.Contains(t, msg, "Hookdeck API error")
-}

@@ -116,6 +116,23 @@ func (c *Client) WithTelemetry(t *CLITelemetry) *Client {
 type ErrorResponse struct {
 	Handled bool   `json:"Handled"`
 	Message string `json:"message"`
+
+	// Data carries per-field detail on a validation failure. Without it a 422
+	// surfaces as a bare "validation error", which says nothing about what to
+	// change — the Outpost API, for instance, returns
+	// {"message":"validation error","data":["topic is invalid"]}.
+	Data []string `json:"data,omitempty"`
+}
+
+// Detail returns the message with any field-level detail appended.
+func (e *ErrorResponse) Detail() string {
+	if len(e.Data) == 0 {
+		return e.Message
+	}
+	if e.Message == "" {
+		return strings.Join(e.Data, "; ")
+	}
+	return e.Message + ": " + strings.Join(e.Data, "; ")
 }
 
 // APIError is a structured error returned by the Hookdeck API.
@@ -353,10 +370,10 @@ func checkAndPrintError(res *http.Response) error {
 				Message:    fmt.Sprintf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body),
 			}
 		}
-		if response.Message != "" {
+		if detail := response.Detail(); detail != "" {
 			return &APIError{
 				StatusCode: res.StatusCode,
-				Message:    response.Message,
+				Message:    detail,
 			}
 		}
 		return &APIError{

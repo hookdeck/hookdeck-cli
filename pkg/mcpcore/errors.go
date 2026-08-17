@@ -1,4 +1,4 @@
-package mcp
+package mcpcore
 
 import (
 	"errors"
@@ -20,6 +20,14 @@ func TranslateAPIError(err error) string {
 	switch apiErr.StatusCode {
 	case http.StatusUnauthorized:
 		return "Authentication failed. Check your API key."
+	case http.StatusForbidden:
+		// Distinct from 401: the credential is valid but is not permitted to do
+		// this. Saying "check your API key" would send the caller down the wrong
+		// path, so keep the API's explanation and name the likely cause.
+		if apiErr.Message != "" {
+			return fmt.Sprintf("Not permitted: %s", apiErr.Message)
+		}
+		return "Not permitted. The credential in use does not have access to this resource or project."
 	case http.StatusNotFound, http.StatusGone:
 		return fmt.Sprintf("Resource not found: %s", apiErr.Message)
 	case http.StatusUnprocessableEntity:

@@ -121,9 +121,9 @@ const (
 // Interactive sign-in is only viable with a terminal: it blocks on Enter, opens a
 // browser, and polls for ~4 minutes, so choosing it in CI, Docker or an agent
 // turns a fast, fixable error into a hang.
-func resolveAuthFallback(gatewayMCP, interactiveStdin bool) authFallback {
+func resolveAuthFallback(isMCP, interactiveStdin bool) authFallback {
 	switch {
-	case gatewayMCP:
+	case isMCP:
 		return authFallbackMCP
 	case !interactiveStdin:
 		return authFallbackNonInteractive
@@ -146,7 +146,9 @@ Or run ` + "`hookdeck login`" + ` in an interactive terminal.`
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	gatewayMCP := argvContainsGatewayMCP(os.Args)
+	mcpGroup := argvMCPGroup(os.Args)
+	isMCP := mcpGroup != ""
+	mcpLoginTool := mcpLoginToolName(mcpGroup)
 	if err := rootCmd.Execute(); err != nil {
 		errString := err.Error()
 		isLoginRequiredError := errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error()
@@ -157,10 +159,10 @@ func Execute() {
 			errRunes[0] = unicode.ToUpper(errRunes[0])
 			capitalized := string(errRunes)
 
-			switch resolveAuthFallback(gatewayMCP, stdinIsTerminal()) {
+			switch resolveAuthFallback(isMCP, stdinIsTerminal()) {
 			case authFallbackMCP:
 				// MCP uses JSON-RPC on stdout; do not run interactive login or print recovery text there.
-				fmt.Fprintf(os.Stderr, "%s. Use hookdeck_login in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized)
+				fmt.Fprintf(os.Stderr, "%s. Use %s in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized, mcpLoginTool)
 				os.Exit(1)
 			case authFallbackNonInteractive:
 				fmt.Fprintf(os.Stderr, "%s.\n\n%s\n", capitalized, nonInteractiveAuthHelp)
@@ -191,7 +193,7 @@ func Execute() {
 			msg := fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
 				"ee \"hookdeck --help\" for a list of available commands.",
 				os.Args[1], rootCmd.CommandPath(), suggStr)
-			if gatewayMCP {
+			if isMCP {
 				fmt.Fprintln(os.Stderr, msg)
 			} else {
 				fmt.Println(msg)
@@ -200,7 +202,7 @@ func Execute() {
 		case errors.As(err, new(*actionableError)):
 			// The command already explained what to do; do not replace it with
 			// the generic recovery text below.
-			if gatewayMCP {
+			if isMCP {
 				fmt.Fprintln(os.Stderr, err)
 			} else {
 				fmt.Println(err)
@@ -210,13 +212,13 @@ func Execute() {
 			if hookdeck.IsUnauthorizedError(err) {
 				msg := "Authentication failed: your API key is invalid or expired.\n\n" +
 					"Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`.\n\n" +
-					"MCP: use hookdeck_login with reauth: true."
-				if gatewayMCP {
+					"MCP: use " + mcpLoginTool + " with reauth: true."
+				if isMCP {
 					fmt.Fprintln(os.Stderr, msg)
 				} else {
 					fmt.Println(msg)
 				}
-			} else if gatewayMCP {
+			} else if isMCP {
 				fmt.Fprintln(os.Stderr, err)
 			} else {
 				fmt.Println(err)
@@ -227,19 +229,44 @@ func Execute() {
 	}
 }
 
-// argvContainsGatewayMCP reports whether argv invokes `hookdeck gateway mcp`, ignoring
-// global flags and flag values (e.g. --profile name, -p name) so detection stays accurate.
-func argvContainsGatewayMCP(argv []string) bool {
+// mcpCommandGroups are the command groups that have an `mcp` subcommand. Every
+// one of them speaks JSON-RPC on stdout, so they share the stdout hygiene and
+// authentication fallback rules.
+var mcpCommandGroups = []string{"gateway", "outpost"}
+
+// argvContainsMCP reports whether argv invokes a `<group> mcp` command.
+func argvContainsMCP(argv []string) bool {
+	return argvMCPGroup(argv) != ""
+}
+
+// argvMCPGroup returns the command group of a `<group> mcp` invocation, or "".
+// It ignores global flags and flag values (e.g. --profile name, -p name) so
+// detection stays accurate.
+func argvMCPGroup(argv []string) string {
 	if len(argv) < 3 {
-		return false
+		return ""
 	}
 	pos := globalPositionalArgs(argv[1:])
 	for i := 0; i < len(pos)-1; i++ {
-		if pos[i] == "gateway" && pos[i+1] == "mcp" {
-			return true
+		if pos[i+1] != "mcp" {
+			continue
+		}
+		for _, group := range mcpCommandGroups {
+			if pos[i] == group {
+				return group
+			}
 		}
 	}
-	return false
+	return ""
+}
+
+// mcpLoginToolName returns the login tool exposed by a group's MCP server, so
+// pre-startup errors point at a tool that exists in that session.
+func mcpLoginToolName(group string) string {
+	if group == "outpost" {
+		return "outpost_login"
+	}
+	return "hookdeck_login"
 }
 
 // flagNeedsNextArg lists global flags that consume the next argv token as their value.

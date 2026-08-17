@@ -619,11 +619,24 @@ func (r *CLIRunner) RunListenWithTimeout(args []string, runDuration time.Duratio
 	return stdoutBuf.String(), stderrBuf.String(), waitErr
 }
 
-// RunGatewayMCPSubprocess builds the CLI binary, runs `gateway mcp` with optional stdin,
+// RunGatewayMCPSubprocess runs `gateway mcp`. See RunMCPSubprocess.
+func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
+	t.Helper()
+	return RunMCPSubprocess(t, projectRoot, configPath, []string{"gateway", "mcp"}, extraEnv, stdin, runDuration)
+}
+
+// RunOutpostMCPSubprocess runs `outpost mcp` with the given extra arguments
+// (e.g. --allow-write). See RunMCPSubprocess.
+func RunOutpostMCPSubprocess(t *testing.T, projectRoot, configPath string, args []string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
+	t.Helper()
+	return RunMCPSubprocess(t, projectRoot, configPath, append([]string{"outpost", "mcp"}, args...), extraEnv, stdin, runDuration)
+}
+
+// RunMCPSubprocess builds the CLI binary, runs the given MCP command with optional stdin,
 // lets it run for runDuration, then kills the process. Returns stdout, stderr, and the
 // error from Wait (often non-nil because the process was killed). configPath, when non-empty,
 // is passed as HOOKDECK_CONFIG_FILE. extraEnv entries override the process environment.
-func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
+func RunMCPSubprocess(t *testing.T, projectRoot, configPath string, args []string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
 	t.Helper()
 	tmpBinary := filepath.Join(projectRoot, "hookdeck-mcp-test-"+generateTimestamp())
 	defer os.Remove(tmpBinary)
@@ -631,10 +644,10 @@ func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extra
 	buildCmd := exec.Command("go", "build", "-o", tmpBinary, ".")
 	buildCmd.Dir = projectRoot
 	if buildErr := buildCmd.Run(); buildErr != nil {
-		return "", "", fmt.Errorf("build CLI for gateway mcp test: %w", buildErr)
+		return "", "", fmt.Errorf("build CLI for mcp test: %w", buildErr)
 	}
 
-	cmd := exec.Command(tmpBinary, "gateway", "mcp")
+	cmd := exec.Command(tmpBinary, args...)
 	cmd.Dir = projectRoot
 	env := os.Environ()
 	if configPath != "" {
@@ -724,24 +737,67 @@ func findJSONRPCResponseByID(t *testing.T, stdout string, id int) map[string]any
 	return nil
 }
 
+// mcpInitializeJSON is a minimal initialize request, for tests that only need
+// the server to answer one.
+const mcpInitializeJSON = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}`
+
+// firstJSONRPCMessageLine returns the first JSON-RPC message on stdout.
+func firstJSONRPCMessageLine(t *testing.T, stdout string) map[string]any {
+	t.Helper()
+	for _, line := range strings.Split(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var msg map[string]any
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		if _, ok := msg["jsonrpc"]; ok {
+			return msg
+		}
+	}
+	t.Fatalf("no JSON-RPC line in stdout: %q", stdout)
+	return nil
+}
+
+// mcpHandshake is the initialize + initialized prelude every session needs
+// before it can issue requests.
+var mcpHandshake = []string{
+	`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"acceptance-test","version":"1.0"},"capabilities":{}}}`,
+	`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+}
+
 // CallGatewayMCPTool runs initialize + notifications/initialized + tools/call over gateway mcp stdio.
 func CallGatewayMCPTool(t *testing.T, projectRoot, configPath, toolName string, arguments map[string]any, runDuration time.Duration) MCPToolCallResult {
 	t.Helper()
+	return CallMCPTool(t, projectRoot, configPath, []string{"gateway", "mcp"}, toolName, arguments, runDuration)
+}
+
+// CallOutpostMCPTool runs a tools/call over outpost mcp stdio. args carries the
+// command's own flags (e.g. --allow-write).
+func CallOutpostMCPTool(t *testing.T, projectRoot, configPath string, args []string, toolName string, arguments map[string]any, runDuration time.Duration) MCPToolCallResult {
+	t.Helper()
+	return CallMCPTool(t, projectRoot, configPath, append([]string{"outpost", "mcp"}, args...), toolName, arguments, runDuration)
+}
+
+// CallMCPTool runs initialize + notifications/initialized + tools/call over the
+// given MCP command's stdio.
+func CallMCPTool(t *testing.T, projectRoot, configPath string, command []string, toolName string, arguments map[string]any, runDuration time.Duration) MCPToolCallResult {
+	t.Helper()
 	argsJSON, err := json.Marshal(arguments)
 	require.NoError(t, err)
-	stdin := strings.Join([]string{
-		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"acceptance-test","version":"1.0"},"capabilities":{}}}`,
-		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+	stdin := strings.Join(append(append([]string{}, mcpHandshake...),
 		fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":%q,"arguments":%s}}`, toolName, string(argsJSON)),
-	}, "\n") + "\n"
+	), "\n") + "\n"
 
 	extra := map[string]string{}
 	if configPath != "" {
 		extra["HOOKDECK_CONFIG_FILE"] = configPath
 	}
-	stdout, stderr, waitErr := RunGatewayMCPSubprocess(t, projectRoot, configPath, extra, stdin, runDuration)
+	stdout, stderr, waitErr := RunMCPSubprocess(t, projectRoot, configPath, command, extra, stdin, runDuration)
 	if waitErr != nil {
-		t.Logf("gateway mcp subprocess wait: %v (stderr=%q)", waitErr, stderr)
+		t.Logf("%v subprocess wait: %v (stderr=%q)", command, waitErr, stderr)
 	}
 
 	resp := findJSONRPCResponseByID(t, stdout, 2)
@@ -757,6 +813,66 @@ func CallGatewayMCPTool(t *testing.T, projectRoot, configPath, toolName string, 
 			if text, ok := block["text"].(string); ok {
 				out.Text = text
 			}
+		}
+	}
+	return out
+}
+
+// ListMCPTools runs initialize + notifications/initialized + tools/list over the
+// given MCP command's stdio, and returns the tools by name along with the raw
+// stdout and stderr so callers can also assert on stream hygiene.
+func ListMCPTools(t *testing.T, projectRoot, configPath string, command []string, runDuration time.Duration) (tools map[string]map[string]any, stdout, stderr string) {
+	t.Helper()
+	stdin := strings.Join(append(append([]string{}, mcpHandshake...),
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
+	), "\n") + "\n"
+
+	extra := map[string]string{}
+	if configPath != "" {
+		extra["HOOKDECK_CONFIG_FILE"] = configPath
+	}
+	stdout, stderr, waitErr := RunMCPSubprocess(t, projectRoot, configPath, command, extra, stdin, runDuration)
+	if waitErr != nil {
+		t.Logf("%v subprocess wait: %v (stderr=%q)", command, waitErr, stderr)
+	}
+
+	resp := findJSONRPCResponseByID(t, stdout, 2)
+	result, ok := resp["result"].(map[string]any)
+	require.True(t, ok, "tools/list result missing in %v", resp)
+
+	list, ok := result["tools"].([]any)
+	require.True(t, ok, "tools/list returned no tools array: %v", result)
+
+	tools = make(map[string]map[string]any, len(list))
+	for _, entry := range list {
+		tool, ok := entry.(map[string]any)
+		require.True(t, ok)
+		name, _ := tool["name"].(string)
+		tools[name] = tool
+	}
+	return tools, stdout, stderr
+}
+
+// MCPToolActionEnum returns the action enum a tool advertises, which is how an
+// MCP server tells a client which actions it may call.
+func MCPToolActionEnum(t *testing.T, tool map[string]any) []string {
+	t.Helper()
+	schema, ok := tool["inputSchema"].(map[string]any)
+	require.True(t, ok, "tool has no inputSchema: %v", tool)
+	properties, ok := schema["properties"].(map[string]any)
+	require.True(t, ok, "schema has no properties: %v", schema)
+	action, ok := properties["action"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	rawEnum, ok := action["enum"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(rawEnum))
+	for _, v := range rawEnum {
+		if s, ok := v.(string); ok {
+			out = append(out, s)
 		}
 	}
 	return out
