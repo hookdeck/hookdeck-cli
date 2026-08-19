@@ -15,6 +15,22 @@ These tests run automatically in CI using API keys from `hookdeck ci`. They don'
 
 **Guest login (mock API, `guest` tag):** `guest_login_acceptance_test.go` asserts `POST /cli-auth` receives guest credentials when a guest profile is present, and omits them after logout (empty profile).
 
+### 1b. Outpost live smoke test (`outpostlive` tag)
+
+`outpost_live_test.go` carries `//go:build outpostlive` and is **not** part of the pull-request acceptance matrix. It calls the Outpost API client directly against a real Outpost host, which is the only thing that proves the client's stored credentials, request shapes and response decoding work outside a stub server — everything under `-tags=outpost` drives the CLI, and the client's unit tests only assert the implementation's assumptions back at it.
+
+It is kept out of the PR gate because a live-deployment problem would then fail every unrelated pull request. Instead it runs:
+
+- **nightly**, and on demand, via `.github/workflows/outpost-live.yml` (`workflow_dispatch`);
+- **before cutting a release** — run it manually if the last nightly is not recent.
+
+```bash
+# Requires HOOKDECK_CLI_OUTPOST_TESTING_API_KEY (a Project API key for an Outpost project)
+go test -tags=outpostlive ./test/acceptance/... -v -timeout 12m
+```
+
+The tests skip themselves when the key is absent, which is right on a developer machine and wrong in CI, so the workflow fails fast if the secret is missing rather than reporting a green job that tested nothing.
+
 ### 2. Manual Tests (Require Human Interaction)
 These tests require browser-based authentication via `hookdeck login` and must be run manually by developers.
 
