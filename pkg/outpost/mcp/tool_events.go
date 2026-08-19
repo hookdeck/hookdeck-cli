@@ -64,10 +64,10 @@ func handleEvents(srv *mcpcore.Server) mcpsdk.ToolHandler {
 
 func eventsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	result, err := client.ListOutpostEvents(ctx, hookdeck.OutpostEventListParams{
-		IDs:            stringList(in, "id"),
-		TenantIDs:      stringList(in, "tenant_id"),
-		DestinationIDs: stringList(in, "destination_id"),
-		Topics:         stringList(in, "topic"),
+		IDs:            mcpcore.StringList(in, "id"),
+		TenantIDs:      mcpcore.StringList(in, "tenant_id"),
+		DestinationIDs: mcpcore.StringList(in, "destination_id"),
+		Topics:         mcpcore.StringList(in, "topic"),
 		TimeAfter:      in.String("time_after"),
 		TimeBefore:     in.String("time_before"),
 		Limit:          in.Int("limit", 0),
@@ -83,7 +83,7 @@ func eventsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) 
 }
 
 func eventsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "get")
+	id, err := mcpcore.RequireString(in, "id", "get")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -95,11 +95,11 @@ func eventsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (
 }
 
 func eventsRetry(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "retry")
+	id, err := mcpcore.RequireString(in, "id", "retry")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
-	destinationID, err := requireString(in, "destination_id", "retry")
+	destinationID, err := mcpcore.RequireString(in, "destination_id", "retry")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}

@@ -134,7 +134,7 @@ func TestTelemetryJSONSerialization(t *testing.T) {
 	mcpTel := &CLITelemetry{
 		Source:       "mcp",
 		Environment:  "interactive",
-		CommandPath:  "hookdeck_events/list",
+		CommandPath:  "gateway_events/list",
 		InvocationID: "inv_1234567890abcdef",
 		DeviceName:   "macbook-pro",
 		MCPClient:    "claude-desktop/1.2.0",
@@ -146,7 +146,7 @@ func TestTelemetryJSONSerialization(t *testing.T) {
 	var parsedMCP map[string]interface{}
 	require.NoError(t, json.Unmarshal(b, &parsedMCP))
 	require.Equal(t, "mcp", parsedMCP["source"])
-	require.Equal(t, "hookdeck_events/list", parsedMCP["command_path"])
+	require.Equal(t, "gateway_events/list", parsedMCP["command_path"])
 	require.Equal(t, "claude-desktop/1.2.0", parsedMCP["mcp_client"])
 }
 

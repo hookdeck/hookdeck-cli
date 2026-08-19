@@ -74,7 +74,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError, "tool call should succeed")
 
 	// Verify the telemetry header was sent.
@@ -83,7 +83,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 
 	tel := parseTelemetryHeader(t, raw)
 	require.Equal(t, "mcp", tel.Source)
-	require.Equal(t, "hookdeck_sources/list", tel.CommandPath)
+	require.Equal(t, "gateway_sources/list", tel.CommandPath)
 	require.True(t, strings.HasPrefix(tel.InvocationID, "inv_"), "invocation ID must start with inv_")
 	require.NotEmpty(t, tel.DeviceName)
 	require.Contains(t, []string{"interactive", "ci"}, tel.Environment)
@@ -106,7 +106,7 @@ func TestMCPToolCall_EachCallGetsUniqueInvocationID(t *testing.T) {
 
 	// Make three separate tool calls.
 	for i := 0; i < 3; i++ {
-		result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+		result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 		require.False(t, result.IsError)
 	}
 
@@ -138,18 +138,18 @@ func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
 	})
 
 	// Call "list" action.
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	listTel := parseTelemetryHeader(t, capture.all()[0])
-	require.Equal(t, "hookdeck_sources/list", listTel.CommandPath)
+	require.Equal(t, "gateway_sources/list", listTel.CommandPath)
 
 	// Call "get" action.
-	result = callTool(t, session, "hookdeck_sources", map[string]any{"action": "get", "id": "src_1"})
+	result = callTool(t, session, "gateway_sources", map[string]any{"action": "get", "id": "src_1"})
 	require.False(t, result.IsError)
 
 	getTel := parseTelemetryHeader(t, capture.all()[1])
-	require.Equal(t, "hookdeck_sources/get", getTel.CommandPath)
+	require.Equal(t, "gateway_sources/get", getTel.CommandPath)
 }
 
 func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
@@ -169,7 +169,7 @@ func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
 	client.TelemetryDisabled = true
 	session := connectInMemory(t, client)
 
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	raw := capture.last()
@@ -189,7 +189,7 @@ func TestMCPToolCall_TelemetryDisabledByEnvVar(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	raw := capture.last()

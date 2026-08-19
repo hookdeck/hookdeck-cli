@@ -79,7 +79,7 @@ func handleDestinationTypes(srv *mcpcore.Server) mcpsdk.ToolHandler {
 		verbose := in.Bool("include_setup_docs")
 
 		if action == "get" {
-			destinationType, err := requireString(in, "type", "get")
+			destinationType, err := mcpcore.RequireString(in, "type", "get")
 			if err != nil {
 				return mcpcore.ErrorResult(err.Error()), nil
 			}

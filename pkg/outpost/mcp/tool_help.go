@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -222,58 +221,8 @@ Parameters:
 		if len(available) == 0 {
 			continue
 		}
-		topics[srv.ToolName(spec.Resource)] = specHelp(srv, spec, available)
+		topics[srv.ToolName(spec.Resource)] = spec.Help(srv, available)
 	}
 
 	return topics
-}
-
-// specHelp renders a tool's help from its definition, so help cannot drift from
-// the schema the agent is actually given.
-func specHelp(srv *mcpcore.Server, spec mcpcore.ToolSpec, available mcpcore.ActionSet) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n\n%s\n\nActions:\n", srv.ToolName(spec.Resource), spec.Summary)
-
-	width := 0
-	for _, a := range available {
-		if len(a.Name) > width {
-			width = len(a.Name)
-		}
-	}
-	for _, a := range available {
-		fmt.Fprintf(&b, "  %-*s — %s\n", width, a.Name, a.Desc)
-	}
-
-	if hidden := spec.Actions.HasWrite() && !srv.WriteEnabled(); hidden {
-		b.WriteString("\nFurther actions exist but are unavailable in read-only mode. See outpost_help for how to enable them.\n")
-	}
-
-	if len(spec.Props) > 0 {
-		b.WriteString("\nParameters:\n")
-		names := make([]string, 0, len(spec.Props))
-		for name := range spec.Props {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-
-		width = 0
-		for _, name := range names {
-			if len(name) > width {
-				width = len(name)
-			}
-		}
-		for _, name := range names {
-			prop := spec.Props[name]
-			required := ""
-			for _, r := range spec.Required {
-				if r == name {
-					required = ", required"
-					break
-				}
-			}
-			fmt.Fprintf(&b, "  %-*s (%s%s) — %s\n", width, name, prop.Type, required, prop.Desc)
-		}
-	}
-
-	return strings.TrimRight(b.String(), "\n")
 }

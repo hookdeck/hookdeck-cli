@@ -57,7 +57,7 @@ func TestWrapWithTelemetrySetsAndClears(t *testing.T) {
 	innerHandler := mcpsdk.ToolHandler(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		require.NotNil(t, s.client.Telemetry)
 		require.Equal(t, "mcp", s.client.Telemetry.Source)
-		require.Equal(t, "hookdeck_events/list", s.client.Telemetry.CommandPath)
+		require.Equal(t, "gateway_events/list", s.client.Telemetry.CommandPath)
 		require.NotEmpty(t, s.client.Telemetry.InvocationID)
 		require.NotEmpty(t, s.client.Telemetry.DeviceName)
 		// Capture a copy
@@ -66,7 +66,7 @@ func TestWrapWithTelemetrySetsAndClears(t *testing.T) {
 		return &mcpsdk.CallToolResult{}, nil
 	})
 
-	wrapped := s.wrapWithTelemetry("hookdeck_events", innerHandler)
+	wrapped := s.wrapWithTelemetry("gateway_events", innerHandler)
 
 	req := newCallToolRequest(`{"action":"list"}`)
 	result, err := wrapped(context.Background(), req)
@@ -76,7 +76,7 @@ func TestWrapWithTelemetrySetsAndClears(t *testing.T) {
 	// Telemetry should have been captured inside the handler
 	require.NotNil(t, capturedTelemetry)
 	require.Equal(t, "mcp", capturedTelemetry.Source)
-	require.Equal(t, "hookdeck_events/list", capturedTelemetry.CommandPath)
+	require.Equal(t, "gateway_events/list", capturedTelemetry.CommandPath)
 
 	// After the wrapper returns, telemetry should be cleared on the shared client
 	require.Nil(t, s.client.Telemetry)
@@ -93,14 +93,14 @@ func TestWrapWithTelemetryNoAction(t *testing.T) {
 		return &mcpsdk.CallToolResult{}, nil
 	})
 
-	wrapped := s.wrapWithTelemetry("hookdeck_help", innerHandler)
+	wrapped := s.wrapWithTelemetry("gateway_help", innerHandler)
 
-	req := newCallToolRequest(`{"topic":"hookdeck_events"}`)
+	req := newCallToolRequest(`{"topic":"gateway_events"}`)
 	_, err := wrapped(context.Background(), req)
 	require.NoError(t, err)
 
 	// No "action" field, so command path should just be the tool name
-	require.Equal(t, "hookdeck_help", capturedPath)
+	require.Equal(t, "gateway_help", capturedPath)
 }
 
 func TestWrapWithTelemetryUniqueInvocationIDs(t *testing.T) {
@@ -114,7 +114,7 @@ func TestWrapWithTelemetryUniqueInvocationIDs(t *testing.T) {
 		return &mcpsdk.CallToolResult{}, nil
 	})
 
-	wrapped := s.wrapWithTelemetry("hookdeck_events", innerHandler)
+	wrapped := s.wrapWithTelemetry("gateway_events", innerHandler)
 
 	for i := 0; i < 5; i++ {
 		req := newCallToolRequest(`{"action":"list"}`)

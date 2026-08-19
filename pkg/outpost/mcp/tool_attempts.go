@@ -72,21 +72,21 @@ func singleOrEmpty(values []string) string {
 }
 
 func attemptsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	tenantIDs := stringList(in, "tenant_id")
-	destinationIDs := stringList(in, "destination_id")
+	tenantIDs := mcpcore.StringList(in, "tenant_id")
+	destinationIDs := mcpcore.StringList(in, "destination_id")
 
 	result, err := client.ListOutpostAttempts(ctx, hookdeck.OutpostAttemptListParams{
 		TenantID:        singleOrEmpty(tenantIDs),
 		DestinationID:   singleOrEmpty(destinationIDs),
 		TenantIDs:       tenantIDs,
-		EventIDs:        stringList(in, "event_id"),
+		EventIDs:        mcpcore.StringList(in, "event_id"),
 		DestinationIDs:  destinationIDs,
-		DestinationType: stringList(in, "destination_type"),
-		Topics:          stringList(in, "topic"),
+		DestinationType: mcpcore.StringList(in, "destination_type"),
+		Topics:          mcpcore.StringList(in, "topic"),
 		Status:          in.String("status"),
 		TimeAfter:       in.String("time_after"),
 		TimeBefore:      in.String("time_before"),
-		Include:         stringList(in, "include"),
+		Include:         mcpcore.StringList(in, "include"),
 		Limit:           in.Int("limit", 0),
 		OrderBy:         in.String("order_by"),
 		Dir:             in.String("dir"),
@@ -100,14 +100,14 @@ func attemptsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input
 }
 
 func attemptsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "get")
+	id, err := mcpcore.RequireString(in, "id", "get")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	attempt, err := client.GetOutpostAttempt(ctx, id, hookdeck.OutpostAttemptGetParams{
-		TenantID:      singleOrEmpty(stringList(in, "tenant_id")),
-		DestinationID: singleOrEmpty(stringList(in, "destination_id")),
-		Include:       stringList(in, "include"),
+		TenantID:      singleOrEmpty(mcpcore.StringList(in, "tenant_id")),
+		DestinationID: singleOrEmpty(mcpcore.StringList(in, "destination_id")),
+		Include:       mcpcore.StringList(in, "include"),
 	})
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil

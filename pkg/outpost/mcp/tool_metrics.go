@@ -74,7 +74,7 @@ func metricsParams(in mcpcore.Input) (hookdeck.OutpostMetricsParams, error) {
 	if start == "" || end == "" {
 		return hookdeck.OutpostMetricsParams{}, fmt.Errorf("start and end are required (ISO 8601 datetimes)")
 	}
-	measures := stringList(in, "measures")
+	measures := mcpcore.StringList(in, "measures")
 	if len(measures) == 0 {
 		return hookdeck.OutpostMetricsParams{}, fmt.Errorf(`measures is required, e.g. ["count"]`)
 	}
@@ -89,7 +89,7 @@ func metricsParams(in mcpcore.Input) (hookdeck.OutpostMetricsParams, error) {
 		End:         end,
 		Granularity: in.String("granularity"),
 		Measures:    measures,
-		Dimensions:  stringList(in, "dimensions"),
+		Dimensions:  mcpcore.StringList(in, "dimensions"),
 		Filters:     filters,
 	}, nil
 }
@@ -97,7 +97,7 @@ func metricsParams(in mcpcore.Input) (hookdeck.OutpostMetricsParams, error) {
 // metricsFilters reads the filters object, accepting a single value or an array
 // per dimension.
 func metricsFilters(in mcpcore.Input) (map[string][]string, error) {
-	raw, err := object(in, "filters")
+	raw, err := mcpcore.Object(in, "filters")
 	if err != nil {
 		return nil, err
 	}

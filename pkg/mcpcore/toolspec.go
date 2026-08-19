@@ -2,6 +2,7 @@ package mcpcore
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -104,6 +105,68 @@ type ToolSpec struct {
 	// exists for tools that shipped before "action" was mandatory in practice
 	// and whose callers still send bare list requests.
 	DefaultAction string
+
+	// Notes is hand-written guidance appended to the generated help topic:
+	// worked examples, filter-syntax mappings, anything that cannot be derived
+	// from the actions and props. Optional.
+	Notes string
+}
+
+// Help renders a tool's help topic from its definition, so help cannot drift
+// from the schema the agent is actually given. available is the action set for
+// the current mode.
+func (spec ToolSpec) Help(srv *Server, available ActionSet) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n\n%s\n\nActions:\n", srv.ToolName(spec.Resource), spec.Summary)
+
+	width := 0
+	for _, a := range available {
+		if len(a.Name) > width {
+			width = len(a.Name)
+		}
+	}
+	for _, a := range available {
+		fmt.Fprintf(&b, "  %-*s — %s\n", width, a.Name, a.Desc)
+	}
+
+	if hidden := spec.Actions.HasWrite() && !srv.WriteEnabled(); hidden {
+		fmt.Fprintf(&b, "\nFurther actions exist but are unavailable in read-only mode. See %s for how to enable them.\n", srv.HelpToolName())
+	}
+
+	if len(spec.Props) > 0 {
+		b.WriteString("\nParameters:\n")
+		names := make([]string, 0, len(spec.Props))
+		for name := range spec.Props {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+
+		width = 0
+		for _, name := range names {
+			if len(name) > width {
+				width = len(name)
+			}
+		}
+		for _, name := range names {
+			prop := spec.Props[name]
+			required := ""
+			for _, r := range spec.Required {
+				if r == name {
+					required = ", required"
+					break
+				}
+			}
+			fmt.Fprintf(&b, "  %-*s (%s%s) — %s\n", width, name, prop.Type, required, prop.Desc)
+		}
+	}
+
+	if spec.Notes != "" {
+		b.WriteString("\n")
+		b.WriteString(spec.Notes)
+		b.WriteString("\n")
+	}
+
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // Define builds the tool definition for the current write mode. The bool is

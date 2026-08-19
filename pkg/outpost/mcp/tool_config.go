@@ -59,7 +59,7 @@ func handleConfig(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			}
 			return mcpcore.JSONResultEnvelopeForClient(domain, client)
 		case "custom_domain_set":
-			hostname, err := requireString(in, "hostname", "custom_domain_set")
+			hostname, err := mcpcore.RequireString(in, "hostname", "custom_domain_set")
 			if err != nil {
 				return mcpcore.ErrorResult(err.Error()), nil
 			}
@@ -95,7 +95,7 @@ func configGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (
 func configSet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	update := hookdeck.OutpostManagedConfig{}
 
-	values, err := object(in, "values")
+	values, err := mcpcore.Object(in, "values")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -112,7 +112,7 @@ func configSet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (
 		}
 	}
 
-	for _, key := range stringList(in, "unset") {
+	for _, key := range mcpcore.StringList(in, "unset") {
 		update[key] = nil
 	}
 

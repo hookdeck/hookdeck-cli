@@ -56,19 +56,19 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 			return blocked, nil
 		}
 
-		tenantID, err := requireString(in, "tenant_id", "publish")
+		tenantID, err := mcpcore.RequireString(in, "tenant_id", "publish")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		topic, err := requireString(in, "topic", "publish")
+		topic, err := mcpcore.RequireString(in, "topic", "publish")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		data, err := object(in, "data")
+		data, err := mcpcore.Object(in, "data")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		metadata, err := stringMap(in, "metadata")
+		metadata, err := mcpcore.StringMap(in, "metadata")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}

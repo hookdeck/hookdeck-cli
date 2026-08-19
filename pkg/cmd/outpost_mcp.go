@@ -3,17 +3,12 @@ package cmd
 import (
 	"context"
 	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
 	outpostmcp "github.com/hookdeck/hookdeck-cli/pkg/outpost/mcp"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
-
-// allowWriteEnvVar enables write actions without a flag, for MCP clients whose
-// config makes environment variables easier to set than arguments.
-const allowWriteEnvVar = "HOOKDECK_MCP_ALLOW_WRITE"
 
 // publishAPIKeyEnvVar carries the Project API key the publish tool needs.
 //
@@ -78,10 +73,8 @@ before the server runs go to stderr.`),
 		RunE: mc.runOutpostMCPCmd,
 	}
 
-	mc.cmd.Flags().BoolVar(&mc.allowWrite, "allow-write", false, "Enable tools that create, change or delete data, and that return tenant credentials. Also read from "+allowWriteEnvVar+"; the flag wins.")
-	// Users arriving from other MCP servers type --read-only reflexively. It is
-	// already the default, so accept it rather than failing on an unknown flag.
-	mc.cmd.Flags().BoolVar(&mc.readOnly, "read-only", false, "Run without write actions. This is the default; the flag is accepted so it can be passed explicitly, and wins over --allow-write.")
+	addWriteModeFlags(mc.cmd, &mc.allowWrite, &mc.readOnly,
+		"Enable tools that create, change or delete data, and that return tenant credentials.")
 	// The env var is read at run time rather than used as the flag default, so a
 	// key that is already in the environment is not printed back out by --help.
 	mc.cmd.Flags().StringVar(&mc.apiKey, "publish-api-key", "", "Hookdeck Project API key, required by the publish tool. Also read from "+publishAPIKeyEnvVar+". HOOKDECK_API_KEY is deliberately not used here.")
@@ -91,25 +84,6 @@ before the server runs go to stderr.`),
 
 func addOutpostMCPCmdTo(parent *cobra.Command) {
 	parent.AddCommand(newOutpostMCPCmd().cmd)
-}
-
-// resolveAllowWrite decides whether write actions are enabled.
-//
-// --read-only wins over everything so an explicit request for a safe session is
-// never overridden; otherwise --allow-write wins over the environment variable,
-// which is the more distant and easier-to-forget setting.
-func resolveAllowWrite(allowWriteFlag, allowWriteFlagSet, readOnly bool, envValue string) bool {
-	if readOnly {
-		return false
-	}
-	if allowWriteFlagSet {
-		return allowWriteFlag
-	}
-	enabled, err := strconv.ParseBool(envValue)
-	if err != nil {
-		return false
-	}
-	return enabled
 }
 
 func (mc *outpostMCPCmd) runOutpostMCPCmd(cmd *cobra.Command, args []string) error {

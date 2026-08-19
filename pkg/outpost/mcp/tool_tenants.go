@@ -69,7 +69,7 @@ func handleTenants(srv *mcpcore.Server) mcpsdk.ToolHandler {
 
 func tenantsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	result, err := client.ListOutpostTenants(ctx, hookdeck.OutpostTenantListParams{
-		IDs:   stringList(in, "id"),
+		IDs:   mcpcore.StringList(in, "id"),
 		Limit: in.Int("limit", 0),
 		Dir:   in.String("dir"),
 		Next:  in.String("next"),
@@ -82,7 +82,7 @@ func tenantsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input)
 }
 
 func tenantsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "get")
+	id, err := mcpcore.RequireString(in, "id", "get")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -94,11 +94,11 @@ func tenantsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) 
 }
 
 func tenantsUpsert(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "upsert")
+	id, err := mcpcore.RequireString(in, "id", "upsert")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
-	metadata, err := stringMap(in, "metadata")
+	metadata, err := mcpcore.StringMap(in, "metadata")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -110,7 +110,7 @@ func tenantsUpsert(ctx context.Context, client *hookdeck.Client, in mcpcore.Inpu
 }
 
 func tenantsDelete(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "delete")
+	id, err := mcpcore.RequireString(in, "id", "delete")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -124,7 +124,7 @@ func tenantsDelete(ctx context.Context, client *hookdeck.Client, in mcpcore.Inpu
 }
 
 func tenantsToken(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "token")
+	id, err := mcpcore.RequireString(in, "id", "token")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -136,7 +136,7 @@ func tenantsToken(ctx context.Context, client *hookdeck.Client, in mcpcore.Input
 }
 
 func tenantsPortal(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id, err := requireString(in, "id", "portal")
+	id, err := mcpcore.RequireString(in, "id", "portal")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}

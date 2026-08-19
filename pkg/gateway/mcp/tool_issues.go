@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -10,9 +9,36 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-func handleIssues(client *hookdeck.Client) mcpsdk.ToolHandler {
+var issuesActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list issues"},
+	{Name: "get", Desc: "get one issue"},
+	{Name: "update", Desc: "set an issue's status", Write: true},
+	{Name: "dismiss", Desc: "dismiss an issue, closing it without resolving the cause", Write: true, Destructive: true},
+}
+
+var issuesSpec = mcpcore.ToolSpec{
+	Resource: "issues",
+	Summary:  "Inspect and triage Hookdeck issues — aggregated failure signals such as repeated delivery failures, transformation errors, and backpressure alerts. Use this to identify systemic problems across your event pipeline. Results are scoped to the active project — call the projects tool first if the user has specified a project.",
+	Actions:  issuesActions,
+	Props: map[string]mcpcore.Prop{
+		"id":               {Type: "string", Desc: "Issue ID. Required for get/update/dismiss."},
+		"status":           {Type: "string", Desc: "New status for update: OPENED, IGNORED, ACKNOWLEDGED or RESOLVED", Enum: []string{"OPENED", "IGNORED", "ACKNOWLEDGED", "RESOLVED"}},
+		"type":             {Type: "string", Desc: "Filter: delivery, transformation, or backpressure (list)"},
+		"filter_status":    {Type: "string", Desc: "Filter by status (list)"},
+		"issue_trigger_id": {Type: "string", Desc: "Filter by trigger (list)"},
+		"order_by":         {Type: "string", Desc: "Sort field (list)"},
+		"dir":              {Type: "string", Desc: "Sort direction: asc or desc (list)"},
+		"limit":            {Type: "integer", Desc: "Max results (list)"},
+		"next":             {Type: "string", Desc: "Next page cursor"},
+		"prev":             {Type: "string", Desc: "Previous page cursor"},
+	},
+	Handler: handleIssues,
+}
+
+func handleIssues(srv *mcpcore.Server) mcpsdk.ToolHandler {
+	client := srv.Client()
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		if r := mcpcore.RequireAuth(client, loginToolName); r != nil {
+		if r := srv.RequireAuth(); r != nil {
 			return r, nil
 		}
 
@@ -21,16 +47,52 @@ func handleIssues(client *hookdeck.Client) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action := in.String("action")
+		action, blocked := mcpcore.DispatchWithDefault(srv, issuesActions, in.String("action"), "list")
+		if blocked != nil {
+			return blocked, nil
+		}
+
 		switch action {
-		case "list", "":
+		case "list":
 			return issuesList(ctx, client, in)
 		case "get":
 			return issuesGet(ctx, client, in)
+		case "update":
+			return issuesUpdate(ctx, client, in)
 		default:
-			return mcpcore.ErrorResult(fmt.Sprintf("unknown action %q; expected list or get", action)), nil
+			return issuesDismiss(ctx, client, in)
 		}
 	}
+}
+
+func issuesUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
+	id, err := mcpcore.RequireString(in, "id", "update")
+	if err != nil {
+		return mcpcore.ErrorResult(err.Error()), nil
+	}
+	status, err := mcpcore.RequireString(in, "status", "update")
+	if err != nil {
+		return mcpcore.ErrorResult(err.Error()), nil
+	}
+	issue, err := client.UpdateIssue(ctx, id, &hookdeck.IssueUpdateRequest{
+		Status: hookdeck.IssueStatus(status),
+	})
+	if err != nil {
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
+	}
+	return mcpcore.JSONResultEnvelopeForClient(issue, client)
+}
+
+func issuesDismiss(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
+	id, err := mcpcore.RequireString(in, "id", "dismiss")
+	if err != nil {
+		return mcpcore.ErrorResult(err.Error()), nil
+	}
+	issue, err := client.DismissIssue(ctx, id)
+	if err != nil {
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
+	}
+	return mcpcore.JSONResultEnvelopeForClient(issue, client)
 }
 
 func issuesList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {

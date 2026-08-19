@@ -53,7 +53,7 @@ func handleDestinations(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return blocked, nil
 		}
 
-		tenantID, err := requireString(in, "tenant_id", action)
+		tenantID, err := mcpcore.RequireString(in, "tenant_id", action)
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
@@ -65,7 +65,7 @@ func handleDestinations(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return destinationsCreate(ctx, client, in, tenantID)
 		}
 
-		id, err := requireString(in, "id", action)
+		id, err := mcpcore.RequireString(in, "id", action)
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
@@ -104,7 +104,7 @@ func destinationResult(client *hookdeck.Client) func(*hookdeck.OutpostDestinatio
 }
 
 func destinationsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input, tenantID string) (*mcpsdk.CallToolResult, error) {
-	destinations, err := client.ListOutpostDestinations(ctx, tenantID, stringList(in, "type"), stringList(in, "topics"))
+	destinations, err := client.ListOutpostDestinations(ctx, tenantID, mcpcore.StringList(in, "type"), mcpcore.StringList(in, "topics"))
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
@@ -112,7 +112,7 @@ func destinationsList(ctx context.Context, client *hookdeck.Client, in mcpcore.I
 }
 
 func destinationsCreate(ctx context.Context, client *hookdeck.Client, in mcpcore.Input, tenantID string) (*mcpsdk.CallToolResult, error) {
-	destinationType, err := requireString(in, "type", "create")
+	destinationType, err := mcpcore.RequireString(in, "type", "create")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -122,7 +122,7 @@ func destinationsCreate(ctx context.Context, client *hookdeck.Client, in mcpcore
 	}
 	return destinationResult(client)(client.CreateOutpostDestination(ctx, tenantID, &hookdeck.OutpostDestinationCreateRequest{
 		Type:        destinationType,
-		Topics:      hookdeck.OutpostTopics(stringList(in, "topics")),
+		Topics:      hookdeck.OutpostTopics(mcpcore.StringList(in, "topics")),
 		Config:      cfg,
 		Credentials: credentials,
 		Filter:      filter,
@@ -136,7 +136,7 @@ func destinationsUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
 	return destinationResult(client)(client.UpdateOutpostDestination(ctx, tenantID, id, &hookdeck.OutpostDestinationUpdateRequest{
-		Topics:      hookdeck.OutpostTopics(stringList(in, "topics")),
+		Topics:      hookdeck.OutpostTopics(mcpcore.StringList(in, "topics")),
 		Config:      cfg,
 		Credentials: credentials,
 		Filter:      filter,
@@ -146,16 +146,16 @@ func destinationsUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore
 
 // destinationPayload reads the object arguments shared by create and update.
 func destinationPayload(in mcpcore.Input) (cfg, credentials, filter map[string]interface{}, metadata map[string]string, err error) {
-	if cfg, err = object(in, "config"); err != nil {
+	if cfg, err = mcpcore.Object(in, "config"); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if credentials, err = object(in, "credentials"); err != nil {
+	if credentials, err = mcpcore.Object(in, "credentials"); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if filter, err = object(in, "filter"); err != nil {
+	if filter, err = mcpcore.Object(in, "filter"); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if metadata, err = stringMap(in, "metadata"); err != nil {
+	if metadata, err = mcpcore.StringMap(in, "metadata"); err != nil {
 		return nil, nil, nil, nil, err
 	}
 	return cfg, credentials, filter, metadata, nil

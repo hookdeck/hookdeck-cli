@@ -102,7 +102,7 @@ func TestMCPEventsList_DateRangeAndBodyFilter(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_events", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
 		"action":         "list",
 		"created_after":  "2020-01-01T00:00:00Z",
 		"created_before": "2030-01-01T00:00:00Z",
@@ -120,7 +120,7 @@ func TestMCPRequestsList_DateRangeAndBodyFilter(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_requests", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests", map[string]any{
 		"action":         "list",
 		"ingested_after": "2020-01-01T00:00:00Z",
 		"created_before": "2030-01-01T00:00:00Z",

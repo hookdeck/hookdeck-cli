@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // Input is a thin wrapper around the raw JSON arguments from an MCP tool call.
@@ -153,4 +154,83 @@ func SetPayloadSearchFilters(params map[string]string, in Input) error {
 		}
 	}
 	return nil
+}
+
+// StringList reads a value that may be given either as an array of strings or,
+// mirroring the CLI's comma-separated flags, as a single string.
+func StringList(in Input, key string) []string {
+	if values := in.StringSlice(key); len(values) > 0 {
+		return values
+	}
+	raw := in.String(key)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// Object reads a JSON object argument. A missing key yields nil, not an error.
+func Object(in Input, key string) (map[string]interface{}, error) {
+	v, ok := in[key]
+	if !ok || v == nil {
+		return nil, nil
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%s must be a JSON object", key)
+	}
+	return m, nil
+}
+
+// StringMap reads a JSON object whose values must all be strings, such as
+// resource metadata or transformation environment variables.
+func StringMap(in Input, key string) (map[string]string, error) {
+	raw, err := Object(in, key)
+	if err != nil {
+		return nil, err
+	}
+	if raw == nil {
+		return nil, nil
+	}
+	out := make(map[string]string, len(raw))
+	for k, v := range raw {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s.%s must be a string", key, k)
+		}
+		out[k] = s
+	}
+	return out, nil
+}
+
+// RequireString returns the value for key, or an error naming the action that
+// needs it.
+func RequireString(in Input, key, action string) (string, error) {
+	value := in.String(key)
+	if value == "" {
+		return "", fmt.Errorf("%s is required for the %s action", key, action)
+	}
+	return value, nil
+}
+
+// OptionalStringPtr returns a pointer to the value for key, or nil when the key
+// is absent. Update requests use this to distinguish "not supplied" from
+// "set to empty".
+func OptionalStringPtr(in Input, key string) *string {
+	v, ok := in[key]
+	if !ok || v == nil {
+		return nil
+	}
+	s, ok := v.(string)
+	if !ok {
+		return nil
+	}
+	return &s
 }
