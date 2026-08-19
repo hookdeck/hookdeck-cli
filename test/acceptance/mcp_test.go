@@ -135,6 +135,32 @@ func TestMCPRequestsList_DateRangeAndBodyFilter(t *testing.T) {
 		"expected list payload in %s", result.Text)
 }
 
+// The singular tools are the ones an agent reaches for once it has an id, so
+// they have to be reachable end to end. A missing record fails at the API,
+// which proves the call got that far; an unknown action or tool would not.
+func TestMCPSingularToolsAreReachable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	cases := []struct{ tool, id string }{
+		{"gateway_event", "evt_does_not_exist"},
+		{"gateway_request", "req_does_not_exist"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.tool, func(t *testing.T) {
+			result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, tc.tool, map[string]any{
+				"action": "get",
+				"id":     tc.id,
+			}, 20*time.Second)
+			assert.NotContains(t, result.Text, "unknown action")
+			assert.NotContains(t, result.Text, "Unknown tool")
+		})
+	}
+}
+
 func TestGatewayMCPStdio_OutpostProjectRejected(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -174,8 +200,10 @@ func TestGatewayMCPStdio_ReadOnlyByDefault(t *testing.T) {
 	for _, name := range []string{
 		"hookdeck_projects", "hookdeck_login",
 		"gateway_help", "gateway_connections", "gateway_sources",
-		"gateway_destinations", "gateway_transformations", "gateway_requests",
-		"gateway_events", "gateway_attempts", "gateway_issues", "gateway_metrics",
+		"gateway_destinations", "gateway_transformations",
+		"gateway_requests", "gateway_request",
+		"gateway_events", "gateway_event",
+		"gateway_attempts", "gateway_issues", "gateway_metrics",
 	} {
 		assert.Contains(t, tools, name)
 	}
@@ -190,7 +218,13 @@ func TestGatewayMCPStdio_ReadOnlyByDefault(t *testing.T) {
 	assert.Equal(t, []string{"list", "get", "pause", "unpause"},
 		MCPToolActionEnum(t, tools["gateway_connections"]))
 	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_sources"]))
-	assert.Equal(t, []string{"list", "get", "raw_body"}, MCPToolActionEnum(t, tools["gateway_events"]))
+	// Events and requests are split plural/singular: the plural tools search,
+	// the singular ones act on one record by id.
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_events"]))
+	assert.Equal(t, []string{"get", "raw_body"}, MCPToolActionEnum(t, tools["gateway_event"]))
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests"]))
+	assert.Equal(t, []string{"get", "raw_body", "events", "ignored_events"},
+		MCPToolActionEnum(t, tools["gateway_request"]))
 }
 
 func TestGatewayMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
@@ -203,8 +237,11 @@ func TestGatewayMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
 	tools, stdout, stderr := ListMCPTools(t, cli.projectRoot, cli.configPath, command, 10*time.Second)
 	assertGatewayMCPStdioHygiene(t, stdout, stderr)
 
-	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_events"]), "retry")
-	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_requests"]), "retry")
+	// retry lives on the singular tools, and stays off the plural ones.
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_event"]), "retry")
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_request"]), "retry")
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_events"]))
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests"]))
 	for _, want := range []string{"create", "upsert", "update", "delete", "enable", "disable"} {
 		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_connections"]), want)
 		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_sources"]), want)

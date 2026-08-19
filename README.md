@@ -645,8 +645,10 @@ Product tools are prefixed `gateway_`. Signing in and switching project are Hook
 | `gateway_sources` | list, get | create, upsert, update, delete, enable, disable |
 | `gateway_destinations` | list, get | create, upsert, update, delete, enable, disable |
 | `gateway_transformations` | list, get | create, upsert, update, delete, run |
-| `gateway_requests` | list, get, raw_body, events, ignored_events | retry |
-| `gateway_events` | list, get, raw_body | retry, cancel, mute |
+| `gateway_requests` | list | — |
+| `gateway_request` | get, raw_body, events, ignored_events | retry |
+| `gateway_events` | list | — |
+| `gateway_event` | get, raw_body | retry, cancel, mute |
 | `gateway_attempts` | list, get | — |
 | `gateway_issues` | list, get | update, dismiss |
 | `gateway_metrics` | events, requests, attempts, transformations | — |
@@ -654,7 +656,16 @@ Product tools are prefixed `gateway_`. Signing in and switching project are Hook
 
 `transformations run` executes code without storing anything, but it is gated as a write: a read-only session should not be able to run caller-supplied code.
 
+Events and requests are each split into a **plural** tool that searches and a **singular** tool that acts on one record:
+
+- `gateway_events` / `gateway_requests` (plural) take the filters and return IDs. They cannot fetch or change a single record.
+- `gateway_event` / `gateway_request` (singular) take an `id` and nothing else (plus `connection_ids` on request retry). They cannot search.
+
+The usual flow is plural to find an ID, then singular with that ID. The split keeps ~20 list filters out of the schema for actions that only need an id.
+
 `gateway_events` and `gateway_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `gateway_help` with topic `gateway_events` or `gateway_requests` for the full parameter list.
+
+The only relationship traversal the API supports is request → events: `gateway_request` with action `events` (or `ignored_events`). There is no `request_id` filter on events and no `event_id` filter on requests. To go the other way, read `request_id` off an event and call `gateway_request` with action `get`.
 
 `gateway_help` reports which mode the session is in and lists only the actions it can perform.
 
@@ -673,7 +684,7 @@ Once the MCP server is configured, you can ask your agent questions like:
 → Agent uses gateway_metrics with measures like failed_count and count, grouped by destination.
 
 "Trace request req_abc123 — what events did it produce, and did they all deliver successfully?"
-→ Agent uses gateway_requests to get the request, then the events action to list generated events.
+→ Agent uses gateway_request to get the request, then its events action to list generated events.
 
 "Why is my checkout endpoint returning 500s? Show me the latest attempt details."
 → Agent uses gateway_events filtered by status FAILED, then gateway_attempts to inspect delivery details.
