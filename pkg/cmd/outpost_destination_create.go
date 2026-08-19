@@ -47,7 +47,12 @@ Topics default to all ("*") when --topics is omitted.`,
   hookdeck outpost destination create --tenant-id acme --type aws_sqs \
     --config queue_url=https://sqs.eu-west-2.amazonaws.com/1/q \
     --credential key=AKIA... --credential secret=... \
-    --filter '{"data":{"tier":"pro"}}'`,
+    --filter '{"data":{"tier":"pro"}}'
+
+  # With metadata of your own to correlate against your systems
+  hookdeck outpost destination create --tenant-id acme --type webhook \
+    --config url=https://example.com/hooks \
+    --metadata owner=platform --metadata tier=pro`,
 	}
 
 	dc.cmd.Flags().StringVar(&dc.destType, "type", "", "Destination type (required)")
@@ -86,6 +91,10 @@ func (dc *outpostDestinationCreateCmd) runOutpostDestinationCreateCmd(cmd *cobra
 	if err != nil {
 		return err
 	}
+	metadata, err := dc.fields.resolveMetadata()
+	if err != nil {
+		return err
+	}
 
 	if err := validateOutpostDestinationFields(ctx, dc.destType, config, credentials); err != nil {
 		return err
@@ -106,6 +115,7 @@ func (dc *outpostDestinationCreateCmd) runOutpostDestinationCreateCmd(cmd *cobra
 		Config:      config,
 		Credentials: credentials,
 		Filter:      filter,
+		Metadata:    metadata,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create destination: %w", err)

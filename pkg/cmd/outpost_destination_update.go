@@ -29,8 +29,8 @@ func newOutpostDestinationUpdateCmd(parent *outpostDestinationCmd) *outpostDesti
 
 Only the fields you pass are changed; omitted fields are left alone.
 
---filter is the exception: the API replaces the filter wholesale rather than
-merging into it, so pass the complete filter you want.`,
+--filter and --metadata are the exceptions: the API replaces each wholesale
+rather than merging into it, so pass the complete value you want.`,
 		PreRunE: dc.validateFlags,
 		RunE:    dc.runOutpostDestinationUpdateCmd,
 		Example: `  # Point a destination at a new URL
@@ -38,7 +38,11 @@ merging into it, so pass the complete filter you want.`,
     --config url=https://example.com/new
 
   # Change which topics it receives
-  hookdeck outpost destination update des_abc123 --tenant-id acme --topics "*"`,
+  hookdeck outpost destination update des_abc123 --tenant-id acme --topics "*"
+
+  # Replace the metadata
+  hookdeck outpost destination update des_abc123 --tenant-id acme \
+    --metadata owner=platform --metadata tier=pro`,
 		Annotations: map[string]string{
 			"cli.arguments": `[
 				{"name":"destination-id","type":"string","description":"The ID of the destination to update.","required":true}
@@ -64,7 +68,7 @@ func (dc *outpostDestinationUpdateCmd) validateFlags(cmd *cobra.Command, args []
 	}
 	// An update with nothing to update is a no-op that looks like a success.
 	if !dc.fields.hasAny() {
-		return fmt.Errorf("nothing to update. Pass at least one of --config, --credential, --topics or --filter")
+		return fmt.Errorf("nothing to update. Pass at least one of --config, --credential, --topics, --filter or --metadata")
 	}
 	return nil
 }
@@ -81,6 +85,10 @@ func (dc *outpostDestinationUpdateCmd) runOutpostDestinationUpdateCmd(cmd *cobra
 		return err
 	}
 	filter, err := dc.fields.resolveFilter()
+	if err != nil {
+		return err
+	}
+	metadata, err := dc.fields.resolveMetadata()
 	if err != nil {
 		return err
 	}
@@ -104,6 +112,7 @@ func (dc *outpostDestinationUpdateCmd) runOutpostDestinationUpdateCmd(cmd *cobra
 		Config:      config,
 		Credentials: credentials,
 		Filter:      filter,
+		Metadata:    metadata,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update destination: %w", err)

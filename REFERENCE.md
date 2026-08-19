@@ -2274,6 +2274,8 @@ hookdeck outpost destination create [flags]
 | `--credentials-file` | `string` | Path to a JSON file of credential fields |
 | `--filter` | `string` | Event filter as a JSON object |
 | `--filter-file` | `string` | Path to a JSON file containing an event filter |
+| `--metadata` | `stringArray` | Metadata as key=value (repeatable) (default "[]") |
+| `--metadata-file` | `string` | Path to a JSON file of metadata key/value pairs |
 | `--output` | `string` | Output format (json) |
 | `--topics` | `string` | Topics to subscribe to, comma-separated, or "*" for all |
 | `--type` | `string` | Destination type (required) |
@@ -2294,6 +2296,11 @@ hookdeck outpost destination create --tenant-id acme --type aws_sqs \
 --config queue_url=https://sqs.eu-west-2.amazonaws.com/1/q \
 --credential key=AKIA... --credential secret=... \
 --filter '{"data":{"tier":"pro"}}'
+
+# With metadata of your own to correlate against your systems
+hookdeck outpost destination create --tenant-id acme --type webhook \
+--config url=https://example.com/hooks \
+--metadata owner=platform --metadata tier=pro
 ```
 ### hookdeck outpost destination update
 
@@ -2301,8 +2308,8 @@ Update an existing destination by its ID.
 
 Only the fields you pass are changed; omitted fields are left alone.
 
-`--filter` is the exception: the API replaces the filter wholesale rather than
-merging into it, so pass the complete filter you want.
+`--filter` and `--metadata` are the exceptions: the API replaces each wholesale
+rather than merging into it, so pass the complete value you want.
 
 **Usage:**
 
@@ -2326,6 +2333,8 @@ hookdeck outpost destination update <destination-id> [flags]
 | `--credentials-file` | `string` | Path to a JSON file of credential fields |
 | `--filter` | `string` | Event filter as a JSON object |
 | `--filter-file` | `string` | Path to a JSON file containing an event filter |
+| `--metadata` | `stringArray` | Metadata as key=value (repeatable) (default "[]") |
+| `--metadata-file` | `string` | Path to a JSON file of metadata key/value pairs |
 | `--output` | `string` | Output format (json) |
 | `--topics` | `string` | Topics to subscribe to, comma-separated, or "*" for all |
 
@@ -2338,6 +2347,10 @@ hookdeck outpost destination update des_abc123 --tenant-id acme \
 
 # Change which topics it receives
 hookdeck outpost destination update des_abc123 --tenant-id acme --topics "*"
+
+# Replace the metadata
+hookdeck outpost destination update des_abc123 --tenant-id acme \
+--metadata owner=platform --metadata tier=pro
 ```
 ### hookdeck outpost destination delete
 

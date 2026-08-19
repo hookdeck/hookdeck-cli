@@ -2,10 +2,7 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -93,30 +90,5 @@ func (tc *outpostTenantUpsertCmd) runOutpostTenantUpsertCmd(cmd *cobra.Command, 
 }
 
 func (tc *outpostTenantUpsertCmd) resolveMetadata() (map[string]string, error) {
-	if tc.metadataFile != "" {
-		contents, err := os.ReadFile(tc.metadataFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read --metadata-file: %w", err)
-		}
-		var metadata map[string]string
-		if err := json.Unmarshal(contents, &metadata); err != nil {
-			return nil, fmt.Errorf("--metadata-file must contain a JSON object of string values: %w", err)
-		}
-		return metadata, nil
-	}
-
-	if len(tc.metadata) == 0 {
-		return nil, nil
-	}
-
-	metadata := make(map[string]string, len(tc.metadata))
-	for _, entry := range tc.metadata {
-		key, value, found := strings.Cut(entry, "=")
-		key = strings.TrimSpace(key)
-		if !found || key == "" {
-			return nil, fmt.Errorf("--metadata %q must be in key=value form", entry)
-		}
-		metadata[key] = value
-	}
-	return metadata, nil
+	return resolveOutpostMetadata(tc.metadata, tc.metadataFile)
 }

@@ -35,6 +35,8 @@ type outpostDestinationFieldFlags struct {
 	topics          string
 	filter          string
 	filterFile      string
+	metadata        []string
+	metadataFile    string
 }
 
 func addOutpostDestinationFieldFlags(cmd *cobra.Command, f *outpostDestinationFieldFlags) {
@@ -45,6 +47,8 @@ func addOutpostDestinationFieldFlags(cmd *cobra.Command, f *outpostDestinationFi
 	cmd.Flags().StringVar(&f.topics, "topics", "", `Topics to subscribe to, comma-separated, or "*" for all`)
 	cmd.Flags().StringVar(&f.filter, "filter", "", "Event filter as a JSON object")
 	cmd.Flags().StringVar(&f.filterFile, "filter-file", "", "Path to a JSON file containing an event filter")
+	cmd.Flags().StringArrayVar(&f.metadata, "metadata", nil, "Metadata as key=value (repeatable)")
+	cmd.Flags().StringVar(&f.metadataFile, "metadata-file", "", "Path to a JSON file of metadata key/value pairs")
 }
 
 func (f *outpostDestinationFieldFlags) validate() error {
@@ -57,12 +61,16 @@ func (f *outpostDestinationFieldFlags) validate() error {
 	if f.filter != "" && f.filterFile != "" {
 		return fmt.Errorf("--filter and --filter-file cannot be used together")
 	}
+	if len(f.metadata) > 0 && f.metadataFile != "" {
+		return fmt.Errorf("--metadata and --metadata-file cannot be used together")
+	}
 	return nil
 }
 
 func (f *outpostDestinationFieldFlags) hasAny() bool {
 	return len(f.config) > 0 || len(f.credential) > 0 || f.configFile != "" ||
-		f.credentialsFile != "" || f.topics != "" || f.filter != "" || f.filterFile != ""
+		f.credentialsFile != "" || f.topics != "" || f.filter != "" || f.filterFile != "" ||
+		len(f.metadata) > 0 || f.metadataFile != ""
 }
 
 func (f *outpostDestinationFieldFlags) resolveConfig() (map[string]interface{}, error) {
@@ -85,6 +93,10 @@ func (f *outpostDestinationFieldFlags) resolveTopics() hookdeck.OutpostTopics {
 	return hookdeck.OutpostTopics(splitCommaList(f.topics))
 }
 
+func (f *outpostDestinationFieldFlags) resolveMetadata() (map[string]string, error) {
+	return resolveOutpostMetadata(f.metadata, f.metadataFile)
+}
+
 func (f *outpostDestinationFieldFlags) resolveFilter() (map[string]interface{}, error) {
 	raw := f.filter
 	if f.filterFile != "" {
@@ -103,6 +115,44 @@ func (f *outpostDestinationFieldFlags) resolveFilter() (map[string]interface{}, 
 		return nil, fmt.Errorf("filter must be a JSON object: %w", err)
 	}
 	return filter, nil
+}
+
+// resolveOutpostMetadata reads --metadata pairs or a --metadata-file into the
+// string map the API expects.
+//
+// Metadata is a plain string map on every Outpost resource that has it, so
+// unlike config and credentials there is no dotted-path nesting here: a dot in
+// a key is part of the key.
+//
+// Nil means "not supplied", which on update is the difference between leaving
+// metadata alone and replacing it.
+func resolveOutpostMetadata(pairs []string, file string) (map[string]string, error) {
+	if file != "" {
+		contents, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read --metadata-file: %w", err)
+		}
+		var metadata map[string]string
+		if err := json.Unmarshal(contents, &metadata); err != nil {
+			return nil, fmt.Errorf("--metadata-file must contain a JSON object of string values: %w", err)
+		}
+		return metadata, nil
+	}
+
+	if len(pairs) == 0 {
+		return nil, nil
+	}
+
+	metadata := make(map[string]string, len(pairs))
+	for _, entry := range pairs {
+		key, value, found := strings.Cut(entry, "=")
+		key = strings.TrimSpace(key)
+		if !found || key == "" {
+			return nil, fmt.Errorf("--metadata %q must be in key=value form", entry)
+		}
+		metadata[key] = value
+	}
+	return metadata, nil
 }
 
 // resolveOutpostFieldMap merges key=value pairs or a JSON file into one map.
