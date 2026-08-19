@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/open"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -70,6 +71,18 @@ func (tc *outpostTenantPortalCmd) runOutpostTenantPortalCmd(cmd *cobra.Command, 
 
 	portal, err := client.GetOutpostTenantPortalURL(context.Background(), args[0], tc.theme)
 	if err != nil {
+		// A 404 here is the documented precondition, not a missing tenant: the
+		// endpoint answers this way whenever the project has no portal to
+		// redirect to. Passing the raw response through would leave the reader
+		// looking for a tenant that exists.
+		if hookdeck.IsNotFoundError(err) {
+			return fmt.Errorf(`this project has no tenant portal, so there is no URL to return.
+
+A portal needs a custom domain, and the change takes a short while to reach the deployment:
+
+  hookdeck outpost config custom-domain set <hostname>
+  hookdeck outpost status`)
+		}
 		return fmt.Errorf("failed to get tenant portal URL: %w", err)
 	}
 

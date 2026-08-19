@@ -375,6 +375,24 @@ func TestOutpostTenantPortal(t *testing.T) {
 		assert.Equal(t, "https://portal.example.com/s/abc\n", stdout)
 	})
 
+	// The endpoint answers 404 whenever the project has no portal, which reads
+	// as a missing tenant unless the CLI says otherwise. The precondition is
+	// documented in the command's help, so the error has to name it too.
+	t.Run("a project with no portal is explained, not dumped", func(t *testing.T) {
+		stubOutpostAPI(t, map[string]http.HandlerFunc{
+			"GET /2025-07-01/tenants/acme/portal": jsonResponse(http.StatusNotFound, map[string]any{
+				"data": map[string]any{"message": "Portal not configured for this project"},
+				"code": "NOT_FOUND",
+			}),
+		})
+
+		_, err := runCommand(t, newOutpostTenantPortalCmd().cmd, "acme")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no tenant portal")
+		assert.Contains(t, err.Error(), "custom-domain set", "the error has to name the fix")
+		assert.NotContains(t, err.Error(), `"code"`, "the raw response body is not an error message")
+	})
+
 	t.Run("an invalid theme is rejected before the request", func(t *testing.T) {
 		requests := stubOutpostAPI(t, nil)
 		_, err := runCommand(t, newOutpostTenantPortalCmd().cmd, "acme", "--theme", "neon")

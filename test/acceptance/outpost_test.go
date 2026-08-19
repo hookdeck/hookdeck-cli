@@ -75,6 +75,184 @@ func TestOutpostDestinationTypes(t *testing.T) {
 	assert.Contains(t, stdout, "--config fields:")
 	assert.Contains(t, stdout, "url")
 	assert.Contains(t, stdout, "required")
+
+	// The types are fetched from the deployment rather than hardcoded, so an
+	// unknown one has to be answered with the list that is actually available —
+	// otherwise the only way to find a valid type is to guess.
+	t.Run("an unknown type lists the available ones", func(t *testing.T) {
+		stdout, _, err := cli.Run("outpost", "destination-type", "get", "banana")
+		require.Error(t, err)
+		assert.Contains(t, stdout, `unknown destination type "banana"`)
+		assert.Contains(t, stdout, "webhook", "the error should list the types that are valid")
+	})
+}
+
+// TestOutpostTenantPagination walks a cursor rather than trusting that the flag
+// is wired up. --next and --prev were accepted by every list command but no
+// test had ever sent one, so a dropped cursor would have looked like a short
+// page instead of a bug.
+func TestOutpostTenantPagination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewOutpostCLIRunner(t)
+
+	// Three tenants guarantee at least two pages at a limit of one, whatever
+	// else is already in the shared project.
+	created := make([]string, 0, 3)
+	for i := 0; i < 3; i++ {
+		created = append(created, createTestTenant(t, cli))
+	}
+
+	type page struct {
+		Models []struct {
+			ID string `json:"id"`
+		} `json:"models"`
+		Pagination struct {
+			Next *string `json:"next"`
+			Prev *string `json:"prev"`
+		} `json:"pagination"`
+	}
+
+	readPage := func(args ...string) page {
+		t.Helper()
+		var p page
+		stdout := cli.RunExpectSuccess(append([]string{"outpost", "tenant", "list", "--limit", "1", "--output", "json"}, args...)...)
+		require.NoError(t, json.Unmarshal([]byte(stdout), &p))
+		return p
+	}
+
+	first := readPage()
+	require.Len(t, first.Models, 1, "--limit was not applied")
+	require.NotNil(t, first.Pagination.Next, "a next cursor is required to page forward")
+
+	second := readPage("--next", *first.Pagination.Next)
+	require.Len(t, second.Models, 1)
+	assert.NotEqual(t, first.Models[0].ID, second.Models[0].ID,
+		"--next returned the same record, so the cursor was not sent")
+
+	// Paging back from the second page must return the first one. This is the
+	// assertion that a cursor is being used rather than silently ignored.
+	require.NotNil(t, second.Pagination.Prev)
+	back := readPage("--prev", *second.Pagination.Prev)
+	require.Len(t, back.Models, 1)
+	assert.Equal(t, first.Models[0].ID, back.Models[0].ID)
+
+	assert.Len(t, created, 3)
+}
+
+// TestOutpostTenantPortalAndCustomDomain covers the tenant portal and the
+// custom-domain commands, which between them had no automated coverage at all.
+//
+// They have to be tested together: a portal URL only exists once the project
+// has a portal custom domain, so proving `tenant portal` works means configuring
+// one.
+//
+// This mutates a project-wide setting rather than being gated behind an opt-in
+// env var. An opt-in would never run in CI, which is the same silent
+// non-execution this work set out to remove — and these are the commands most
+// in need of a real run, since nothing else exercises them. The blast radius is
+// contained instead: the prior state is read first and restored in t.Cleanup,
+// whether the test passes or fails, and the hostname is unique per run.
+//
+// The hostname is a subdomain of a domain Hookdeck owns because the API rejects
+// the reserved test TLDs (.test, .invalid, .example) and example.com. No DNS
+// record is ever created, so the domain stays unverified and is removed at the
+// end of the test.
+func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewOutpostCLIRunner(t)
+
+	readCustomDomain := func() string {
+		t.Helper()
+		stdout := cli.RunExpectSuccess("outpost", "config", "custom-domain", "get", "--output", "json")
+		var domain struct {
+			Hostname string `json:"hostname"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &domain))
+		return domain.Hostname
+	}
+
+	before := readCustomDomain()
+	t.Cleanup(func() {
+		// The happy path already removed it, so only delete what is still there.
+		if readCustomDomain() != "" {
+			if _, _, err := cli.Run("outpost", "config", "custom-domain", "delete", "--force"); err != nil {
+				t.Errorf("cleanup: could not remove the test custom domain: %v", err)
+			}
+		}
+		if before != "" {
+			if _, _, err := cli.Run("outpost", "config", "custom-domain", "set", before); err != nil {
+				t.Errorf("cleanup: could not restore the project's custom domain %q: %v", before, err)
+			}
+		}
+	})
+
+	if before != "" {
+		cli.RunExpectSuccess("outpost", "config", "custom-domain", "delete", "--force")
+	}
+
+	hostname := fmt.Sprintf("cli-acceptance-%d.hookdeck.com", time.Now().UnixNano())
+
+	stdout := cli.RunExpectSuccess("outpost", "config", "custom-domain", "set", hostname)
+	assert.Contains(t, stdout, hostname)
+
+	stdout = cli.RunExpectSuccess("outpost", "config", "custom-domain", "get")
+	assert.Contains(t, stdout, hostname)
+	assert.Contains(t, stdout, "Status:", "a domain that is not yet verified has to say so")
+
+	tenantID := createTestTenant(t, cli)
+
+	// Configuration changes reach the deployment asynchronously, so the portal
+	// 404s for a short while after the domain is set. Polling here is the
+	// difference between testing the command and testing the propagation delay.
+	var portalURL string
+	require.Eventually(t, func() bool {
+		out, _, err := cli.Run("outpost", "tenant", "portal", tenantID)
+		if err != nil {
+			return false
+		}
+		portalURL = strings.TrimSpace(out)
+		return strings.Contains(portalURL, hostname)
+	}, 90*time.Second, 5*time.Second, "the portal URL never became available after setting a custom domain")
+
+	// The URL is a credential and scripts pipe it, so it must be the only thing
+	// printed.
+	assert.Equal(t, 1, len(strings.Split(portalURL, "\n")), "the portal URL must be printed on its own")
+	assert.Contains(t, portalURL, "token=", "the URL carries the tenant's portal session")
+
+	t.Run("theme is passed through", func(t *testing.T) {
+		for _, theme := range []string{"light", "dark"} {
+			out := cli.RunExpectSuccess("outpost", "tenant", "portal", tenantID, "--theme", theme, "--output", "json")
+			var portal struct {
+				RedirectURL string `json:"redirect_url"`
+				TenantID    string `json:"tenant_id"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(out), &portal))
+			assert.Equal(t, tenantID, portal.TenantID)
+			assert.Contains(t, portal.RedirectURL, "theme="+theme)
+		}
+	})
+
+	t.Run("an invalid theme is rejected", func(t *testing.T) {
+		stdout, _, err := cli.Run("outpost", "tenant", "portal", tenantID, "--theme", "neon")
+		require.Error(t, err)
+		assert.Contains(t, stdout, "--theme must be either light or dark")
+	})
+
+	// --open launches a browser, so it is never exercised here; this only
+	// checks it is still offered, since the flag is otherwise unreferenced.
+	t.Run("--open is offered", func(t *testing.T) {
+		help := cli.RunExpectSuccess("outpost", "tenant", "portal", "--help")
+		assert.Contains(t, help, "--open")
+	})
+
+	cli.RunExpectSuccess("outpost", "config", "custom-domain", "delete", "--force")
+	assert.Empty(t, readCustomDomain(), "the domain should be gone after delete")
 }
 
 func TestOutpostTenantLifecycle(t *testing.T) {

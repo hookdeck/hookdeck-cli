@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -122,6 +123,89 @@ type ErrorResponse struct {
 	// change — the Outpost API, for instance, returns
 	// {"message":"validation error","data":["topic is invalid"]}.
 	Data []string `json:"data,omitempty"`
+}
+
+// UnmarshalJSON decodes an error body, accepting every shape "data" is returned
+// in rather than only the array of strings a validation failure uses.
+//
+// This is not cosmetic. The caller falls back to dumping the raw response body
+// whenever this decode fails, so a body whose "data" is an object — which is
+// how not-found and several rejected-value errors come back — reached the user
+// as a wall of JSON with the readable message buried inside it. Being liberal
+// here is what turns those into a sentence.
+func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
+	// A distinct type avoids recursing into this method.
+	var raw struct {
+		Handled bool            `json:"Handled"`
+		Message string          `json:"message"`
+		Data    json.RawMessage `json:"data,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	e.Handled = raw.Handled
+	e.Message = raw.Message
+	e.Data = flattenErrorData(raw.Data)
+
+	return nil
+}
+
+// flattenErrorData renders the "data" member as lines of detail.
+func flattenErrorData(raw json.RawMessage) []string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+
+	var decoded interface{}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil
+	}
+
+	switch value := decoded.(type) {
+	case string:
+		return []string{value}
+
+	case []interface{}:
+		lines := make([]string, 0, len(value))
+		for _, item := range value {
+			lines = append(lines, errorDataScalar(item))
+		}
+		return lines
+
+	case map[string]interface{}:
+		// A nested message is the whole story; the surrounding keys are
+		// bookkeeping, so repeating them would only add noise.
+		if message, ok := value["message"].(string); ok && message != "" {
+			return []string{message}
+		}
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		lines := make([]string, 0, len(keys))
+		for _, key := range keys {
+			lines = append(lines, key+": "+errorDataScalar(value[key]))
+		}
+		return lines
+
+	default:
+		return []string{errorDataScalar(decoded)}
+	}
+}
+
+// errorDataScalar renders one detail value, keeping strings unquoted.
+func errorDataScalar(value interface{}) string {
+	if s, ok := value.(string); ok {
+		return s
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(encoded)
 }
 
 // Detail returns the message with any field-level detail appended.
