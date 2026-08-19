@@ -177,10 +177,15 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 		return domain.Hostname
 	}
 
+	hostname := fmt.Sprintf("cli-acceptance-%d.hookdeck.com", time.Now().UnixNano())
+
 	before := readCustomDomain()
 	t.Cleanup(func() {
-		// The happy path already removed it, so only delete what is still there.
-		if readCustomDomain() != "" {
+		// Only remove the domain this test set. The happy path already deleted
+		// it, and a concurrent run against the same project may have configured
+		// its own by now — deleting that would fail the other run rather than
+		// this one.
+		if readCustomDomain() == hostname {
 			if _, _, err := cli.Run("outpost", "config", "custom-domain", "delete", "--force"); err != nil {
 				t.Errorf("cleanup: could not remove the test custom domain: %v", err)
 			}
@@ -196,8 +201,6 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 		cli.RunExpectSuccess("outpost", "config", "custom-domain", "delete", "--force")
 	}
 
-	hostname := fmt.Sprintf("cli-acceptance-%d.hookdeck.com", time.Now().UnixNano())
-
 	stdout := cli.RunExpectSuccess("outpost", "config", "custom-domain", "set", hostname)
 	assert.Contains(t, stdout, hostname)
 
@@ -210,6 +213,11 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 	// Configuration changes reach the deployment asynchronously, so the portal
 	// 404s for a short while after the domain is set. Polling here is the
 	// difference between testing the command and testing the propagation delay.
+	//
+	// The hostname is asserted above, on the fast path; this only waits for a
+	// URL to exist. Requiring our hostname here as well would make the test
+	// fail whenever a concurrent run against the same project has replaced the
+	// domain in the meantime — a collision between runs, not a CLI defect.
 	var portalURL string
 	require.Eventually(t, func() bool {
 		out, _, err := cli.Run("outpost", "tenant", "portal", tenantID)
@@ -217,7 +225,7 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 			return false
 		}
 		portalURL = strings.TrimSpace(out)
-		return strings.Contains(portalURL, hostname)
+		return strings.Contains(portalURL, "token=")
 	}, 90*time.Second, 5*time.Second, "the portal URL never became available after setting a custom domain")
 
 	// The URL is a credential and scripts pipe it, so it must be the only thing

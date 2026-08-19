@@ -707,6 +707,8 @@ hookdeck outpost destination create --type kafka --help
 
 Both list every field with whether it is required, whether it is sensitive, and any values or format it is constrained to. `--config-file` accepts a JSON object, and nested values — should a type ever need them — use dotted paths (`--config a.b=c`).
 
+Tenants and destinations also carry `--metadata key=value` (repeatable, or `--metadata-file` for a JSON object) for your own correlation data. It is replaced wholesale rather than merged, so pass every key you want to keep.
+
 #### Publishing
 
 `hookdeck outpost publish` is the one command that does **not** use the credentials stored by `hookdeck login`. The publish API requires a Hookdeck **Project API key**, so pass `--api-key` or set `HOOKDECK_API_KEY`:
