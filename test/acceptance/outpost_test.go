@@ -218,15 +218,29 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 	// URL to exist. Requiring our hostname here as well would make the test
 	// fail whenever a concurrent run against the same project has replaced the
 	// domain in the meantime — a collision between runs, not a CLI defect.
-	var portalURL string
-	require.Eventually(t, func() bool {
-		out, _, err := cli.Run("outpost", "tenant", "portal", tenantID)
-		if err != nil {
-			return false
-		}
-		portalURL = strings.TrimSpace(out)
-		return strings.Contains(portalURL, "token=")
-	}, 90*time.Second, 5*time.Second, "the portal URL never became available after setting a custom domain")
+	// portalEventually runs a portal command, retrying while the deployment
+	// still reports the portal as unconfigured.
+	//
+	// Propagation is not only delayed but uneven: the portal can answer once and
+	// 404 on the very next call. Waiting for it to appear a single time and then
+	// treating it as available for the rest of the test is what makes this test
+	// flaky, so every portal call goes through here.
+	portalEventually := func(t *testing.T, args ...string) string {
+		t.Helper()
+		var out string
+		require.Eventually(t, func() bool {
+			stdout, _, err := cli.Run(append([]string{"outpost", "tenant", "portal"}, args...)...)
+			if err != nil {
+				return false
+			}
+			out = strings.TrimSpace(stdout)
+			return out != ""
+		}, 90*time.Second, 5*time.Second, "the portal never became available after setting a custom domain")
+		return out
+	}
+
+	portalURL := portalEventually(t, tenantID)
+	require.Contains(t, portalURL, "token=")
 
 	// The URL is a credential and scripts pipe it, so it must be the only thing
 	// printed.
@@ -235,7 +249,7 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 
 	t.Run("theme is passed through", func(t *testing.T) {
 		for _, theme := range []string{"light", "dark"} {
-			out := cli.RunExpectSuccess("outpost", "tenant", "portal", tenantID, "--theme", theme, "--output", "json")
+			out := portalEventually(t, tenantID, "--theme", theme, "--output", "json")
 			var portal struct {
 				RedirectURL string `json:"redirect_url"`
 				TenantID    string `json:"tenant_id"`
