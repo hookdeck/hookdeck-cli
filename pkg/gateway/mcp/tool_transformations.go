@@ -17,14 +17,20 @@ var transformationsActions = mcpcore.ActionSet{
 	{Name: "update", Desc: "update a transformation's code or environment", Write: true},
 	{Name: "delete", Desc: "delete a transformation", Write: true, Destructive: true},
 
-	// run is marked Write even though it stores nothing.
+	// run is a read: it is a sandbox evaluation with no side effects.
 	//
-	// It executes caller-supplied JavaScript on Hookdeck's transformation
-	// runtime. Treating "changes no records" as "is a read" would let a
-	// read-only session run arbitrary code, which is not what a user asking for
-	// read-only is asking for. The gate is about what the session can cause to
-	// happen, not only about what it persists.
-	{Name: "run", Desc: "execute transformation code against a sample request and return the result", Write: true},
+	// Verified against the API — a run creates no execution record and returns
+	// no execution id. It modifies no transformation, connection or event, and
+	// delivers nothing to a destination. The execution_id and request_id fields
+	// on the response are only populated when running against an already
+	// captured request, and they reference that existing record rather than
+	// creating one.
+	//
+	// Keeping it available in read-only mode is also what makes the mode useful:
+	// a session that can read transformation code but cannot try it against a
+	// sample payload cannot actually debug a transformation, which is the
+	// investigation work read-only mode exists for.
+	{Name: "run", Desc: "execute transformation code against a sample request and return the result"},
 }
 
 var transformationsSpec = mcpcore.ToolSpec{

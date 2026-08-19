@@ -82,7 +82,9 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 		assert.Equal(t, []string{"list", "get", "pause", "unpause"}, actionEnum(t, tools["gateway_connections"]))
 		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_sources"]))
 		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_destinations"]))
-		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_transformations"]))
+		// run stays available: it is a sandbox evaluation that persists nothing,
+		// and debugging a transformation is read-only-mode work.
+		assert.Equal(t, []string{"list", "get", "run"}, actionEnum(t, tools["gateway_transformations"]))
 		assert.Equal(t, []string{"list", "get", "raw_body"}, actionEnum(t, tools["gateway_events"]))
 		assert.Equal(t, []string{"list", "get", "raw_body", "events", "ignored_events"}, actionEnum(t, tools["gateway_requests"]))
 		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_issues"]))
@@ -102,7 +104,7 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 			"gateway_transformations", "gateway_events", "gateway_requests", "gateway_issues",
 		} {
 			description := tools[name].Description
-			for _, action := range []string{"create", "upsert", "update", "delete", "retry", "cancel", "mute", "dismiss", "run"} {
+			for _, action := range []string{"create", "upsert", "update", "delete", "retry", "cancel", "mute", "dismiss"} {
 				assert.NotContains(t, description, " "+action+" (", "%s should not describe the %s action", name, action)
 			}
 		}
@@ -221,7 +223,6 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 		{"gateway_destinations", map[string]any{"action": "delete", "id": "des_1"}},
 		{"gateway_transformations", map[string]any{"action": "create", "name": "t", "code": "return"}},
 		{"gateway_transformations", map[string]any{"action": "delete", "id": "trs_1"}},
-		{"gateway_transformations", map[string]any{"action": "run", "code": "return request"}},
 		{"gateway_events", map[string]any{"action": "retry", "id": "evt_1"}},
 		{"gateway_events", map[string]any{"action": "cancel", "id": "evt_1"}},
 		{"gateway_events", map[string]any{"action": "mute", "id": "evt_1"}},
@@ -266,6 +267,31 @@ func TestWriteGuard_PauseIsNotGated(t *testing.T) {
 				action, textContent(t, result))
 		})
 	}
+}
+
+// TestWriteGuard_TransformationRunIsNotGated pins run as a read.
+//
+// A run is a sandbox evaluation: verified against the API, it creates no
+// execution record and returns no execution id. Gating it would leave a
+// read-only session able to read transformation code but unable to try it,
+// which is the debugging work read-only mode is for.
+func TestWriteGuard_TransformationRunIsNotGated(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"/2025-07-01/transformations/run": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"request": map[string]any{"headers": map[string]any{}},
+			})
+		},
+	})
+	session := connectInMemory(t, newTestClient(api.URL, "test-key"))
+
+	result := callTool(t, session, "gateway_transformations", map[string]any{
+		"action":  "run",
+		"code":    "addHandler(\"transform\", (request, context) => { return request; });",
+		"request": map[string]any{"headers": map[string]any{}},
+	})
+	assert.False(t, result.IsError, "run must stay available in read-only mode: %s",
+		textContent(t, result))
 }
 
 func TestWriteGuard_AllowsWriteActionsInWriteMode(t *testing.T) {
