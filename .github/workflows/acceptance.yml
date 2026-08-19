@@ -34,6 +34,11 @@ jobs:
       ACCEPTANCE_SLICE: ${{ matrix.slice }}
       HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets[matrix.api_key_secret] }}
       HOOKDECK_CLI_OUTPOST_TESTING_API_KEY: ${{ secrets.HOOKDECK_CLI_OUTPOST_TESTING_API_KEY }}
+      # Only the project list/use tests use this, and only in slice 0. It must be a
+      # user-associated CLI key from `hookdeck login`: project-scoped keys cannot list
+      # or switch projects, so those tests skip themselves when it is absent — which is
+      # why they ran nowhere until this was wired through.
+      HOOKDECK_CLI_TESTING_CLI_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_CLI_KEY }}
       HOOKDECK_CLI_TELEMETRY_DISABLED: "1"
     steps:
       - name: Check out code
