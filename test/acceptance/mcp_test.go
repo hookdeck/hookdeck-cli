@@ -32,6 +32,8 @@ func TestMCPHelp(t *testing.T) {
 	assert.Contains(t, stdout, "Model Context Protocol")
 	assert.Contains(t, stdout, "stdio")
 	assert.Contains(t, stdout, "hookdeck gateway mcp")
+	assert.Contains(t, stdout, "--allow-write")
+	assert.Contains(t, stdout, "read-only")
 }
 
 func TestGatewayHelpListsMCP(t *testing.T) {
@@ -151,4 +153,118 @@ func TestGatewayMCPStdio_OutpostProjectRejected(t *testing.T) {
 	if strings.TrimSpace(stdout) != "" {
 		assertGatewayMCPStdioHygiene(t, stdout, stderr)
 	}
+}
+
+// --- Write mode (--allow-write) ---
+
+var gatewayMCPCommand = []string{"gateway", "mcp"}
+
+func TestGatewayMCPStdio_ReadOnlyByDefault(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	tools, stdout, stderr := ListMCPTools(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, 10*time.Second)
+	assertGatewayMCPStdioHygiene(t, stdout, stderr)
+
+	// Product tools take the gateway_ prefix; the platform tools keep
+	// hookdeck_, because you log in to Hookdeck and switch a Hookdeck project
+	// whichever product's server you are in.
+	for _, name := range []string{
+		"hookdeck_projects", "hookdeck_login",
+		"gateway_help", "gateway_connections", "gateway_sources",
+		"gateway_destinations", "gateway_transformations", "gateway_requests",
+		"gateway_events", "gateway_attempts", "gateway_issues", "gateway_metrics",
+	} {
+		assert.Contains(t, tools, name)
+	}
+	for _, name := range []string{"gateway_login", "gateway_projects"} {
+		assert.NotContains(t, tools, name, "platform tools must not carry the product prefix")
+	}
+	for _, name := range []string{"hookdeck_connections", "hookdeck_events", "hookdeck_help"} {
+		assert.NotContains(t, tools, name, "product tools were renamed to gateway_ in v3")
+	}
+
+	// Nothing that creates, changes or deletes.
+	assert.Equal(t, []string{"list", "get", "pause", "unpause"},
+		MCPToolActionEnum(t, tools["gateway_connections"]))
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_sources"]))
+	assert.Equal(t, []string{"list", "get", "raw_body"}, MCPToolActionEnum(t, tools["gateway_events"]))
+}
+
+func TestGatewayMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	command := append(append([]string{}, gatewayMCPCommand...), "--allow-write")
+	tools, stdout, stderr := ListMCPTools(t, cli.projectRoot, cli.configPath, command, 10*time.Second)
+	assertGatewayMCPStdioHygiene(t, stdout, stderr)
+
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_events"]), "retry")
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_requests"]), "retry")
+	for _, want := range []string{"create", "upsert", "update", "delete", "enable", "disable"} {
+		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_connections"]), want)
+		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_sources"]), want)
+	}
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_issues"]), "dismiss")
+
+	// Read-only tools stay read-only in write mode.
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_attempts"]))
+}
+
+func TestGatewayMCPStdio_ReadOnlyRefusesWriteAction(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_sources", map[string]any{
+		"action": "delete",
+		"id":     "src_does_not_exist",
+	}, 20*time.Second)
+
+	require.True(t, result.IsError, "a read-only server must refuse delete: %s", result.Text)
+	assert.Contains(t, result.Text, "read-only mode")
+	assert.Contains(t, result.Text, "--allow-write")
+}
+
+// TestGatewayMCPStdio_PauseStaysAvailableReadOnly is the acceptance-level
+// counterpart to the unit test: pause is a mutation that deliberately remains
+// offered in read-only mode, because read-only is the mode incidents get
+// investigated in.
+func TestGatewayMCPStdio_PauseStaysAvailableReadOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_connections", map[string]any{
+		"action": "pause",
+		"id":     "conn_does_not_exist",
+	}, 20*time.Second)
+
+	// It fails because the connection does not exist, not because the action
+	// was gated. The distinction is the whole point of the test.
+	assert.NotContains(t, result.Text, "read-only mode")
+	assert.NotContains(t, result.Text, "--allow-write")
+}
+
+func TestGatewayMCPTool_HelpReportsMode(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	readOnly := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand,
+		"gateway_help", map[string]any{}, 20*time.Second)
+	assert.Contains(t, readOnly.Text, "Mode: read-only")
+	assert.Contains(t, readOnly.Text, "--allow-write")
+
+	write := CallMCPTool(t, cli.projectRoot, cli.configPath,
+		append(append([]string{}, gatewayMCPCommand...), "--allow-write"),
+		"gateway_help", map[string]any{}, 20*time.Second)
+	assert.Contains(t, write.Text, "Mode: write enabled")
 }

@@ -614,23 +614,49 @@ Claude Desktop (`claude_desktop_config.json`):
 
 The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool is available to log in via the browser.
 
+#### Read-only by default
+
+The server starts read-only. Tools advertise only the actions that read data, so an agent is never offered an action it cannot perform. Pass `--allow-write` (or set `HOOKDECK_MCP_ALLOW_WRITE=true`) to enable creating, changing and deleting:
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp", "--allow-write"]
+    }
+  }
+}
+```
+
+`--read-only` is accepted explicitly and wins if both are passed.
+
+Pausing and unpausing a connection are available in **both** modes. Read-only is the mode incidents get investigated in, and stopping a misbehaving connection is the natural end of an investigation; both are reversible, and pausing buffers delivery rather than dropping events.
+
 #### Available tools
 
-| Tool | Description |
-|------|-------------|
-| `hookdeck_projects` | List projects or switch the active project for this session |
-| `gateway_connections` | Inspect connections and control delivery flow (list, get, pause, unpause) |
-| `gateway_sources` | Inspect inbound sources (HTTP endpoints that receive events) |
-| `gateway_destinations` | Inspect delivery destinations (HTTP endpoints where events are sent) |
-| `gateway_transformations` | Inspect JavaScript transformations applied to event payloads |
-| `gateway_requests` | Query inbound requests — list, get details, raw body, linked events |
-| `gateway_events` | Query processed events — list, get details, raw payload body |
-| `gateway_attempts` | Query delivery attempts — retry history, response codes, errors |
-| `gateway_issues` | Inspect aggregated failure signals (delivery failures, transform errors, backpressure) |
-| `gateway_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
-| `gateway_help` | Discover available tools and their actions |
+Product tools are prefixed `gateway_`. Signing in and switching project are Hookdeck operations rather than Event Gateway ones, so they keep the platform `hookdeck_` prefix and are shared with `hookdeck outpost mcp`.
+
+| Tool | Read actions | Added by `--allow-write` |
+|------|--------------|--------------------------|
+| `hookdeck_projects` | list, use | — |
+| `hookdeck_login` | (sign in) | — |
+| `gateway_connections` | list, get, pause, unpause | create, upsert, update, delete, enable, disable |
+| `gateway_sources` | list, get | create, upsert, update, delete, enable, disable |
+| `gateway_destinations` | list, get | create, upsert, update, delete, enable, disable |
+| `gateway_transformations` | list, get | create, upsert, update, delete, run |
+| `gateway_requests` | list, get, raw_body, events, ignored_events | retry |
+| `gateway_events` | list, get, raw_body | retry, cancel, mute |
+| `gateway_attempts` | list, get | — |
+| `gateway_issues` | list, get | update, dismiss |
+| `gateway_metrics` | events, requests, attempts, transformations | — |
+| `gateway_help` | overview, per-tool topics | — |
+
+`transformations run` executes code without storing anything, but it is gated as a write: a read-only session should not be able to run caller-supplied code.
 
 `gateway_events` and `gateway_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `gateway_help` with topic `gateway_events` or `gateway_requests` for the full parameter list.
+
+`gateway_help` reports which mode the session is in and lists only the actions it can perform.
 
 #### Example prompts
 
