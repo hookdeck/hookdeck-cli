@@ -61,7 +61,8 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 		for _, name := range []string{
 			"hookdeck_projects", "hookdeck_login", "gateway_help",
 			"gateway_connections", "gateway_sources", "gateway_destinations",
-			"gateway_transformations", "gateway_requests", "gateway_events",
+			"gateway_transformations", "gateway_requests", "gateway_request",
+			"gateway_events", "gateway_event",
 			"gateway_attempts", "gateway_issues", "gateway_metrics",
 		} {
 			assert.Contains(t, tools, name)
@@ -85,8 +86,12 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 		// run stays available: it is a sandbox evaluation that persists nothing,
 		// and debugging a transformation is read-only-mode work.
 		assert.Equal(t, []string{"list", "get", "run"}, actionEnum(t, tools["gateway_transformations"]))
-		assert.Equal(t, []string{"list", "get", "raw_body"}, actionEnum(t, tools["gateway_events"]))
-		assert.Equal(t, []string{"list", "get", "raw_body", "events", "ignored_events"}, actionEnum(t, tools["gateway_requests"]))
+		// The plural tools search and nothing else; the singular tools are
+		// where the by-id actions live, write-gated as before.
+		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_events"]))
+		assert.Equal(t, []string{"get", "raw_body"}, actionEnum(t, tools["gateway_event"]))
+		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_requests"]))
+		assert.Equal(t, []string{"get", "raw_body", "events", "ignored_events"}, actionEnum(t, tools["gateway_request"]))
 		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_issues"]))
 	})
 
@@ -101,7 +106,7 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 	t.Run("write actions are absent from the description", func(t *testing.T) {
 		for _, name := range []string{
 			"gateway_connections", "gateway_sources", "gateway_destinations",
-			"gateway_transformations", "gateway_events", "gateway_requests", "gateway_issues",
+			"gateway_transformations", "gateway_event", "gateway_request", "gateway_issues",
 		} {
 			description := tools[name].Description
 			for _, action := range []string{"create", "upsert", "update", "delete", "retry", "cancel", "mute", "dismiss"} {
@@ -111,13 +116,17 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 	})
 
 	t.Run("read-only mode is stated in the description", func(t *testing.T) {
-		assert.Contains(t, tools["gateway_events"].Description, "read-only mode")
-		assert.Contains(t, tools["gateway_events"].Description, "gateway_help")
+		assert.Contains(t, tools["gateway_event"].Description, "read-only mode")
+		assert.Contains(t, tools["gateway_event"].Description, "gateway_help")
+		// The plural tools only search, so there is nothing being withheld
+		// from them and no notice to give.
+		assert.NotContains(t, tools["gateway_events"].Description, "read-only mode")
 	})
 
 	t.Run("tools are annotated read-only", func(t *testing.T) {
 		for _, name := range []string{
 			"gateway_connections", "gateway_sources", "gateway_events",
+			"gateway_event", "gateway_requests", "gateway_request",
 			"gateway_attempts", "gateway_metrics",
 		} {
 			require.NotNil(t, tools[name].Annotations, name)
@@ -144,12 +153,16 @@ func TestListTools_WriteMode(t *testing.T) {
 		assert.Equal(t,
 			[]string{"list", "get", "create", "upsert", "update", "delete", "run"},
 			actionEnum(t, tools["gateway_transformations"]))
+		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_events"]),
+			"the plural tool stays search-only in write mode")
 		assert.Equal(t,
-			[]string{"list", "get", "raw_body", "retry", "cancel", "mute"},
-			actionEnum(t, tools["gateway_events"]))
+			[]string{"get", "raw_body", "retry", "cancel", "mute"},
+			actionEnum(t, tools["gateway_event"]))
+		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_requests"]),
+			"the plural tool stays search-only in write mode")
 		assert.Equal(t,
-			[]string{"list", "get", "raw_body", "events", "ignored_events", "retry"},
-			actionEnum(t, tools["gateway_requests"]))
+			[]string{"get", "raw_body", "events", "ignored_events", "retry"},
+			actionEnum(t, tools["gateway_request"]))
 		assert.Equal(t,
 			[]string{"list", "get", "update", "dismiss"},
 			actionEnum(t, tools["gateway_issues"]))
@@ -157,7 +170,12 @@ func TestListTools_WriteMode(t *testing.T) {
 
 	t.Run("tools with writes are no longer annotated read-only", func(t *testing.T) {
 		assert.False(t, tools["gateway_connections"].Annotations.ReadOnlyHint)
-		assert.False(t, tools["gateway_events"].Annotations.ReadOnlyHint)
+		assert.False(t, tools["gateway_event"].Annotations.ReadOnlyHint)
+		assert.False(t, tools["gateway_request"].Annotations.ReadOnlyHint)
+		assert.True(t, tools["gateway_events"].Annotations.ReadOnlyHint,
+			"searching for events changes nothing in any mode")
+		assert.True(t, tools["gateway_requests"].Annotations.ReadOnlyHint,
+			"searching for requests changes nothing in any mode")
 		assert.True(t, tools["gateway_attempts"].Annotations.ReadOnlyHint,
 			"attempts has no write actions in any mode")
 		assert.True(t, tools["gateway_metrics"].Annotations.ReadOnlyHint,
@@ -167,18 +185,22 @@ func TestListTools_WriteMode(t *testing.T) {
 	t.Run("destructive tools carry the destructive hint", func(t *testing.T) {
 		for _, name := range []string{
 			"gateway_connections", "gateway_sources", "gateway_destinations",
-			"gateway_transformations", "gateway_events", "gateway_issues",
+			"gateway_transformations", "gateway_event", "gateway_issues",
 		} {
 			require.NotNil(t, tools[name].Annotations.DestructiveHint, name)
 			assert.True(t, *tools[name].Annotations.DestructiveHint, "%s should be flagged destructive", name)
 		}
-		require.NotNil(t, tools["gateway_requests"].Annotations.DestructiveHint)
-		assert.False(t, *tools["gateway_requests"].Annotations.DestructiveHint,
-			"retrying a request destroys nothing")
+		// cancel and mute moved to the singular tool, so the plural one no
+		// longer claims to be destructive.
+		for _, name := range []string{"gateway_request", "gateway_events", "gateway_requests"} {
+			require.NotNil(t, tools[name].Annotations.DestructiveHint, name)
+			assert.False(t, *tools[name].Annotations.DestructiveHint,
+				"%s destroys nothing", name)
+		}
 	})
 
 	t.Run("the read-only notice is gone", func(t *testing.T) {
-		assert.NotContains(t, tools["gateway_events"].Description, "read-only mode")
+		assert.NotContains(t, tools["gateway_event"].Description, "read-only mode")
 	})
 }
 
@@ -223,10 +245,10 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 		{"gateway_destinations", map[string]any{"action": "delete", "id": "des_1"}},
 		{"gateway_transformations", map[string]any{"action": "create", "name": "t", "code": "return"}},
 		{"gateway_transformations", map[string]any{"action": "delete", "id": "trs_1"}},
-		{"gateway_events", map[string]any{"action": "retry", "id": "evt_1"}},
-		{"gateway_events", map[string]any{"action": "cancel", "id": "evt_1"}},
-		{"gateway_events", map[string]any{"action": "mute", "id": "evt_1"}},
-		{"gateway_requests", map[string]any{"action": "retry", "id": "req_1"}},
+		{"gateway_event", map[string]any{"action": "retry", "id": "evt_1"}},
+		{"gateway_event", map[string]any{"action": "cancel", "id": "evt_1"}},
+		{"gateway_event", map[string]any{"action": "mute", "id": "evt_1"}},
+		{"gateway_request", map[string]any{"action": "retry", "id": "req_1"}},
 		{"gateway_issues", map[string]any{"action": "update", "id": "iss_1", "status": "RESOLVED"}},
 		{"gateway_issues", map[string]any{"action": "dismiss", "id": "iss_1"}},
 	}
@@ -317,8 +339,8 @@ func TestWriteGuard_AllowsWriteActionsInWriteMode(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"events retry", "gateway_events", map[string]any{"action": "retry", "id": "evt_1"}, "POST /2025-07-01/events/evt_1/retry"},
-		{"requests retry", "gateway_requests", map[string]any{"action": "retry", "id": "req_1"}, "POST /2025-07-01/requests/req_1/retry"},
+		{"event retry", "gateway_event", map[string]any{"action": "retry", "id": "evt_1"}, "POST /2025-07-01/events/evt_1/retry"},
+		{"request retry", "gateway_request", map[string]any{"action": "retry", "id": "req_1"}, "POST /2025-07-01/requests/req_1/retry"},
 		{"sources create", "gateway_sources", map[string]any{"action": "create", "name": "s", "type": "HTTP"}, "POST /2025-07-01/sources"},
 		{"sources upsert", "gateway_sources", map[string]any{"action": "upsert", "name": "s", "type": "HTTP"}, "PUT /2025-07-01/sources"},
 		{"destinations create", "gateway_destinations", map[string]any{"action": "create", "name": "d", "type": "HTTP"}, "POST /2025-07-01/destinations"},
@@ -348,10 +370,10 @@ func TestWriteActions_RequireAnID(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"gateway_events", map[string]any{"action": "retry"}},
-		{"gateway_events", map[string]any{"action": "cancel"}},
-		{"gateway_events", map[string]any{"action": "mute"}},
-		{"gateway_requests", map[string]any{"action": "retry"}},
+		{"gateway_event", map[string]any{"action": "retry"}},
+		{"gateway_event", map[string]any{"action": "cancel"}},
+		{"gateway_event", map[string]any{"action": "mute"}},
+		{"gateway_request", map[string]any{"action": "retry"}},
 		{"gateway_sources", map[string]any{"action": "delete"}},
 		{"gateway_destinations", map[string]any{"action": "delete"}},
 		{"gateway_transformations", map[string]any{"action": "delete"}},
@@ -388,7 +410,7 @@ func TestHelpReportsMode(t *testing.T) {
 
 	t.Run("a topic only documents the available actions", func(t *testing.T) {
 		session := connectInMemory(t, newTestClient(api.URL, "test-key"))
-		text := textContent(t, callTool(t, session, "gateway_help", map[string]any{"topic": "gateway_events"}))
+		text := textContent(t, callTool(t, session, "gateway_help", map[string]any{"topic": "gateway_event"}))
 
 		// Scope the assertion to the generated Actions list. Prose further down
 		// may legitimately mention what the gated actions do.
@@ -397,7 +419,7 @@ func TestHelpReportsMode(t *testing.T) {
 		actions, _, ok := strings.Cut(rest, "\n\n")
 		require.True(t, ok)
 
-		assert.Contains(t, actions, "list")
+		assert.Contains(t, actions, "get")
 		for _, gated := range []string{"retry", "cancel", "mute"} {
 			assert.NotContains(t, actions, gated,
 				"read-only help must not list the %s action", gated)

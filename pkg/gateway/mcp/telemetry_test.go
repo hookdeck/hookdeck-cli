@@ -152,6 +152,43 @@ func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
 	require.Equal(t, "gateway_sources/get", getTel.CommandPath)
 }
 
+// command_path is "<tool>/<action>", so splitting a tool changes what
+// telemetry reports for the actions that moved. The singular tools have to
+// report their own names, not the plural ones they came from.
+func TestMCPToolCall_TelemetryNamesTheSingularTools(t *testing.T) {
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
+
+	cases := []struct {
+		tool, action, id, path, want string
+	}{
+		{"gateway_event", "get", "evt_1", "/2025-07-01/events/evt_1", "gateway_event/get"},
+		{"gateway_request", "get", "req_1", "/2025-07-01/requests/req_1", "gateway_request/get"},
+		{"gateway_events", "list", "", "/2025-07-01/events", "gateway_events/list"},
+		{"gateway_requests", "list", "", "/2025-07-01/requests", "gateway_requests/list"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.want, func(t *testing.T) {
+			capture := &headerCapture{}
+			session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+				tc.path: capture.handler(func(w http.ResponseWriter, r *http.Request) {
+					json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "res_1"}))
+				}),
+			})
+
+			args := map[string]any{"action": tc.action}
+			if tc.id != "" {
+				args["id"] = tc.id
+			}
+			result := callTool(t, session, tc.tool, args)
+			require.False(t, result.IsError)
+
+			tel := parseTelemetryHeader(t, capture.last())
+			require.Equal(t, tc.want, tel.CommandPath)
+		})
+	}
+}
+
 func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
 	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
 

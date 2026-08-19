@@ -167,8 +167,9 @@ func TestListTools_Authenticated(t *testing.T) {
 
 	expectedTools := []string{
 		"hookdeck_projects", "gateway_connections", "gateway_sources",
-		"gateway_destinations", "gateway_transformations", "gateway_requests",
-		"gateway_events", "gateway_attempts", "gateway_issues",
+		"gateway_destinations", "gateway_transformations",
+		"gateway_requests", "gateway_request",
+		"gateway_events", "gateway_event", "gateway_attempts", "gateway_issues",
 		"gateway_metrics", "gateway_help",
 	}
 	for _, name := range expectedTools {
@@ -191,6 +192,7 @@ func TestListTools_Unauthenticated(t *testing.T) {
 	assert.Contains(t, toolNames, "hookdeck_login")
 	assert.Contains(t, toolNames, "gateway_help")
 	assert.Contains(t, toolNames, "gateway_events")
+	assert.Contains(t, toolNames, "gateway_event")
 }
 
 // ---------------------------------------------------------------------------
@@ -215,12 +217,54 @@ func TestHelpTool_SpecificTopic(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 
-	result := callTool(t, session, "gateway_help", map[string]any{"topic": "gateway_events"})
+	result := callTool(t, session, "gateway_help", map[string]any{"topic": "gateway_event"})
 	assert.False(t, result.IsError)
 	text := textContent(t, result)
-	assert.Contains(t, text, "list")
 	assert.Contains(t, text, "get")
 	assert.Contains(t, text, "raw_body")
+}
+
+// The plural/singular split is only usable if help says which tool does what,
+// so each topic has to point at its counterpart by name.
+func TestHelpTopics_PointAtTheirCounterpart(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	cases := []struct{ topic, wants string }{
+		{"gateway_events", "gateway_event"},
+		{"gateway_event", "gateway_events"},
+		{"gateway_requests", "gateway_request"},
+		{"gateway_request", "gateway_requests"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.topic, func(t *testing.T) {
+			result := callTool(t, session, "gateway_help", map[string]any{"topic": tc.topic})
+			assert.False(t, result.IsError)
+			assert.Contains(t, textContent(t, result), tc.wants)
+		})
+	}
+}
+
+// The only relationship traversal the API supports is request → events. An
+// agent told nothing will look for a request_id filter that does not exist, so
+// both event topics have to say where the traversal lives.
+func TestHelpTopics_DocumentTheOneTraversalDirection(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	for _, topic := range []string{"gateway_events", "gateway_event"} {
+		t.Run(topic, func(t *testing.T) {
+			text := textContent(t, callTool(t, session, "gateway_help", map[string]any{"topic": topic}))
+			assert.Contains(t, text, "request_id")
+			assert.Contains(t, text, "gateway_request")
+		})
+	}
+
+	t.Run("gateway_requests states there is no event_id filter", func(t *testing.T) {
+		text := textContent(t, callTool(t, session, "gateway_help", map[string]any{"topic": "gateway_requests"}))
+		assert.Contains(t, text, "event_id")
+	})
 }
 
 func TestHelpEventsTopic_DocumentsDateRangeFilters(t *testing.T) {
@@ -279,16 +323,24 @@ func TestAuthGuard_UnauthenticatedReturnsError(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "")
 	session := connectInMemory(t, client)
 
-	resourceTools := []string{
-		"gateway_sources", "gateway_destinations", "gateway_connections",
-		"gateway_events", "gateway_requests", "gateway_attempts",
-		"gateway_issues", "gateway_transformations", "gateway_metrics",
-		"hookdeck_projects",
+	resourceTools := map[string]string{
+		"gateway_sources":         "list",
+		"gateway_destinations":    "list",
+		"gateway_connections":     "list",
+		"gateway_events":          "list",
+		"gateway_event":           "get",
+		"gateway_requests":        "list",
+		"gateway_request":         "get",
+		"gateway_attempts":        "list",
+		"gateway_issues":          "list",
+		"gateway_transformations": "list",
+		"gateway_metrics":         "events",
+		"hookdeck_projects":       "list",
 	}
 
-	for _, toolName := range resourceTools {
+	for toolName, action := range resourceTools {
 		t.Run(toolName, func(t *testing.T) {
-			result := callTool(t, session, toolName, map[string]any{"action": "list"})
+			result := callTool(t, session, toolName, map[string]any{"action": action, "id": "res_1"})
 			assert.True(t, result.IsError, "expected IsError=true for unauthenticated %s", toolName)
 			assert.Contains(t, textContent(t, result), "hookdeck_login")
 		})
@@ -654,47 +706,47 @@ func TestEventsList_Success(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "evt_abc")
 }
 
-func TestEventsGet_Success(t *testing.T) {
+func TestEventGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/events/evt_abc": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc", "status": "SUCCESSFUL"})
 		},
 	})
 
-	result := callTool(t, session, "gateway_events", map[string]any{"action": "get", "id": "evt_abc"})
+	result := callTool(t, session, "gateway_event", map[string]any{"action": "get", "id": "evt_abc"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "evt_abc")
 }
 
-func TestEventsGet_MissingID(t *testing.T) {
+func TestEventGet_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "gateway_events", map[string]any{"action": "get"})
+	result := callTool(t, session, "gateway_event", map[string]any{"action": "get"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }
 
-func TestEventsRawBody_Success(t *testing.T) {
+func TestEventRawBody_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/events/evt_abc/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"key":"value"}`))
 		},
 	})
 
-	result := callTool(t, session, "gateway_events", map[string]any{"action": "raw_body", "id": "evt_abc"})
+	result := callTool(t, session, "gateway_event", map[string]any{"action": "raw_body", "id": "evt_abc"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "raw_body")
 }
 
-func TestEventsRawBody_MissingID(t *testing.T) {
+func TestEventRawBody_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "gateway_events", map[string]any{"action": "raw_body"})
+	result := callTool(t, session, "gateway_event", map[string]any{"action": "raw_body"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }
 
-func TestEventsRawBody_Truncation(t *testing.T) {
+func TestEventRawBody_Truncation(t *testing.T) {
 	// Generate a body larger than 100KB
 	largeBody := strings.Repeat("x", 150*1024)
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
@@ -703,7 +755,7 @@ func TestEventsRawBody_Truncation(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "gateway_events", map[string]any{"action": "raw_body", "id": "evt_big"})
+	result := callTool(t, session, "gateway_event", map[string]any{"action": "raw_body", "id": "evt_big"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "truncated")
 }
@@ -712,6 +764,31 @@ func TestEventsTool_UnknownAction(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 	result := callTool(t, session, "gateway_events", map[string]any{"action": "delete"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// The by-id actions moved to gateway_event, so asking the plural tool for one
+// is now a wrong-tool mistake. The error has to name the tool that can do it,
+// because an agent that lands here needs redirecting, not just refusing.
+func TestEventsTool_ByIDActionsAreNotOnThePluralTool(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	for _, action := range []string{"get", "raw_body", "retry", "cancel", "mute"} {
+		t.Run(action, func(t *testing.T) {
+			result := callTool(t, session, "gateway_events", map[string]any{"action": action, "id": "evt_abc"})
+			assert.True(t, result.IsError)
+			assert.Contains(t, textContent(t, result), "unknown action")
+		})
+	}
+}
+
+func TestEventTool_ListIsNotOnTheSingularTool(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "gateway_event", map[string]any{"action": "list"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "unknown action")
 }
@@ -857,47 +934,47 @@ func TestRequestsList_Success(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "req_001")
 }
 
-func TestRequestsGet_Success(t *testing.T) {
+func TestRequestGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/requests/req_001": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "req_001"})
 		},
 	})
 
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "get", "id": "req_001"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "get", "id": "req_001"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "req_001")
 }
 
-func TestRequestsGet_MissingID(t *testing.T) {
+func TestRequestGet_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "get"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "get"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }
 
-func TestRequestsRawBody_Success(t *testing.T) {
+func TestRequestRawBody_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/requests/req_001/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"payload":"data"}`))
 		},
 	})
 
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "raw_body", "id": "req_001"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "raw_body", "id": "req_001"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "raw_body")
 }
 
-func TestRequestsRawBody_MissingID(t *testing.T) {
+func TestRequestRawBody_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "raw_body"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "raw_body"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }
 
-func TestRequestsRawBody_Truncation(t *testing.T) {
+func TestRequestRawBody_Truncation(t *testing.T) {
 	largeBody := strings.Repeat("y", 150*1024)
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/requests/req_big/raw_body": func(w http.ResponseWriter, r *http.Request) {
@@ -905,47 +982,47 @@ func TestRequestsRawBody_Truncation(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "raw_body", "id": "req_big"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "raw_body", "id": "req_big"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "truncated")
 }
 
-func TestRequestsEvents_Success(t *testing.T) {
+func TestRequestEvents_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/requests/req_001/events": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_from_req"}))
 		},
 	})
 
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "events", "id": "req_001"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "events", "id": "req_001"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "evt_from_req")
 }
 
-func TestRequestsEvents_MissingID(t *testing.T) {
+func TestRequestEvents_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "events"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "events"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }
 
-func TestRequestsIgnoredEvents_Success(t *testing.T) {
+func TestRequestIgnoredEvents_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/requests/req_001/ignored_events": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "ign_evt_001"}))
 		},
 	})
 
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "ignored_events", "id": "req_001"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "ignored_events", "id": "req_001"})
 	assert.False(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "ign_evt_001")
 }
 
-func TestRequestsIgnoredEvents_MissingID(t *testing.T) {
+func TestRequestIgnoredEvents_MissingID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "gateway_requests", map[string]any{"action": "ignored_events"})
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "ignored_events"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "id is required")
 }
@@ -954,6 +1031,29 @@ func TestRequestsTool_UnknownAction(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 	result := callTool(t, session, "gateway_requests", map[string]any{"action": "delete"})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// The by-id actions moved to gateway_request; the plural tool only searches.
+func TestRequestsTool_ByIDActionsAreNotOnThePluralTool(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	for _, action := range []string{"get", "raw_body", "events", "ignored_events", "retry"} {
+		t.Run(action, func(t *testing.T) {
+			result := callTool(t, session, "gateway_requests", map[string]any{"action": action, "id": "req_001"})
+			assert.True(t, result.IsError)
+			assert.Contains(t, textContent(t, result), "unknown action")
+		})
+	}
+}
+
+func TestRequestTool_ListIsNotOnTheSingularTool(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "gateway_request", map[string]any{"action": "list"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "unknown action")
 }
@@ -1628,7 +1728,7 @@ func TestSourcesList_429RateLimitError(t *testing.T) {
 	assert.Contains(t, textContent(t, result), "Rate limited")
 }
 
-func TestEventsGet_APIError(t *testing.T) {
+func TestEventGet_APIError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2025-07-01/events/evt_nope": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -1636,7 +1736,7 @@ func TestEventsGet_APIError(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "gateway_events", map[string]any{"action": "get", "id": "evt_nope"})
+	result := callTool(t, session, "gateway_event", map[string]any{"action": "get", "id": "evt_nope"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "not found")
 }
@@ -1673,8 +1773,10 @@ func TestHelpTool_AllTopics(t *testing.T) {
 		{"gateway_sources", "list"},
 		{"gateway_destinations", "HTTP"},
 		{"gateway_transformations", "JavaScript"},
-		{"gateway_requests", "raw_body"},
-		{"gateway_events", "raw_body"},
+		{"gateway_requests", "list"},
+		{"gateway_request", "raw_body"},
+		{"gateway_events", "list"},
+		{"gateway_event", "raw_body"},
 		{"gateway_attempts", "event_id"},
 		{"gateway_issues", "delivery"},
 		{"gateway_metrics", "granularity"},
@@ -1698,8 +1800,8 @@ func TestHelpTool_AllTopics(t *testing.T) {
 func TestHelpTool_ShortNames(t *testing.T) {
 	shortNames := []string{
 		"projects", "connections", "sources", "destinations",
-		"transformations", "requests", "events", "attempts",
-		"issues", "metrics", "help",
+		"transformations", "requests", "request", "events", "event",
+		"attempts", "issues", "metrics", "help",
 	}
 
 	client := newTestClient("https://api.hookdeck.com", "test-key")
@@ -1730,8 +1832,9 @@ func TestHelpTool_OverviewListsAllTools(t *testing.T) {
 
 	expectedTools := []string{
 		"hookdeck_projects", "gateway_connections", "gateway_sources",
-		"gateway_destinations", "gateway_transformations", "gateway_requests",
-		"gateway_events", "gateway_attempts", "gateway_issues",
+		"gateway_destinations", "gateway_transformations",
+		"gateway_requests", "gateway_request",
+		"gateway_events", "gateway_event", "gateway_attempts", "gateway_issues",
 		"gateway_metrics", "gateway_help",
 	}
 	for _, tool := range expectedTools {

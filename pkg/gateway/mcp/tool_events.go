@@ -9,30 +9,32 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
+// gateway_events is the collection half of the events pair: it searches for
+// events and hands back their ids. Everything you can do to one event lives on
+// gateway_event — see tool_event.go.
 var eventsActions = mcpcore.ActionSet{
-	{Name: "list", Desc: "list events, most recent first"},
-	{Name: "get", Desc: "get one event's metadata and headers"},
-	{Name: "raw_body", Desc: "get one event's payload"},
-	{Name: "retry", Desc: "queue another delivery attempt for an event", Write: true},
-	{Name: "cancel", Desc: "stop a scheduled event from being delivered", Write: true, Destructive: true},
-	{Name: "mute", Desc: "mute a failed event so it stops raising issues", Write: true, Destructive: true},
+	{Name: "list", Desc: "search events by filter, most recent first; returns event IDs"},
 }
 
 var eventsSpec = mcpcore.ToolSpec{
 	Resource: "events",
-	Summary:  "Query events (processed deliveries routed through connections to destinations). List supports the same filters as `hookdeck gateway event list` (metadata, date range, payload search, sort). Use action raw_body with the event id to get the payload directly — do not use the requests tool for the payload when you already have an event id. Results are scoped to the active project — call the projects tool first if the user has specified a project.",
-	Actions:  eventsActions,
+	Summary: "SEARCH MANY events — plural, collection only. Find events (processed deliveries routed through connections to destinations) matching filters and get back their IDs. " +
+		"List supports the same filters as `hookdeck gateway event list` (metadata, date range, payload search, sort). " +
+		"To act on a specific event you already have an ID for — read it, get its payload, retry, cancel or mute it — use " + eventToolName + " (singular). This tool cannot do any of that; it only searches. " +
+		"There is no request_id filter here: to see the events one request produced, call " + requestToolName + " with action events. " +
+		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
+	Actions: eventsActions,
 	Props: map[string]mcpcore.Prop{
-		"id":                  {Type: "string", Desc: "Event ID: filter by ID(s) on list (comma-separated), or required for get/raw_body/retry/cancel/mute"},
-		"connection_id":       {Type: "string", Desc: "Filter by connection (list, maps to webhook_id)"},
-		"source_id":           {Type: "string", Desc: "Filter by source (list)"},
-		"destination_id":      {Type: "string", Desc: "Filter by destination (list)"},
+		"id":                  {Type: "string", Desc: "Filter by event ID(s), comma-separated. To fetch or act on one event by ID, use " + eventToolName + " instead."},
+		"connection_id":       {Type: "string", Desc: "Filter by connection (maps to webhook_id)"},
+		"source_id":           {Type: "string", Desc: "Filter by source"},
+		"destination_id":      {Type: "string", Desc: "Filter by destination"},
 		"status":              {Type: "string", Desc: "Event status: SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED"},
-		"attempts":            {Type: "string", Desc: "Filter by attempt count (list). Integer or API operator syntax; pass through as string."},
-		"issue_id":            {Type: "string", Desc: "Filter by issue (list)"},
-		"error_code":          {Type: "string", Desc: "Filter by error code (list)"},
-		"response_status":     {Type: "string", Desc: "Filter by HTTP response status (list)"},
-		"cli_id":              {Type: "string", Desc: "Filter by CLI listen session ID (list)"},
+		"attempts":            {Type: "string", Desc: "Filter by attempt count. Integer or API operator syntax; pass through as string."},
+		"issue_id":            {Type: "string", Desc: "Filter by issue"},
+		"error_code":          {Type: "string", Desc: "Filter by error code"},
+		"response_status":     {Type: "string", Desc: "Filter by HTTP response status"},
+		"cli_id":              {Type: "string", Desc: "Filter by CLI listen session ID"},
 		"created_after":       {Type: "string", Desc: "created_at lower bound. " + descDateAfter},
 		"created_before":      {Type: "string", Desc: "created_at upper bound. " + descDateBefore},
 		"successful_after":    {Type: "string", Desc: "successful_at lower bound. " + descDateAfter},
@@ -43,13 +45,19 @@ var eventsSpec = mcpcore.ToolSpec{
 		"headers":             {Type: "string", Desc: "Filter by event headers. " + descJSONFilter},
 		"parsed_query":        {Type: "string", Desc: "Filter by parsed query as JSON. " + descJSONFilter},
 		"path":                {Type: "string", Desc: descPathFilter},
-		"limit":               {Type: "integer", Desc: "Max results (list)"},
-		"order_by":            {Type: "string", Desc: "Sort field (list)"},
-		"dir":                 {Type: "string", Desc: "Sort direction: asc or desc (list)"},
+		"limit":               {Type: "integer", Desc: "Max results"},
+		"order_by":            {Type: "string", Desc: "Sort field"},
+		"dir":                 {Type: "string", Desc: "Sort direction: asc or desc"},
 		"next":                {Type: "string", Desc: "Next page cursor"},
 		"prev":                {Type: "string", Desc: "Previous page cursor"},
 	},
-	Notes: `Date range filters (list):
+	Notes: `Plural vs singular — which of the two event tools to use:
+  ` + eventsToolName + ` (this tool, plural) — you have filters and want to find matching events.
+  ` + eventToolName + `  (singular)         — you already have an event ID and want to read or act on it
+                            (get, raw_body, retry, cancel, mute).
+  The usual flow is ` + eventsToolName + ` to find an ID, then ` + eventToolName + ` with that ID.
+
+Date range filters:
   Use *_after / *_before with ISO 8601 datetimes. Do not pass API bracket keys in MCP args.
   created_after       → created_at[gte]
   created_before      → created_at[lte]
@@ -59,19 +67,17 @@ var eventsSpec = mcpcore.ToolSpec{
   last_attempt_before → last_attempt_at[lte]
   Example: {"action":"list","status":"FAILED","last_attempt_after":"2026-06-08T00:00:00Z"}
 
-Payload search (list):
+Payload search:
   body, headers, parsed_query — Hookdeck JSON filter syntax (object or string)
   path — partial URL path match
   Example: {"action":"list","body":{"type":"charge.succeeded"}}
 
-Getting the payload:
-  get returns metadata and headers only. Use raw_body with the event id for the payload — there is
-  no need to go via the requests tool when you already have an event id.
-
-Acting on a failure (write mode):
-  retry queues another delivery attempt and is the usual follow-up to investigating a failed event.
-  cancel stops a scheduled event from ever being delivered; mute stops a failed event raising
-  further issues without retrying it.`,
+Requests and events:
+  The API offers one traversal direction only. Events cannot be filtered by request_id — there is
+  no such filter, so do not look for one. To get the events a request produced, call
+  ` + requestToolName + ` with action events (or ignored_events for the ones filtered out).
+  Going the other way, an event carries request_id: read it from the event and pass it to
+  ` + requestToolName + ` with action get.`,
 	Handler: handleEvents,
 }
 
@@ -87,60 +93,12 @@ func handleEvents(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := mcpcore.DispatchWithDefault(srv, eventsActions, in.String("action"), "list")
-		if blocked != nil {
+		if _, blocked := mcpcore.DispatchWithDefault(srv, eventsActions, in.String("action"), "list"); blocked != nil {
 			return blocked, nil
 		}
 
-		switch action {
-		case "list":
-			return eventsList(ctx, client, in)
-		case "get":
-			return eventsGet(ctx, client, in)
-		case "raw_body":
-			return eventsRawBody(ctx, client, in)
-		case "retry":
-			return eventsRetry(ctx, client, in)
-		case "cancel":
-			return eventsCancel(ctx, client, in)
-		default:
-			return eventsMute(ctx, client, in)
-		}
+		return eventsList(ctx, client, in)
 	}
-}
-
-func eventsRetry(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	return eventAction(ctx, client, in, "retry", "retried", client.RetryEvent)
-}
-
-func eventsCancel(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	return eventAction(ctx, client, in, "cancel", "cancelled", client.CancelEvent)
-}
-
-func eventsMute(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	return eventAction(ctx, client, in, "mute", "muted", client.MuteEvent)
-}
-
-// eventAction runs one of the by-id event mutations, which all take an event id
-// and return no body, and reports the outcome in a consistent shape.
-func eventAction(
-	ctx context.Context,
-	client *hookdeck.Client,
-	in mcpcore.Input,
-	action, status string,
-	call func(context.Context, string) error,
-) (*mcpsdk.CallToolResult, error) {
-	id, err := mcpcore.RequireString(in, "id", action)
-	if err != nil {
-		return mcpcore.ErrorResult(err.Error()), nil
-	}
-	if err := call(ctx, id); err != nil {
-		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
-	}
-	return mcpcore.JSONResultEnvelopeForClient(map[string]string{
-		"event_id": id,
-		"status":   status,
-	}, client)
 }
 
 func eventsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
@@ -176,32 +134,4 @@ func eventsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) 
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
 	return mcpcore.JSONResultEnvelopeForClient(result, client)
-}
-
-func eventsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return mcpcore.ErrorResult("id is required for the get action"), nil
-	}
-	event, err := client.GetEvent(ctx, id, nil)
-	if err != nil {
-		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
-	}
-	return mcpcore.JSONResultEnvelopeForClient(event, client)
-}
-
-func eventsRawBody(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return mcpcore.ErrorResult("id is required for the raw_body action"), nil
-	}
-	body, err := client.GetEventRawBody(ctx, id)
-	if err != nil {
-		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
-	}
-	text := string(body)
-	if len(body) > maxRawBodyBytes {
-		text = string(body[:maxRawBodyBytes]) + "\n... [truncated]"
-	}
-	return mcpcore.JSONResultEnvelopeForClient(map[string]string{"raw_body": text}, client)
 }

@@ -18,6 +18,10 @@ const (
 	toolPrefix       = "gateway"
 	helpToolName     = toolPrefix + "_help"
 	helpTopicPrefix  = toolPrefix + "_"
+	eventsToolName   = toolPrefix + "_events"
+	eventToolName    = toolPrefix + "_event"
+	requestsToolName = toolPrefix + "_requests"
+	requestToolName  = toolPrefix + "_request"
 	loginToolDesc    = "Authenticate the Hookdeck CLI or sign in again. Without arguments, returns a URL for browser login when not yet authenticated, or confirms if already signed in. Set reauth: true to clear the current session and start a new browser login (use when hookdeck_projects list fails and the stored key may be a single-project or dashboard API key)."
 	projectsToolDesc = "Always call this first when the user references a specific project by name. List available projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. All queries (events, issues, connections, metrics, requests) are scoped to the active project — if the wrong project is active, all results will be wrong. Also use this when unsure which project is currently active. If list or use fails (especially 401/403), the error may suggest hookdeck_login with reauth: true. JSON successes use a standard data/meta envelope; see gateway_help (overview or any tool topic)."
 )
@@ -56,6 +60,13 @@ func NewServer(opts ServerOptions) *mcpcore.Server {
 
 // resourceSpecs lists every product tool the Event Gateway server exposes.
 // Registration order is the order tools are advertised in.
+//
+// Events and requests are split into a plural collection tool and a singular
+// single-record tool. Their actions share no parameters beyond an id: list
+// carries ~20 filters that no by-id action can use, so a single tool would
+// show every one of them to a caller that only has an id. The pairs are
+// registered next to each other so the naming distinction is visible where an
+// agent reads the tool list.
 func resourceSpecs() []mcpcore.ToolSpec {
 	return []mcpcore.ToolSpec{
 		connectionsSpec,
@@ -63,7 +74,9 @@ func resourceSpecs() []mcpcore.ToolSpec {
 		destinationsSpec,
 		transformationsSpec,
 		requestsSpec,
+		requestSpec,
 		eventsSpec,
+		eventSpec,
 		attemptsSpec,
 		issuesSpec,
 		metricsSpec,
