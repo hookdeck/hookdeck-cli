@@ -9,17 +9,17 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-var eventsActions = actionSet{
-	{name: "list", desc: "list published events, most recent first"},
-	{name: "get", desc: "get one event, including its payload"},
-	{name: "retry", desc: "queue another delivery of an event to a destination", write: true},
+var eventsActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list published events, most recent first"},
+	{Name: "get", Desc: "get one event, including its payload"},
+	{Name: "retry", Desc: "queue another delivery of an event to a destination", Write: true},
 }
 
-var eventsSpec = toolSpec{
-	resource: "events",
-	summary:  "Query published events. An event is one publish, fanned out to every destination whose topic subscription matched it. Use outpost_attempts to see how delivery of an event actually went.",
-	actions:  eventsActions,
-	props: map[string]mcpcore.Prop{
+var eventsSpec = mcpcore.ToolSpec{
+	Resource: "events",
+	Summary:  "Query published events. An event is one publish, fanned out to every destination whose topic subscription matched it. Use outpost_attempts to see how delivery of an event actually went.",
+	Actions:  eventsActions,
+	Props: map[string]mcpcore.Prop{
 		"id":             {Type: "string", Desc: "Event ID. Required for get/retry. On list, filters by event ID(s). " + descListValue},
 		"tenant_id":      {Type: "string", Desc: "Tenant ID. Filters on list; optional on get. " + descListValue},
 		"destination_id": {Type: "string", Desc: "Destination to deliver to (required for retry). On list, filters by matched destination(s). " + descListValue},
@@ -32,7 +32,7 @@ var eventsSpec = toolSpec{
 		"next":           {Type: "string", Desc: "Next page cursor (list)"},
 		"prev":           {Type: "string", Desc: "Previous page cursor (list)"},
 	},
-	handler: handleEvents,
+	Handler: handleEvents,
 }
 
 func handleEvents(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -46,7 +46,7 @@ func handleEvents(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := dispatch(srv, eventsActions, in.String("action"))
+		action, blocked := mcpcore.Dispatch(srv, eventsActions, in.String("action"))
 		if blocked != nil {
 			return blocked, nil
 		}

@@ -9,22 +9,22 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-var destinationsActions = actionSet{
-	{name: "list", desc: "list a tenant's destinations"},
-	{name: "get", desc: "get one destination"},
-	{name: "create", desc: "create a destination for a tenant", write: true},
-	{name: "update", desc: "update a destination", write: true},
-	{name: "delete", desc: "delete a destination", write: true, destructive: true},
-	{name: "enable", desc: "resume delivery to a destination", write: true},
-	{name: "disable", desc: "stop delivery to a destination without deleting it", write: true},
+var destinationsActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list a tenant's destinations"},
+	{Name: "get", Desc: "get one destination"},
+	{Name: "create", Desc: "create a destination for a tenant", Write: true},
+	{Name: "update", Desc: "update a destination", Write: true},
+	{Name: "delete", Desc: "delete a destination", Write: true, Destructive: true},
+	{Name: "enable", Desc: "resume delivery to a destination", Write: true},
+	{Name: "disable", Desc: "stop delivery to a destination without deleting it", Write: true},
 }
 
-var destinationsSpec = toolSpec{
-	resource: "destinations",
-	summary:  "Inspect and manage the destinations events are delivered to. Every destination belongs to a tenant, so tenant_id is always required. Config and credentials are specific to the destination type — call outpost_destination_types to see the fields a type accepts before creating or updating one. Destinations have no name: identify one to a human by its type and target (for example \"webhook -> https://example.com/hooks\"), not by its id, which means nothing on its own.",
-	actions:  destinationsActions,
-	required: []string{"tenant_id"},
-	props: map[string]mcpcore.Prop{
+var destinationsSpec = mcpcore.ToolSpec{
+	Resource: "destinations",
+	Summary:  "Inspect and manage the destinations events are delivered to. Every destination belongs to a tenant, so tenant_id is always required. Config and credentials are specific to the destination type — call outpost_destination_types to see the fields a type accepts before creating or updating one. Destinations have no name: identify one to a human by its type and target (for example \"webhook -> https://example.com/hooks\"), not by its id, which means nothing on its own.",
+	Actions:  destinationsActions,
+	Required: []string{"tenant_id"},
+	Props: map[string]mcpcore.Prop{
 		"tenant_id":   {Type: "string", Desc: "Tenant the destination belongs to (required for every action)."},
 		"id":          {Type: "string", Desc: "Destination ID. Required for get/update/delete/enable/disable."},
 		"type":        {Type: "string", Desc: "Destination type, e.g. webhook (required for create). On list, filters by type(s). " + descListValue},
@@ -34,7 +34,7 @@ var destinationsSpec = toolSpec{
 		"filter":      {Type: "object", Desc: "Delivery filter (create/update). Replaced wholesale on update, not merged."},
 		"metadata":    {Type: "object", Desc: "Destination metadata as a JSON object of string values (create/update)."},
 	},
-	handler: handleDestinations,
+	Handler: handleDestinations,
 }
 
 func handleDestinations(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -48,7 +48,7 @@ func handleDestinations(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := dispatch(srv, destinationsActions, in.String("action"))
+		action, blocked := mcpcore.Dispatch(srv, destinationsActions, in.String("action"))
 		if blocked != nil {
 			return blocked, nil
 		}

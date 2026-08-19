@@ -10,20 +10,20 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-var metricsActions = actionSet{
-	{name: "events", desc: "aggregated publish metrics"},
-	{name: "attempts", desc: "aggregated delivery metrics"},
+var metricsActions = mcpcore.ActionSet{
+	{Name: "events", Desc: "aggregated publish metrics"},
+	{Name: "attempts", Desc: "aggregated delivery metrics"},
 }
 
-var metricsSpec = toolSpec{
-	resource: "metrics",
-	summary: "Query aggregate metrics over a time range. " +
+var metricsSpec = mcpcore.ToolSpec{
+	Resource: "metrics",
+	Summary: "Query aggregate metrics over a time range. " +
 		"Event measures: count, rate; dimensions: tenant_id, topic, destination_id. " +
 		"Attempt measures: count, successful_count, failed_count, error_rate, first_attempt_count, retry_count, manual_retry_count, avg_attempt_number, rate, successful_rate, failed_rate; dimensions: tenant_id, destination_id, destination_type, topic, status, code, manual, attempt_number. " +
 		"Omit granularity for a single total over the whole range.",
-	actions:  metricsActions,
-	required: []string{"start", "end", "measures"},
-	props: map[string]mcpcore.Prop{
+	Actions:  metricsActions,
+	Required: []string{"start", "end", "measures"},
+	Props: map[string]mcpcore.Prop{
 		"start":       {Type: "string", Desc: "Start of the range (ISO 8601 datetime, required)."},
 		"end":         {Type: "string", Desc: "End of the range (ISO 8601 datetime, required)."},
 		"granularity": {Type: "string", Desc: "Time bucket size, e.g. 1h, 5m, 1d. Omit for one total over the whole range."},
@@ -31,7 +31,7 @@ var metricsSpec = toolSpec{
 		"dimensions":  {Type: "array", Desc: "Dimensions to group by.", Items: &mcpcore.Prop{Type: "string"}},
 		"filters":     {Type: "object", Desc: `Filter by dimension, e.g. {"topic": "user.created"} or {"status": ["failed"]}.`},
 	},
-	handler: handleMetrics,
+	Handler: handleMetrics,
 }
 
 func handleMetrics(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -45,7 +45,7 @@ func handleMetrics(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := dispatch(srv, metricsActions, in.String("action"))
+		action, blocked := mcpcore.Dispatch(srv, metricsActions, in.String("action"))
 		if blocked != nil {
 			return blocked, nil
 		}

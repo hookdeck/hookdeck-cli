@@ -9,16 +9,16 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-var attemptsActions = actionSet{
-	{name: "list", desc: "list delivery attempts"},
-	{name: "get", desc: "get one attempt, including the response data"},
+var attemptsActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list delivery attempts"},
+	{Name: "get", Desc: "get one attempt, including the response data"},
 }
 
-var attemptsSpec = toolSpec{
-	resource: "attempts",
-	summary:  "Query delivery attempts — each individual HTTP request made to deliver an event to a destination, with its status, response code and retry number. This is where to look when a customer reports a missing or failed delivery.",
-	actions:  attemptsActions,
-	props: map[string]mcpcore.Prop{
+var attemptsSpec = mcpcore.ToolSpec{
+	Resource: "attempts",
+	Summary:  "Query delivery attempts — each individual HTTP request made to deliver an event to a destination, with its status, response code and retry number. This is where to look when a customer reports a missing or failed delivery.",
+	Actions:  attemptsActions,
+	Props: map[string]mcpcore.Prop{
 		"id":               {Type: "string", Desc: "Attempt ID (required for get)."},
 		"tenant_id":        {Type: "string", Desc: "Filter by tenant. " + descListValue},
 		"destination_id":   {Type: "string", Desc: "Filter by destination. " + descListValue},
@@ -35,7 +35,7 @@ var attemptsSpec = toolSpec{
 		"next":             {Type: "string", Desc: "Next page cursor (list)"},
 		"prev":             {Type: "string", Desc: "Previous page cursor (list)"},
 	},
-	handler: handleAttempts,
+	Handler: handleAttempts,
 }
 
 func handleAttempts(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -49,7 +49,7 @@ func handleAttempts(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := dispatch(srv, attemptsActions, in.String("action"))
+		action, blocked := mcpcore.Dispatch(srv, attemptsActions, in.String("action"))
 		if blocked != nil {
 			return blocked, nil
 		}

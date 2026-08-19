@@ -153,6 +153,10 @@ func (s *Server) ToolPrefix() string {
 // LoginToolName returns the name of this server's login tool.
 func (s *Server) LoginToolName() string { return s.platformToolName("login") }
 
+// HelpToolName returns the name of this server's help tool. Help is a product
+// tool — it documents that product's tools — so it takes the product prefix.
+func (s *Server) HelpToolName() string { return s.ToolName("help") }
+
 // DefaultPlatformPrefix is the prefix for platform-level tools. You log in to
 // Hookdeck and switch Hookdeck projects, whichever product's server you are in.
 const DefaultPlatformPrefix = "hookdeck"

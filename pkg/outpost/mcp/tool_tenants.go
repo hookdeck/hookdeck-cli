@@ -9,20 +9,20 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-var tenantsActions = actionSet{
-	{name: "list", desc: "list tenants"},
-	{name: "get", desc: "get one tenant by id"},
-	{name: "upsert", desc: "create a tenant or update its metadata", write: true},
-	{name: "delete", desc: "delete a tenant and everything belonging to it", write: true, destructive: true},
-	{name: "token", desc: "mint a tenant-scoped access token", write: true},
-	{name: "portal", desc: "get a URL granting access to the tenant portal", write: true},
+var tenantsActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list tenants"},
+	{Name: "get", Desc: "get one tenant by id"},
+	{Name: "upsert", Desc: "create a tenant or update its metadata", Write: true},
+	{Name: "delete", Desc: "delete a tenant and everything belonging to it", Write: true, Destructive: true},
+	{Name: "token", Desc: "mint a tenant-scoped access token", Write: true},
+	{Name: "portal", Desc: "get a URL granting access to the tenant portal", Write: true},
 }
 
-var tenantsSpec = toolSpec{
-	resource: "tenants",
-	summary:  "Inspect and manage tenants — the end customers whose destinations events are delivered to. Tenant IDs are chosen by the operator, not generated, so upsert is the way to create one — which also means the id is usually meaningful to a human and worth quoting directly.",
-	actions:  tenantsActions,
-	props: map[string]mcpcore.Prop{
+var tenantsSpec = mcpcore.ToolSpec{
+	Resource: "tenants",
+	Summary:  "Inspect and manage tenants — the end customers whose destinations events are delivered to. Tenant IDs are chosen by the operator, not generated, so upsert is the way to create one — which also means the id is usually meaningful to a human and worth quoting directly.",
+	Actions:  tenantsActions,
+	Props: map[string]mcpcore.Prop{
 		"id":       {Type: "string", Desc: "Tenant ID. Required for get/upsert/delete/token/portal. On list, filters by tenant ID(s). " + descListValue},
 		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata."},
 		"theme":    {Type: "string", Desc: "Portal colour scheme: light or dark (portal)."},
@@ -31,7 +31,7 @@ var tenantsSpec = toolSpec{
 		"next":     {Type: "string", Desc: "Next page cursor (list)"},
 		"prev":     {Type: "string", Desc: "Previous page cursor (list)"},
 	},
-	handler: handleTenants,
+	Handler: handleTenants,
 }
 
 func handleTenants(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -45,7 +45,7 @@ func handleTenants(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := dispatch(srv, tenantsActions, in.String("action"))
+		action, blocked := mcpcore.Dispatch(srv, tenantsActions, in.String("action"))
 		if blocked != nil {
 			return blocked, nil
 		}
