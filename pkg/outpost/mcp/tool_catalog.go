@@ -12,15 +12,15 @@ import (
 // Topics and destination types are both read-only catalogues describing what a
 // destination may be created with, which is why they live together here.
 
-var topicsActions = actionSet{
-	{name: "list", desc: "list the topics configured for this project"},
+var topicsActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list the topics configured for this project"},
 }
 
-var topicsSpec = toolSpec{
-	resource: "topics",
-	summary:  "List the topics destinations can subscribe to and events can be published on. Topics are project configuration rather than a resource, so they are changed with outpost_config, not created here.",
-	actions:  topicsActions,
-	handler:  handleTopics,
+var topicsSpec = mcpcore.ToolSpec{
+	Resource: "topics",
+	Summary:  "List the topics destinations can subscribe to and events can be published on. Topics are project configuration rather than a resource, so they are changed with outpost_config, not created here.",
+	Actions:  topicsActions,
+	Handler:  handleTopics,
 }
 
 func handleTopics(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -33,7 +33,7 @@ func handleTopics(srv *mcpcore.Server) mcpsdk.ToolHandler {
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		if _, blocked := dispatch(srv, topicsActions, in.String("action")); blocked != nil {
+		if _, blocked := mcpcore.Dispatch(srv, topicsActions, in.String("action")); blocked != nil {
 			return blocked, nil
 		}
 
@@ -45,20 +45,20 @@ func handleTopics(srv *mcpcore.Server) mcpsdk.ToolHandler {
 	}
 }
 
-var destinationTypesActions = actionSet{
-	{name: "list", desc: "list the available destination types"},
-	{name: "get", desc: "get one type's full field schema"},
+var destinationTypesActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list the available destination types"},
+	{Name: "get", Desc: "get one type's full field schema"},
 }
 
-var destinationTypesSpec = toolSpec{
-	resource: "destination_types",
-	summary:  "Describe the destination types available in this project and the config and credential fields each one accepts. Call this before outpost_destinations create or update so the payload matches the type's schema.",
-	actions:  destinationTypesActions,
-	props: map[string]mcpcore.Prop{
+var destinationTypesSpec = mcpcore.ToolSpec{
+	Resource: "destination_types",
+	Summary:  "Describe the destination types available in this project and the config and credential fields each one accepts. Call this before outpost_destinations create or update so the payload matches the type's schema.",
+	Actions:  destinationTypesActions,
+	Props: map[string]mcpcore.Prop{
 		"type":               {Type: "string", Desc: "Destination type, e.g. webhook (required for get)."},
 		"include_setup_docs": {Type: "boolean", Desc: "Include the provider setup instructions and icon. These are long and meant for rendering a setup UI, so they are omitted by default."},
 	},
-	handler: handleDestinationTypes,
+	Handler: handleDestinationTypes,
 }
 
 func handleDestinationTypes(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -72,14 +72,14 @@ func handleDestinationTypes(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := dispatch(srv, destinationTypesActions, in.String("action"))
+		action, blocked := mcpcore.Dispatch(srv, destinationTypesActions, in.String("action"))
 		if blocked != nil {
 			return blocked, nil
 		}
 		verbose := in.Bool("include_setup_docs")
 
 		if action == "get" {
-			destinationType, err := requireString(in, "type", "get")
+			destinationType, err := mcpcore.RequireString(in, "type", "get")
 			if err != nil {
 				return mcpcore.ErrorResult(err.Error()), nil
 			}
@@ -113,15 +113,15 @@ func trimSetupDocs(schema hookdeck.OutpostDestinationTypeSchema, verbose bool) h
 	return schema
 }
 
-var statusActions = actionSet{
-	{name: "get", desc: "report the deployment status for this project"},
+var statusActions = mcpcore.ActionSet{
+	{Name: "get", Desc: "report the deployment status for this project"},
 }
 
-var statusSpec = toolSpec{
-	resource: "status",
-	summary:  "Report the state of this project's Outpost deployment, including the portal hostname. Configuration changes take a short while to reach the deployment, so check here after outpost_config set.",
-	actions:  statusActions,
-	handler:  handleStatus,
+var statusSpec = mcpcore.ToolSpec{
+	Resource: "status",
+	Summary:  "Report the state of this project's Outpost deployment, including the portal hostname. Configuration changes take a short while to reach the deployment, so check here after outpost_config set.",
+	Actions:  statusActions,
+	Handler:  handleStatus,
 }
 
 func handleStatus(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -134,7 +134,7 @@ func handleStatus(srv *mcpcore.Server) mcpsdk.ToolHandler {
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		if _, blocked := dispatch(srv, statusActions, in.String("action")); blocked != nil {
+		if _, blocked := mcpcore.Dispatch(srv, statusActions, in.String("action")); blocked != nil {
 			return blocked, nil
 		}
 

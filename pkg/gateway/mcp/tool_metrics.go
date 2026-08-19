@@ -10,9 +10,39 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-func handleMetrics(client *hookdeck.Client) mcpsdk.ToolHandler {
+// metrics is read-only: every action is an aggregate query. The action here
+// names the metric family rather than a verb.
+var metricsActions = mcpcore.ActionSet{
+	{Name: "events", Desc: "aggregated event metrics"},
+	{Name: "requests", Desc: "aggregated inbound request metrics"},
+	{Name: "attempts", Desc: "aggregated delivery attempt metrics"},
+	{Name: "transformations", Desc: "aggregated transformation execution metrics"},
+}
+
+var metricsSpec = mcpcore.ToolSpec{
+	Resource: "metrics",
+	Summary:  "Query aggregate metrics over a time range: counts, failure rates, error rates, queue depth and pending event data. Supports grouping by dimensions such as source, destination or connection. Results are scoped to the active project — call the projects tool first if the user has specified a project.",
+	Actions:  metricsActions,
+	Props: map[string]mcpcore.Prop{
+		"start":          {Type: "string", Desc: "Start datetime (ISO 8601, required)"},
+		"end":            {Type: "string", Desc: "End datetime (ISO 8601, required)"},
+		"granularity":    {Type: "string", Desc: "Time bucket size, e.g. 1h, 5m, 1d"},
+		"measures":       {Type: "array", Desc: "Metrics to retrieve (required). Common: count, successful_count, failed_count, error_count", Items: &mcpcore.Prop{Type: "string"}},
+		"dimensions":     {Type: "array", Desc: "Grouping dimensions", Items: &mcpcore.Prop{Type: "string"}},
+		"source_id":      {Type: "string", Desc: "Filter by source"},
+		"destination_id": {Type: "string", Desc: "Filter by destination"},
+		"connection_id":  {Type: "string", Desc: "Filter by connection (maps to webhook_id)"},
+		"status":         {Type: "string", Desc: "Filter by status"},
+		"issue_id":       {Type: "string", Desc: "Filter by issue (events only)"},
+	},
+	Required: []string{"start", "end", "measures"},
+	Handler:  handleMetrics,
+}
+
+func handleMetrics(srv *mcpcore.Server) mcpsdk.ToolHandler {
+	client := srv.Client()
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		if r := mcpcore.RequireAuth(client, loginToolName); r != nil {
+		if r := srv.RequireAuth(); r != nil {
 			return r, nil
 		}
 
@@ -21,7 +51,11 @@ func handleMetrics(client *hookdeck.Client) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action := in.String("action")
+		action, blocked := mcpcore.Dispatch(srv, metricsActions, in.String("action"))
+		if blocked != nil {
+			return blocked, nil
+		}
+
 		switch action {
 		case "events":
 			return metricsEvents(ctx, client, in)
@@ -29,10 +63,8 @@ func handleMetrics(client *hookdeck.Client) mcpsdk.ToolHandler {
 			return metricsRequests(ctx, client, in)
 		case "attempts":
 			return metricsAttempts(ctx, client, in)
-		case "transformations":
-			return metricsTransformations(ctx, client, in)
 		default:
-			return mcpcore.ErrorResult(fmt.Sprintf("unknown action %q; expected events, requests, attempts, or transformations", action)), nil
+			return metricsTransformations(ctx, client, in)
 		}
 	}
 }

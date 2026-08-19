@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -10,9 +9,33 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-func handleAttempts(client *hookdeck.Client) mcpsdk.ToolHandler {
+// attempts is read-only: a delivery attempt is a record of something that
+// already happened. Retrying is an action on the event, not on the attempt.
+var attemptsActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list delivery attempts"},
+	{Name: "get", Desc: "get one attempt, including the response data"},
+}
+
+var attemptsSpec = mcpcore.ToolSpec{
+	Resource: "attempts",
+	Summary:  "Query delivery attempts (each HTTP request made to deliver an event to its destination). Filter by event to see retry history, response status codes, and error details.",
+	Actions:  attemptsActions,
+	Props: map[string]mcpcore.Prop{
+		"id":       {Type: "string", Desc: "Attempt ID (required for get)"},
+		"event_id": {Type: "string", Desc: "Filter by event (list)"},
+		"limit":    {Type: "integer", Desc: "Max results (list)"},
+		"order_by": {Type: "string", Desc: "Sort field (list)"},
+		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)"},
+		"next":     {Type: "string", Desc: "Next page cursor"},
+		"prev":     {Type: "string", Desc: "Previous page cursor"},
+	},
+	Handler: handleAttempts,
+}
+
+func handleAttempts(srv *mcpcore.Server) mcpsdk.ToolHandler {
+	client := srv.Client()
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		if r := mcpcore.RequireAuth(client, loginToolName); r != nil {
+		if r := srv.RequireAuth(); r != nil {
 			return r, nil
 		}
 
@@ -21,15 +44,15 @@ func handleAttempts(client *hookdeck.Client) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action := in.String("action")
-		switch action {
-		case "list", "":
-			return attemptsList(ctx, client, in)
-		case "get":
-			return attemptsGet(ctx, client, in)
-		default:
-			return mcpcore.ErrorResult(fmt.Sprintf("unknown action %q; expected list or get", action)), nil
+		action, blocked := mcpcore.DispatchWithDefault(srv, attemptsActions, in.String("action"), "list")
+		if blocked != nil {
+			return blocked, nil
 		}
+
+		if action == "list" {
+			return attemptsList(ctx, client, in)
+		}
+		return attemptsGet(ctx, client, in)
 	}
 }
 

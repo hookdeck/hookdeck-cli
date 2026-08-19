@@ -614,23 +614,49 @@ Claude Desktop (`claude_desktop_config.json`):
 
 The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool is available to log in via the browser.
 
+#### Read-only by default
+
+The server starts read-only. Tools advertise only the actions that read data, so an agent is never offered an action it cannot perform. Pass `--allow-write` (or set `HOOKDECK_MCP_ALLOW_WRITE=true`) to enable creating, changing and deleting:
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp", "--allow-write"]
+    }
+  }
+}
+```
+
+`--read-only` is accepted explicitly and wins if both are passed.
+
+Pausing and unpausing a connection are available in **both** modes. Read-only is the mode incidents get investigated in, and stopping a misbehaving connection is the natural end of an investigation; both are reversible, and pausing buffers delivery rather than dropping events.
+
 #### Available tools
 
-| Tool | Description |
-|------|-------------|
-| `hookdeck_projects` | List projects or switch the active project for this session |
-| `hookdeck_connections` | Inspect connections and control delivery flow (list, get, pause, unpause) |
-| `hookdeck_sources` | Inspect inbound sources (HTTP endpoints that receive events) |
-| `hookdeck_destinations` | Inspect delivery destinations (HTTP endpoints where events are sent) |
-| `hookdeck_transformations` | Inspect JavaScript transformations applied to event payloads |
-| `hookdeck_requests` | Query inbound requests — list, get details, raw body, linked events |
-| `hookdeck_events` | Query processed events — list, get details, raw payload body |
-| `hookdeck_attempts` | Query delivery attempts — retry history, response codes, errors |
-| `hookdeck_issues` | Inspect aggregated failure signals (delivery failures, transform errors, backpressure) |
-| `hookdeck_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
-| `hookdeck_help` | Discover available tools and their actions |
+Product tools are prefixed `gateway_`. Signing in and switching project are Hookdeck operations rather than Event Gateway ones, so they keep the platform `hookdeck_` prefix and are shared with `hookdeck outpost mcp`.
 
-`hookdeck_events` and `hookdeck_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `hookdeck_help` with topic `hookdeck_events` or `hookdeck_requests` for the full parameter list.
+| Tool | Read actions | Added by `--allow-write` |
+|------|--------------|--------------------------|
+| `hookdeck_projects` | list, use | — |
+| `hookdeck_login` | (sign in) | — |
+| `gateway_connections` | list, get, pause, unpause | create, upsert, update, delete, enable, disable |
+| `gateway_sources` | list, get | create, upsert, update, delete, enable, disable |
+| `gateway_destinations` | list, get | create, upsert, update, delete, enable, disable |
+| `gateway_transformations` | list, get | create, upsert, update, delete, run |
+| `gateway_requests` | list, get, raw_body, events, ignored_events | retry |
+| `gateway_events` | list, get, raw_body | retry, cancel, mute |
+| `gateway_attempts` | list, get | — |
+| `gateway_issues` | list, get | update, dismiss |
+| `gateway_metrics` | events, requests, attempts, transformations | — |
+| `gateway_help` | overview, per-tool topics | — |
+
+`transformations run` executes code without storing anything, but it is gated as a write: a read-only session should not be able to run caller-supplied code.
+
+`gateway_events` and `gateway_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `gateway_help` with topic `gateway_events` or `gateway_requests` for the full parameter list.
+
+`gateway_help` reports which mode the session is in and lists only the actions it can perform.
 
 #### Example prompts
 
@@ -638,31 +664,31 @@ Once the MCP server is configured, you can ask your agent questions like:
 
 ```
 "Are any of my events failing right now?"
-→ Agent uses hookdeck_issues to list open issues, then hookdeck_events to inspect recent failures.
+→ Agent uses gateway_issues to list open issues, then gateway_events to inspect recent failures.
 
 "Show me the last 10 events for my Stripe source and check if any failed."
-→ Agent uses hookdeck_sources to find the Stripe source, then hookdeck_events filtered by source and status.
+→ Agent uses gateway_sources to find the Stripe source, then gateway_events filtered by source and status.
 
 "What's the error rate for my API destination over the last 24 hours?"
-→ Agent uses hookdeck_metrics with measures like failed_count and count, grouped by destination.
+→ Agent uses gateway_metrics with measures like failed_count and count, grouped by destination.
 
 "Trace request req_abc123 — what events did it produce, and did they all deliver successfully?"
-→ Agent uses hookdeck_requests to get the request, then the events action to list generated events.
+→ Agent uses gateway_requests to get the request, then the events action to list generated events.
 
 "Why is my checkout endpoint returning 500s? Show me the latest attempt details."
-→ Agent uses hookdeck_events filtered by status FAILED, then hookdeck_attempts to inspect delivery details.
+→ Agent uses gateway_events filtered by status FAILED, then gateway_attempts to inspect delivery details.
 
 "Pause the connection between Stripe and my staging endpoint while I debug."
-→ Agent uses hookdeck_connections to find and pause the connection.
+→ Agent uses gateway_connections to find and pause the connection.
 
 "Compare failure rates across all my destinations this week."
-→ Agent uses hookdeck_metrics with dimensions set to destination_id and measures like error_rate.
+→ Agent uses gateway_metrics with dimensions set to destination_id and measures like error_rate.
 
 "Find Stripe charge.succeeded events from the last week."
-→ Agent uses hookdeck_events list with body filter {"type":"charge.succeeded"} and created_after / created_before ISO datetimes.
+→ Agent uses gateway_events list with body filter {"type":"charge.succeeded"} and created_after / created_before ISO datetimes.
 
 "Show failed events that had delivery attempts in the last 24 hours."
-→ Agent uses hookdeck_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
+→ Agent uses gateway_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
 ```
 
 ### Outpost

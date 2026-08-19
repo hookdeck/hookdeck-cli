@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -136,18 +135,18 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 		{srv.LoginToolName(), "Sign in, or reauth: true for a fresh browser session when listing projects fails"},
 	}
 
-	specs := []toolSpec{
+	specs := []mcpcore.ToolSpec{
 		tenantsSpec, destinationsSpec, eventsSpec, attemptsSpec,
 		topicsSpec, destinationTypesSpec, metricsSpec, configSpec, statusSpec,
 	}
 	for _, spec := range specs {
-		available := spec.actions.available(srv.WriteEnabled())
+		available := spec.Actions.Available(srv.WriteEnabled())
 		if len(available) == 0 {
 			continue
 		}
 		entries = append(entries, entry{
-			name:    srv.ToolName(spec.resource),
-			summary: "Actions: " + strings.Join(available.names(), ", "),
+			name:    srv.ToolName(spec.Resource),
+			summary: "Actions: " + strings.Join(available.Names(), ", "),
 		})
 	}
 	if srv.WriteEnabled() && opts.PublishAPIKey != "" {
@@ -212,68 +211,18 @@ Parameters:
   topic  (string) — Tool name for detailed help (e.g. "outpost_events"). Omit for the overview.`,
 	}
 
-	specs := []toolSpec{
+	specs := []mcpcore.ToolSpec{
 		tenantsSpec, destinationsSpec, eventsSpec, attemptsSpec,
 		topicsSpec, destinationTypesSpec, metricsSpec, configSpec, statusSpec,
 		publishSpec(""),
 	}
 	for _, spec := range specs {
-		available := spec.actions.available(srv.WriteEnabled())
+		available := spec.Actions.Available(srv.WriteEnabled())
 		if len(available) == 0 {
 			continue
 		}
-		topics[srv.ToolName(spec.resource)] = specHelp(srv, spec, available)
+		topics[srv.ToolName(spec.Resource)] = spec.Help(srv, available)
 	}
 
 	return topics
-}
-
-// specHelp renders a tool's help from its definition, so help cannot drift from
-// the schema the agent is actually given.
-func specHelp(srv *mcpcore.Server, spec toolSpec, available actionSet) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n\n%s\n\nActions:\n", srv.ToolName(spec.resource), spec.summary)
-
-	width := 0
-	for _, a := range available {
-		if len(a.name) > width {
-			width = len(a.name)
-		}
-	}
-	for _, a := range available {
-		fmt.Fprintf(&b, "  %-*s — %s\n", width, a.name, a.desc)
-	}
-
-	if hidden := spec.actions.hasWrite() && !srv.WriteEnabled(); hidden {
-		b.WriteString("\nFurther actions exist but are unavailable in read-only mode. See outpost_help for how to enable them.\n")
-	}
-
-	if len(spec.props) > 0 {
-		b.WriteString("\nParameters:\n")
-		names := make([]string, 0, len(spec.props))
-		for name := range spec.props {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-
-		width = 0
-		for _, name := range names {
-			if len(name) > width {
-				width = len(name)
-			}
-		}
-		for _, name := range names {
-			prop := spec.props[name]
-			required := ""
-			for _, r := range spec.required {
-				if r == name {
-					required = ", required"
-					break
-				}
-			}
-			fmt.Fprintf(&b, "  %-*s (%s%s) — %s\n", width, name, prop.Type, required, prop.Desc)
-		}
-	}
-
-	return strings.TrimRight(b.String(), "\n")
 }

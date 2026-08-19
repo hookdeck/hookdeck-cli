@@ -327,21 +327,21 @@ func TestUnauthenticated_PointsAtALoginToolThatExists(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestActionSet(t *testing.T) {
-	actions := actionSet{
-		{name: "list"},
-		{name: "delete", write: true, destructive: true},
+	actions := mcpcore.ActionSet{
+		{Name: "list"},
+		{Name: "delete", Write: true, Destructive: true},
 	}
 
 	t.Run("read-only mode drops writes", func(t *testing.T) {
-		assert.Equal(t, []string{"list"}, actions.available(false).names())
-		assert.False(t, actions.available(false).hasWrite())
-		assert.False(t, actions.available(false).hasDestructive())
+		assert.Equal(t, []string{"list"}, actions.Available(false).Names())
+		assert.False(t, actions.Available(false).HasWrite())
+		assert.False(t, actions.Available(false).HasDestructive())
 	})
 
 	t.Run("write mode keeps everything", func(t *testing.T) {
-		assert.Equal(t, []string{"list", "delete"}, actions.available(true).names())
-		assert.True(t, actions.available(true).hasWrite())
-		assert.True(t, actions.available(true).hasDestructive())
+		assert.Equal(t, []string{"list", "delete"}, actions.Available(true).Names())
+		assert.True(t, actions.Available(true).HasWrite())
+		assert.True(t, actions.Available(true).HasDestructive())
 	})
 }
 

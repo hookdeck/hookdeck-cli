@@ -10,8 +10,8 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-var publishActions = actionSet{
-	{name: "publish", desc: "publish an event to a topic", write: true, destructive: true},
+var publishActions = mcpcore.ActionSet{
+	{Name: "publish", Desc: "publish an event to a topic", Write: true, Destructive: true},
 }
 
 // publishSpec builds the publish tool for a given Project API key.
@@ -20,13 +20,13 @@ var publishActions = actionSet{
 // the credentials stored by `hookdeck login`. The tool is therefore only
 // registered when a key is available, rather than being offered and then
 // failing on every call.
-func publishSpec(apiKey string) toolSpec {
-	return toolSpec{
-		resource: "publish",
-		summary:  "Publish an event to a topic, for delivery to a tenant's matching destinations. Publishing is asynchronous: a successful response means the event was accepted, not that it has been delivered — check outpost_attempts for that. This delivers real events to real destinations.",
-		actions:  publishActions,
-		required: []string{"tenant_id", "topic"},
-		props: map[string]mcpcore.Prop{
+func publishSpec(apiKey string) mcpcore.ToolSpec {
+	return mcpcore.ToolSpec{
+		Resource: "publish",
+		Summary:  "Publish an event to a topic, for delivery to a tenant's matching destinations. Publishing is asynchronous: a successful response means the event was accepted, not that it has been delivered — check outpost_attempts for that. This delivers real events to real destinations.",
+		Actions:  publishActions,
+		Required: []string{"tenant_id", "topic"},
+		Props: map[string]mcpcore.Prop{
 			"tenant_id":          {Type: "string", Desc: "Tenant to publish for (required)."},
 			"topic":              {Type: "string", Desc: "Topic to publish on (required). Must be one of the project's topics — see outpost_topics."},
 			"data":               {Type: "object", Desc: "Event payload as a JSON object."},
@@ -35,7 +35,7 @@ func publishSpec(apiKey string) toolSpec {
 			"metadata":           {Type: "object", Desc: "Event metadata as a JSON object of string values."},
 			"eligible_for_retry": {Type: "boolean", Desc: "Whether failed deliveries should be retried. Omit to use the project default."},
 		},
-		handler: func(srv *mcpcore.Server) mcpsdk.ToolHandler {
+		Handler: func(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return handlePublish(srv, apiKey)
 		},
 	}
@@ -52,23 +52,23 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		if _, blocked := dispatch(srv, publishActions, in.String("action")); blocked != nil {
+		if _, blocked := mcpcore.Dispatch(srv, publishActions, in.String("action")); blocked != nil {
 			return blocked, nil
 		}
 
-		tenantID, err := requireString(in, "tenant_id", "publish")
+		tenantID, err := mcpcore.RequireString(in, "tenant_id", "publish")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		topic, err := requireString(in, "topic", "publish")
+		topic, err := mcpcore.RequireString(in, "topic", "publish")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		data, err := object(in, "data")
+		data, err := mcpcore.Object(in, "data")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
-		metadata, err := stringMap(in, "metadata")
+		metadata, err := mcpcore.StringMap(in, "metadata")
 		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}

@@ -10,25 +10,25 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-var configActions = actionSet{
-	{name: "get", desc: "show the project configuration"},
-	{name: "set", desc: "change configuration values", write: true, destructive: true},
-	{name: "custom_domain_get", desc: "show the tenant portal's custom domain"},
-	{name: "custom_domain_set", desc: "configure a custom domain for the tenant portal", write: true},
-	{name: "custom_domain_delete", desc: "remove the custom domain", write: true, destructive: true},
+var configActions = mcpcore.ActionSet{
+	{Name: "get", Desc: "show the project configuration"},
+	{Name: "set", Desc: "change configuration values", Write: true, Destructive: true},
+	{Name: "custom_domain_get", Desc: "show the tenant portal's custom domain"},
+	{Name: "custom_domain_set", Desc: "configure a custom domain for the tenant portal", Write: true},
+	{Name: "custom_domain_delete", Desc: "remove the custom domain", Write: true, Destructive: true},
 }
 
-var configSpec = toolSpec{
-	resource: "config",
-	summary:  "Read and change this project's Outpost configuration. These settings apply to the whole project — every tenant and every destination — so a change here affects all delivery, and takes a short while to reach the deployment (check outpost_status). Some keys are managed for you and are rejected if set directly.",
-	actions:  configActions,
-	props: map[string]mcpcore.Prop{
+var configSpec = mcpcore.ToolSpec{
+	Resource: "config",
+	Summary:  "Read and change this project's Outpost configuration. These settings apply to the whole project — every tenant and every destination — so a change here affects all delivery, and takes a short while to reach the deployment (check outpost_status). Some keys are managed for you and are rejected if set directly.",
+	Actions:  configActions,
+	Props: map[string]mcpcore.Prop{
 		"key":      {Type: "string", Desc: "A single configuration key to read (get). Omit to read everything that is set."},
 		"values":   {Type: "object", Desc: `Configuration values to set, as {"KEY": "value"} (set). Only the keys given are changed.`},
 		"unset":    {Type: "array", Desc: "Configuration keys to return to their default (set).", Items: &mcpcore.Prop{Type: "string"}},
 		"hostname": {Type: "string", Desc: "Hostname to serve the tenant portal from (required for custom_domain_set)."},
 	},
-	handler: handleConfig,
+	Handler: handleConfig,
 }
 
 func handleConfig(srv *mcpcore.Server) mcpsdk.ToolHandler {
@@ -42,7 +42,7 @@ func handleConfig(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := dispatch(srv, configActions, in.String("action"))
+		action, blocked := mcpcore.Dispatch(srv, configActions, in.String("action"))
 		if blocked != nil {
 			return blocked, nil
 		}
@@ -59,7 +59,7 @@ func handleConfig(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			}
 			return mcpcore.JSONResultEnvelopeForClient(domain, client)
 		case "custom_domain_set":
-			hostname, err := requireString(in, "hostname", "custom_domain_set")
+			hostname, err := mcpcore.RequireString(in, "hostname", "custom_domain_set")
 			if err != nil {
 				return mcpcore.ErrorResult(err.Error()), nil
 			}
@@ -95,7 +95,7 @@ func configGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (
 func configSet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	update := hookdeck.OutpostManagedConfig{}
 
-	values, err := object(in, "values")
+	values, err := mcpcore.Object(in, "values")
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
@@ -112,7 +112,7 @@ func configSet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (
 		}
 	}
 
-	for _, key := range stringList(in, "unset") {
+	for _, key := range mcpcore.StringList(in, "unset") {
 		update[key] = nil
 	}
 

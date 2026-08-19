@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
 // Every action of every Outpost tool, called successfully at least once.
@@ -718,7 +720,7 @@ func TestEveryActionHasBeenCalledSuccessfully(t *testing.T) {
 		"status": {"get": true},
 	}
 
-	specs := map[string]actionSet{
+	specs := map[string]mcpcore.ActionSet{
 		"tenants":           tenantsActions,
 		"destinations":      destinationsActions,
 		"events":            eventsActions,
@@ -732,10 +734,10 @@ func TestEveryActionHasBeenCalledSuccessfully(t *testing.T) {
 
 	for resource, actions := range specs {
 		for _, a := range actions {
-			assert.True(t, covered[resource][a.name],
+			assert.True(t, covered[resource][a.Name],
 				"outpost_%s action %q has no test making a successful call; "+
 					"a refusal test alone does not prove the action works",
-				resource, a.name)
+				resource, a.Name)
 		}
 	}
 }
