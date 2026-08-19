@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
@@ -64,9 +65,41 @@ func requireOutpostProject(cfg *config.Config) error {
 	}
 
 	if !config.IsOutpostProject(projectType) {
-		return fmt.Errorf("this command requires an Outpost project; current project type is %s. Use 'hookdeck project use' to switch to an Outpost project", projectType)
+		return wrongProjectTypeError(cfg, projectType)
 	}
 	return nil
+}
+
+// wrongProjectTypeError explains how to reach an Outpost project from here.
+//
+// "Run 'hookdeck project use'" is the right advice only when the stored
+// credential can switch projects. A project-scoped key cannot, and `project use`
+// answers it by saying to log in again — which, with the same key, lands back on
+// this error. Naming the real cause is what breaks that circle.
+//
+// Establishing the credential's scope costs a request, so it is only made here,
+// on a path that has already failed. If the check itself fails, fall back to the
+// general advice rather than compounding one error with another.
+func wrongProjectTypeError(cfg *config.Config, projectType string) error {
+	described := projectType
+	if described == "" {
+		described = "unknown"
+	}
+
+	scoped, err := project.CredentialsLackUserAssociation(cfg.GetAPIClient())
+	if err == nil && scoped {
+		return fmt.Errorf(`this command requires an Outpost project; the active project is a %s project.
+
+The stored credential belongs to that one project, so 'hookdeck project use' cannot switch away from it. Either sign in with an account-wide key:
+
+  hookdeck login
+
+or point this machine at the Outpost project directly, using that project's API key:
+
+  hookdeck ci --api-key <outpost project api key>`, described)
+	}
+
+	return fmt.Errorf("this command requires an Outpost project; current project type is %s. Use 'hookdeck project use' to switch to an Outpost project", described)
 }
 
 func newOutpostCmd() *outpostCmd {
