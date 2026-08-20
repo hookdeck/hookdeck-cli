@@ -4,7 +4,6 @@ package acceptance
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -354,71 +353,36 @@ func TestListenCommandBasic(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 
-	// Ensure we're authenticated (NewCLIRunner handles this)
-	_ = NewCLIRunner(t)
+	cli := NewCLIRunner(t)
 
 	// Generate unique source name
 	timestamp := generateTimestamp()
 	sourceName := "test-" + timestamp
 
-	// Get the absolute path to the project root
-	projectRoot, err := filepath.Abs("../..")
-	require.NoError(t, err, "Failed to get project root")
-
-	mainGoPath := filepath.Join(projectRoot, "main.go")
-
-	// Build the listen command
-	// We use exec.Command directly here instead of CLIRunner.Run because we need
-	// to start the process in the background and then kill it
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "go", "run", mainGoPath,
+	// Run a built binary rather than `go run`. `go run` starts the compiled
+	// program as a child process, so killing it leaves that child alive holding
+	// the inherited stdout and stderr — cmd.Wait then blocks until the orphan
+	// exits, and the captured output is never readable. The #333 tests below
+	// already take this route; these two predate it.
+	cmd, stdout, stderr, done := startListenCapturingOutput(t, cli,
 		"listen", "8080", sourceName, "--output", "compact")
-	cmd.Dir = projectRoot
-
-	// Capture output. Without this the only evidence of a failure is
-	// "exit status 1", which says nothing about why listen gave up.
-	var output syncBuffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-
-	// Start the command in the background
-	err = cmd.Start()
-	require.NoError(t, err, "listen command should start without error")
-
-	t.Logf("Started listen command with PID %d", cmd.Process.Pid)
-
-	// Register cleanup to ensure process is killed even if test fails
-	t.Cleanup(func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	})
 
 	// Wait for the listen command to initialize
 	t.Log("Waiting 5 seconds for listen command to initialize...")
 	time.Sleep(5 * time.Second)
 
-	// Check if the command has exited early (which would be an error)
-	// We'll use a non-blocking channel to check if Wait() returns immediately
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
 	select {
 	case err := <-done:
 		// Process exited early - this is a failure
-		t.Fatalf("listen command exited early with error: %v\n--- listen output ---\n%s", err, output.String())
+		t.Fatalf("listen command exited early with error: %v\n--- stdout ---\n%s\n--- stderr ---\n%s",
+			err, stdout.String(), stderr.String())
 	case <-time.After(100 * time.Millisecond):
 		// Process is still running - this is what we want
 		t.Logf("Listen command successfully initialized and is running")
 	}
 
 	// Terminate the process
-	err = cmd.Process.Kill()
-	require.NoError(t, err, "should be able to kill the listen process")
+	require.NoError(t, cmd.Process.Kill(), "should be able to kill the listen process")
 
 	// Wait for the process to exit (with timeout)
 	select {
@@ -438,65 +402,33 @@ func TestListenCommandWithContext(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 
-	// Ensure we're authenticated (NewCLIRunner handles this)
-	_ = NewCLIRunner(t)
+	cli := NewCLIRunner(t)
 
 	// Generate unique source name
 	timestamp := generateTimestamp()
 	sourceName := "test-ctx-" + timestamp
 
-	// Get the absolute path to the project root
-	projectRoot, err := filepath.Abs("../..")
-	require.NoError(t, err, "Failed to get project root")
-
-	mainGoPath := filepath.Join(projectRoot, "main.go")
-
-	// Create a context with a timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-
-	// Build the listen command with context
-	cmd := exec.CommandContext(ctx, "go", "run", mainGoPath,
+	// A built binary rather than `go run` — see the note in
+	// TestListenCommandBasic. Killing `go run` orphans the child holding the
+	// output pipes, so the captured output is never readable.
+	cmd, stdout, stderr, done := startListenCapturingOutput(t, cli,
 		"listen", "8080", sourceName, "--output", "compact")
-	cmd.Dir = projectRoot
-
-	// Capture output. Without this the only evidence of a failure is
-	// "exit status 1", which says nothing about why listen gave up.
-	var output syncBuffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-
-	// Start the command
-	err = cmd.Start()
-	require.NoError(t, err, "listen command should start without error")
-
-	t.Logf("Started listen command with PID %d (will auto-cancel after 8s)", cmd.Process.Pid)
-
-	// Register cleanup
-	t.Cleanup(func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	})
 
 	// Wait for initialization
 	time.Sleep(5 * time.Second)
 
-	// Check if the command has exited early
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
 	select {
 	case err := <-done:
-		t.Fatalf("listen command exited early with error: %v\n--- listen output ---\n%s", err, output.String())
+		t.Fatalf("listen command exited early with error: %v\n--- stdout ---\n%s\n--- stderr ---\n%s",
+			err, stdout.String(), stderr.String())
 	case <-time.After(100 * time.Millisecond):
-		t.Logf("Listen command is running, now canceling context...")
+		t.Logf("Listen command is running, now stopping it...")
 	}
 
-	// Cancel the context (this will kill the process)
-	cancel()
+	// Stop the process. This test previously relied on an exec context
+	// deadline; with a directly-executed binary a kill is the same signal
+	// without the orphaned-child problem.
+	require.NoError(t, cmd.Process.Kill(), "should be able to stop the listen process")
 
 	// Wait for the command to finish
 	select {
