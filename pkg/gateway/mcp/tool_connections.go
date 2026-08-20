@@ -231,7 +231,7 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in mcpcore.In
 	mcpcore.SetIfNonEmpty(params, "next", in.String("next"))
 	mcpcore.SetIfNonEmpty(params, "prev", in.String("prev"))
 
-	if bp := in.BoolPtr("disabled"); bp != nil {
+	if bp := in.BoolOrString("disabled"); bp != nil {
 		if *bp {
 			params["disabled_at[any]"] = "true"
 		}

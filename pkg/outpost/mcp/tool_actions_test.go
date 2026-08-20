@@ -471,6 +471,69 @@ func TestAttemptsList(t *testing.T) {
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), "att_1")
 }
 
+// Models routinely quote numbers. limit: "5" used to fall through to the
+// default of 0, so the tool silently returned the API's page size instead of
+// the one that was asked for.
+func TestListsAcceptLimitAsAString(t *testing.T) {
+	for _, tc := range []struct {
+		tool string
+		path string
+		args map[string]any
+	}{
+		{"outpost_attempts", "/2025-07-01/attempts", map[string]any{}},
+		{"outpost_events", "/2025-07-01/events", map[string]any{}},
+		{"outpost_tenants", "/2025-07-01/tenants", map[string]any{}},
+	} {
+		t.Run(tc.tool, func(t *testing.T) {
+			var got captured
+			api := mockAPI(t, map[string]http.HandlerFunc{
+				"GET " + tc.path: recordJSON(&got, http.StatusOK, map[string]any{
+					"models": []map[string]any{{"id": "x_1"}},
+				}),
+			})
+			session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
+
+			args := map[string]any{"action": "list", "limit": "5"}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			result := callTool(t, session, tc.tool, args)
+			require.False(t, result.IsError, resultText(t, result))
+
+			assert.Contains(t, got.query, "limit=5",
+				"a quoted limit must not fall back to the API's page size")
+		})
+	}
+}
+
+// eligible_for_retry is a *bool so that "not supplied" stays distinct from
+// false. A quoted "false" was read as not supplied, so the event was published
+// with the API's default rather than the caller's choice.
+func TestPublishAcceptsEligibleForRetryAsAString(t *testing.T) {
+	var body map[string]any
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "acme"})
+		},
+		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "evt_1", "destination_ids": []string{"des_1"}})
+		},
+	})
+	session := connect(t, ServerOptions{
+		Client: newTestClient(t, api.URL), WriteEnabled: true, PublishAPIKey: "project-api-key",
+	})
+
+	result := callTool(t, session, "outpost_publish", map[string]any{
+		"action": "publish", "tenant_id": "acme", "topic": "user.created",
+		"data": map[string]any{"user_id": "123"}, "eligible_for_retry": "false",
+	})
+	require.False(t, result.IsError, resultText(t, result))
+	assert.Equal(t, false, body["eligible_for_retry"],
+		"a quoted false must reach the API rather than being read as unset")
+}
+
 // A single tenant and destination address the nested route; anything else has
 // to fall back to the global one, because the nested path cannot express two.
 func TestAttemptsListUsesTheTenantScopedRoute(t *testing.T) {

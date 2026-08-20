@@ -98,7 +98,7 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 			TenantID:         tenantID,
 			Topic:            topic,
 			DestinationID:    in.String("destination_id"),
-			EligibleForRetry: in.BoolPtr("eligible_for_retry"),
+			EligibleForRetry: in.BoolOrString("eligible_for_retry"),
 			Metadata:         metadata,
 			Data:             data,
 		})

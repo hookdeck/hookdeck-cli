@@ -891,6 +891,80 @@ func TestRequestsListAcceptsCountsAsJSONNumbers(t *testing.T) {
 	assert.Contains(t, got.query, "cli_events_count=1")
 }
 
+// Booleans have the same problem as the counts above, and a worse consequence:
+// verified: "false" was dropped, so every request came back and the caller
+// reported verified requests as unverified.
+func TestRequestsListAcceptsVerifiedAsAString(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{"json false", false, "verified=false"},
+		{"quoted false", "false", "verified=false"},
+		{"json true", true, "verified=true"},
+		{"quoted true", "true", "verified=true"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got wireRequest
+			session := readSession(t, map[string]http.HandlerFunc{
+				"GET /2025-07-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
+			})
+
+			succeeds(t, session, "gateway_requests", map[string]any{
+				"action": "list", "verified": tc.value,
+			})
+
+			assert.Contains(t, got.query, tc.want,
+				"a dropped verification filter returns every request as if it matched")
+		})
+	}
+}
+
+// disabled: "true" is the connections equivalent — dropping it lists every
+// connection, enabled ones included.
+func TestConnectionsListAcceptsDisabledAsAString(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/connections": ok(&got, listResponse(connectionBody())),
+	})
+
+	succeeds(t, session, "gateway_connections", map[string]any{
+		"action": "list", "disabled": "true",
+	})
+
+	assert.Contains(t, got.query, "disabled_at%5Bany%5D=true")
+}
+
+// limit: "5" quietly returned the API's default page size instead.
+func TestListsAcceptLimitAsAString(t *testing.T) {
+	for _, tc := range []struct {
+		tool string
+		path string
+		body map[string]any
+	}{
+		{"gateway_requests", "/2025-07-01/requests", map[string]any{"id": "req_1"}},
+		{"gateway_events", "/2025-07-01/events", map[string]any{"id": "evt_1"}},
+		{"gateway_connections", "/2025-07-01/connections", connectionBody()},
+		{"gateway_sources", "/2025-07-01/sources", map[string]any{"id": "src_1"}},
+		{"gateway_destinations", "/2025-07-01/destinations", map[string]any{"id": "des_1"}},
+		{"gateway_transformations", "/2025-07-01/transformations", map[string]any{"id": "trs_1"}},
+		{"gateway_issues", "/2025-07-01/issues", map[string]any{"id": "iss_1"}},
+	} {
+		t.Run(tc.tool, func(t *testing.T) {
+			var got wireRequest
+			session := readSession(t, map[string]http.HandlerFunc{
+				"GET " + tc.path: ok(&got, listResponse(tc.body)),
+			})
+
+			succeeds(t, session, tc.tool, map[string]any{"action": "list", "limit": "5"})
+
+			assert.Contains(t, got.query, "limit=5",
+				"a quoted limit must not fall back to the API's page size")
+		})
+	}
+}
+
 // Same trait on the events tool, which had it before these filters were added.
 func TestEventsListAcceptsAttemptsAsAJSONNumber(t *testing.T) {
 	var got wireRequest

@@ -72,10 +72,10 @@ func TestInput_Accessors(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, in.StringSlice("tags"))
 	assert.Nil(t, in.StringSlice("nonexistent"))
 
-	bp := in.BoolPtr("active")
+	bp := in.BoolOrString("active")
 	require.NotNil(t, bp)
 	assert.True(t, *bp)
-	assert.Nil(t, in.BoolPtr("nonexistent"))
+	assert.Nil(t, in.BoolOrString("nonexistent"))
 }
 
 func TestInput_EmptyArgs(t *testing.T) {

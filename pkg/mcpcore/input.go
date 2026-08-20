@@ -38,6 +38,11 @@ func (in Input) String(key string) string {
 }
 
 // Int returns the integer value for a key, or the given default if missing.
+//
+// A numeric string is accepted as well as a JSON number, for the same reason
+// NumberOrString accepts a number as well as a string: models routinely emit
+// numbers as JSON strings, and returning the default for limit: "5" silently
+// substituted the API's page size for the one that was asked for.
 func (in Input) Int(key string, def int) int {
 	v, ok := in[key]
 	if !ok {
@@ -52,6 +57,12 @@ func (in Input) Int(key string, def int) int {
 			return def
 		}
 		return int(i)
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		if err != nil {
+			return def
+		}
+		return i
 	default:
 		return def
 	}
@@ -91,30 +102,45 @@ func (in Input) NumberOrString(key string) string {
 	}
 }
 
-// Bool returns the boolean value for a key, or false if missing.
+// Bool returns the boolean value for a key, or false if missing. A quoted
+// boolean counts, on the same grounds as BoolOrString.
 func (in Input) Bool(key string) bool {
-	v, ok := in[key]
-	if !ok {
-		return false
-	}
-	b, ok := v.(bool)
-	if !ok {
-		return false
-	}
-	return b
+	b := in.BoolOrString(key)
+	return b != nil && *b
 }
 
-// BoolPtr returns a *bool for a key, or nil if missing.
-func (in Input) BoolPtr(key string) *bool {
+// BoolOrString returns a *bool for a key, accepting either a JSON bool or a
+// string strconv.ParseBool understands ("true", "false", and also 1/0/T/F).
+// Anything else, including an absent key, is nil.
+//
+// This is NumberOrString's failure in the other direction. Boolean filters —
+// verified, disabled, eligible_for_retry — were read with a plain type
+// assertion, so a model that sent verified: "false" had the filter dropped
+// rather than rejected: gateway_requests then listed every request, verified
+// ones included, and nothing in the response said a filter had been ignored.
+// The caller reports unverified requests that were never unverified. Models
+// emit booleans as JSON strings often enough that this is the common path, and
+// a wrong answer that reads as a right one is worse than an error.
+//
+// nil still means "no filter", so a genuinely unparseable value (verified:
+// "yes") behaves as before rather than guessing at an intent.
+func (in Input) BoolOrString(key string) *bool {
 	v, ok := in[key]
 	if !ok {
 		return nil
 	}
-	b, ok := v.(bool)
-	if !ok {
+	switch b := v.(type) {
+	case bool:
+		return &b
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(b))
+		if err != nil {
+			return nil
+		}
+		return &parsed
+	default:
 		return nil
 	}
-	return &b
 }
 
 // StringSlice returns the string slice for a key, or nil if missing.
