@@ -79,7 +79,8 @@ Date range filters:
 Payload search:
   body, headers, parsed_query — Hookdeck JSON filter syntax (object or string)
   path — partial URL path match
-  search_term — partial match across body, headers, parsed_query and path at once (min 3 chars)
+  search_term — matches a COMPLETE value across body, headers, parsed_query and path at once (min 3 chars).
+                Not a substring: a field holding "pat@example.test" matches that exact string, not "example".
   Example: {"action":"list","body":{"type":"charge.succeeded"}}
   Example: {"action":"list","search_term":"cus_1234"}
 

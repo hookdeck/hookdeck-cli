@@ -49,7 +49,7 @@ func newRequestListCmd() *requestListCmd {
 		Short: ShortList(ResourceRequest),
 		Long: `List requests (raw inbound webhooks). Filter by source ID.
 
-Use --search-term to match a value partially against the body, headers, parsed query or path
+Use --search-term to find a complete value across the body, headers, parsed query or path
 at once. --events-count 0 finds requests that produced no events, which is the usual reason a
 webhook appears to have gone missing.
 
@@ -74,7 +74,7 @@ Examples:
 	rc.cmd.Flags().StringVar(&rc.body, "body", "", "Filter by body (JSON string)")
 	rc.cmd.Flags().StringVar(&rc.path, "path", "", "Filter by path")
 	rc.cmd.Flags().StringVar(&rc.parsedQuery, "parsed-query", "", "Filter by parsed query (JSON string)")
-	rc.cmd.Flags().StringVar(&rc.searchTerm, "search-term", "", "Partial match against body, headers, parsed query or path (min 3 characters)")
+	rc.cmd.Flags().StringVar(&rc.searchTerm, "search-term", "", "Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters)")
 	rc.cmd.Flags().StringVar(&rc.eventsCount, "events-count", "", "Filter by number of events produced (integer or operators)")
 	rc.cmd.Flags().StringVar(&rc.ignoredCount, "ignored-count", "", "Filter by number of ignored events (integer or operators)")
 	rc.cmd.Flags().StringVar(&rc.cliEventsCount, "cli-events-count", "", "Filter by number of CLI events (integer or operators)")

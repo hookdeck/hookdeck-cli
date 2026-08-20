@@ -1560,7 +1560,7 @@ hookdeck gateway transformation executions get <transformation-id-or-name> <exec
 
 List events (processed webhook deliveries). Filter by connection ID, source, destination, or status.
 
-Use `--search-term` to match a value partially against the body, headers, parsed query or path
+Use `--search-term` to find a complete value across the body, headers, parsed query or path
 at once, when you know the value but not which field carries it.
 
 **Usage:**
@@ -1598,7 +1598,7 @@ hookdeck gateway event list [flags]
 | `--path` | `string` | Filter by path |
 | `--prev` | `string` | Pagination cursor for previous page |
 | `--response-status` | `string` | Filter by HTTP response status (e.g. 200, 500) |
-| `--search-term` | `string` | Partial match against body, headers, parsed query or path (min 3 characters) |
+| `--search-term` | `string` | Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters) |
 | `--source-id` | `string` | Filter by source ID |
 | `--status` | `string` | Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED) |
 | `--successful-at-after` | `string` | Filter by successful_at after (ISO date-time) |
@@ -1709,7 +1709,7 @@ hookdeck gateway event raw-body evt_abc123
 
 List requests (raw inbound webhooks). Filter by source ID.
 
-Use `--search-term` to match a value partially against the body, headers, parsed query or path
+Use `--search-term` to find a complete value across the body, headers, parsed query or path
 at once. `--events-count` 0 finds requests that produced no events, which is the usual reason a
 webhook appears to have gone missing.
 
@@ -1742,7 +1742,7 @@ hookdeck gateway request list [flags]
 | `--path` | `string` | Filter by path |
 | `--prev` | `string` | Pagination cursor for previous page |
 | `--rejection-cause` | `string` | Filter by rejection cause |
-| `--search-term` | `string` | Partial match against body, headers, parsed query or path (min 3 characters) |
+| `--search-term` | `string` | Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters) |
 | `--source-id` | `string` | Filter by source ID |
 | `--status` | `string` | Filter by status |
 | `--verified` | `string` | Filter by verified (true/false) |

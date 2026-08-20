@@ -120,7 +120,16 @@ const (
 
 	// One filter that searches body, headers, parsed_query and path together,
 	// for when the caller knows the value but not which field carries it.
-	descSearchTerm = "Partial match against the body, headers, parsed_query or path at once (minimum 3 characters). " +
+	//
+	// The API schema calls this a partial match. It is not: verified against the
+	// live API, the term has to equal a complete field value. "foo.bar.baz"
+	// matches a field holding exactly that; "bar" matches nothing. It is not
+	// word-tokenised either — a field holding "quixotic wombat flugelhorn"
+	// matches only the whole phrase, not "wombat". Describing it as partial
+	// sends callers looking for substrings that can never match.
+	descSearchTerm = "Match a complete value across the body, headers, parsed_query and path at once (minimum 3 characters). " +
+		"The term must equal a whole field value, not a substring or a single word within one: a field holding " +
+		"\"pat@example.test\" matches that exact string but not \"example\". " +
 		"Use when you know the value but not which field holds it; use body/headers/parsed_query for a structured match."
 
 	// The API schema is nullable and says null matches events with no delivery

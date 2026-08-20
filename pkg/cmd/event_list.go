@@ -56,7 +56,7 @@ func newEventListCmd() *eventListCmd {
 		Short: ShortList(ResourceEvent),
 		Long: `List events (processed webhook deliveries). Filter by connection ID, source, destination, or status.
 
-Use --search-term to match a value partially against the body, headers, parsed query or path
+Use --search-term to find a complete value across the body, headers, parsed query or path
 at once, when you know the value but not which field carries it.
 
 Examples:
@@ -91,7 +91,7 @@ Examples:
 	ec.cmd.Flags().StringVar(&ec.body, "body", "", "Filter by body (JSON string)")
 	ec.cmd.Flags().StringVar(&ec.path, "path", "", "Filter by path")
 	ec.cmd.Flags().StringVar(&ec.parsedQuery, "parsed-query", "", "Filter by parsed query (JSON string)")
-	ec.cmd.Flags().StringVar(&ec.searchTerm, "search-term", "", "Partial match against body, headers, parsed query or path (min 3 characters)")
+	ec.cmd.Flags().StringVar(&ec.searchTerm, "search-term", "", "Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters)")
 	ec.cmd.Flags().StringVar(&ec.orderBy, "order-by", "", "Sort key (e.g. created_at)")
 	ec.cmd.Flags().StringVar(&ec.dir, "dir", "", "Sort direction (asc, desc)")
 	ec.cmd.Flags().IntVar(&ec.limit, "limit", 100, "Limit number of results")
