@@ -236,6 +236,49 @@ func TestDestinationsCreateSendsTheWildcardAsAString(t *testing.T) {
 	assert.Equal(t, "*", got.decodeBody(t)["topics"])
 }
 
+// The API requires topics and the field is omitempty, so an omitted argument
+// sent no topics at all and the create failed with a 422. The CLI defaults to
+// everything rather than failing on an omitted flag; the tool now matches.
+func TestDestinationsCreateDefaultsTopicsToEverything(t *testing.T) {
+	var got captured
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"POST /2025-07-01/tenants/acme/destinations": recordJSON(&got, http.StatusCreated, map[string]any{
+			"id": "des_1", "type": "webhook", "topics": "*",
+		}),
+	})
+	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
+
+	result := callTool(t, session, "outpost_destinations", map[string]any{
+		"action": "create", "tenant_id": "acme", "type": "webhook",
+		"config": map[string]any{"url": "https://example.com/hooks"},
+	})
+	require.False(t, result.IsError, resultText(t, result))
+
+	body := got.decodeBody(t)
+	require.Contains(t, body, "topics", "omitting topics must not omit the field the API requires")
+	assert.Equal(t, "*", body["topics"])
+}
+
+// Update is a merge patch, so there the absence of topics has to keep meaning
+// "leave them alone" — defaulting there would silently resubscribe a
+// destination to everything.
+func TestDestinationsUpdateDoesNotDefaultTopics(t *testing.T) {
+	var got captured
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		"PATCH /2025-07-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, map[string]any{
+			"id": "des_1", "type": "webhook",
+		}),
+	})
+	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
+
+	result := callTool(t, session, "outpost_destinations", map[string]any{
+		"action": "update", "tenant_id": "acme", "id": "des_1",
+		"config": map[string]any{"url": "https://example.com/new"},
+	})
+	require.False(t, result.IsError, resultText(t, result))
+	assert.NotContains(t, got.decodeBody(t), "topics")
+}
+
 func TestDestinationsCreateRequiresAType(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})

@@ -28,7 +28,7 @@ var destinationsSpec = mcpcore.ToolSpec{
 		"tenant_id":   {Type: "string", Desc: "Tenant the destination belongs to (required for every action)."},
 		"id":          {Type: "string", Desc: "Destination ID. Required for get/update/delete/enable/disable."},
 		"type":        {Type: "string", Desc: "Destination type, e.g. webhook (required for create). On list, filters by type(s). " + descListValue},
-		"topics":      {Type: "array", Desc: `Topics to subscribe to, or ["*"] for all. On list, filters by topic(s).`, Items: &mcpcore.Prop{Type: "string"}},
+		"topics":      {Type: "array", Desc: `Topics to subscribe to, or ["*"] for all. On create, defaults to ["*"] when omitted, because the API requires topics. On update, omitting it leaves the current topics unchanged. On list, filters by topic(s).`, Items: &mcpcore.Prop{Type: "string"}},
 		"config":      {Type: "object", Desc: "Type-specific configuration, e.g. {\"url\": \"https://example.com/hooks\"} for a webhook (create/update)."},
 		"credentials": {Type: "object", Desc: "Type-specific credentials (create/update). Values are write-only; the API does not return them."},
 		"filter":      {Type: "object", Desc: "Delivery filter (create/update). Replaced wholesale on update, not merged."},
@@ -120,9 +120,18 @@ func destinationsCreate(ctx context.Context, client *hookdeck.Client, in mcpcore
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
+	// The API requires topics, and the field is omitempty, so leaving it unset
+	// sent no topics at all and the create failed with a 422. Default to
+	// everything rather than failing on an omitted argument — the same choice
+	// 'hookdeck outpost destination create' makes.
+	topics := hookdeck.OutpostTopics(mcpcore.StringList(in, "topics"))
+	if len(topics) == 0 {
+		topics = hookdeck.OutpostTopics{hookdeck.OutpostTopicsWildcard}
+	}
+
 	return destinationResult(client)(client.CreateOutpostDestination(ctx, tenantID, &hookdeck.OutpostDestinationCreateRequest{
 		Type:        destinationType,
-		Topics:      hookdeck.OutpostTopics(mcpcore.StringList(in, "topics")),
+		Topics:      topics,
 		Config:      cfg,
 		Credentials: credentials,
 		Filter:      filter,
