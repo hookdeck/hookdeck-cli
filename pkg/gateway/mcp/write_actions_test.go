@@ -867,6 +867,45 @@ func TestRequestsListSendsSearchTermAndCounts(t *testing.T) {
 	assert.Contains(t, got.query, "cli_events_count=1")
 }
 
+// A model is at least as likely to send a count as a JSON number as a quoted
+// string, since the parameter means a number. The schema types these as string
+// because the API also accepts operator syntax, so the handler has to take both.
+//
+// Getting this wrong is worse than an error: the filter is dropped, the API
+// returns every record, and the caller sees a plausible unfiltered answer with
+// nothing to indicate its filter was ignored. events_count: 0 — "which requests
+// arrived but delivered nothing" — is the query that breaks.
+func TestRequestsListAcceptsCountsAsJSONNumbers(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
+	})
+
+	succeeds(t, session, "gateway_requests", map[string]any{
+		"action": "list", "events_count": 0, "ignored_count": 2, "cli_events_count": 1,
+	})
+
+	assert.Contains(t, got.query, "events_count=0",
+		"a zero count sent as a JSON number must survive as a filter")
+	assert.Contains(t, got.query, "ignored_count=2")
+	assert.Contains(t, got.query, "cli_events_count=1")
+}
+
+// Same trait on the events tool, which had it before these filters were added.
+func TestEventsListAcceptsAttemptsAsAJSONNumber(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+	})
+
+	succeeds(t, session, "gateway_events", map[string]any{
+		"action": "list", "attempts": 0, "response_status": 500,
+	})
+
+	assert.Contains(t, got.query, "attempts=0")
+	assert.Contains(t, got.query, "response_status=500")
+}
+
 // ---------------------------------------------------------------------------
 // gateway_request (singular: one request by id)
 // ---------------------------------------------------------------------------

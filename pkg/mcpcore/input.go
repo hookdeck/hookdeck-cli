@@ -3,6 +3,7 @@ package mcpcore
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -53,6 +54,40 @@ func (in Input) Int(key string, def int) int {
 		return int(i)
 	default:
 		return def
+	}
+}
+
+// NumberOrString returns the value for a key as a string, accepting either a
+// JSON string or a JSON number.
+//
+// Several filters take "an integer, or the API's operator syntax" — attempts,
+// response_status, events_count. Their schema type is string, because the
+// operator form is a string, and String would silently return "" for a model
+// that sent the integer as a JSON number. The filter was then dropped and the
+// caller got an unfiltered result with nothing to indicate its filter had been
+// ignored: a wrong answer that reads as a right one. Sending events_count: 0 to
+// find requests that delivered nothing is exactly the case that would break.
+//
+// Integral values are rendered without a decimal point, so 0 becomes "0" rather
+// than "0.000000" — the API parses the query string, and "0.000000" is not zero
+// to it.
+func (in Input) NumberOrString(key string) string {
+	v, ok := in[key]
+	if !ok {
+		return ""
+	}
+	switch n := v.(type) {
+	case string:
+		return n
+	case float64:
+		if n == math.Trunc(n) {
+			return strconv.FormatInt(int64(n), 10)
+		}
+		return strconv.FormatFloat(n, 'f', -1, 64)
+	case json.Number:
+		return n.String()
+	default:
+		return ""
 	}
 }
 
