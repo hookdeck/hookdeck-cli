@@ -3094,7 +3094,9 @@ real destinations and cannot be undone, so it should not be switched on by a
 variable that happens to be exported for something else.
 
 If the CLI is already authenticated, all tools are available immediately. If
-not, the server still starts and outpost_login initiates browser-based sign-in.
+not, the server still starts and hookdeck_login initiates browser-based sign-in.
+Signing in is a Hookdeck operation rather than an Outpost one, so it keeps the
+hookdeck_ prefix here as it does in 'hookdeck gateway mcp'.
 Protocol traffic uses stdout only (JSON-RPC); status and errors from the CLI
 before the server runs go to stderr.
 

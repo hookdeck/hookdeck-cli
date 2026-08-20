@@ -26,6 +26,7 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/version"
 	"github.com/spf13/cobra"
@@ -148,7 +149,7 @@ Or run ` + "`hookdeck login`" + ` in an interactive terminal.`
 func Execute() {
 	mcpGroup := argvMCPGroup(os.Args)
 	isMCP := mcpGroup != ""
-	mcpLoginTool := mcpLoginToolName(mcpGroup)
+	mcpLoginTool := mcpLoginToolName()
 	if err := rootCmd.Execute(); err != nil {
 		errString := err.Error()
 		isLoginRequiredError := errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error()
@@ -260,13 +261,17 @@ func argvMCPGroup(argv []string) string {
 	return ""
 }
 
-// mcpLoginToolName returns the login tool exposed by a group's MCP server, so
-// pre-startup errors point at a tool that exists in that session.
-func mcpLoginToolName(group string) string {
-	if group == "outpost" {
-		return "outpost_login"
-	}
-	return "hookdeck_login"
+// mcpLoginToolName returns the login tool exposed by every group's MCP server,
+// so pre-startup errors point at a tool that exists in that session.
+//
+// It takes no group because there is nothing to vary. Signing in is a platform
+// operation rather than a product one, so each server registers it under the
+// platform prefix whatever its own tool prefix is — see
+// mcpcore.Server.platformToolName. Deriving the name from the group instead
+// produced outpost_login, which no server registers, so the one message whose
+// job is to say what to do next named a tool the agent could not call.
+func mcpLoginToolName() string {
+	return mcpcore.DefaultPlatformPrefix + "_login"
 }
 
 // flagNeedsNextArg lists global flags that consume the next argv token as their value.

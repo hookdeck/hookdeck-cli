@@ -89,7 +89,7 @@ granting access to a tenant's portal — both hand back reusable credentials, so
 must not be able to produce them. outpost_publish is not registered at all.
 
 To enable everything, restart the server with --allow-write, or set HOOKDECK_MCP_ALLOW_WRITE=true
-(the flag wins). Publishing additionally needs a Hookdeck Project API key via --api-key or
+(the flag wins). Publishing additionally needs a Hookdeck Project API key via --publish-api-key or
 HOOKDECK_OUTPOST_PUBLISH_API_KEY.`
 }
 

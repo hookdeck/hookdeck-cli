@@ -10,11 +10,14 @@ import (
 )
 
 func TestRequireAuth(t *testing.T) {
+	// The name is echoed back rather than derived, so a made-up one shows that.
+	// It is deliberately not outpost_login: no server registers that, and using
+	// it here read as though one did.
 	t.Run("no API key names the server's login tool", func(t *testing.T) {
-		result := RequireAuth(&hookdeck.Client{}, "outpost_login")
+		result := RequireAuth(&hookdeck.Client{}, "someproduct_login")
 		require.NotNil(t, result)
 		assert.True(t, result.IsError)
-		assert.Contains(t, firstText(t, result), "outpost_login")
+		assert.Contains(t, firstText(t, result), "someproduct_login")
 	})
 
 	t.Run("API key present passes", func(t *testing.T) {

@@ -776,7 +776,7 @@ For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
 }
 ```
 
-The client starts `hookdeck outpost mcp` as a stdio subprocess. If you haven't authenticated yet, the `outpost_login` tool logs in via the browser. The active project must be an Outpost project; `outpost_projects` lists the Outpost projects available to you and switches between them.
+The client starts `hookdeck outpost mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool logs in via the browser. The active project must be an Outpost project; `hookdeck_projects` lists the Outpost projects available to you and switches between them. Signing in and switching projects are Hookdeck operations rather than Outpost ones, so they keep the `hookdeck_` prefix in both servers.
 
 #### Read-only by default
 
@@ -790,13 +790,16 @@ The server starts read-only. Each tool advertises only the actions that read dat
 
 Two actions that only read are gated with the writes, because both return a reusable credential: `outpost_tenants` `token` mints a tenant-scoped access token, and `outpost_tenants` `portal` returns a URL granting access to a tenant's portal.
 
-Publishing needs a Hookdeck **Project API key**, which the credentials stored by `hookdeck login` cannot substitute for. Without one the `outpost_publish` tool is not registered at all; pass `--api-key` or set `HOOKDECK_API_KEY` to enable it.
+Publishing needs a Hookdeck **Project API key**, which the credentials stored by `hookdeck login` cannot substitute for. Without one the `outpost_publish` tool is not registered at all; pass `--publish-api-key` or set `HOOKDECK_OUTPOST_PUBLISH_API_KEY` to enable it.
+
+`HOOKDECK_API_KEY` is deliberately **not** read here. Elsewhere in the CLI it means "a key to exchange for CLI credentials" and is commonly exported for CI, so reading it here would let an ambient variable silently grant an agent the ability to publish real events to real destinations.
 
 #### Available tools
 
 | Tool | Description |
 |------|-------------|
-| `outpost_projects` | List Outpost projects or switch the active one for this session |
+| `hookdeck_login` | Sign in via the browser |
+| `hookdeck_projects` | List Outpost projects or switch the active one for this session |
 | `outpost_tenants` | Inspect tenants (list, get) and manage them (upsert, delete, token, portal) |
 | `outpost_destinations` | Inspect a tenant's destinations (list, get) and manage them (create, update, delete, enable, disable) |
 | `outpost_events` | Query published events (list, get) and retry delivery |
