@@ -417,8 +417,11 @@ func (c *Config) SetTelemetryDisabled(disabled bool) error {
 //   - No viper (e.g. some tests): only clears those Profile fields in memory; nothing is
 //     written to disk.
 //
-// MCP reauth uses the persisted path in production. The shared *hookdeck.Client is also
-// cleared separately in the MCP handler so API calls stop using the old key immediately.
+// The shared *hookdeck.Client is also cleared separately in the MCP handler so API calls
+// stop using the old key immediately.
+//
+// Use ClearActiveProfileCredentialsInMemory instead when starting a sign-in that may not
+// finish — see the note there.
 func (c *Config) ClearActiveProfileCredentials() error {
 	if c == nil || c.Profile.APIKey == "" {
 		return nil
@@ -432,6 +435,25 @@ func (c *Config) ClearActiveProfileCredentials() error {
 	}
 	zeroProfileCredentialFields(&c.Profile)
 	return nil
+}
+
+// ClearActiveProfileCredentialsInMemory clears the active profile's credentials for this
+// process only, leaving whatever is stored on disk alone.
+//
+// This is for starting a sign-in that might not finish. Removing the stored credentials
+// first gains nothing: a completed sign-in calls ApplyPollAPIKeyResponse, which sets every
+// field this would have cleared, so the stored profile is overwritten either way. It only
+// costs something when the sign-in does not complete — an abandoned browser flow, a closed
+// laptop, a failed poll — and then the user is signed out of every terminal and every
+// future session, having gained nothing for it.
+//
+// Clearing in memory is still required, so the current process stops using the old
+// credentials and the caller's sign-in flow proceeds as unauthenticated.
+func (c *Config) ClearActiveProfileCredentialsInMemory() {
+	if c == nil {
+		return
+	}
+	zeroProfileCredentialFields(&c.Profile)
 }
 
 func zeroProfileCredentialFields(p *Profile) {

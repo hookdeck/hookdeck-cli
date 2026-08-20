@@ -88,9 +88,11 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 					)), nil
 				}
 			}
-			if err := cfg.ClearActiveProfileCredentials(); err != nil {
-				return ErrorResult(fmt.Sprintf("reauth: could not clear stored credentials: %v", err)), nil
-			}
+			// Clear in memory only. The stored credentials stay until the new
+			// sign-in completes, which overwrites them; removing them up front
+			// would sign the user out of every terminal and every future
+			// session if the browser flow is never finished.
+			cfg.ClearActiveProfileCredentialsInMemory()
 			for _, c := range srv.projectClients() {
 				c.APIKey = ""
 				c.ProjectID = ""
