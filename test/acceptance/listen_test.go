@@ -377,6 +377,12 @@ func TestListenCommandBasic(t *testing.T) {
 		"listen", "8080", sourceName, "--output", "compact")
 	cmd.Dir = projectRoot
 
+	// Capture output. Without this the only evidence of a failure is
+	// "exit status 1", which says nothing about why listen gave up.
+	var output syncBuffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
 	// Start the command in the background
 	err = cmd.Start()
 	require.NoError(t, err, "listen command should start without error")
@@ -404,7 +410,7 @@ func TestListenCommandBasic(t *testing.T) {
 	select {
 	case err := <-done:
 		// Process exited early - this is a failure
-		t.Fatalf("listen command exited early with error: %v", err)
+		t.Fatalf("listen command exited early with error: %v\n--- listen output ---\n%s", err, output.String())
 	case <-time.After(100 * time.Millisecond):
 		// Process is still running - this is what we want
 		t.Logf("Listen command successfully initialized and is running")
@@ -454,6 +460,12 @@ func TestListenCommandWithContext(t *testing.T) {
 		"listen", "8080", sourceName, "--output", "compact")
 	cmd.Dir = projectRoot
 
+	// Capture output. Without this the only evidence of a failure is
+	// "exit status 1", which says nothing about why listen gave up.
+	var output syncBuffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
 	// Start the command
 	err = cmd.Start()
 	require.NoError(t, err, "listen command should start without error")
@@ -478,7 +490,7 @@ func TestListenCommandWithContext(t *testing.T) {
 
 	select {
 	case err := <-done:
-		t.Fatalf("listen command exited early with error: %v", err)
+		t.Fatalf("listen command exited early with error: %v\n--- listen output ---\n%s", err, output.String())
 	case <-time.After(100 * time.Millisecond):
 		t.Logf("Listen command is running, now canceling context...")
 	}
