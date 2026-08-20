@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -71,6 +72,45 @@ type TransformationRunResponse struct {
 	TransformationID string                         `json:"transformation_id,omitempty"`
 	ExecutionID      string                         `json:"execution_id,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
+
+	// LogLevel is how the run ended, and the only signal that it failed: the
+	// endpoint answers 200 for a throwing handler, a syntax error and a clean
+	// run alike. "fatal" and "error" mean the code did not complete.
+	//
+	// It was omitted from this struct, so both surfaces reported success for a
+	// transformation that threw — the CLI printed "✔ Transformation run
+	// completed" and exited 0.
+	LogLevel string `json:"log_level,omitempty"`
+
+	// Console is everything the code printed, and where the failure reason
+	// lives. A throwing handler answers with no Request at all and the error
+	// only here:
+	//
+	//   {"log_level":"fatal","console":[{"type":"error","message":"Error: ..."}]}
+	Console []TransformationConsoleLine `json:"console,omitempty"`
+}
+
+// TransformationConsoleLine is one line the transformation code emitted.
+type TransformationConsoleLine struct {
+	Type    string `json:"type"` // error, log, warn, info, debug
+	Message string `json:"message"`
+}
+
+// Failed reports whether the run did not complete.
+func (r *TransformationRunResponse) Failed() bool {
+	return r != nil && (r.LogLevel == "fatal" || r.LogLevel == "error")
+}
+
+// ConsoleText renders the console output as lines, for an error message.
+func (r *TransformationRunResponse) ConsoleText() string {
+	if r == nil || len(r.Console) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(r.Console))
+	for _, line := range r.Console {
+		lines = append(lines, fmt.Sprintf("[%s] %s", line.Type, line.Message))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // TransformationExecution represents a single transformation execution

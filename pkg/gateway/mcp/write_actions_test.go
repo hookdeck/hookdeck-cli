@@ -683,7 +683,9 @@ func TestTransformationsRunSendsTheSampleRequest(t *testing.T) {
 
 	request, isObject := body["request"].(map[string]any)
 	require.True(t, isObject, "request must be sent as an object: %v", body["request"])
-	assert.Equal(t, map[string]any{"x-test": "1"}, request["headers"])
+	// The caller's headers survive, plus the content-type the engine needs and
+	// the caller did not supply.
+	assert.Equal(t, map[string]any{"x-test": "1", "content-type": "application/json"}, request["headers"])
 	assert.Equal(t, map[string]any{"id": float64(7)}, request["body"])
 	assert.Equal(t, "/hooks", request["path"])
 }
@@ -850,6 +852,94 @@ func TestEventMutationsReportTheRealStatusNotTheRequestedOne(t *testing.T) {
 				"a no-op must not be reported as though it changed the event")
 		})
 	}
+}
+
+// A run that threw must not read as a run that worked.
+//
+// The endpoint answers 200 either way and log_level is the only signal, so
+// dropping it meant a syntax error, a throwing handler, a handler returning
+// nothing and a clean run all produced {"data":{}} — indistinguishable.
+func TestTransformationsRunSurfacesAFailedRun(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{
+			"log_level": "fatal",
+			"console": []map[string]any{
+				{"type": "error", "message": "Error: boom-marker"},
+			},
+		}),
+	})
+
+	result := callTool(t, session, "gateway_transformations", map[string]any{
+		"action":  "run",
+		"code":    `addHandler("transform", (r, c) => { throw new Error("boom-marker"); });`,
+		"request": map[string]any{"headers": map[string]any{}, "body": map[string]any{"a": 1}},
+	})
+
+	require.True(t, result.IsError, "a transformation that threw must not be reported as a success")
+	text := textContent(t, result)
+	assert.Contains(t, text, "did not complete")
+	assert.Contains(t, text, "boom-marker", "the reason has to reach the caller")
+}
+
+// A clean run still returns the transformed request.
+func TestTransformationsRunReturnsTheResultOnSuccess(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{
+			"log_level": "info",
+			"request":   map[string]any{"headers": map[string]any{}, "body": map[string]any{"a": 1, "x": 1}},
+		}),
+	})
+
+	text := succeeds(t, session, "gateway_transformations", map[string]any{
+		"action":  "run",
+		"code":    `addHandler("transform", (r, c) => { r.body.x = 1; return r; });`,
+		"request": map[string]any{"headers": map[string]any{}, "body": map[string]any{"a": 1}},
+	})
+	assert.Contains(t, string(envelopeData(t, text)), `"x":1`)
+}
+
+// The transformation engine errors without a content-type, and the schema tells
+// callers headers may be an empty object. The CLI has always supplied one; the
+// MCP path did not, so identical code worked from one surface and not the other.
+func TestTransformationsRunSuppliesAContentType(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{"log_level": "info"}),
+	})
+
+	succeeds(t, session, "gateway_transformations", map[string]any{
+		"action":  "run",
+		"code":    "addHandler(\"transform\", (r, c) => r);",
+		"request": map[string]any{"headers": map[string]any{}},
+	})
+
+	body := got.decodeBody(t)
+	request, ok := body["request"].(map[string]any)
+	require.True(t, ok, "request must be sent")
+	headers, ok := request["headers"].(map[string]any)
+	require.True(t, ok, "headers must be sent")
+	assert.Equal(t, "application/json", headers["content-type"],
+		"a content-type must be supplied when the caller sent none")
+}
+
+// A caller who set their own content-type keeps it.
+func TestTransformationsRunKeepsACallerContentType(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{"log_level": "info"}),
+	})
+
+	succeeds(t, session, "gateway_transformations", map[string]any{
+		"action":  "run",
+		"code":    "addHandler(\"transform\", (r, c) => r);",
+		"request": map[string]any{"headers": map[string]any{"content-type": "text/plain"}},
+	})
+
+	request := got.decodeBody(t)["request"].(map[string]any)
+	headers := request["headers"].(map[string]any)
+	assert.Equal(t, "text/plain", headers["content-type"])
 }
 
 // ---------------------------------------------------------------------------

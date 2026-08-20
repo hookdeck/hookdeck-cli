@@ -170,6 +170,19 @@ func transformationsRun(ctx context.Context, client *hookdeck.Client, in mcpcore
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
+
+	// The endpoint answers 200 whether the code ran or threw. log_level is the
+	// only thing that says which, and the reason is in console — returning the
+	// envelope alone gave the caller {"data":{}} for a syntax error, a throwing
+	// handler and a handler that returned nothing, all indistinguishable from
+	// each other and from success.
+	if result.Failed() {
+		message := "the transformation did not complete"
+		if text := result.ConsoleText(); text != "" {
+			message += ":\n" + text
+		}
+		return mcpcore.ErrorResult(message), nil
+	}
 	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
@@ -202,7 +215,24 @@ func transformationRunInput(in mcpcore.Input) (*hookdeck.TransformationRunReques
 	out.Path = nested.String("path")
 	out.Query = nested.String("query")
 	out.ParsedQuery = parsedQuery
+	ensureRunContentType(out.Headers)
 	return out, nil
+}
+
+// ensureRunContentType supplies a content-type when the caller did not.
+//
+// The transformation engine errors without one, and the schema tells callers
+// headers may be an empty object — so following the documentation produced a
+// run that failed for a reason nothing explained. The CLI has always done this;
+// the MCP path did not, which is why the same code worked from one surface and
+// not the other.
+func ensureRunContentType(headers map[string]string) {
+	if headers == nil {
+		return
+	}
+	if headers["content-type"] == "" && headers["Content-Type"] == "" {
+		headers["content-type"] = "application/json"
+	}
 }
 
 func transformationsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
@@ -216,6 +246,7 @@ func transformationsList(ctx context.Context, client *hookdeck.Client, in mcpcor
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
+
 	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 

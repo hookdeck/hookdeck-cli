@@ -137,7 +137,22 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 			return fmt.Errorf("failed to marshal result to json: %w", err)
 		}
 		fmt.Println(string(jsonBytes))
+		if result.Failed() {
+			// Still print the payload above — the console output is the useful
+			// part — but do not exit 0 on code that did not run.
+			return fmt.Errorf("the transformation did not complete")
+		}
 		return nil
+	}
+
+	// The endpoint answers 200 whether the code ran or threw, and log_level is
+	// the only thing that says which. Without this a throwing handler printed
+	// "Transformation run completed" and exited 0.
+	if result.Failed() {
+		if text := result.ConsoleText(); text != "" {
+			return fmt.Errorf("the transformation did not complete:\n%s", text)
+		}
+		return fmt.Errorf("the transformation did not complete")
 	}
 
 	fmt.Printf(SuccessCheck + " Transformation run completed\n\n")
