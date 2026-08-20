@@ -165,6 +165,18 @@ func (pc *outpostPublishCmd) run(cmd *cobra.Command, args []string) error {
 
 	resp, err := client.PublishOutpostEvent(ctx, pc.apiKey, req)
 	if err != nil {
+		// The generic 401 recovery text tells the reader to run `hookdeck
+		// login`, which produces exactly the kind of credential the publish API
+		// refuses. Marking this actionable keeps that text from replacing advice
+		// that can actually work.
+		if hookdeck.IsUnauthorizedError(err) {
+			return newActionableError(fmt.Errorf(
+				"the publish API rejected this key.\n\n" +
+					"Publishing needs a Hookdeck Project API key, passed with --api-key or in HOOKDECK_API_KEY.\n" +
+					"The credentials stored by 'hookdeck login' are not accepted here, so signing in again will not help.\n" +
+					"Create a Project API key in the Hookdeck dashboard under project settings",
+			))
+		}
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
 

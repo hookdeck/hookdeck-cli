@@ -124,8 +124,15 @@ func addOutpostDestinationTypeHelp(cmd *cobra.Command, destType *string) {
 
 		schema, found := lookupOutpostSchemaForHelp(*destType)
 		if !found {
+			// The field list comes from the API, so it needs credentials and a
+			// reachable network. Pointing at destination-type get without saying
+			// that sends an unauthenticated user to a command that fails the
+			// same way.
 			fmt.Fprintf(c.OutOrStdout(),
-				"\nRun 'hookdeck outpost destination-type get %s' to see the fields this type accepts.\n", *destType)
+				"\nThe fields for --type %s could not be listed: they are read from the API, "+
+					"so this needs a signed-in session and a network connection.\n"+
+					"Once signed in, 'hookdeck outpost destination-type get %s' shows them.\n",
+				*destType, *destType)
 			return
 		}
 

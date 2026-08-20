@@ -120,7 +120,7 @@ These commands require an Outpost project. Use 'hookdeck project use' to switch.
   hookdeck outpost tenant list
 
   # Create a webhook destination for a tenant
-  hookdeck outpost destination create --tenant-id acme --type webhook --config-url https://example.com/hooks
+  hookdeck outpost destination create --tenant-id acme --type webhook --config url=https://example.com/hooks
 
   # Inspect recent events
   hookdeck outpost event list --limit 10

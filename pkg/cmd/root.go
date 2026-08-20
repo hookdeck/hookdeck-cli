@@ -212,10 +212,11 @@ func Execute() {
 		default:
 			if hookdeck.IsUnauthorizedError(err) {
 				msg := "Authentication failed: your API key is invalid or expired.\n\n" +
-					"Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`.\n\n" +
-					"MCP: use " + mcpLoginTool + " with reauth: true."
+					"Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`."
 				if isMCP {
-					fmt.Fprintln(os.Stderr, msg)
+					// Only an MCP session can act on this; in a terminal it is
+					// advice about a tool the reader has no way to call.
+					fmt.Fprintln(os.Stderr, msg+"\n\nMCP: use "+mcpLoginTool+" with reauth: true.")
 				} else {
 					fmt.Println(msg)
 				}
