@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -64,9 +66,19 @@ func handleEvent(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := mcpcore.DispatchWithDefault(srv, eventActions, in.String("action"), "get")
+		action, blocked := mcpcore.DispatchWithDefault(srv, eventActions, in.String("action"), "get",
+			"To search for events by status, source, date range or payload, use "+eventsToolName+" (plural)")
 		if blocked != nil {
 			return blocked, nil
+		}
+
+		if wrong := wrongIDKind(in.String("id"), "evt_", eventToolName, map[string]string{
+			"req_": requestToolName,
+			"web_": "gateway_connections",
+			"src_": "gateway_sources",
+			"des_": "gateway_destinations",
+		}); wrong != nil {
+			return wrong, nil
 		}
 
 		switch action {
@@ -151,4 +163,27 @@ func eventAction(
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
 	return mcpcore.JSONResultEnvelopeForClient(event, client)
+}
+
+// wrongIDKind catches an id belonging to a different resource before it becomes
+// a bare "not found".
+//
+// Hookdeck ids carry their type as a prefix, and splitting events and requests
+// into plural and singular tools means an agent routinely holds both kinds at
+// once. Passing a req_ id to the event tool used to answer "Resource not
+// found", so the agent reported that a request did not exist when it did.
+func wrongIDKind(id, want, wantTool string, others map[string]string) *mcpsdk.CallToolResult {
+	if id == "" || strings.HasPrefix(id, want) {
+		return nil
+	}
+	for prefix, tool := range others {
+		if strings.HasPrefix(id, prefix) {
+			return mcpcore.ErrorResult(fmt.Sprintf(
+				"%q is a %s id, not a %s id. Use %s for that, or pass an id beginning %q to %s.",
+				id, strings.TrimSuffix(prefix, "_"), strings.TrimSuffix(want, "_"),
+				tool, want, wantTool,
+			))
+		}
+	}
+	return nil
 }

@@ -309,14 +309,21 @@ func rejectUnknownArgs(srv *Server, visible, all map[string]Prop, next mcpsdk.To
 //
 // The schema already hides write actions in read-only mode; this is the second
 // line of defence, for a client that calls one anyway.
-func Dispatch(srv *Server, actions ActionSet, name string) (string, *mcpsdk.CallToolResult) {
+func Dispatch(srv *Server, actions ActionSet, name string, hint ...string) (string, *mcpsdk.CallToolResult) {
 	a, ok := actions.Find(name)
 	if !ok {
 		available := actions.Available(srv.WriteEnabled())
-		return "", ErrorResult(fmt.Sprintf(
+		message := fmt.Sprintf(
 			"unknown action %q; expected one of: %s",
 			name, strings.Join(available.Names(), ", "),
-		))
+		)
+		// Where a tool has a sibling, the action a caller reached for is often
+		// the sibling's. Naming it turns a dead end into a redirect: without
+		// this an agent has to already know the other tool exists.
+		if len(hint) > 0 && hint[0] != "" {
+			message += ". " + hint[0]
+		}
+		return "", ErrorResult(message)
 	}
 	if a.Write {
 		if r := RequireWrite(srv.WriteEnabled(), name); r != nil {
@@ -334,9 +341,9 @@ func Dispatch(srv *Server, actions ActionSet, name string) (string, *mcpsdk.Call
 // never omits it and a spec-level default would only ever apply to callers that
 // ignore the schema. Keeping it at the call site makes the fallback visible next
 // to the switch it feeds.
-func DispatchWithDefault(srv *Server, actions ActionSet, name, fallback string) (string, *mcpsdk.CallToolResult) {
+func DispatchWithDefault(srv *Server, actions ActionSet, name, fallback string, hint ...string) (string, *mcpsdk.CallToolResult) {
 	if name == "" {
 		name = fallback
 	}
-	return Dispatch(srv, actions, name)
+	return Dispatch(srv, actions, name, hint...)
 }

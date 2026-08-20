@@ -1453,3 +1453,50 @@ func TestHiddenWriteArgumentsGetTheWriteModeMessage(t *testing.T) {
 	assert.NotContains(t, text, "unknown argument",
 		"type exists on this tool; it is the mode that hides it")
 }
+
+// Hookdeck ids carry their type as a prefix, and splitting events and requests
+// into plural and singular tools means an agent routinely holds both kinds at
+// once. A req_ id passed to the event tool used to answer "Resource not found",
+// so the agent reported that a request did not exist when it did.
+func TestSingularToolsCatchAnIDOfTheWrongKind(t *testing.T) {
+	session := readSession(t, nil)
+
+	t.Run("a request id passed to gateway_event", func(t *testing.T) {
+		result := callTool(t, session, "gateway_event",
+			map[string]any{"action": "get", "id": "req_CXgN9WztKCtGplqLfKlZ"})
+		require.True(t, result.IsError)
+		text := textContent(t, result)
+		assert.Contains(t, text, "gateway_request", "the error has to name the tool that would work")
+		assert.NotContains(t, text, "not found",
+			"a wrong-kind id is not a missing record, and saying so sends the caller looking for the wrong thing")
+	})
+
+	t.Run("an event id passed to gateway_request", func(t *testing.T) {
+		result := callTool(t, session, "gateway_request",
+			map[string]any{"action": "get", "id": "evt_90lo6Wn1vhCSa32gzE"})
+		require.True(t, result.IsError)
+		assert.Contains(t, textContent(t, result), "gateway_event")
+	})
+
+	t.Run("an unrecognised prefix is left to the API", func(t *testing.T) {
+		// Only ids that clearly belong to another tool are caught. Anything else
+		// is the API's to judge, so a new resource type does not start failing
+		// here the day it ships.
+		result := callTool(t, session, "gateway_event",
+			map[string]any{"action": "get", "id": "future_abc123"})
+		assert.NotContains(t, textContent(t, result), "is a ")
+	})
+}
+
+// The unknown-action error names the sibling, so a dead end becomes a redirect.
+func TestUnknownActionNamesTheSiblingTool(t *testing.T) {
+	session := readSession(t, nil)
+
+	assert.Contains(t,
+		textContent(t, callTool(t, session, "gateway_event", map[string]any{"action": "list"})),
+		"gateway_events", "list belongs to the plural tool; say so")
+
+	assert.Contains(t,
+		textContent(t, callTool(t, session, "gateway_events", map[string]any{"action": "raw_body"})),
+		"gateway_event", "raw_body belongs to the singular tool; say so")
+}

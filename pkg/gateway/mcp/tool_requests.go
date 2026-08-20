@@ -99,7 +99,7 @@ func handleRequests(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		if _, blocked := mcpcore.DispatchWithDefault(srv, requestsActions, in.String("action"), "list"); blocked != nil {
+		if _, blocked := mcpcore.DispatchWithDefault(srv, requestsActions, in.String("action"), "list", "To act on one request you already have an ID for, use "+requestToolName+" (singular)"); blocked != nil {
 			return blocked, nil
 		}
 

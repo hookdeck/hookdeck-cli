@@ -111,7 +111,7 @@ func handleEvents(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		if _, blocked := mcpcore.DispatchWithDefault(srv, eventsActions, in.String("action"), "list"); blocked != nil {
+		if _, blocked := mcpcore.DispatchWithDefault(srv, eventsActions, in.String("action"), "list", "To act on one event you already have an ID for, use "+eventToolName+" (singular)"); blocked != nil {
 			return blocked, nil
 		}
 

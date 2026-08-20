@@ -64,9 +64,19 @@ func handleRequest(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action, blocked := mcpcore.DispatchWithDefault(srv, requestActions, in.String("action"), "get")
+		action, blocked := mcpcore.DispatchWithDefault(srv, requestActions, in.String("action"), "get",
+			"To search for requests by source, status, date range or payload, use "+requestsToolName+" (plural)")
 		if blocked != nil {
 			return blocked, nil
+		}
+
+		if wrong := wrongIDKind(in.String("id"), "req_", requestToolName, map[string]string{
+			"evt_": eventToolName,
+			"web_": "gateway_connections",
+			"src_": "gateway_sources",
+			"des_": "gateway_destinations",
+		}); wrong != nil {
+			return wrong, nil
 		}
 
 		switch action {
