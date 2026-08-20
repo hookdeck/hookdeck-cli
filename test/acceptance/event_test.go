@@ -58,7 +58,9 @@ func TestEventRetry(t *testing.T) {
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
 	stdout := cli.RunExpectSuccess("gateway", "event", "retry", eventID)
-	assert.Contains(t, stdout, "retry requested")
+	// The command reports the status the API returned, not the one requested.
+	assert.Contains(t, stdout, eventID)
+	assert.Regexp(t, `is now [A-Z]+`, stdout)
 }
 
 func TestEventCancel(t *testing.T) {
@@ -71,7 +73,16 @@ func TestEventCancel(t *testing.T) {
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
 	stdout := cli.RunExpectSuccess("gateway", "event", "cancel", eventID)
-	assert.Contains(t, stdout, "cancelled")
+
+	// This test previously asserted the output said "cancelled". It was pinning
+	// a bug: the event created here has already been delivered, so cancelling it
+	// is a no-op, the API answers 200, and the command asserted an outcome
+	// nobody had checked. It now reports the status the API returned, which for
+	// an already-delivered event is SUCCESSFUL.
+	assert.Contains(t, stdout, eventID)
+	assert.Regexp(t, `is now [A-Z]+`, stdout)
+	assert.NotContains(t, stdout, "cancelled",
+		"a no-op must not be reported as though it changed the event")
 }
 
 func TestEventMute(t *testing.T) {
@@ -84,7 +95,13 @@ func TestEventMute(t *testing.T) {
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
 	stdout := cli.RunExpectSuccess("gateway", "event", "mute", eventID)
-	assert.Contains(t, stdout, "muted")
+
+	// As above: a delivered event cannot be muted, and the command now says so
+	// rather than claiming it was.
+	assert.Contains(t, stdout, eventID)
+	assert.Regexp(t, `is now [A-Z]+`, stdout)
+	assert.NotContains(t, stdout, "muted",
+		"a no-op must not be reported as though it changed the event")
 }
 
 func TestEventListJSON(t *testing.T) {
