@@ -1573,7 +1573,7 @@ hookdeck gateway event list [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--attempts` | `string` | Filter by number of attempts (integer or operators) |
+| `--attempts` | `string` | Filter by number of attempts. A whole number |
 | `--body` | `string` | Filter by body (JSON string) |
 | `--cli-id` | `string` | Filter by CLI ID |
 | `--connection-id` | `string` | Filter by connection ID |
@@ -1724,14 +1724,14 @@ hookdeck gateway request list [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--body` | `string` | Filter by body (JSON string) |
-| `--cli-events-count` | `string` | Filter by number of CLI events (integer or operators) |
+| `--cli-events-count` | `string` | Filter by number of CLI events. A whole number |
 | `--created-after` | `string` | Filter requests created after (ISO date-time) |
 | `--created-before` | `string` | Filter requests created before (ISO date-time) |
 | `--dir` | `string` | Sort direction (asc, desc) |
-| `--events-count` | `string` | Filter by number of events produced (integer or operators) |
+| `--events-count` | `string` | Filter by number of events produced. A whole number, e.g. 0 for requests that produced none |
 | `--headers` | `string` | Filter by headers (JSON string) |
 | `--id` | `string` | Filter by request ID(s) (comma-separated) |
-| `--ignored-count` | `string` | Filter by number of ignored events (integer or operators) |
+| `--ignored-count` | `string` | Filter by number of ignored events. A whole number |
 | `--ingested-at-after` | `string` | Filter by ingested_at after (ISO date-time) |
 | `--ingested-at-before` | `string` | Filter by ingested_at before (ISO date-time) |
 | `--limit` | `int` | Limit number of results (default "100") |

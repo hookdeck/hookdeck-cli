@@ -73,7 +73,7 @@ Examples:
 	ec.cmd.Flags().StringVar(&ec.sourceID, "source-id", "", "Filter by source ID")
 	ec.cmd.Flags().StringVar(&ec.destinationID, "destination-id", "", "Filter by destination ID")
 	ec.cmd.Flags().StringVar(&ec.status, "status", "", "Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED)")
-	ec.cmd.Flags().StringVar(&ec.attempts, "attempts", "", "Filter by number of attempts (integer or operators)")
+	ec.cmd.Flags().StringVar(&ec.attempts, "attempts", "", "Filter by number of attempts. A whole number")
 	ec.cmd.Flags().StringVar(&ec.responseStatus, "response-status", "", "Filter by HTTP response status (e.g. 200, 500)")
 	ec.cmd.Flags().StringVar(&ec.errorCode, "error-code", "", "Filter by error code")
 	ec.cmd.Flags().StringVar(&ec.cliID, "cli-id", "", "Filter by CLI ID")

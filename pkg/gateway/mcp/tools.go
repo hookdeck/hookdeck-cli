@@ -141,9 +141,12 @@ const (
 		"The API documents null as matching events without a delivery group, but that null cannot be expressed " +
 		"in a query string — passing \"null\" filters for a group of that name, so there is no way to search for ungrouped events."
 
-	// Count filters accept the same operator objects as the date filters
-	// (attempts is the existing precedent). Modelling that in the schema would
-	// need a second shape per parameter for no gain, so the value is passed
-	// through as written.
-	descCountFilter = "Integer or API operator syntax; pass through as string."
+	// A whole number only.
+	//
+	// The API does accept operator objects here — events_count[gte]=1 filters
+	// and was verified against it — but the value goes on the wire as a bare
+	// scalar, so there is no way to express one from here. Saying "or operator
+	// syntax", as this used to, sent callers to a 422: ">0" and {"gt":0} are
+	// both rejected as "must be one of [number, object, array]".
+	descCountFilter = "A whole number, e.g. 0 to find records that produced none. Comparisons such as \">0\" are not supported here."
 )

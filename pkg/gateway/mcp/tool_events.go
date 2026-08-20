@@ -30,7 +30,7 @@ var eventsSpec = mcpcore.ToolSpec{
 		"source_id":           {Type: "string", Desc: "Filter by source"},
 		"destination_id":      {Type: "string", Desc: "Filter by destination"},
 		"status":              {Type: "string", Desc: "Event status: SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED"},
-		"attempts":            {Type: "string", Desc: "Filter by attempt count. Integer or API operator syntax; pass through as string."},
+		"attempts":            {Type: "string", Desc: "Filter by attempt count. " + descCountFilter},
 		"issue_id":            {Type: "string", Desc: "Filter by issue"},
 		"error_code":          {Type: "string", Desc: "Filter by error code"},
 		"response_status":     {Type: "string", Desc: "Filter by HTTP response status"},
