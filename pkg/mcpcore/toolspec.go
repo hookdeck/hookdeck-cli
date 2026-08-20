@@ -125,11 +125,6 @@ type ToolSpec struct {
 	Required []string
 	Handler  func(*Server) mcpsdk.ToolHandler
 
-	// DefaultAction, when set, is the action used if the caller omits one. It
-	// exists for tools that shipped before "action" was mandatory in practice
-	// and whose callers still send bare list requests.
-	DefaultAction string
-
 	// Notes is hand-written guidance appended to the generated help topic:
 	// worked examples, filter-syntax mappings, anything that cannot be derived
 	// from the actions and props. Optional.
@@ -264,6 +259,12 @@ func Dispatch(srv *Server, actions ActionSet, name string) (string, *mcpsdk.Call
 
 // DispatchWithDefault is Dispatch, with an empty action name resolving to
 // fallback instead of erroring.
+//
+// Defaulting lives here, in the handler, rather than on ToolSpec. Define always
+// puts "action" in the schema's required list, so a schema-validating client
+// never omits it and a spec-level default would only ever apply to callers that
+// ignore the schema. Keeping it at the call site makes the fallback visible next
+// to the switch it feeds.
 func DispatchWithDefault(srv *Server, actions ActionSet, name, fallback string) (string, *mcpsdk.CallToolResult) {
 	if name == "" {
 		name = fallback
