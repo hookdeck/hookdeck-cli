@@ -93,12 +93,19 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 			)), nil
 		}
 
+		// An unreadable value here would silently fall back to the API default,
+		// so a caller who asked for eligible_for_retry: "no" would get retries.
+		eligibleForRetry, err := in.BoolOrStringE("eligible_for_retry")
+		if err != nil {
+			return mcpcore.ErrorResult(err.Error()), nil
+		}
+
 		result, err := client.PublishOutpostEvent(ctx, apiKey, &hookdeck.OutpostPublishRequest{
 			ID:               in.String("event_id"),
 			TenantID:         tenantID,
 			Topic:            topic,
 			DestinationID:    in.String("destination_id"),
-			EligibleForRetry: in.BoolOrString("eligible_for_retry"),
+			EligibleForRetry: eligibleForRetry,
 			Metadata:         metadata,
 			Data:             data,
 		})

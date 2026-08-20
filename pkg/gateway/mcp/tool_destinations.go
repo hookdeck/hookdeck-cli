@@ -22,7 +22,7 @@ var destinationsActions = mcpcore.ActionSet{
 
 var destinationsSpec = mcpcore.ToolSpec{
 	Resource: "destinations",
-	Summary:  "Inspect and manage delivery destinations where events are sent. Destination types include HTTP endpoints, CLI (local development), and MOCK (testing). Configuration covers the URL, authentication, and rate limiting.",
+	Summary:  "Inspect and manage delivery destinations where events are sent. Destination types include HTTP endpoints, CLI (local development), and MOCK_API (testing). Configuration covers the URL, authentication, and rate limiting.",
 	Actions:  destinationsActions,
 	Props: map[string]mcpcore.Prop{
 		"id":          {Type: "string", Desc: "Destination ID. Required for get/update/delete/enable/disable."},

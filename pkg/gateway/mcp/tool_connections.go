@@ -220,11 +220,24 @@ func connectionsSetEnabled(ctx context.Context, client *hookdeck.Client, in mcpc
 // connectionIDFromInput resolves the id argument, which may be a name, for the
 // actions that address one existing connection.
 func connectionIDFromInput(ctx context.Context, client *hookdeck.Client, in mcpcore.Input, action string) (string, error) {
-	idOrName := in.String("id")
+	idOrName := connectionRef(in)
 	if idOrName == "" {
 		return "", fmt.Errorf("id or name is required for the %s action", action)
 	}
 	return resolveMCPConnectionID(ctx, client, idOrName)
+}
+
+// connectionRef reads whichever of id or name the caller used.
+//
+// id accepts a name, and the error says "id or name is required", but only id
+// was ever read — so a caller who passed name was told the thing they had just
+// passed was required. name is a declared property, which makes reaching for it
+// the obvious mistake.
+func connectionRef(in mcpcore.Input) string {
+	if id := in.String("id"); id != "" {
+		return id
+	}
+	return in.String("name")
 }
 
 func connectionsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
@@ -236,7 +249,11 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in mcpcore.In
 	mcpcore.SetIfNonEmpty(params, "next", in.String("next"))
 	mcpcore.SetIfNonEmpty(params, "prev", in.String("prev"))
 
-	if bp := in.BoolOrString("disabled"); bp != nil {
+	disabled, err := in.BoolOrStringE("disabled")
+	if err != nil {
+		return mcpcore.ErrorResult(err.Error()), nil
+	}
+	if bp := disabled; bp != nil {
 		if *bp {
 			params["disabled_at[any]"] = "true"
 		}
@@ -250,7 +267,7 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in mcpcore.In
 }
 
 func connectionsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	idOrName := in.String("id")
+	idOrName := connectionRef(in)
 	if idOrName == "" {
 		return mcpcore.ErrorResult("id or name is required for the get action"), nil
 	}
@@ -266,7 +283,7 @@ func connectionsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Inp
 }
 
 func connectionsPause(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	idOrName := in.String("id")
+	idOrName := connectionRef(in)
 	if idOrName == "" {
 		return mcpcore.ErrorResult("id or name is required for the pause action"), nil
 	}
@@ -282,7 +299,7 @@ func connectionsPause(ctx context.Context, client *hookdeck.Client, in mcpcore.I
 }
 
 func connectionsUnpause(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	idOrName := in.String("id")
+	idOrName := connectionRef(in)
 	if idOrName == "" {
 		return mcpcore.ErrorResult("id or name is required for the unpause action"), nil
 	}

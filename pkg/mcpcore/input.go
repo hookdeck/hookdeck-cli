@@ -143,6 +143,26 @@ func (in Input) BoolOrString(key string) *bool {
 	}
 }
 
+// BoolOrStringE is BoolOrString with an error for a value that is present but
+// cannot be read as a boolean.
+//
+// BoolOrString returns nil for both "absent" and "unreadable", and every caller
+// treats nil as "no filter" — so verified: "yes" silently returned every
+// request, verified and unverified alike, and reported them as unverified. That
+// is the same wrong-answer-that-reads-as-right shape this file already carries
+// two fixes for; the difference is that a value nobody can interpret should be
+// rejected rather than guessed at.
+func (in Input) BoolOrStringE(key string) (*bool, error) {
+	v, ok := in[key]
+	if !ok {
+		return nil, nil
+	}
+	if b := in.BoolOrString(key); b != nil {
+		return b, nil
+	}
+	return nil, fmt.Errorf("%s must be true or false, got %v", key, v)
+}
+
 // StringSlice returns the string slice for a key, or nil if missing.
 func (in Input) StringSlice(key string) []string {
 	v, ok := in[key]

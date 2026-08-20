@@ -1416,3 +1416,40 @@ func coveredActions() map[string]map[string]bool {
 		},
 	}
 }
+
+// An argument the tool does not have is ignored by the API, so the call goes
+// out unfiltered and the result reads as though it were filtered.
+// gateway_events has no request_id filter; passing one returned every event.
+func TestUnknownArgumentsAreRejected(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+	})
+
+	result := callTool(t, session, "gateway_events", map[string]any{
+		"action": "list", "request_id": "req_1",
+	})
+
+	require.True(t, result.IsError, "an unknown filter must not be silently ignored")
+	text := textContent(t, result)
+	assert.Contains(t, text, "request_id")
+	assert.Contains(t, text, "This tool accepts:", "the caller needs to know what is valid here")
+	assert.Empty(t, got.query, "nothing should reach the API once the argument is rejected")
+}
+
+// The write guard owns the message for an argument that exists but is hidden by
+// read-only mode. "unknown argument" would send the caller hunting for a typo
+// that is not there.
+func TestHiddenWriteArgumentsGetTheWriteModeMessage(t *testing.T) {
+	session := readSession(t, nil)
+
+	result := callTool(t, session, "gateway_sources", map[string]any{
+		"action": "create", "name": "s", "type": "HTTP",
+	})
+
+	require.True(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "--allow-write")
+	assert.NotContains(t, text, "unknown argument",
+		"type exists on this tool; it is the mode that hides it")
+}

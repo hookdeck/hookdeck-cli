@@ -1,6 +1,7 @@
 package mcpcore
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -239,8 +240,69 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 				DestructiveHint: &destructive,
 			},
 		},
-		Handler: spec.Handler(srv),
+		Handler: rejectUnknownArgs(srv, props, spec.Props, spec.Handler(srv)),
 	}, true
+}
+
+// rejectUnknownArgs fails a call that passes an argument the tool does not have.
+//
+// additionalProperties: false says this in the schema, but nothing enforces it
+// at this layer: an unknown key was accepted, ignored, and the call went out
+// unfiltered. gateway_events with request_id set returned every event in the
+// project — there is no such filter there — and the caller had no way to tell
+// that from a genuine result.
+//
+// Two things deliberately take precedence over this message:
+//
+//   - An unauthenticated call is handed to the handler, so the caller is told to
+//     sign in rather than being corrected on an argument they cannot use yet.
+//   - An argument that exists on the tool but is hidden by read-only mode is let
+//     through, so the write guard answers it. "restart with --allow-write" is
+//     the useful reply there; "unknown argument" would send the caller looking
+//     for a typo that is not there.
+//
+// What is left is a genuine mistake: a name this tool has never had.
+func rejectUnknownArgs(srv *Server, visible, all map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
+	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		if r := srv.RequireAuth(); r != nil {
+			return next(ctx, req)
+		}
+
+		in, err := ParseInput(req.Params.Arguments)
+		if err != nil {
+			// Malformed arguments are the handler's to report, with the context
+			// of the action being attempted.
+			return next(ctx, req)
+		}
+
+		var unknown []string
+		for key := range in {
+			if _, visibleNow := visible[key]; visibleNow {
+				continue
+			}
+			if _, existsAtAll := all[key]; existsAtAll {
+				continue // hidden by mode; the write guard has the better message
+			}
+			unknown = append(unknown, key)
+		}
+		if len(unknown) == 0 {
+			return next(ctx, req)
+		}
+
+		sort.Strings(unknown)
+		known := make([]string, 0, len(visible))
+		for key := range visible {
+			known = append(known, key)
+		}
+		sort.Strings(known)
+
+		return ErrorResult(fmt.Sprintf(
+			"unknown argument(s): %s. This tool accepts: %s. "+
+				"An argument this tool does not have is ignored by the API, so the result would have looked "+
+				"filtered without being filtered.",
+			strings.Join(unknown, ", "), strings.Join(known, ", "),
+		)), nil
+	}
 }
 
 // Dispatch validates and gates an action before a handler runs it.

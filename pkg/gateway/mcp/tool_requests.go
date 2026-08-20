@@ -130,7 +130,11 @@ func requestsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
 
-	if bp := in.BoolOrString("verified"); bp != nil {
+	verified, err := in.BoolOrStringE("verified")
+	if err != nil {
+		return mcpcore.ErrorResult(err.Error()), nil
+	}
+	if bp := verified; bp != nil {
 		if *bp {
 			params["verified"] = "true"
 		} else {
