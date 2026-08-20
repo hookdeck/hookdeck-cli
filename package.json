@@ -1,6 +1,6 @@
 {
   "name": "hookdeck-cli",
-  "version": "3.0.0-pin-pre-tool-shape-review",
+  "version": "2.6.0-beta.2",
   "description": "Hookdeck CLI",
   "repository": {
     "type": "git",
