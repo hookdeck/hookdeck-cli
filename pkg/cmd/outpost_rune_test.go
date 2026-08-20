@@ -525,3 +525,78 @@ func TestOutpostFlagsRejectEmptyValues(t *testing.T) {
 		assert.Empty(t, *requests)
 	})
 }
+
+// Publishing follows the credential, not the active project, and the API
+// accepts an event for a tenant that does not exist: 202, an event id, and then
+// nothing. It matches no destination, is never delivered, and appears in no
+// event list — a green tick and exit 0 for something that never happened. The
+// MCP publish tool has always checked first; the CLI did not.
+func TestOutpostPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
+	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/tenants/ghost": jsonResponse(http.StatusNotFound,
+			map[string]string{"message": "not found"}),
+	})
+
+	cmd := newOutpostPublishCmd().cmd
+	_, err := runCommand(t, cmd,
+		"--tenant-id", "ghost", "--topic", "user.created",
+		"--data", `{"a":1}`, "--api-key", "key_test")
+
+	require.Error(t, err, "publishing to a tenant that does not exist must fail")
+	assert.Contains(t, err.Error(), "ghost")
+	assert.Contains(t, err.Error(), "delivered nowhere",
+		"the error has to say why a success would have been misleading")
+
+	for _, r := range *requests {
+		assert.NotEqual(t, "/2025-07-01/publish", r.path,
+			"nothing should be published once the tenant check has failed")
+	}
+}
+
+// The guard must not block a real publish.
+func TestOutpostPublishProceedsWhenTheTenantExists(t *testing.T) {
+	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/tenants/acme": jsonResponse(http.StatusOK, map[string]string{"id": "acme"}),
+		"POST /2025-07-01/publish": jsonResponse(http.StatusAccepted, map[string]any{
+			"id": "evt_1", "destination_ids": []string{"des_1"},
+		}),
+	})
+
+	cmd := newOutpostPublishCmd().cmd
+	_, err := runCommand(t, cmd,
+		"--tenant-id", "acme", "--topic", "user.created",
+		"--data", `{"a":1}`, "--api-key", "key_test")
+	require.NoError(t, err)
+
+	var published bool
+	for _, r := range *requests {
+		if r.path == "/2025-07-01/publish" {
+			published = true
+		}
+	}
+	assert.True(t, published, "a valid tenant must still publish")
+}
+
+// A lookup that errors must not block publishing: refusing over a transient
+// failure would be worse than the problem being guarded against.
+func TestOutpostPublishProceedsWhenTheTenantCheckErrors(t *testing.T) {
+	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/tenants/acme": jsonResponse(http.StatusInternalServerError,
+			map[string]string{"message": "upstream unavailable"}),
+		"POST /2025-07-01/publish": jsonResponse(http.StatusAccepted, map[string]any{"id": "evt_1"}),
+	})
+
+	cmd := newOutpostPublishCmd().cmd
+	_, err := runCommand(t, cmd,
+		"--tenant-id", "acme", "--topic", "user.created",
+		"--data", `{"a":1}`, "--api-key", "key_test")
+	require.NoError(t, err, "a failed check must not stop a publish")
+
+	var published bool
+	for _, r := range *requests {
+		if r.path == "/2025-07-01/publish" {
+			published = true
+		}
+	}
+	assert.True(t, published)
+}

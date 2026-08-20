@@ -138,8 +138,32 @@ func (pc *outpostPublishCmd) run(cmd *cobra.Command, args []string) error {
 	}
 
 	client := Config.GetOutpostAPIClient()
+	ctx := context.Background()
 
-	resp, err := client.PublishOutpostEvent(context.Background(), pc.apiKey, req)
+	// Publishing follows the credential, not the active project, and the API
+	// accepts an event for a tenant that does not exist: 202, an event id, and
+	// then nothing. It matches no destination, is never delivered, and appears
+	// in no event list — a success for something that never happened.
+	//
+	// The check uses the publish credential, so it resolves to the same project
+	// the event would go to. That catches a mistyped tenant and a key for the
+	// wrong project alike. The MCP publish tool has always done this; the CLI
+	// did not, so the two answered the same mistake differently.
+	//
+	// A failed check is not fatal: if the lookup itself errors the publish still
+	// goes ahead, because refusing to publish over a transient error would be
+	// worse than the problem being guarded against.
+	if exists, checkErr := client.TenantExistsForPublish(ctx, pc.apiKey, pc.tenantID); checkErr == nil && !exists {
+		return fmt.Errorf(
+			"tenant %q does not exist in the project this API key belongs to.\n\n"+
+				"The event would be accepted and then delivered nowhere, leaving no trace.\n"+
+				"Publishing follows the --api-key credential rather than the active project, and the two can differ.\n"+
+				"Check the tenant id with 'hookdeck outpost tenant list', or use a key for the project you are working in.",
+			pc.tenantID,
+		)
+	}
+
+	resp, err := client.PublishOutpostEvent(ctx, pc.apiKey, req)
 	if err != nil {
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
