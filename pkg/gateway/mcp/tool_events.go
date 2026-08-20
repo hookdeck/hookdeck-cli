@@ -35,16 +35,20 @@ var eventsSpec = mcpcore.ToolSpec{
 		"error_code":          {Type: "string", Desc: "Filter by error code"},
 		"response_status":     {Type: "string", Desc: "Filter by HTTP response status"},
 		"cli_id":              {Type: "string", Desc: "Filter by CLI listen session ID"},
+		"delivery_group":      {Type: "string", Desc: descDeliveryGroup},
 		"created_after":       {Type: "string", Desc: "created_at lower bound. " + descDateAfter},
 		"created_before":      {Type: "string", Desc: "created_at upper bound. " + descDateBefore},
 		"successful_after":    {Type: "string", Desc: "successful_at lower bound. " + descDateAfter},
 		"successful_before":   {Type: "string", Desc: "successful_at upper bound. " + descDateBefore},
 		"last_attempt_after":  {Type: "string", Desc: "last_attempt_at lower bound. " + descDateAfter},
 		"last_attempt_before": {Type: "string", Desc: "last_attempt_at upper bound. " + descDateBefore},
+		"next_attempt_after":  {Type: "string", Desc: "next_attempt_at lower bound — the next scheduled retry. " + descDateAfter},
+		"next_attempt_before": {Type: "string", Desc: "next_attempt_at upper bound — the next scheduled retry. " + descDateBefore},
 		"body":                {Type: "string", Desc: "Filter by event payload body. " + descJSONFilter},
 		"headers":             {Type: "string", Desc: "Filter by event headers. " + descJSONFilter},
 		"parsed_query":        {Type: "string", Desc: "Filter by parsed query as JSON. " + descJSONFilter},
 		"path":                {Type: "string", Desc: descPathFilter},
+		"search_term":         {Type: "string", Desc: descSearchTerm},
 		"limit":               {Type: "integer", Desc: "Max results"},
 		"order_by":            {Type: "string", Desc: "Sort field"},
 		"dir":                 {Type: "string", Desc: "Sort direction: asc or desc"},
@@ -65,12 +69,25 @@ Date range filters:
   successful_before   → successful_at[lte]
   last_attempt_after  → last_attempt_at[gte]
   last_attempt_before → last_attempt_at[lte]
+  next_attempt_after  → next_attempt_at[gte]
+  next_attempt_before → next_attempt_at[lte]
   Example: {"action":"list","status":"FAILED","last_attempt_after":"2026-06-08T00:00:00Z"}
+  next_attempt_at is the next scheduled retry, so it looks forward rather than back:
+  {"action":"list","status":"QUEUED","next_attempt_before":"2026-06-09T00:00:00Z"} finds
+  events due to be retried before that time.
 
 Payload search:
   body, headers, parsed_query — Hookdeck JSON filter syntax (object or string)
   path — partial URL path match
+  search_term — partial match across body, headers, parsed_query and path at once (min 3 chars)
   Example: {"action":"list","body":{"type":"charge.succeeded"}}
+  Example: {"action":"list","search_term":"cus_1234"}
+
+Delivery group:
+  delivery_group filters by the group an event was delivered in; comma-separate several.
+  The API's own schema is nullable and documents null as "matches events without a delivery
+  group", but that null cannot survive a query string: sending the string "null" is read as a
+  group of that name and returns nothing. There is no filter for "has no delivery group".
 
 Requests and events:
   The API offers one traversal direction only. Events cannot be filtered by request_id — there is
@@ -114,12 +131,16 @@ func eventsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) 
 	mcpcore.SetIfNonEmpty(params, "error_code", in.String("error_code"))
 	mcpcore.SetIfNonEmpty(params, "response_status", in.String("response_status"))
 	mcpcore.SetIfNonEmpty(params, "cli_id", in.String("cli_id"))
+	mcpcore.SetIfNonEmpty(params, "delivery_group", in.String("delivery_group"))
+	mcpcore.SetIfNonEmpty(params, "search_term", in.String("search_term"))
 	mcpcore.SetIfNonEmpty(params, "created_at[gte]", in.String("created_after"))
 	mcpcore.SetIfNonEmpty(params, "created_at[lte]", in.String("created_before"))
 	mcpcore.SetIfNonEmpty(params, "successful_at[gte]", in.String("successful_after"))
 	mcpcore.SetIfNonEmpty(params, "successful_at[lte]", in.String("successful_before"))
 	mcpcore.SetIfNonEmpty(params, "last_attempt_at[gte]", in.String("last_attempt_after"))
 	mcpcore.SetIfNonEmpty(params, "last_attempt_at[lte]", in.String("last_attempt_before"))
+	mcpcore.SetIfNonEmpty(params, "next_attempt_at[gte]", in.String("next_attempt_after"))
+	mcpcore.SetIfNonEmpty(params, "next_attempt_at[lte]", in.String("next_attempt_before"))
 	mcpcore.SetInt(params, "limit", in.Int("limit", 0))
 	mcpcore.SetIfNonEmpty(params, "order_by", in.String("order_by"))
 	mcpcore.SetIfNonEmpty(params, "dir", in.String("dir"))

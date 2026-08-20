@@ -25,16 +25,20 @@ type eventListCmd struct {
 	errorCode         string
 	cliID             string
 	issueID           string
+	deliveryGroup     string
 	createdAfter      string
 	createdBefore     string
 	successfulAfter   string
 	successfulBefore  string
 	lastAttemptAfter  string
 	lastAttemptBefore string
+	nextAttemptAfter  string
+	nextAttemptBefore string
 	headers           string
 	body              string
 	path              string
 	parsedQuery       string
+	searchTerm        string
 	orderBy           string
 	dir               string
 	limit             int
@@ -52,10 +56,15 @@ func newEventListCmd() *eventListCmd {
 		Short: ShortList(ResourceEvent),
 		Long: `List events (processed webhook deliveries). Filter by connection ID, source, destination, or status.
 
+Use --search-term to match a value partially against the body, headers, parsed query or path
+at once, when you know the value but not which field carries it.
+
 Examples:
   hookdeck gateway event list
   hookdeck gateway event list --connection-id web_abc123
-  hookdeck gateway event list --status FAILED --limit 20`,
+  hookdeck gateway event list --status FAILED --limit 20
+  hookdeck gateway event list --search-term cus_1234
+  hookdeck gateway event list --status QUEUED --next-attempt-at-before 2026-01-01T00:00:00Z`,
 		RunE: ec.runEventListCmd,
 	}
 
@@ -69,16 +78,20 @@ Examples:
 	ec.cmd.Flags().StringVar(&ec.errorCode, "error-code", "", "Filter by error code")
 	ec.cmd.Flags().StringVar(&ec.cliID, "cli-id", "", "Filter by CLI ID")
 	ec.cmd.Flags().StringVar(&ec.issueID, "issue-id", "", "Filter by issue ID")
+	ec.cmd.Flags().StringVar(&ec.deliveryGroup, "delivery-group", "", "Filter by delivery group (comma-separated)")
 	ec.cmd.Flags().StringVar(&ec.createdAfter, "created-after", "", "Filter events created after (ISO date-time)")
 	ec.cmd.Flags().StringVar(&ec.createdBefore, "created-before", "", "Filter events created before (ISO date-time)")
 	ec.cmd.Flags().StringVar(&ec.successfulAfter, "successful-at-after", "", "Filter by successful_at after (ISO date-time)")
 	ec.cmd.Flags().StringVar(&ec.successfulBefore, "successful-at-before", "", "Filter by successful_at before (ISO date-time)")
 	ec.cmd.Flags().StringVar(&ec.lastAttemptAfter, "last-attempt-at-after", "", "Filter by last_attempt_at after (ISO date-time)")
 	ec.cmd.Flags().StringVar(&ec.lastAttemptBefore, "last-attempt-at-before", "", "Filter by last_attempt_at before (ISO date-time)")
+	ec.cmd.Flags().StringVar(&ec.nextAttemptAfter, "next-attempt-at-after", "", "Filter by next_attempt_at after (ISO date-time)")
+	ec.cmd.Flags().StringVar(&ec.nextAttemptBefore, "next-attempt-at-before", "", "Filter by next_attempt_at before (ISO date-time)")
 	ec.cmd.Flags().StringVar(&ec.headers, "headers", "", "Filter by headers (JSON string)")
 	ec.cmd.Flags().StringVar(&ec.body, "body", "", "Filter by body (JSON string)")
 	ec.cmd.Flags().StringVar(&ec.path, "path", "", "Filter by path")
 	ec.cmd.Flags().StringVar(&ec.parsedQuery, "parsed-query", "", "Filter by parsed query (JSON string)")
+	ec.cmd.Flags().StringVar(&ec.searchTerm, "search-term", "", "Partial match against body, headers, parsed query or path (min 3 characters)")
 	ec.cmd.Flags().StringVar(&ec.orderBy, "order-by", "", "Sort key (e.g. created_at)")
 	ec.cmd.Flags().StringVar(&ec.dir, "dir", "", "Sort direction (asc, desc)")
 	ec.cmd.Flags().IntVar(&ec.limit, "limit", 100, "Limit number of results")
@@ -126,6 +139,9 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	if ec.issueID != "" {
 		params["issue_id"] = ec.issueID
 	}
+	if ec.deliveryGroup != "" {
+		params["delivery_group"] = ec.deliveryGroup
+	}
 	if ec.createdAfter != "" {
 		params["created_at[gte]"] = ec.createdAfter
 	}
@@ -144,6 +160,12 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	if ec.lastAttemptBefore != "" {
 		params["last_attempt_at[lte]"] = ec.lastAttemptBefore
 	}
+	if ec.nextAttemptAfter != "" {
+		params["next_attempt_at[gte]"] = ec.nextAttemptAfter
+	}
+	if ec.nextAttemptBefore != "" {
+		params["next_attempt_at[lte]"] = ec.nextAttemptBefore
+	}
 	if ec.headers != "" {
 		params["headers"] = ec.headers
 	}
@@ -155,6 +177,9 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	}
 	if ec.parsedQuery != "" {
 		params["parsed_query"] = ec.parsedQuery
+	}
+	if ec.searchTerm != "" {
+		params["search_term"] = ec.searchTerm
 	}
 	if ec.orderBy != "" {
 		params["order_by"] = ec.orderBy

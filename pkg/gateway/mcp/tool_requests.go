@@ -38,11 +38,17 @@ var requestsSpec = mcpcore.ToolSpec{
 		"headers":         {Type: "string", Desc: "Filter by request headers. " + descJSONFilter},
 		"parsed_query":    {Type: "string", Desc: "Filter by parsed query string as JSON. " + descJSONFilter},
 		"path":            {Type: "string", Desc: descPathFilter},
-		"order_by":        {Type: "string", Desc: "Sort field, e.g. created_at"},
-		"dir":             {Type: "string", Desc: "Sort direction: asc or desc"},
-		"limit":           {Type: "integer", Desc: "Max results"},
-		"next":            {Type: "string", Desc: "Next page cursor"},
-		"prev":            {Type: "string", Desc: "Previous page cursor"},
+		"search_term":     {Type: "string", Desc: descSearchTerm},
+		// A request's counts are how you find the ones that fanned out to many
+		// events, produced none, or were filtered out entirely.
+		"events_count":     {Type: "string", Desc: "Filter by count of events the request produced. " + descCountFilter},
+		"ignored_count":    {Type: "string", Desc: "Filter by count of events a connection filter dropped. " + descCountFilter},
+		"cli_events_count": {Type: "string", Desc: "Filter by count of events delivered to a CLI listen session. " + descCountFilter},
+		"order_by":         {Type: "string", Desc: "Sort field, e.g. created_at"},
+		"dir":              {Type: "string", Desc: "Sort direction: asc or desc"},
+		"limit":            {Type: "integer", Desc: "Max results"},
+		"next":             {Type: "string", Desc: "Next page cursor"},
+		"prev":             {Type: "string", Desc: "Previous page cursor"},
 	},
 	Notes: `Plural vs singular — which of the two request tools to use:
   ` + requestsToolName + ` (this tool, plural) — you have filters and want to find matching requests.
@@ -61,7 +67,16 @@ Date range filters:
 Payload search:
   body, headers, parsed_query — Hookdeck JSON filter syntax (object or string). Same as hookdeck listen --filter-body.
   path — partial URL path match (string)
+  search_term — partial match across body, headers, parsed_query and path at once (min 3 chars)
   Example: {"action":"list","body":{"type":"charge.succeeded"}}
+  Example: {"action":"list","search_term":"cus_1234"}
+
+Count filters:
+  events_count, ignored_count and cli_events_count take an integer, passed through as written
+  in the same way as attempts on ` + eventsToolName + `.
+  A request that produced no events is the usual reason a webhook "went missing":
+  {"action":"list","events_count":"0"} finds requests that matched no connection, and
+  {"action":"list","ignored_count":"1"} finds ones a connection filter dropped an event from.
 
 Requests and events:
   The API offers one traversal direction only. Requests cannot be filtered by event_id — there is
@@ -97,6 +112,10 @@ func requestsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input
 	mcpcore.SetIfNonEmpty(params, "source_id", in.String("source_id"))
 	mcpcore.SetIfNonEmpty(params, "status", in.String("status"))
 	mcpcore.SetIfNonEmpty(params, "rejection_cause", in.String("rejection_cause"))
+	mcpcore.SetIfNonEmpty(params, "search_term", in.String("search_term"))
+	mcpcore.SetIfNonEmpty(params, "events_count", in.String("events_count"))
+	mcpcore.SetIfNonEmpty(params, "ignored_count", in.String("ignored_count"))
+	mcpcore.SetIfNonEmpty(params, "cli_events_count", in.String("cli_events_count"))
 	mcpcore.SetIfNonEmpty(params, "created_at[gte]", in.String("created_after"))
 	mcpcore.SetIfNonEmpty(params, "created_at[lte]", in.String("created_before"))
 	mcpcore.SetIfNonEmpty(params, "ingested_at[gte]", in.String("ingested_after"))

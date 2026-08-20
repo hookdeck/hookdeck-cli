@@ -723,6 +723,44 @@ func TestEventsListSendsFilters(t *testing.T) {
 	assert.Contains(t, got.query, "status=FAILED")
 }
 
+// The filters added after the plural/singular split. Each one is only worth
+// anything if it reaches the query string under the exact key the API expects,
+// so the assertions name the encoded key rather than checking the call
+// succeeded — the stub answers whatever it is asked.
+func TestEventsListSendsSearchTermAndDeliveryGroup(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+	})
+
+	succeeds(t, session, "gateway_events", map[string]any{
+		"action": "list", "search_term": "cus_1234", "delivery_group": "grp_1",
+	})
+
+	assert.Equal(t, "/2025-07-01/events", got.path)
+	assert.Contains(t, got.query, "search_term=cus_1234")
+	assert.Contains(t, got.query, "delivery_group=grp_1")
+}
+
+// next_attempt_at is a date-operator filter, so the two MCP params have to
+// arrive as bracketed gte/lte keys. A plain next_attempt_at= would be a
+// different (and invalid) query.
+func TestEventsListSendsNextAttemptBounds(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+	})
+
+	succeeds(t, session, "gateway_events", map[string]any{
+		"action":              "list",
+		"next_attempt_after":  "2026-06-01T00:00:00Z",
+		"next_attempt_before": "2026-06-30T00:00:00Z",
+	})
+
+	assert.Contains(t, got.query, "next_attempt_at%5Bgte%5D=2026-06-01T00%3A00%3A00Z")
+	assert.Contains(t, got.query, "next_attempt_at%5Blte%5D=2026-06-30T00%3A00%3A00Z")
+}
+
 // ---------------------------------------------------------------------------
 // gateway_event (singular: one event by id)
 // ---------------------------------------------------------------------------
@@ -805,6 +843,28 @@ func TestRequestsListSendsFilters(t *testing.T) {
 	assert.Equal(t, "/2025-07-01/requests", got.path)
 	assert.Contains(t, got.query, "source_id=src_1")
 	assert.Contains(t, got.query, "status=accepted")
+}
+
+// The count filters and search_term added after the plural/singular split.
+// events_count=0 — requests that produced no events — is the query that
+// explains a "missing" webhook, and it only works if the zero survives to the
+// wire rather than being dropped as an empty value.
+func TestRequestsListSendsSearchTermAndCounts(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
+	})
+
+	succeeds(t, session, "gateway_requests", map[string]any{
+		"action": "list", "search_term": "cus_1234",
+		"events_count": "0", "ignored_count": "2", "cli_events_count": "1",
+	})
+
+	assert.Equal(t, "/2025-07-01/requests", got.path)
+	assert.Contains(t, got.query, "search_term=cus_1234")
+	assert.Contains(t, got.query, "events_count=0")
+	assert.Contains(t, got.query, "ignored_count=2")
+	assert.Contains(t, got.query, "cli_events_count=1")
 }
 
 // ---------------------------------------------------------------------------

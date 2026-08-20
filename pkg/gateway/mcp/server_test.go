@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -193,6 +194,92 @@ func TestListTools_Unauthenticated(t *testing.T) {
 	assert.Contains(t, toolNames, "gateway_help")
 	assert.Contains(t, toolNames, "gateway_events")
 	assert.Contains(t, toolNames, "gateway_event")
+}
+
+// schemaPropertyNames returns the parameter names a tool advertises.
+func schemaPropertyNames(t *testing.T, tool *mcpsdk.Tool) []string {
+	t.Helper()
+	require.NotNil(t, tool)
+	// The SDK hands the schema back as decoded JSON, so re-encode rather than
+	// assuming a concrete type.
+	raw, err := json.Marshal(tool.InputSchema)
+	require.NoError(t, err)
+
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &schema))
+
+	names := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// Filters belong to the plural search tools. The whole point of splitting the
+// pairs is that a caller holding an id is not shown twenty filters it cannot
+// use, so the singular tools have to stay at their id (plus connection_ids for
+// a retry) however many filters the plural side grows.
+func TestFiltersLiveOnThePluralToolsOnly(t *testing.T) {
+	session := connectInMemory(t, newTestClient("https://api.hookdeck.com", "test-key"))
+	tools := listTools(t, session)
+
+	t.Run("gateway_events carries the list filters", func(t *testing.T) {
+		props := schemaPropertyNames(t, tools["gateway_events"])
+		for _, name := range []string{
+			"search_term", "delivery_group", "next_attempt_after", "next_attempt_before",
+		} {
+			assert.Contains(t, props, name)
+		}
+	})
+
+	t.Run("gateway_requests carries the list filters", func(t *testing.T) {
+		props := schemaPropertyNames(t, tools["gateway_requests"])
+		for _, name := range []string{
+			"search_term", "events_count", "ignored_count", "cli_events_count",
+		} {
+			assert.Contains(t, props, name)
+		}
+	})
+
+	t.Run("gateway_event takes only an id", func(t *testing.T) {
+		assert.Equal(t, []string{"action", "id"}, schemaPropertyNames(t, tools["gateway_event"]))
+	})
+
+	t.Run("gateway_request takes only an id and retry targets", func(t *testing.T) {
+		assert.Equal(t,
+			[]string{"action", "connection_ids", "id"},
+			schemaPropertyNames(t, tools["gateway_request"]))
+	})
+}
+
+// The API spec also documents parameters marked x-docs-hide: Hookdeck keeps
+// them out of its public documentation deliberately, so the CLI must not
+// surface them either. Reading the spec without that context makes them look
+// like filters we simply forgot, which is exactly how they would get added —
+// this pins the omission as intentional.
+func TestPluralToolsOmitParametersHiddenFromTheAPIDocs(t *testing.T) {
+	session := connectInMemory(t, newTestClient("https://api.hookdeck.com", "test-key"))
+	tools := listTools(t, session)
+
+	hidden := map[string][]string{
+		"gateway_events": {
+			"bulk_retry_id", "include", "progressive", "event_data_id", "cli_user_id",
+		},
+		"gateway_requests": {"bulk_retry_id", "include", "progressive"},
+	}
+
+	for tool, names := range hidden {
+		t.Run(tool, func(t *testing.T) {
+			props := schemaPropertyNames(t, tools[tool])
+			for _, name := range names {
+				assert.NotContains(t, props, name,
+					"%s must not expose %q: it carries x-docs-hide in the API spec", tool, name)
+			}
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------

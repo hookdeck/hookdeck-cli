@@ -394,3 +394,79 @@ func TestRequestListPaginationWorkflow(t *testing.T) {
 		}
 	}
 }
+
+// The filters added in the v3 pass over the requests query. See
+// TestEventListNewFiltersReachTheAPI for why the query string is asserted
+// rather than only the exit status.
+func TestRequestListNewFiltersReachTheAPI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	proxy := StartRecordingProxy(t, defaultAPIUpstream)
+	defer proxy.Close()
+
+	_, _, err := cli.Run(
+		"--api-base", proxy.URL(),
+		"gateway", "request", "list", "--limit", "5",
+		"--search-term", "acceptance",
+		"--events-count", "0",
+		"--ignored-count", "1",
+		"--cli-events-count", "1",
+	)
+	require.NoError(t, err)
+
+	query := RecordedQueryForPath(t, proxy, "/requests")
+	assert.Equal(t, "acceptance", query.Get("search_term"))
+	// events_count=0 finds requests that produced no events, which is the query
+	// that explains a "missing" webhook. The zero has to survive to the wire.
+	assert.Equal(t, "0", query.Get("events_count"))
+	assert.Equal(t, "1", query.Get("ignored_count"))
+	assert.Equal(t, "1", query.Get("cli_events_count"))
+}
+
+func TestRequestListWithSearchTerm(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	cli.RunExpectSuccess("gateway", "request", "list", "--search-term", "acceptance", "--limit", "5")
+}
+
+// A request that produced no events is the usual reason a webhook looks
+// missing, so this filter is asserted on results rather than on exit status.
+func TestRequestListWithEventsCount(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	connID, _ := createConnectionAndTriggerEvent(t, cli)
+	t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+	type RequestListResponse struct {
+		Models []Request `json:"models"`
+	}
+
+	var withEvents RequestListResponse
+	require.NoError(t, cli.RunJSON(&withEvents, "gateway", "request", "list", "--events-count", "1", "--limit", "5"))
+	for _, r := range withEvents.Models {
+		assert.Equal(t, 1, r.EventsCount, "--events-count 1 must only return requests with one event")
+	}
+
+	var withoutEvents RequestListResponse
+	require.NoError(t, cli.RunJSON(&withoutEvents, "gateway", "request", "list", "--events-count", "0", "--limit", "5"))
+	for _, r := range withoutEvents.Models {
+		assert.Equal(t, 0, r.EventsCount, "--events-count 0 must only return requests with no events")
+	}
+}
+
+func TestRequestListWithIgnoredAndCLIEventCounts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	cli.RunExpectSuccess("gateway", "request", "list", "--ignored-count", "0", "--limit", "5")
+	cli.RunExpectSuccess("gateway", "request", "list", "--cli-events-count", "0", "--limit", "5")
+}

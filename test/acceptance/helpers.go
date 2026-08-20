@@ -106,8 +106,13 @@ func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, args []string, ru
 
 // RecordedRequest holds a single HTTP request as captured by the recording proxy.
 type RecordedRequest struct {
-	Method    string
-	Path      string
+	Method string
+	Path   string
+	// Query is the raw, still-encoded query string. Filter tests assert on it
+	// because a list command that sends a filter under the wrong key is not an
+	// error the API reports — the parameter is ignored and the unfiltered list
+	// comes back looking like a correct answer.
+	Query     string
 	Telemetry string
 }
 
@@ -202,7 +207,7 @@ func resetRecordingProxiesForArgs(args []string) {
 
 // StartRecordingProxy starts an httptest.Server that acts as a reverse proxy to
 // upstreamBase (e.g. https://api.hookdeck.com). Every request is recorded
-// (method, path, X-Hookdeck-CLI-Telemetry) and then forwarded to the upstream;
+// (method, path, query, X-Hookdeck-CLI-Telemetry) and then forwarded to the upstream;
 // the upstream response is returned to the client. Use with CLIRunner.Run("--api-base", proxy.URL(), "gateway", ...).
 func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
 	t.Helper()
@@ -221,6 +226,7 @@ func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
 		p.recorded = append(p.recorded, RecordedRequest{
 			Method:    r.Method,
 			Path:      r.URL.Path,
+			Query:     r.URL.RawQuery,
 			Telemetry: r.Header.Get("X-Hookdeck-CLI-Telemetry"),
 		})
 		p.mu.Unlock()
@@ -267,6 +273,34 @@ func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
 
 	registerRecordingProxy(p)
 	return p
+}
+
+// RecordedQueryForPath returns the parsed query string of the first recorded
+// request whose path ends with suffix, failing the test if there is none.
+//
+// Use it to assert that a list command's filter flags reached the API under the
+// keys the API expects. An unrecognised query parameter is ignored rather than
+// rejected, so a command that misspells a filter key still exits zero and still
+// prints results — asserting on the query is the only way to catch it.
+func RecordedQueryForPath(t *testing.T, proxy *RecordingProxy, suffix string) url.Values {
+	t.Helper()
+
+	recorded := proxy.Recorded()
+	for _, r := range recorded {
+		if !strings.HasSuffix(r.Path, suffix) {
+			continue
+		}
+		values, err := url.ParseQuery(r.Query)
+		require.NoError(t, err, "parse recorded query %q", r.Query)
+		return values
+	}
+
+	paths := make([]string, 0, len(recorded))
+	for _, r := range recorded {
+		paths = append(paths, r.Method+" "+r.Path)
+	}
+	t.Fatalf("no request recorded for a path ending %q; recorded: %v", suffix, paths)
+	return nil
 }
 
 // telemetryPayload is the structure of the X-Hookdeck-CLI-Telemetry header (JSON).
@@ -1091,6 +1125,10 @@ type Event struct {
 // Request represents a Hookdeck request for testing
 type Request struct {
 	ID string `json:"id"`
+	// EventsCount is how many events the request produced. The count filters
+	// are checked against it, since "produced no events" is the query that
+	// explains a webhook that appears to have gone missing.
+	EventsCount int `json:"events_count"`
 }
 
 // Attempt represents a Hookdeck attempt for testing

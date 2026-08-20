@@ -117,4 +117,24 @@ const (
 	descDateBefore = "ISO 8601 datetime upper bound (list). Maps to API field[lte]; do not pass bracket keys in MCP args."
 	descJSONFilter = "Hookdeck JSON filter (object or string). Same syntax as hookdeck listen --filter-body."
 	descPathFilter = "Partial URL path match (string)."
+
+	// One filter that searches body, headers, parsed_query and path together,
+	// for when the caller knows the value but not which field carries it.
+	descSearchTerm = "Partial match against the body, headers, parsed_query or path at once (minimum 3 characters). " +
+		"Use when you know the value but not which field holds it; use body/headers/parsed_query for a structured match."
+
+	// The API schema is nullable and says null matches events with no delivery
+	// group. A query string cannot carry a JSON null, and the string "null" is
+	// read as a group name — verified against the live API, it returns nothing
+	// in a project whose events all have no delivery group. Saying so here stops
+	// an agent burning calls on a query that cannot work.
+	descDeliveryGroup = "Filter by delivery group; comma-separate several. " +
+		"The API documents null as matching events without a delivery group, but that null cannot be expressed " +
+		"in a query string — passing \"null\" filters for a group of that name, so there is no way to search for ungrouped events."
+
+	// Count filters accept the same operator objects as the date filters
+	// (attempts is the existing precedent). Modelling that in the schema would
+	// need a second shape per parameter for no gain, so the value is passed
+	// through as written.
+	descCountFilter = "Integer or API operator syntax; pass through as string."
 )

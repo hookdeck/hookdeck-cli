@@ -1560,6 +1560,9 @@ hookdeck gateway transformation executions get <transformation-id-or-name> <exec
 
 List events (processed webhook deliveries). Filter by connection ID, source, destination, or status.
 
+Use `--search-term` to match a value partially against the body, headers, parsed query or path
+at once, when you know the value but not which field carries it.
+
 **Usage:**
 
 ```bash
@@ -1576,6 +1579,7 @@ hookdeck gateway event list [flags]
 | `--connection-id` | `string` | Filter by connection ID |
 | `--created-after` | `string` | Filter events created after (ISO date-time) |
 | `--created-before` | `string` | Filter events created before (ISO date-time) |
+| `--delivery-group` | `string` | Filter by delivery group (comma-separated) |
 | `--destination-id` | `string` | Filter by destination ID |
 | `--dir` | `string` | Sort direction (asc, desc) |
 | `--error-code` | `string` | Filter by error code |
@@ -1586,12 +1590,15 @@ hookdeck gateway event list [flags]
 | `--last-attempt-at-before` | `string` | Filter by last_attempt_at before (ISO date-time) |
 | `--limit` | `int` | Limit number of results (default "100") |
 | `--next` | `string` | Pagination cursor for next page |
+| `--next-attempt-at-after` | `string` | Filter by next_attempt_at after (ISO date-time) |
+| `--next-attempt-at-before` | `string` | Filter by next_attempt_at before (ISO date-time) |
 | `--order-by` | `string` | Sort key (e.g. created_at) |
 | `--output` | `string` | Output format (json) |
 | `--parsed-query` | `string` | Filter by parsed query (JSON string) |
 | `--path` | `string` | Filter by path |
 | `--prev` | `string` | Pagination cursor for previous page |
 | `--response-status` | `string` | Filter by HTTP response status (e.g. 200, 500) |
+| `--search-term` | `string` | Partial match against body, headers, parsed query or path (min 3 characters) |
 | `--source-id` | `string` | Filter by source ID |
 | `--status` | `string` | Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED) |
 | `--successful-at-after` | `string` | Filter by successful_at after (ISO date-time) |
@@ -1603,6 +1610,8 @@ hookdeck gateway event list [flags]
 hookdeck gateway event list
 hookdeck gateway event list --connection-id web_abc123
 hookdeck gateway event list --status FAILED --limit 20
+hookdeck gateway event list --search-term cus_1234
+hookdeck gateway event list --status QUEUED --next-attempt-at-before 2026-01-01T00:00:00Z
 ```
 ### hookdeck gateway event get
 
@@ -1700,6 +1709,10 @@ hookdeck gateway event raw-body evt_abc123
 
 List requests (raw inbound webhooks). Filter by source ID.
 
+Use `--search-term` to match a value partially against the body, headers, parsed query or path
+at once. `--events-count` 0 finds requests that produced no events, which is the usual reason a
+webhook appears to have gone missing.
+
 **Usage:**
 
 ```bash
@@ -1711,11 +1724,14 @@ hookdeck gateway request list [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--body` | `string` | Filter by body (JSON string) |
+| `--cli-events-count` | `string` | Filter by number of CLI events (integer or operators) |
 | `--created-after` | `string` | Filter requests created after (ISO date-time) |
 | `--created-before` | `string` | Filter requests created before (ISO date-time) |
 | `--dir` | `string` | Sort direction (asc, desc) |
+| `--events-count` | `string` | Filter by number of events produced (integer or operators) |
 | `--headers` | `string` | Filter by headers (JSON string) |
 | `--id` | `string` | Filter by request ID(s) (comma-separated) |
+| `--ignored-count` | `string` | Filter by number of ignored events (integer or operators) |
 | `--ingested-at-after` | `string` | Filter by ingested_at after (ISO date-time) |
 | `--ingested-at-before` | `string` | Filter by ingested_at before (ISO date-time) |
 | `--limit` | `int` | Limit number of results (default "100") |
@@ -1726,6 +1742,7 @@ hookdeck gateway request list [flags]
 | `--path` | `string` | Filter by path |
 | `--prev` | `string` | Pagination cursor for previous page |
 | `--rejection-cause` | `string` | Filter by rejection cause |
+| `--search-term` | `string` | Partial match against body, headers, parsed query or path (min 3 characters) |
 | `--source-id` | `string` | Filter by source ID |
 | `--status` | `string` | Filter by status |
 | `--verified` | `string` | Filter by verified (true/false) |
@@ -1735,6 +1752,8 @@ hookdeck gateway request list [flags]
 ```bash
 hookdeck gateway request list
 hookdeck gateway request list --source-id src_abc123 --limit 20
+hookdeck gateway request list --search-term cus_1234
+hookdeck gateway request list --events-count 0
 ```
 ### hookdeck gateway request get
 
