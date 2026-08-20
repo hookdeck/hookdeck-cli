@@ -27,9 +27,9 @@ var sourcesSpec = mcpcore.ToolSpec{
 	Props: map[string]mcpcore.Prop{
 		"id":          {Type: "string", Desc: "Source ID. Required for get/update/delete/enable/disable."},
 		"name":        {Type: "string", Desc: "Source name. Filters on list; required on create/upsert."},
-		"type":        {Type: "string", Desc: "Source type, e.g. STRIPE, GITHUB, HTTP (create/upsert/update)"},
-		"description": {Type: "string", Desc: "Source description (create/upsert/update)"},
-		"config":      {Type: "object", Desc: "Type-specific configuration, including verification settings (create/upsert/update). Replaces the stored config."},
+		"type":        {Type: "string", Desc: "Source type, e.g. STRIPE, GITHUB, HTTP (create/upsert/update)", Write: true},
+		"description": {Type: "string", Desc: "Source description (create/upsert/update)", Write: true},
+		"config":      {Type: "object", Desc: "Type-specific configuration, including verification settings (create/upsert/update). Replaces the stored config.", Write: true},
 		"limit":       {Type: "integer", Desc: "Max results (list)"},
 		"next":        {Type: "string", Desc: "Next page cursor"},
 		"prev":        {Type: "string", Desc: "Previous page cursor"},

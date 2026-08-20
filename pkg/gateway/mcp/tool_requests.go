@@ -20,7 +20,7 @@ var requestsSpec = mcpcore.ToolSpec{
 	Resource: "requests",
 	Summary: "SEARCH MANY requests — plural, collection only. Find inbound requests (raw HTTP data received by Hookdeck before routing) matching filters and get back their IDs. " +
 		"List supports the same filters as `hookdeck gateway request list` (metadata, date range, payload search, sort). " +
-		"To act on a specific request you already have an ID for — read it, get its raw body, list the events it produced, or retry it — use " + requestToolName + " (singular). This tool cannot do any of that; it only searches. " +
+		"To act on a specific request you already have an ID for, use " + requestToolName + " (singular). This tool only searches. " +
 		"There is no event_id filter here: to go from an event to its request, read request_id off the event and call " + requestToolName + " with action get. " +
 		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions: requestsActions,

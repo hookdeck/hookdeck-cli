@@ -248,10 +248,57 @@ func TestFiltersLiveOnThePluralToolsOnly(t *testing.T) {
 		assert.Equal(t, []string{"action", "id"}, schemaPropertyNames(t, tools["gateway_event"]))
 	})
 
-	t.Run("gateway_request takes only an id and retry targets", func(t *testing.T) {
+	// connection_ids belongs to retry, which read-only mode does not offer, so
+	// it is not advertised there either. Offering a parameter for an action the
+	// session cannot reach is the same problem as naming the action in prose.
+	t.Run("gateway_request takes only an id in read-only mode", func(t *testing.T) {
+		assert.Equal(t, []string{"action", "id"}, schemaPropertyNames(t, tools["gateway_request"]))
+	})
+
+	t.Run("gateway_request gains the retry targets in write mode", func(t *testing.T) {
+		writeSession := connectInMemoryWriteEnabled(t, newTestClient("https://api.hookdeck.com", "test-key"))
 		assert.Equal(t,
 			[]string{"action", "connection_ids", "id"},
-			schemaPropertyNames(t, tools["gateway_request"]))
+			schemaPropertyNames(t, listTools(t, writeSession)["gateway_request"]))
+	})
+}
+
+// Read-only mode filters the action enum; it must filter everything else that
+// describes those actions too. A session offered `config` or `rules` has been
+// shown an affordance it cannot use, and a description naming "retry, cancel or
+// mute" is more persuasive to a model than the enum that contradicts it.
+func TestReadOnlyModeHidesWriteOnlyPropsAndProse(t *testing.T) {
+	session := connectInMemory(t, newTestClient("https://api.hookdeck.com", "test-key"))
+	tools := listTools(t, session)
+
+	t.Run("write-only properties are absent", func(t *testing.T) {
+		for tool, hidden := range map[string][]string{
+			"gateway_sources":      {"config", "description", "type"},
+			"gateway_destinations": {"config", "description", "type"},
+			"gateway_connections":  {"description", "rules"},
+			"gateway_issues":       {"status"},
+		} {
+			props := schemaPropertyNames(t, tools[tool])
+			for _, name := range hidden {
+				assert.NotContains(t, props, name,
+					"%s must not advertise %q when the actions using it are hidden", tool, name)
+			}
+		}
+	})
+
+	t.Run("descriptions do not name unavailable actions", func(t *testing.T) {
+		for tool, absent := range map[string][]string{
+			"gateway_event":    {"cancel", "mute"},
+			"gateway_request":  {"retry"},
+			"gateway_events":   {"cancel", "mute"},
+			"gateway_requests": {"retry it"},
+		} {
+			description := tools[tool].Description
+			for _, word := range absent {
+				assert.NotContains(t, description, word,
+					"%s describes %q, which read-only mode does not offer", tool, word)
+			}
+		}
 	})
 }
 

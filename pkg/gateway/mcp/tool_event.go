@@ -22,7 +22,7 @@ var eventActions = mcpcore.ActionSet{
 
 var eventSpec = mcpcore.ToolSpec{
 	Resource: "event",
-	Summary: "ONE event by ID — singular, single-record. Use this when you already have an event ID: read the event, get its payload, retry, cancel or mute it. Takes an id and nothing else. " +
+	Summary: "ONE event by ID — singular, single-record. Use this when you already have an event ID. Takes an id and nothing else. " +
 		"To find events in the first place — by status, source, destination, date range or payload — use " + eventsToolName + " (plural), which takes the filters and returns IDs. This tool has no filters and cannot search. " +
 		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions:  eventActions,

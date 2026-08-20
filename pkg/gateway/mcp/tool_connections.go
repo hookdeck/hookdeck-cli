@@ -50,10 +50,10 @@ var connectionsSpec = mcpcore.ToolSpec{
 	Props: map[string]mcpcore.Prop{
 		"id":             {Type: "string", Desc: "Connection ID or name. Required for get/pause/unpause/update/delete/enable/disable."},
 		"name":           {Type: "string", Desc: "Connection name. Filters on list; names the connection on create/upsert/update."},
-		"description":    {Type: "string", Desc: "Connection description (create/upsert/update)"},
+		"description":    {Type: "string", Desc: "Connection description (create/upsert/update)", Write: true},
 		"source_id":      {Type: "string", Desc: "Source ID. Filters on list; links the source on create/upsert/update."},
 		"destination_id": {Type: "string", Desc: "Destination ID. Filters on list; links the destination on create/upsert/update."},
-		"rules":          {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset.", Items: &mcpcore.Prop{Type: "object"}},
+		"rules":          {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset.", Items: &mcpcore.Prop{Type: "object"}, Write: true},
 		"disabled":       {Type: "boolean", Desc: "Filter disabled connections (list)"},
 		"limit":          {Type: "integer", Desc: "Max results (list)"},
 		"next":           {Type: "string", Desc: "Next page cursor"},

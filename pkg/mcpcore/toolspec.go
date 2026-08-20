@@ -201,8 +201,15 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 		return ToolDef{}, false
 	}
 
+	// Properties are filtered by mode for the same reason actions are: a
+	// read-only session offered `config` or `rules` has been shown an
+	// affordance it cannot use, and nothing in the schema says which action
+	// they belong to.
 	props := make(map[string]Prop, len(spec.Props)+1)
 	for k, v := range spec.Props {
+		if v.Write && !srv.WriteEnabled() {
+			continue
+		}
 		props[k] = v
 	}
 	props["action"] = Prop{

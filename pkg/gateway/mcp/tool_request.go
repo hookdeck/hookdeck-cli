@@ -24,14 +24,14 @@ var requestActions = mcpcore.ActionSet{
 
 var requestSpec = mcpcore.ToolSpec{
 	Resource: "request",
-	Summary: "ONE request by ID — singular, single-record. Use this when you already have a request ID: read the request, get its raw body, list the events it produced, or retry it. Takes an id (plus connection_ids for retry) and nothing else. " +
+	Summary: "ONE request by ID — singular, single-record. Use this when you already have a request ID. Takes an id and nothing else. " +
 		"To find requests in the first place — by source, status, date range or payload — use " + requestsToolName + " (plural), which takes the filters and returns IDs. This tool has no filters and cannot search. " +
 		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions:  requestActions,
 	Required: []string{"id"},
 	Props: map[string]mcpcore.Prop{
 		"id":             {Type: "string", Desc: "Request ID (required, one request). Get one from " + requestsToolName + " list, or from an event's request_id."},
-		"connection_ids": {Type: "array", Desc: "Connections to re-route the request through (retry action only). Omit to retry every connection the request matched.", Items: &mcpcore.Prop{Type: "string"}},
+		"connection_ids": {Type: "array", Desc: "Connections to re-route the request through (retry action only). Omit to retry every connection the request matched.", Items: &mcpcore.Prop{Type: "string"}, Write: true},
 	},
 	Notes: `Plural vs singular — which of the two request tools to use:
   ` + requestToolName + `  (this tool, singular) — you already have a request ID and want to read or act on it.

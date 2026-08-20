@@ -22,7 +22,7 @@ var issuesSpec = mcpcore.ToolSpec{
 	Actions:  issuesActions,
 	Props: map[string]mcpcore.Prop{
 		"id":               {Type: "string", Desc: "Issue ID. Required for get/update/dismiss."},
-		"status":           {Type: "string", Desc: "New status for update: OPENED, IGNORED, ACKNOWLEDGED or RESOLVED", Enum: []string{"OPENED", "IGNORED", "ACKNOWLEDGED", "RESOLVED"}},
+		"status":           {Type: "string", Desc: "New status for update: OPENED, IGNORED, ACKNOWLEDGED or RESOLVED", Enum: []string{"OPENED", "IGNORED", "ACKNOWLEDGED", "RESOLVED"}, Write: true},
 		"type":             {Type: "string", Desc: "Filter: delivery, transformation, or backpressure (list)"},
 		"filter_status":    {Type: "string", Desc: "Filter by status (list)"},
 		"issue_trigger_id": {Type: "string", Desc: "Filter by trigger (list)"},

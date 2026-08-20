@@ -20,7 +20,7 @@ var eventsSpec = mcpcore.ToolSpec{
 	Resource: "events",
 	Summary: "SEARCH MANY events — plural, collection only. Find events (processed deliveries routed through connections to destinations) matching filters and get back their IDs. " +
 		"List supports the same filters as `hookdeck gateway event list` (metadata, date range, payload search, sort). " +
-		"To act on a specific event you already have an ID for — read it, get its payload, retry, cancel or mute it — use " + eventToolName + " (singular). This tool cannot do any of that; it only searches. " +
+		"To act on a specific event you already have an ID for, use " + eventToolName + " (singular). This tool only searches. " +
 		"There is no request_id filter here: to see the events one request produced, call " + requestToolName + " with action events. " +
 		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions: eventsActions,
