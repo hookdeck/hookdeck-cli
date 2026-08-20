@@ -76,13 +76,39 @@ func TypeNames(schemas []Schema) []string {
 	return names
 }
 
-// ValidateFields checks supplied values against a schema's field definitions.
+// ValidateFields checks supplied values against a schema's field definitions,
+// enforcing the schema's required fields.
 //
 // kind names the group being checked ("config" or "credential") so errors can
 // point at the right flags. Only rules the schema states are enforced: missing
 // required fields, unknown fields, values outside a declared option set, and
 // values failing a declared pattern. Anything else is left to the API.
+//
+// This is create-time validation: the request specifies the whole object, so a
+// required field nobody supplied is a request the API will reject. Update is a
+// merge patch and must use ValidateSuppliedFields.
 func ValidateFields(fields []Field, values map[string]interface{}, kind string) error {
+	return validateFields(fields, values, kind, true)
+}
+
+// ValidateSuppliedFields checks only the keys actually supplied.
+//
+// The update endpoint is a PATCH that leaves anything omitted alone, so
+// enforcing required fields there rejects requests the API accepts. It made
+// credential rotation impossible: `destination update des_x --credential
+// secret=new` failed client-side with "--config url=<value> is required"
+// before a request was ever sent, and the MCP path — which does no such
+// validation — worked. A supplied field that is empty is still reported,
+// because clearing a required field is not a partial update.
+//
+// Unknown keys, option sets and patterns are checked either way: those are
+// wrong however the request is shaped, and the message is more useful than the
+// API's.
+func ValidateSuppliedFields(fields []Field, values map[string]interface{}, kind string) error {
+	return validateFields(fields, values, kind, false)
+}
+
+func validateFields(fields []Field, values map[string]interface{}, kind string, requireAll bool) error {
 	known := make(map[string]Field, len(fields))
 	for _, field := range fields {
 		known[field.Key] = field
@@ -95,6 +121,9 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 			continue
 		}
 		value, present := values[field.Key]
+		if !present && !requireAll {
+			continue
+		}
 		if !present || isEmptyValue(value) {
 			problems = append(problems, fmt.Sprintf("--%s %s=<value> is required", kind, field.Key))
 		}

@@ -97,12 +97,17 @@ func (dc *outpostDestinationUpdateCmd) runOutpostDestinationUpdateCmd(cmd *cobra
 
 	// The type is fixed at creation, so it is read back to validate the fields
 	// being changed rather than asking the user to repeat it.
+	//
+	// Only the supplied keys are checked. The endpoint is a PATCH that leaves
+	// omitted fields alone, so enforcing the type's required fields here
+	// rejected valid partial updates — rotating a credential failed with
+	// "--config url=<value> is required" before any request was sent.
 	if len(config) > 0 || len(credentials) > 0 {
 		existing, err := client.GetOutpostDestination(ctx, dc.parent.tenantID, args[0])
 		if err != nil {
 			return fmt.Errorf("failed to look up destination: %w", err)
 		}
-		if err := validateOutpostDestinationFields(ctx, existing.Type, config, credentials); err != nil {
+		if err := validateOutpostDestinationFields(ctx, existing.Type, config, credentials, validateForUpdate); err != nil {
 			return err
 		}
 	}

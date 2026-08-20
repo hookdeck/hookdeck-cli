@@ -96,7 +96,7 @@ func (dc *outpostDestinationCreateCmd) runOutpostDestinationCreateCmd(cmd *cobra
 		return err
 	}
 
-	if err := validateOutpostDestinationFields(ctx, dc.destType, config, credentials); err != nil {
+	if err := validateOutpostDestinationFields(ctx, dc.destType, config, credentials, validateForCreate); err != nil {
 		return err
 	}
 

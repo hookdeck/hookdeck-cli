@@ -245,3 +245,56 @@ func TestValidateFields(t *testing.T) {
 		assert.Contains(t, err.Error(), "--credential secret=<value> is required")
 	})
 }
+
+// The update endpoint is a merge patch, so a field nobody mentioned is not
+// missing — it is unchanged.
+func TestValidateSuppliedFields(t *testing.T) {
+	t.Parallel()
+
+	configFields := []Field{
+		{Key: "url", Required: true, Pattern: "^https?://"},
+		{Key: "region", Options: []hookdeck.OutpostDestinationTypeOption{
+			{Label: "US East 1", Value: "us-east-1"},
+			{Label: "EU West 2", Value: "eu-west-2"},
+		}},
+		{Key: "note"},
+	}
+
+	t.Run("an omitted required field is not an error", func(t *testing.T) {
+		err := ValidateSuppliedFields(configFields, map[string]interface{}{"note": "x"}, "config")
+		assert.NoError(t, err, "requiring url here makes a partial update impossible")
+	})
+
+	t.Run("nothing supplied is not an error", func(t *testing.T) {
+		assert.NoError(t, ValidateSuppliedFields(configFields, map[string]interface{}{}, "config"))
+	})
+
+	t.Run("a supplied required field may not be blanked", func(t *testing.T) {
+		// Clearing a required field is not a partial update.
+		err := ValidateSuppliedFields(configFields, map[string]interface{}{"url": "  "}, "config")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--config url=<value> is required")
+	})
+
+	t.Run("an unknown field is still rejected", func(t *testing.T) {
+		err := ValidateSuppliedFields(configFields, map[string]interface{}{"unknown": "x"}, "config")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `"unknown" is not a valid config field`)
+	})
+
+	t.Run("options and patterns are still checked", func(t *testing.T) {
+		err := ValidateSuppliedFields(configFields, map[string]interface{}{"region": "mars-1"}, "config")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--config region must be one of")
+
+		err = ValidateSuppliedFields(configFields, map[string]interface{}{"url": "ftp://example.com"}, "config")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--config url does not match the expected format")
+	})
+
+	t.Run("rotating a credential does not require the others", func(t *testing.T) {
+		fields := []Field{{Key: "secret", Required: true}, {Key: "key", Required: true}}
+		err := ValidateSuppliedFields(fields, map[string]interface{}{"secret": "new"}, "credential")
+		assert.NoError(t, err)
+	})
+}

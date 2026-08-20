@@ -248,12 +248,25 @@ func splitDottedPath(key string) []string {
 	return append(segments, current.String())
 }
 
+// fieldValidationMode selects between create-time and update-time rules.
+type fieldValidationMode int
+
+const (
+	// validateForCreate enforces the schema's required fields. Create specifies
+	// the whole destination, so one that is missing will be rejected by the API
+	// anyway and the local message names the flag.
+	validateForCreate fieldValidationMode = iota
+	// validateForUpdate checks only the keys supplied. Update is a merge patch,
+	// so applying create-time rules to it rejects requests the API accepts.
+	validateForUpdate
+)
+
 // validateOutpostDestinationFields checks config and credentials against the
 // destination type's schema.
 //
 // Per AGENTS.md, a schema that cannot be fetched must not block the command: the
 // API is the authority, so this warns and lets the request through.
-func validateOutpostDestinationFields(ctx context.Context, destinationType string, config, credentials map[string]interface{}) error {
+func validateOutpostDestinationFields(ctx context.Context, destinationType string, config, credentials map[string]interface{}, mode fieldValidationMode) error {
 	client := Config.GetOutpostAPIClient()
 
 	schemas, err := outposttypes.FetchDestinationTypes(ctx, client)
@@ -268,10 +281,15 @@ func validateOutpostDestinationFields(ctx context.Context, destinationType strin
 			destinationType, strings.Join(outposttypes.TypeNames(schemas), ", "))
 	}
 
-	if err := outposttypes.ValidateFields(schema.ConfigFields, config, "config"); err != nil {
+	validate := outposttypes.ValidateFields
+	if mode == validateForUpdate {
+		validate = outposttypes.ValidateSuppliedFields
+	}
+
+	if err := validate(schema.ConfigFields, config, "config"); err != nil {
 		return fmt.Errorf("%w\n\nRun 'hookdeck outpost destination-type get %s' to see the fields this type accepts", err, destinationType)
 	}
-	if err := outposttypes.ValidateFields(schema.CredentialFields, credentials, "credential"); err != nil {
+	if err := validate(schema.CredentialFields, credentials, "credential"); err != nil {
 		return fmt.Errorf("%w\n\nRun 'hookdeck outpost destination-type get %s' to see the fields this type accepts", err, destinationType)
 	}
 
