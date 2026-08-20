@@ -96,6 +96,11 @@ func (dc *outpostDestinationCreateCmd) runOutpostDestinationCreateCmd(cmd *cobra
 		return err
 	}
 
+	// Before validating: a default the caller did not supply still has to satisfy
+	// the schema, and validating first would reject a required field the schema
+	// itself provides.
+	config = applyOutpostDestinationDefaults(ctx, dc.destType, config)
+
 	if err := validateOutpostDestinationFields(ctx, dc.destType, config, credentials, validateForCreate); err != nil {
 		return err
 	}

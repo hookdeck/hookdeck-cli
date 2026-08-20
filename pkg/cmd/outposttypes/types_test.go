@@ -298,3 +298,56 @@ func TestValidateSuppliedFields(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+// The schema publishes a default per field and the CLI prints it in help, but
+// nothing was sending it and the API treats an absent key as unset. Following
+// our own printed example for a rabbitmq destination therefore stored
+// tls: "false" and sent SASL credentials in the clear.
+func TestApplyDefaults(t *testing.T) {
+	// Both spellings are real: rabbitmq's tls default is "on", kafka's is
+	// "true". The API normalises both, so the schema value is passed through
+	// rather than mapped.
+	fields := []Field{
+		{Key: "server_url", Required: true},
+		{Key: "tls", Type: "checkbox", Default: "on"},
+		{Key: "storage_class", Default: "STANDARD"},
+		{Key: "topic"},
+	}
+
+	t.Run("fills in a default the caller omitted", func(t *testing.T) {
+		values, applied := ApplyDefaults(fields, map[string]interface{}{"server_url": "r:5672"})
+		assert.Equal(t, "on", values["tls"], "TLS must be on when the schema says so and the caller said nothing")
+		assert.Equal(t, "STANDARD", values["storage_class"])
+		assert.ElementsMatch(t, []string{"tls", "storage_class"}, applied)
+	})
+
+	t.Run("never overrides what the caller supplied", func(t *testing.T) {
+		values, applied := ApplyDefaults(fields, map[string]interface{}{"tls": "false"})
+		assert.Equal(t, "false", values["tls"], "an explicit opt-out must survive")
+		assert.NotContains(t, applied, "tls")
+	})
+
+	t.Run("an explicitly empty value is still the caller's choice", func(t *testing.T) {
+		values, applied := ApplyDefaults(fields, map[string]interface{}{"tls": ""})
+		assert.Equal(t, "", values["tls"])
+		assert.NotContains(t, applied, "tls")
+	})
+
+	t.Run("fields without a default are left absent", func(t *testing.T) {
+		values, _ := ApplyDefaults(fields, map[string]interface{}{})
+		_, present := values["topic"]
+		assert.False(t, present, "a field with no default must not be invented")
+	})
+
+	t.Run("works from a nil map", func(t *testing.T) {
+		values, applied := ApplyDefaults(fields, nil)
+		require.NotNil(t, values)
+		assert.Equal(t, "on", values["tls"])
+		assert.Len(t, applied, 2)
+	})
+
+	t.Run("reports nothing when there is nothing to apply", func(t *testing.T) {
+		_, applied := ApplyDefaults([]Field{{Key: "url", Required: true}}, map[string]interface{}{"url": "x"})
+		assert.Empty(t, applied)
+	})
+}

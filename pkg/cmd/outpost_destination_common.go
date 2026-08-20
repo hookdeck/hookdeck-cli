@@ -155,6 +155,46 @@ func resolveOutpostMetadata(pairs []string, file string) (map[string]string, err
 	return metadata, nil
 }
 
+// applyOutpostDestinationDefaults fills in the schema's declared defaults for
+// config fields the caller did not supply, and says so on stderr.
+//
+// The CLI prints these defaults in help ("default: on") but was not sending
+// them, and the API treats an absent key as unset rather than applying the
+// default itself — so following our own documented example for a rabbitmq
+// destination stored tls: "false" and sent its SASL credentials in the clear.
+//
+// Create only. Update is a merge patch where an omitted key means "leave this
+// alone", so filling defaults there would rewrite fields nobody mentioned.
+//
+// Failing to fetch the schema is not fatal here, matching the validation path:
+// the CLI warns and lets the API decide. It does mean the default is not
+// applied, which is the pre-existing behaviour rather than a new risk.
+func applyOutpostDestinationDefaults(ctx context.Context, destinationType string, config map[string]interface{}) map[string]interface{} {
+	schemas, err := outposttypes.FetchDestinationTypes(ctx, Config.GetOutpostAPIClient())
+	if err != nil {
+		return config
+	}
+	schema, found := outposttypes.Find(schemas, destinationType)
+	if !found {
+		return config
+	}
+
+	config, applied := outposttypes.ApplyDefaults(schema.ConfigFields, config)
+	if len(applied) > 0 {
+		sort.Strings(applied)
+		parts := make([]string, 0, len(applied))
+		for _, key := range applied {
+			parts = append(parts, fmt.Sprintf("%s=%v", key, config[key]))
+		}
+		// Say it out loud. A silently applied default is how the opposite
+		// problem starts: someone who wants TLS off needs to know they have to
+		// ask for it.
+		fmt.Fprintf(os.Stderr, "Using defaults from the %s schema for fields you did not set: %s\n",
+			destinationType, strings.Join(parts, ", "))
+	}
+	return config
+}
+
 // resolveOutpostFieldMap merges key=value pairs or a JSON file into one map.
 func resolveOutpostFieldMap(pairs []string, file, kind string) (map[string]interface{}, error) {
 	if file != "" {

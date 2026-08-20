@@ -91,6 +91,45 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 	return validateFields(fields, values, kind, true)
 }
 
+// ApplyDefaults fills in the schema's declared default for any field the caller
+// did not supply, and reports which keys it set.
+//
+// The schema publishes a default per field and the CLI prints it in help
+// ("default: on"), but nothing was sending it, and the API treats an absent key
+// as unset rather than applying the default itself. So a caller who read the
+// help and omitted the flag got the opposite of what was advertised.
+//
+// That was worst for TLS. Following the CLI's own printed example for a
+// rabbitmq destination stored tls: "false", and the connection carried its SASL
+// credentials in the clear. Any field with a default has the same shape of
+// problem; TLS is the one where it costs something.
+//
+// Create only. Update is a merge patch where an omitted key means "leave this
+// alone", so filling in defaults there would silently rewrite fields the caller
+// never mentioned.
+//
+// Values are sent verbatim as the schema declares them. The schema is not
+// self-consistent about booleans — rabbitmq's tls default is "on" and kafka's
+// is "true" — and the API normalises both to "true", so passing them through
+// avoids inventing a mapping that could drift from whatever it accepts next.
+func ApplyDefaults(fields []Field, values map[string]interface{}) (map[string]interface{}, []string) {
+	var applied []string
+	for _, field := range fields {
+		if field.Default == "" {
+			continue
+		}
+		if _, supplied := values[field.Key]; supplied {
+			continue
+		}
+		if values == nil {
+			values = map[string]interface{}{}
+		}
+		values[field.Key] = field.Default
+		applied = append(applied, field.Key)
+	}
+	return values, applied
+}
+
 // ValidateSuppliedFields checks only the keys actually supplied.
 //
 // The update endpoint is a PATCH that leaves anything omitted alone, so
