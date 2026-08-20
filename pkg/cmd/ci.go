@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -48,7 +47,11 @@ Events • [↑↓] Navigate ─────────────────
 > ✓ Last event succeeded with status 200 | [r] Retry • [o] Open in dashboard • [d] Show data`,
 		RunE: lc.runCICmd,
 	}
-	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", os.Getenv("HOOKDECK_API_KEY"), "Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided.")
+	// The env var is read at run time rather than used as the flag default:
+	// pflag prints a non-empty string default in --help, so a key already in
+	// the environment would be echoed back out — and the reference-doc
+	// generator reads flag defaults too.
+	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", "", "Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided.")
 	lc.cmd.Flags().StringVar(&lc.name, "name", "", "Name of the CI run (ex: GITHUB_REF) for identification in the dashboard")
 	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to current directory (.hookdeck/config.toml)")
 
@@ -56,6 +59,10 @@ Events • [↑↓] Navigate ─────────────────
 }
 
 func (lc *ciCmd) runCICmd(cmd *cobra.Command, args []string) error {
+	if lc.apiKey == "" {
+		lc.apiKey = envAPIKey()
+	}
+
 	if lc.local && Config.ConfigFileFlag != "" {
 		return fmt.Errorf("Error: --local and --hookdeck-config flags cannot be used together\n  --local creates config at: .hookdeck/config.toml\n  --hookdeck-config uses custom path: %s", Config.ConfigFileFlag)
 	}

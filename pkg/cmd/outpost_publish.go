@@ -59,7 +59,11 @@ create a Project API key in the Hookdeck dashboard under project settings.`),
     --event-id my-unique-id --data-file ./payload.json`,
 	}
 
-	pc.cmd.Flags().StringVar(&pc.apiKey, "api-key", os.Getenv("HOOKDECK_API_KEY"), "Hookdeck Project API key. Read from HOOKDECK_API_KEY when not provided.")
+	// The env var is read at run time rather than used as the flag default:
+	// pflag prints a non-empty string default in --help, so a key already in
+	// the environment would be echoed back out — and the reference-doc
+	// generator reads flag defaults too.
+	pc.cmd.Flags().StringVar(&pc.apiKey, "api-key", "", "Hookdeck Project API key. Read from HOOKDECK_API_KEY when not provided.")
 	pc.cmd.Flags().StringVar(&pc.tenantID, "tenant-id", "", "Tenant to publish for (required)")
 	pc.cmd.Flags().StringVar(&pc.topic, "topic", "", "Topic to publish to (required)")
 	pc.cmd.Flags().StringVar(&pc.destinationID, "destination-id", "", "Deliver only to this destination")
@@ -82,6 +86,10 @@ func (pc *outpostPublishCmd) validateFlags(cmd *cobra.Command, args []string) er
 	}
 	if pc.data != "" && pc.dataFile != "" {
 		return fmt.Errorf("--data and --data-file cannot be used together")
+	}
+
+	if pc.apiKey == "" {
+		pc.apiKey = envAPIKey()
 	}
 
 	// Fail here with the reason rather than letting this surface as a bare 401,
