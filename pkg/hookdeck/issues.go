@@ -84,7 +84,12 @@ func (c *Client) ListIssues(ctx context.Context, params map[string]string) (*Iss
 
 // GetIssue retrieves a single issue by ID.
 func (c *Client) GetIssue(ctx context.Context, id string) (*Issue, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/issues/"+id, "", nil)
+	path, err := apiPath("issues", id)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -100,12 +105,17 @@ func (c *Client) GetIssue(ctx context.Context, id string) (*Issue, error) {
 
 // UpdateIssue updates an issue's status.
 func (c *Client) UpdateIssue(ctx context.Context, id string, req *IssueUpdateRequest) (*Issue, error) {
+	path, err := apiPath("issues", id)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal issue update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, APIPathPrefix+"/issues/"+id, data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +131,12 @@ func (c *Client) UpdateIssue(ctx context.Context, id string, req *IssueUpdateReq
 
 // DismissIssue dismisses an issue (DELETE /issues/{id}).
 func (c *Client) DismissIssue(ctx context.Context, id string) (*Issue, error) {
-	urlPath := APIPathPrefix + "/issues/" + id
-	req, err := c.newRequest(ctx, "DELETE", urlPath, nil)
+	path, err := apiPath("issues", id)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return nil, err
 	}

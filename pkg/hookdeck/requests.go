@@ -65,6 +65,10 @@ func (c *Client) ListRequests(ctx context.Context, params map[string]string) (*R
 
 // GetRequest retrieves a single request by ID
 func (c *Client) GetRequest(ctx context.Context, id string, params map[string]string) (*Request, error) {
+	path, err := apiPath("requests", id)
+	if err != nil {
+		return nil, err
+	}
 	queryStr := ""
 	if len(params) > 0 {
 		q := url.Values{}
@@ -73,7 +77,7 @@ func (c *Client) GetRequest(ctx context.Context, id string, params map[string]st
 		}
 		queryStr = q.Encode()
 	}
-	resp, err := c.Get(ctx, APIPathPrefix+"/requests/"+id, queryStr, nil)
+	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +91,10 @@ func (c *Client) GetRequest(ctx context.Context, id string, params map[string]st
 
 // RetryRequest retries a request by ID. Pass nil or empty WebhookIDs to retry on all connections; otherwise only for the given connection IDs.
 func (c *Client) RetryRequest(ctx context.Context, requestID string, body *RequestRetryRequest) error {
+	path, err := apiPath("requests", requestID, "retry")
+	if err != nil {
+		return err
+	}
 	if body == nil {
 		body = &RequestRetryRequest{}
 	}
@@ -94,7 +102,7 @@ func (c *Client) RetryRequest(ctx context.Context, requestID string, body *Reque
 	if err != nil {
 		return fmt.Errorf("failed to marshal request retry body: %w", err)
 	}
-	resp, err := c.Post(ctx, APIPathPrefix+"/requests/"+requestID+"/retry", data, nil)
+	resp, err := c.Post(ctx, path, data, nil)
 	if err != nil {
 		return err
 	}
@@ -104,6 +112,10 @@ func (c *Client) RetryRequest(ctx context.Context, requestID string, body *Reque
 
 // GetRequestEvents returns the list of events for a request (GET /requests/{id}/events)
 func (c *Client) GetRequestEvents(ctx context.Context, requestID string, params map[string]string) (*EventListResponse, error) {
+	path, err := apiPath("requests", requestID, "events")
+	if err != nil {
+		return nil, err
+	}
 	queryStr := ""
 	if len(params) > 0 {
 		q := url.Values{}
@@ -112,7 +124,7 @@ func (c *Client) GetRequestEvents(ctx context.Context, requestID string, params 
 		}
 		queryStr = q.Encode()
 	}
-	resp, err := c.Get(ctx, APIPathPrefix+"/requests/"+requestID+"/events", queryStr, nil)
+	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +138,10 @@ func (c *Client) GetRequestEvents(ctx context.Context, requestID string, params 
 
 // GetRequestIgnoredEvents returns the list of ignored events for a request (GET /requests/{id}/ignored_events)
 func (c *Client) GetRequestIgnoredEvents(ctx context.Context, requestID string, params map[string]string) (*EventListResponse, error) {
+	path, err := apiPath("requests", requestID, "ignored_events")
+	if err != nil {
+		return nil, err
+	}
 	queryStr := ""
 	if len(params) > 0 {
 		q := url.Values{}
@@ -134,7 +150,7 @@ func (c *Client) GetRequestIgnoredEvents(ctx context.Context, requestID string, 
 		}
 		queryStr = q.Encode()
 	}
-	resp, err := c.Get(ctx, APIPathPrefix+"/requests/"+requestID+"/ignored_events", queryStr, nil)
+	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +164,11 @@ func (c *Client) GetRequestIgnoredEvents(ctx context.Context, requestID string, 
 
 // GetRequestRawBody returns the raw body of a request (GET /requests/{id}/raw_body)
 func (c *Client) GetRequestRawBody(ctx context.Context, requestID string) ([]byte, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/requests/"+requestID+"/raw_body", "", nil)
+	path, err := apiPath("requests", requestID, "raw_body")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}

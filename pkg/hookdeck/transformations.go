@@ -109,7 +109,12 @@ func (c *Client) ListTransformations(ctx context.Context, params map[string]stri
 
 // GetTransformation retrieves a single transformation by ID
 func (c *Client) GetTransformation(ctx context.Context, id string) (*Transformation, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/transformations/"+id, "", nil)
+	path, err := apiPath("transformations", id)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -167,12 +172,17 @@ func (c *Client) UpsertTransformation(ctx context.Context, req *TransformationCr
 
 // UpdateTransformation updates an existing transformation by ID
 func (c *Client) UpdateTransformation(ctx context.Context, id string, req *TransformationUpdateRequest) (*Transformation, error) {
+	path, err := apiPath("transformations", id)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal transformation update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, APIPathPrefix+"/transformations/"+id, data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -188,8 +198,12 @@ func (c *Client) UpdateTransformation(ctx context.Context, id string, req *Trans
 
 // DeleteTransformation deletes a transformation
 func (c *Client) DeleteTransformation(ctx context.Context, id string) error {
-	urlPath := APIPathPrefix + "/transformations/" + id
-	req, err := c.newRequest(ctx, "DELETE", urlPath, nil)
+	path, err := apiPath("transformations", id)
+	if err != nil {
+		return err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -247,12 +261,17 @@ func (c *Client) RunTransformation(ctx context.Context, req *TransformationRunRe
 
 // ListTransformationExecutions lists executions for a transformation
 func (c *Client) ListTransformationExecutions(ctx context.Context, transformationID string, params map[string]string) (*TransformationExecutionListResponse, error) {
+	path, err := apiPath("transformations", transformationID, "executions")
+	if err != nil {
+		return nil, err
+	}
+
 	queryParams := url.Values{}
 	for k, v := range params {
 		queryParams.Add(k, v)
 	}
 
-	resp, err := c.Get(ctx, APIPathPrefix+"/transformations/"+transformationID+"/executions", queryParams.Encode(), nil)
+	resp, err := c.Get(ctx, path, queryParams.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +287,12 @@ func (c *Client) ListTransformationExecutions(ctx context.Context, transformatio
 
 // GetTransformationExecution retrieves a single execution by transformation ID and execution ID
 func (c *Client) GetTransformationExecution(ctx context.Context, transformationID, executionID string) (*TransformationExecution, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/transformations/"+transformationID+"/executions/"+executionID, "", nil)
+	path, err := apiPath("transformations", transformationID, "executions", executionID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}

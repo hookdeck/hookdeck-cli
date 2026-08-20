@@ -81,7 +81,12 @@ func (c *Client) ListOutpostTenants(ctx context.Context, params OutpostTenantLis
 
 // GetOutpostTenant retrieves a single tenant by ID.
 func (c *Client) GetOutpostTenant(ctx context.Context, tenantID string) (*OutpostTenant, error) {
-	resp, err := c.Get(ctx, outpostPath("tenants", tenantID), "", nil)
+	path, err := apiPath("tenants", tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -97,12 +102,17 @@ func (c *Client) GetOutpostTenant(ctx context.Context, tenantID string) (*Outpos
 // UpsertOutpostTenant creates a tenant or updates its metadata. The API is
 // idempotent, returning 201 on create and 200 on update.
 func (c *Client) UpsertOutpostTenant(ctx context.Context, tenantID string, req *OutpostTenantUpsertRequest) (*OutpostTenant, error) {
+	path, err := apiPath("tenants", tenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal tenant upsert request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, outpostPath("tenants", tenantID), data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +127,12 @@ func (c *Client) UpsertOutpostTenant(ctx context.Context, tenantID string, req *
 
 // DeleteOutpostTenant deletes a tenant and everything belonging to it.
 func (c *Client) DeleteOutpostTenant(ctx context.Context, tenantID string) error {
-	req, err := c.newRequest(ctx, "DELETE", outpostPath("tenants", tenantID), nil)
+	path, err := apiPath("tenants", tenantID)
+	if err != nil {
+		return err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -134,7 +149,12 @@ func (c *Client) DeleteOutpostTenant(ctx context.Context, tenantID string) error
 // GetOutpostTenantToken mints a JWT scoped to the tenant. The token is a
 // credential in its own right — it grants access to that tenant's data.
 func (c *Client) GetOutpostTenantToken(ctx context.Context, tenantID string) (*OutpostTenantToken, error) {
-	resp, err := c.Get(ctx, outpostPath("tenants", tenantID, "token"), "", nil)
+	path, err := apiPath("tenants", tenantID, "token")
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -150,9 +170,14 @@ func (c *Client) GetOutpostTenantToken(ctx context.Context, tenantID string) (*O
 // GetOutpostTenantPortalURL returns a redirect URL for the tenant's portal.
 // theme is optional and accepts "light" or "dark".
 func (c *Client) GetOutpostTenantPortalURL(ctx context.Context, tenantID, theme string) (*OutpostTenantPortalURL, error) {
+	path, err := apiPath("tenants", tenantID, "portal")
+	if err != nil {
+		return nil, err
+	}
+
 	query := outpostQuery(map[string]string{"theme": theme}, nil)
 
-	resp, err := c.Get(ctx, outpostPath("tenants", tenantID, "portal"), query, nil)
+	resp, err := c.Get(ctx, path, query, nil)
 	if err != nil {
 		return nil, err
 	}

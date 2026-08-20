@@ -83,6 +83,11 @@ func (c *Client) ListSources(ctx context.Context, params map[string]string) (*So
 
 // GetSource retrieves a single source by ID
 func (c *Client) GetSource(ctx context.Context, id string, params map[string]string) (*Source, error) {
+	path, err := apiPath("sources", id)
+	if err != nil {
+		return nil, err
+	}
+
 	queryStr := ""
 	if len(params) > 0 {
 		queryParams := url.Values{}
@@ -92,7 +97,7 @@ func (c *Client) GetSource(ctx context.Context, id string, params map[string]str
 		queryStr = queryParams.Encode()
 	}
 
-	resp, err := c.Get(ctx, APIPathPrefix+"/sources/"+id, queryStr, nil)
+	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -150,12 +155,17 @@ func (c *Client) UpsertSource(ctx context.Context, req *SourceCreateRequest) (*S
 
 // UpdateSource updates an existing source by ID
 func (c *Client) UpdateSource(ctx context.Context, id string, req *SourceUpdateRequest) (*Source, error) {
+	path, err := apiPath("sources", id)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal source update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, APIPathPrefix+"/sources/"+id, data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +181,12 @@ func (c *Client) UpdateSource(ctx context.Context, id string, req *SourceUpdateR
 
 // DeleteSource deletes a source
 func (c *Client) DeleteSource(ctx context.Context, id string) error {
-	urlPath := APIPathPrefix + "/sources/" + id
-	req, err := c.newRequest(ctx, "DELETE", urlPath, nil)
+	path, err := apiPath("sources", id)
+	if err != nil {
+		return err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -188,30 +202,27 @@ func (c *Client) DeleteSource(ctx context.Context, id string) error {
 
 // EnableSource enables a source
 func (c *Client) EnableSource(ctx context.Context, id string) (*Source, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/sources/"+id+"/enable", []byte("{}"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var source Source
-	_, err = postprocessJsonResponse(resp, &source)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse source response: %w", err)
-	}
-
-	return &source, nil
+	return c.setSourceEnabled(ctx, id, "enable")
 }
 
 // DisableSource disables a source
 func (c *Client) DisableSource(ctx context.Context, id string) (*Source, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/sources/"+id+"/disable", []byte("{}"), nil)
+	return c.setSourceEnabled(ctx, id, "disable")
+}
+
+func (c *Client) setSourceEnabled(ctx context.Context, id, action string) (*Source, error) {
+	path, err := apiPath("sources", id, action)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Put(ctx, path, []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var source Source
-	_, err = postprocessJsonResponse(resp, &source)
-	if err != nil {
+	if _, err := postprocessJsonResponse(resp, &source); err != nil {
 		return nil, fmt.Errorf("failed to parse source response: %w", err)
 	}
 

@@ -380,13 +380,59 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 	return resp, nil
 }
 
-func (c *Client) Get(ctx context.Context, path string, params string, configure func(*http.Request)) (*http.Response, error) {
-	url, err := url.Parse(path)
+// ErrRequestPathRejected reports that the URL a request resolved to is not the
+// one the caller asked for, or does not address this API at all. It is distinct
+// from ErrInvalidResourceID: this is the request layer's last check, and it
+// firing means a call site built its path without apiPath.
+var ErrRequestPathRejected = errors.New("request path rejected")
+
+// resolveRequestURL resolves a request path against the client's base URL and
+// checks the result before anything is sent.
+func (c *Client) resolveRequestURL(path string) (*url.URL, error) {
+	ref, err := url.Parse(path)
 	if err != nil {
 		return nil, err
 	}
 
-	url = c.BaseURL.ResolveReference(url)
+	resolved := c.BaseURL.ResolveReference(ref)
+
+	if err := checkResolvedPath(ref, resolved); err != nil {
+		return nil, err
+	}
+
+	return resolved, nil
+}
+
+// checkResolvedPath is the backstop against a path segment that changes which
+// resource a request addresses.
+//
+// Resolving a reference against a base URL normalises "." and ".." segments, so
+// an id such as "src_1/../../destinations/des_2" yields a perfectly valid URL
+// for a different resource of a different type — while the caller goes on
+// reporting the id it was given. Call sites build their paths with apiPath,
+// which rejects those values; this check exists so that a call site which does
+// not still cannot send the request.
+func checkResolvedPath(ref, resolved *url.URL) error {
+	got := resolved.EscapedPath()
+
+	if got != APIPathPrefix && !strings.HasPrefix(got, APIPathPrefix+"/") {
+		return fmt.Errorf("%w: %q does not address the %s API", ErrRequestPathRejected, got, APIPathPrefix)
+	}
+
+	// An absolute reference is used verbatim unless it contained "." or ".."
+	// segments, so any difference here means the path was rewritten in transit.
+	if want := ref.EscapedPath(); strings.HasPrefix(want, "/") && want != got {
+		return fmt.Errorf("%w: %q would have been sent as %q", ErrRequestPathRejected, want, got)
+	}
+
+	return nil
+}
+
+func (c *Client) Get(ctx context.Context, path string, params string, configure func(*http.Request)) (*http.Response, error) {
+	url, err := c.resolveRequestURL(path)
+	if err != nil {
+		return nil, err
+	}
 
 	url.RawQuery = params
 
@@ -399,11 +445,11 @@ func (c *Client) Get(ctx context.Context, path string, params string, configure 
 }
 
 func (c *Client) Post(ctx context.Context, path string, data []byte, configure func(*http.Request)) (*http.Response, error) {
-	url, err := url.Parse(path)
+	url, err := c.resolveRequestURL(path)
 	if err != nil {
 		return nil, err
 	}
-	url = c.BaseURL.ResolveReference(url)
+
 	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
@@ -413,11 +459,11 @@ func (c *Client) Post(ctx context.Context, path string, data []byte, configure f
 }
 
 func (c *Client) Put(ctx context.Context, path string, data []byte, configure func(*http.Request)) (*http.Response, error) {
-	url, err := url.Parse(path)
+	url, err := c.resolveRequestURL(path)
 	if err != nil {
 		return nil, err
 	}
-	url = c.BaseURL.ResolveReference(url)
+
 	req, err := http.NewRequest(http.MethodPut, url.String(), bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err

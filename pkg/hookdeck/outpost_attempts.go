@@ -95,7 +95,11 @@ func (c *Client) ListOutpostAttempts(ctx context.Context, params OutpostAttemptL
 
 	path := APIPathPrefix + "/attempts"
 	if params.usesTenantScopedPath() {
-		path = outpostPath("tenants", params.TenantID, "destinations", params.DestinationID, "attempts")
+		scoped, err := apiPath("tenants", params.TenantID, "destinations", params.DestinationID, "attempts")
+		if err != nil {
+			return nil, err
+		}
+		path = scoped
 	} else {
 		// These filters are only meaningful on the global endpoint — the
 		// tenant-scoped one already constrains both dimensions via the path.
@@ -129,12 +133,17 @@ type OutpostAttemptGetParams struct {
 // route.
 func (c *Client) GetOutpostAttempt(ctx context.Context, attemptID string, params OutpostAttemptGetParams) (*OutpostAttempt, error) {
 	scalar := map[string]string{}
-	path := outpostPath("attempts", attemptID)
 
+	segments := []string{"attempts", attemptID}
 	if params.TenantID != "" && params.DestinationID != "" {
-		path = outpostPath("tenants", params.TenantID, "destinations", params.DestinationID, "attempts", attemptID)
+		segments = []string{"tenants", params.TenantID, "destinations", params.DestinationID, "attempts", attemptID}
 	} else {
 		scalar["tenant_id"] = params.TenantID
+	}
+
+	path, err := apiPath(segments...)
+	if err != nil {
+		return nil, err
 	}
 
 	query := outpostQuery(scalar, map[string][]string{"include": params.Include})

@@ -79,9 +79,14 @@ func (c *Client) ListOutpostEvents(ctx context.Context, params OutpostEventListP
 
 // GetOutpostEvent retrieves a single event. tenantID is optional.
 func (c *Client) GetOutpostEvent(ctx context.Context, eventID, tenantID string) (*OutpostEvent, error) {
+	path, err := apiPath("events", eventID)
+	if err != nil {
+		return nil, err
+	}
+
 	query := outpostQuery(map[string]string{"tenant_id": tenantID}, nil)
 
-	resp, err := c.Get(ctx, outpostPath("events", eventID), query, nil)
+	resp, err := c.Get(ctx, path, query, nil)
 	if err != nil {
 		return nil, err
 	}

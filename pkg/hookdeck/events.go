@@ -64,6 +64,10 @@ func (c *Client) ListEvents(ctx context.Context, params map[string]string) (*Eve
 
 // GetEvent retrieves a single event by ID
 func (c *Client) GetEvent(ctx context.Context, id string, params map[string]string) (*Event, error) {
+	path, err := apiPath("events", id)
+	if err != nil {
+		return nil, err
+	}
 	queryStr := ""
 	if len(params) > 0 {
 		q := url.Values{}
@@ -72,7 +76,7 @@ func (c *Client) GetEvent(ctx context.Context, id string, params map[string]stri
 		}
 		queryStr = q.Encode()
 	}
-	resp, err := c.Get(ctx, APIPathPrefix+"/events/"+id, queryStr, nil)
+	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +90,11 @@ func (c *Client) GetEvent(ctx context.Context, id string, params map[string]stri
 
 // RetryEvent retries an event by ID (POST /events/{id}/retry; no request body)
 func (c *Client) RetryEvent(ctx context.Context, eventID string) error {
-	resp, err := c.Post(ctx, APIPathPrefix+"/events/"+eventID+"/retry", []byte("{}"), nil)
+	path, err := apiPath("events", eventID, "retry")
+	if err != nil {
+		return err
+	}
+	resp, err := c.Post(ctx, path, []byte("{}"), nil)
 	if err != nil {
 		return err
 	}
@@ -96,7 +104,11 @@ func (c *Client) RetryEvent(ctx context.Context, eventID string) error {
 
 // CancelEvent cancels an event by ID (PUT /events/{id}/cancel; no request body)
 func (c *Client) CancelEvent(ctx context.Context, eventID string) error {
-	resp, err := c.Put(ctx, APIPathPrefix+"/events/"+eventID+"/cancel", []byte("{}"), nil)
+	path, err := apiPath("events", eventID, "cancel")
+	if err != nil {
+		return err
+	}
+	resp, err := c.Put(ctx, path, []byte("{}"), nil)
 	if err != nil {
 		return err
 	}
@@ -106,7 +118,11 @@ func (c *Client) CancelEvent(ctx context.Context, eventID string) error {
 
 // MuteEvent mutes an event by ID (PUT /events/{id}/mute; no request body)
 func (c *Client) MuteEvent(ctx context.Context, eventID string) error {
-	resp, err := c.Put(ctx, APIPathPrefix+"/events/"+eventID+"/mute", []byte("{}"), nil)
+	path, err := apiPath("events", eventID, "mute")
+	if err != nil {
+		return err
+	}
+	resp, err := c.Put(ctx, path, []byte("{}"), nil)
 	if err != nil {
 		return err
 	}
@@ -116,7 +132,11 @@ func (c *Client) MuteEvent(ctx context.Context, eventID string) error {
 
 // GetEventRawBody returns the raw body of an event (GET /events/{id}/raw_body)
 func (c *Client) GetEventRawBody(ctx context.Context, eventID string) ([]byte, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/events/"+eventID+"/raw_body", "", nil)
+	path, err := apiPath("events", eventID, "raw_body")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}

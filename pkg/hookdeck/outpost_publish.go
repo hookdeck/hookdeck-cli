@@ -106,7 +106,12 @@ func (c *Client) TenantExistsForPublish(ctx context.Context, apiKey, tenantID st
 	// valid for it, fail with a 401 that hides the answer entirely.
 	lookup.ProjectID = ""
 
-	req, err := lookup.newRequest(ctx, http.MethodGet, outpostPath("tenants", tenantID), nil)
+	path, err := apiPath("tenants", tenantID)
+	if err != nil {
+		return false, err
+	}
+
+	req, err := lookup.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return false, err
 	}

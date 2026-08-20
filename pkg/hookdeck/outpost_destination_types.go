@@ -80,7 +80,12 @@ func (c *Client) ListOutpostDestinationTypes(ctx context.Context) ([]OutpostDest
 
 // GetOutpostDestinationType returns the schema for a single destination type.
 func (c *Client) GetOutpostDestinationType(ctx context.Context, destinationType string) (*OutpostDestinationTypeSchema, error) {
-	resp, err := c.Get(ctx, outpostPath("destination-types", destinationType), "", nil)
+	path, err := apiPath("destination-types", destinationType)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}

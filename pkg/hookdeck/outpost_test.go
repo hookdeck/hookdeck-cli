@@ -105,15 +105,6 @@ func TestOutpostQuery(t *testing.T) {
 	})
 }
 
-func TestOutpostPathEscapesSegments(t *testing.T) {
-	t.Parallel()
-
-	// Tenant IDs are chosen by the operator, so a slash or space must not be
-	// able to change which endpoint is addressed.
-	got := outpostPath("tenants", "acme/prod tenant", "destinations")
-	assert.Equal(t, APIPathPrefix+"/tenants/acme%2Fprod%20tenant/destinations", got)
-}
-
 func TestListOutpostDestinationsUnpaginated(t *testing.T) {
 	t.Parallel()
 

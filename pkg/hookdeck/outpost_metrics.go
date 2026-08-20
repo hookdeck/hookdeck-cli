@@ -81,7 +81,12 @@ func (c *Client) getOutpostMetrics(ctx context.Context, resource string, params 
 		lists["filters["+dimension+"]"] = values
 	}
 
-	resp, err := c.Get(ctx, APIPathPrefix+"/metrics/"+resource, outpostQuery(scalar, lists), nil)
+	path, err := apiPath("metrics", resource)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, outpostQuery(scalar, lists), nil)
 	if err != nil {
 		return nil, err
 	}

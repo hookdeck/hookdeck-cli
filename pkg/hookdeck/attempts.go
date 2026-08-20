@@ -53,7 +53,12 @@ func (c *Client) ListAttempts(ctx context.Context, params map[string]string) (*E
 
 // GetAttempt retrieves a single attempt by ID
 func (c *Client) GetAttempt(ctx context.Context, id string) (*EventAttempt, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/attempts/"+id, "", nil)
+	path, err := apiPath("attempts", id)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}

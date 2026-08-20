@@ -63,12 +63,17 @@ type OutpostDestinationUpdateRequest struct {
 // This endpoint is not paginated: it returns a bare JSON array rather than the
 // {models, pagination} envelope used elsewhere in this package.
 func (c *Client) ListOutpostDestinations(ctx context.Context, tenantID string, types, topics []string) ([]OutpostDestination, error) {
+	path, err := apiPath("tenants", tenantID, "destinations")
+	if err != nil {
+		return nil, err
+	}
+
 	query := outpostQuery(nil, map[string][]string{
 		"type":   types,
 		"topics": topics,
 	})
 
-	resp, err := c.Get(ctx, outpostPath("tenants", tenantID, "destinations"), query, nil)
+	resp, err := c.Get(ctx, path, query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +88,12 @@ func (c *Client) ListOutpostDestinations(ctx context.Context, tenantID string, t
 
 // GetOutpostDestination retrieves a single destination.
 func (c *Client) GetOutpostDestination(ctx context.Context, tenantID, destinationID string) (*OutpostDestination, error) {
-	resp, err := c.Get(ctx, outpostPath("tenants", tenantID, "destinations", destinationID), "", nil)
+	path, err := apiPath("tenants", tenantID, "destinations", destinationID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -98,12 +108,17 @@ func (c *Client) GetOutpostDestination(ctx context.Context, tenantID, destinatio
 
 // CreateOutpostDestination creates a destination for a tenant.
 func (c *Client) CreateOutpostDestination(ctx context.Context, tenantID string, req *OutpostDestinationCreateRequest) (*OutpostDestination, error) {
+	path, err := apiPath("tenants", tenantID, "destinations")
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal destination create request: %w", err)
 	}
 
-	resp, err := c.Post(ctx, outpostPath("tenants", tenantID, "destinations"), data, nil)
+	resp, err := c.Post(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +133,11 @@ func (c *Client) CreateOutpostDestination(ctx context.Context, tenantID string, 
 
 // UpdateOutpostDestination applies a partial update to a destination.
 func (c *Client) UpdateOutpostDestination(ctx context.Context, tenantID, destinationID string, req *OutpostDestinationUpdateRequest) (*OutpostDestination, error) {
+	path, err := apiPath("tenants", tenantID, "destinations", destinationID)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal destination update request: %w", err)
@@ -125,7 +145,7 @@ func (c *Client) UpdateOutpostDestination(ctx context.Context, tenantID, destina
 
 	// The API uses PATCH here rather than PUT, so this goes through newRequest
 	// instead of the Put helper.
-	httpReq, err := c.newRequest(ctx, "PATCH", outpostPath("tenants", tenantID, "destinations", destinationID), data)
+	httpReq, err := c.newRequest(ctx, "PATCH", path, data)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +165,12 @@ func (c *Client) UpdateOutpostDestination(ctx context.Context, tenantID, destina
 
 // DeleteOutpostDestination deletes a destination.
 func (c *Client) DeleteOutpostDestination(ctx context.Context, tenantID, destinationID string) error {
-	req, err := c.newRequest(ctx, "DELETE", outpostPath("tenants", tenantID, "destinations", destinationID), nil)
+	path, err := apiPath("tenants", tenantID, "destinations", destinationID)
+	if err != nil {
+		return err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -170,7 +195,12 @@ func (c *Client) DisableOutpostDestination(ctx context.Context, tenantID, destin
 }
 
 func (c *Client) setOutpostDestinationEnabled(ctx context.Context, tenantID, destinationID, action string) (*OutpostDestination, error) {
-	resp, err := c.Put(ctx, outpostPath("tenants", tenantID, "destinations", destinationID, action), []byte("{}"), nil)
+	path, err := apiPath("tenants", tenantID, "destinations", destinationID, action)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Put(ctx, path, []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
