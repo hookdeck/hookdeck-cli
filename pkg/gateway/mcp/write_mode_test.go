@@ -123,15 +123,31 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 		assert.NotContains(t, tools["gateway_events"].Description, "read-only mode")
 	})
 
-	t.Run("tools are annotated read-only", func(t *testing.T) {
+	t.Run("tools that only read are annotated read-only", func(t *testing.T) {
 		for _, name := range []string{
-			"gateway_connections", "gateway_sources", "gateway_events",
+			"gateway_sources", "gateway_events",
 			"gateway_event", "gateway_requests", "gateway_request",
 			"gateway_attempts", "gateway_metrics",
 		} {
 			require.NotNil(t, tools[name].Annotations, name)
 			assert.True(t, tools[name].Annotations.ReadOnlyHint, "%s should be annotated read-only", name)
 		}
+	})
+
+	// gateway_connections is the exception, and it is deliberate. pause and
+	// unpause stay available in read-only mode because pausing a misbehaving
+	// connection is the natural end of an investigation. They still change
+	// delivery, so the tool must not claim to be a pure read: a client that
+	// auto-approves read-only tools would otherwise halt production delivery
+	// without asking anyone.
+	t.Run("a tool offering pause is not annotated read-only", func(t *testing.T) {
+		require.NotNil(t, tools["gateway_connections"].Annotations)
+		assert.False(t, tools["gateway_connections"].Annotations.ReadOnlyHint,
+			"gateway_connections offers pause in read-only mode, so it is not a pure read")
+
+		assert.Equal(t, []string{"list", "get", "pause", "unpause"},
+			actionEnum(t, tools["gateway_connections"]),
+			"the gating decision is unchanged — only the annotation is")
 	})
 }
 

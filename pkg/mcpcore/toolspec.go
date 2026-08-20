@@ -16,12 +16,24 @@ import (
 // so treating them as reads would let a read-only session mint them at will.
 //
 // Destructive drives the client-facing DestructiveHint annotation.
+//
+// Mutates says the action changes something, which is a separate question from
+// whether it is gated. Almost always Write implies Mutates and there is no need
+// to set it. It exists for the actions deliberately left available in read-only
+// mode despite changing state — pausing a connection is the natural end of an
+// investigation, so it is not gated, but a tool offering it is not a pure read
+// and must not claim ReadOnlyHint. Keeping the two flags apart lets the gating
+// decision and the annotation disagree on purpose rather than by accident.
 type Action struct {
 	Name        string
 	Desc        string
 	Write       bool
 	Destructive bool
+	Mutates     bool
 }
+
+// Changes reports whether the action alters state, whether or not it is gated.
+func (a Action) Changes() bool { return a.Write || a.Mutates }
 
 // Enabled reports whether the action is available in this mode.
 func (a Action) Enabled(writeEnabled bool) bool { return writeEnabled || !a.Write }
@@ -76,6 +88,18 @@ func (as ActionSet) Find(name string) (Action, bool) {
 func (as ActionSet) HasWrite() bool {
 	for _, a := range as {
 		if a.Write {
+			return true
+		}
+	}
+	return false
+}
+
+// HasChanging reports whether any action in the set alters state, including the
+// ones left available in read-only mode. This drives ReadOnlyHint, which is a
+// claim about what the tool does rather than about what this mode gates.
+func (as ActionSet) HasChanging() bool {
+	for _, a := range as {
+		if a.Changes() {
 			return true
 		}
 	}
@@ -209,7 +233,7 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 			Description: description,
 			InputSchema: Schema(props, append([]string{"action"}, spec.Required...)...),
 			Annotations: &mcpsdk.ToolAnnotations{
-				ReadOnlyHint:    !available.HasWrite(),
+				ReadOnlyHint:    !available.HasChanging(),
 				DestructiveHint: &destructive,
 			},
 		},

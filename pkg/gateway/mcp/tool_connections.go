@@ -27,8 +27,13 @@ var connectionsActions = mcpcore.ActionSet{
 	// rather than dropping events.
 	//
 	// This is a decision, not an oversight. Every other mutation below is gated.
-	{Name: "pause", Desc: "pause delivery on a connection; events are buffered, not dropped"},
-	{Name: "unpause", Desc: "resume delivery on a paused connection"},
+	//
+	// Mutates: true keeps the annotation honest about it. They are not gated,
+	// but they do change delivery, so this tool must not tell a client it is a
+	// pure read — a client that auto-approves ReadOnlyHint tools would otherwise
+	// halt production delivery without asking anyone.
+	{Name: "pause", Desc: "pause delivery on a connection; events are buffered, not dropped", Mutates: true},
+	{Name: "unpause", Desc: "resume delivery on a paused connection", Mutates: true},
 
 	{Name: "create", Desc: "create a connection between a source and a destination", Write: true},
 	{Name: "upsert", Desc: "create a connection or update the existing one with the same name", Write: true},
