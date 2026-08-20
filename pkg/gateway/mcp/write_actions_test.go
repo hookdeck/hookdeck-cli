@@ -803,25 +803,51 @@ func TestEventRetryCancelAndMute(t *testing.T) {
 		action  string
 		pattern string
 		method  string
-		status  string
 	}{
-		{"retry", "POST /2025-07-01/events/evt_1/retry", http.MethodPost, "retried"},
-		{"cancel", "PUT /2025-07-01/events/evt_1/cancel", http.MethodPut, "cancelled"},
-		{"mute", "PUT /2025-07-01/events/evt_1/mute", http.MethodPut, "muted"},
+		{"retry", "POST /2025-07-01/events/evt_1/retry", http.MethodPost},
+		{"cancel", "PUT /2025-07-01/events/evt_1/cancel", http.MethodPut},
+		{"mute", "PUT /2025-07-01/events/evt_1/mute", http.MethodPut},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.action, func(t *testing.T) {
 			var got wireRequest
 			session := writeSession(t, map[string]http.HandlerFunc{
-				tc.pattern: ok(&got, nil),
+				tc.pattern: ok(&got, map[string]any{"id": "evt_1", "status": "QUEUED"}),
 			})
 
 			text := succeeds(t, session, "gateway_event", map[string]any{"action": tc.action, "id": "evt_1"})
 
 			assert.Equal(t, tc.method, got.method)
 			assert.Equal(t, "/2025-07-01/events/evt_1/"+tc.action, got.path)
-			assert.JSONEq(t, `{"event_id":"evt_1","status":"`+tc.status+`"}`, string(envelopeData(t, text)))
+			// The event the API answered with, not a status we assumed.
+			assert.Contains(t, string(envelopeData(t, text)), `"status":"QUEUED"`)
+		})
+	}
+}
+
+// The API answers 200 for a no-op: cancelling an already-delivered event leaves
+// it SUCCESSFUL. The tool used to report {"status":"cancelled"} regardless,
+// telling the caller something that had not happened. This is the test that
+// would have caught it.
+func TestEventMutationsReportTheRealStatusNotTheRequestedOne(t *testing.T) {
+	for _, action := range []string{"cancel", "mute"} {
+		t.Run(action, func(t *testing.T) {
+			var got wireRequest
+			session := writeSession(t, map[string]http.HandlerFunc{
+				"PUT /2025-07-01/events/evt_1/" + action: ok(&got,
+					map[string]any{"id": "evt_1", "status": "SUCCESSFUL"}),
+			})
+
+			text := succeeds(t, session, "gateway_event", map[string]any{"action": action, "id": "evt_1"})
+			data := string(envelopeData(t, text))
+
+			assert.Contains(t, data, `"status":"SUCCESSFUL"`,
+				"the response must carry the status the API returned")
+			assert.NotContains(t, data, "cancelled",
+				"a no-op must not be reported as though it changed the event")
+			assert.NotContains(t, data, "muted",
+				"a no-op must not be reported as though it changed the event")
 		})
 	}
 }

@@ -197,13 +197,16 @@ func byIDCalls() []byIDCall {
 			return err
 		}, at("events", "%s"), false},
 		{"RetryEvent", func(ctx context.Context, c *Client, id string) error {
-			return c.RetryEvent(ctx, id)
+			_, err := c.RetryEvent(ctx, id)
+			return err
 		}, at("events", "%s", "retry"), false},
 		{"CancelEvent", func(ctx context.Context, c *Client, id string) error {
-			return c.CancelEvent(ctx, id)
+			_, err := c.CancelEvent(ctx, id)
+			return err
 		}, at("events", "%s", "cancel"), false},
 		{"MuteEvent", func(ctx context.Context, c *Client, id string) error {
-			return c.MuteEvent(ctx, id)
+			_, err := c.MuteEvent(ctx, id)
+			return err
 		}, at("events", "%s", "mute"), false},
 		{"GetEventRawBody", func(ctx context.Context, c *Client, id string) error {
 			_, err := c.GetEventRawBody(ctx, id)

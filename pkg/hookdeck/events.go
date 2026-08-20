@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"time"
 )
@@ -88,46 +89,54 @@ func (c *Client) GetEvent(ctx context.Context, id string, params map[string]stri
 	return &event, nil
 }
 
-// RetryEvent retries an event by ID (POST /events/{id}/retry; no request body)
-func (c *Client) RetryEvent(ctx context.Context, eventID string) error {
-	path, err := apiPath("events", eventID, "retry")
-	if err != nil {
-		return err
-	}
-	resp, err := c.Post(ctx, path, []byte("{}"), nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return checkAndPrintError(resp)
+// RetryEvent retries an event by ID (POST /events/{id}/retry) and returns the
+// event as it stands afterwards.
+func (c *Client) RetryEvent(ctx context.Context, eventID string) (*Event, error) {
+	return c.eventStateChange(ctx, eventID, "retry", http.MethodPost)
 }
 
-// CancelEvent cancels an event by ID (PUT /events/{id}/cancel; no request body)
-func (c *Client) CancelEvent(ctx context.Context, eventID string) error {
-	path, err := apiPath("events", eventID, "cancel")
-	if err != nil {
-		return err
-	}
-	resp, err := c.Put(ctx, path, []byte("{}"), nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return checkAndPrintError(resp)
+// CancelEvent cancels an event by ID (PUT /events/{id}/cancel) and returns the
+// event as it stands afterwards.
+func (c *Client) CancelEvent(ctx context.Context, eventID string) (*Event, error) {
+	return c.eventStateChange(ctx, eventID, "cancel", http.MethodPut)
 }
 
-// MuteEvent mutes an event by ID (PUT /events/{id}/mute; no request body)
-func (c *Client) MuteEvent(ctx context.Context, eventID string) error {
-	path, err := apiPath("events", eventID, "mute")
+// MuteEvent mutes an event by ID (PUT /events/{id}/mute) and returns the event
+// as it stands afterwards.
+func (c *Client) MuteEvent(ctx context.Context, eventID string) (*Event, error) {
+	return c.eventStateChange(ctx, eventID, "mute", http.MethodPut)
+}
+
+// eventStateChange applies one of the by-id event mutations and decodes the
+// event the API answers with.
+//
+// These used to discard the response body and report success from the status
+// code alone, which meant callers asserted an outcome nobody had checked. The
+// API answers 200 for a no-op — cancelling an already-delivered event leaves it
+// SUCCESSFUL — so "cancel" was reported for events that were never cancelled.
+// The response says what actually happened; returning it lets the caller say so
+// too.
+func (c *Client) eventStateChange(ctx context.Context, eventID, action, method string) (*Event, error) {
+	path, err := apiPath("events", eventID, action)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	resp, err := c.Put(ctx, path, []byte("{}"), nil)
+
+	var resp *http.Response
+	if method == http.MethodPost {
+		resp, err = c.Post(ctx, path, []byte("{}"), nil)
+	} else {
+		resp, err = c.Put(ctx, path, []byte("{}"), nil)
+	}
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer resp.Body.Close()
-	return checkAndPrintError(resp)
+
+	var event Event
+	if _, err := postprocessJsonResponse(resp, &event); err != nil {
+		return nil, fmt.Errorf("failed to parse event %s response: %w", action, err)
+	}
+	return &event, nil
 }
 
 // GetEventRawBody returns the raw body of an event (GET /events/{id}/raw_body)

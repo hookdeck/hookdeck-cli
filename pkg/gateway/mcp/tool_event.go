@@ -113,35 +113,42 @@ func eventRawBody(ctx context.Context, client *hookdeck.Client, in mcpcore.Input
 }
 
 func eventRetry(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	return eventAction(ctx, client, in, "retry", "retried", client.RetryEvent)
+	return eventAction(ctx, client, in, "retry", client.RetryEvent)
 }
 
 func eventCancel(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	return eventAction(ctx, client, in, "cancel", "cancelled", client.CancelEvent)
+	return eventAction(ctx, client, in, "cancel", client.CancelEvent)
 }
 
 func eventMute(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	return eventAction(ctx, client, in, "mute", "muted", client.MuteEvent)
+	return eventAction(ctx, client, in, "mute", client.MuteEvent)
 }
 
-// eventAction runs one of the by-id event mutations, which all take an event id
-// and return no body, and reports the outcome in a consistent shape.
+// eventAction runs one of the by-id event mutations and returns the event the
+// API answers with.
+//
+// It used to return a hardcoded status — "cancelled", "muted" — whenever the
+// call did not error. The API answers 200 for a no-op, so cancelling an
+// already-delivered event reported {"status":"cancelled"} while the event stayed
+// SUCCESSFUL. The caller then told the user something that had not happened, and
+// nothing in the response contradicted it.
+//
+// Returning the event means the agent can see the real status and say so. This
+// is what the connection pause/unpause actions have always done.
 func eventAction(
 	ctx context.Context,
 	client *hookdeck.Client,
 	in mcpcore.Input,
-	action, status string,
-	call func(context.Context, string) error,
+	action string,
+	call func(context.Context, string) (*hookdeck.Event, error),
 ) (*mcpsdk.CallToolResult, error) {
 	id, err := mcpcore.RequireString(in, "id", action)
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
-	if err := call(ctx, id); err != nil {
+	event, err := call(ctx, id)
+	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return mcpcore.JSONResultEnvelopeForClient(map[string]string{
-		"event_id": id,
-		"status":   status,
-	}, client)
+	return mcpcore.JSONResultEnvelopeForClient(event, client)
 }

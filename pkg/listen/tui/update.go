@@ -260,7 +260,7 @@ func (m Model) retrySelectedEvent() tea.Cmd {
 	client := m.client
 
 	return func() tea.Msg {
-		err := client.RetryEvent(context.Background(), eventID)
+		_, err := client.RetryEvent(context.Background(), eventID)
 		if err != nil {
 			return retryResultMsg{err: err}
 		}
