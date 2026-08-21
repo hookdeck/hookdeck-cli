@@ -60,8 +60,16 @@ func NewServer(opts ServerOptions) *mcpcore.Server {
 }
 
 // toolDefs lists every tool the Outpost MCP server exposes.
-func toolDefs(srv *mcpcore.Server, opts ServerOptions) []mcpcore.ToolDef {
-	specs := []mcpcore.ToolSpec{
+// resourceSpecs lists every product tool the Outpost server exposes.
+//
+// One list, because there were three: tool registration and two places in the
+// help tool, and they had already drifted over how publish is handled. Adding a
+// tool and updating two of them leaves help quietly stale.
+//
+// publishSpec is not here — it is registered conditionally on a publish key
+// being available, so it is handled at its call sites.
+func resourceSpecs() []mcpcore.ToolSpec {
+	return []mcpcore.ToolSpec{
 		tenantsSpec,
 		destinationsSpec,
 		eventsSpec,
@@ -72,9 +80,11 @@ func toolDefs(srv *mcpcore.Server, opts ServerOptions) []mcpcore.ToolDef {
 		configSpec,
 		statusSpec,
 	}
+}
 
+func toolDefs(srv *mcpcore.Server, opts ServerOptions) []mcpcore.ToolDef {
 	defs := []mcpcore.ToolDef{srv.ProjectsToolDef(projectsToolDesc)}
-	for _, spec := range specs {
+	for _, spec := range resourceSpecs() {
 		if def, ok := spec.Define(srv); ok {
 			defs = append(defs, def)
 		}

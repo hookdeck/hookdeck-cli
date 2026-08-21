@@ -135,10 +135,7 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 		{srv.LoginToolName(), "Sign in, or reauth: true for a fresh browser session when listing projects fails"},
 	}
 
-	specs := []mcpcore.ToolSpec{
-		tenantsSpec, destinationsSpec, eventsSpec, attemptsSpec,
-		topicsSpec, destinationTypesSpec, metricsSpec, configSpec, statusSpec,
-	}
+	specs := resourceSpecs()
 	for _, spec := range specs {
 		available := spec.Actions.Available(srv.WriteEnabled())
 		if len(available) == 0 {
@@ -211,11 +208,10 @@ Parameters:
   topic  (string) — Tool name for detailed help (e.g. "outpost_events"). Omit for the overview.`,
 	}
 
-	specs := []mcpcore.ToolSpec{
-		tenantsSpec, destinationsSpec, eventsSpec, attemptsSpec,
-		topicsSpec, destinationTypesSpec, metricsSpec, configSpec, statusSpec,
-		publishSpec(""),
-	}
+	// publish is appended unconditionally, so a topic lookup describes it even
+	// when no publish key was supplied and the tool was not registered. The
+	// overview above reports its absence correctly; see #364.
+	specs := append(resourceSpecs(), publishSpec(""))
 	for _, spec := range specs {
 		available := spec.Actions.Available(srv.WriteEnabled())
 		if len(available) == 0 {

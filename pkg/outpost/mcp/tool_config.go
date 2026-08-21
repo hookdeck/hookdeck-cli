@@ -24,9 +24,9 @@ var configSpec = mcpcore.ToolSpec{
 	Actions:  configActions,
 	Props: map[string]mcpcore.Prop{
 		"key":      {Type: "string", Desc: "A single configuration key to read (get). Omit to read everything that is set."},
-		"values":   {Type: "object", Desc: `Configuration values to set, as {"KEY": "value"} (set). Only the keys given are changed.`},
-		"unset":    {Type: "array", Desc: "Configuration keys to return to their default (set).", Items: &mcpcore.Prop{Type: "string"}},
-		"hostname": {Type: "string", Desc: "Hostname to serve the tenant portal from (required for custom_domain_set)."},
+		"values":   {Type: "object", Desc: `Configuration values to set, as {"KEY": "value"} (set). Only the keys given are changed.`, Write: true},
+		"unset":    {Type: "array", Desc: "Configuration keys to return to their default (set).", Items: &mcpcore.Prop{Type: "string"}, Write: true},
+		"hostname": {Type: "string", Desc: "Hostname to serve the tenant portal from (required for custom_domain_set).", Write: true},
 	},
 	Handler: handleConfig,
 }

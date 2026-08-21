@@ -136,6 +136,23 @@ type ToolSpec struct {
 	Notes string
 }
 
+// VisibleProps returns the properties a tool advertises in this mode.
+//
+// Define and Help must agree: a help topic listing `config` for a tool whose
+// schema does not have it gives an agent two different answers depending on
+// where it looks, and the help topic is the more persuasive of the two. Both
+// call this rather than reading Props directly.
+func (spec ToolSpec) VisibleProps(writeEnabled bool) map[string]Prop {
+	props := make(map[string]Prop, len(spec.Props))
+	for name, prop := range spec.Props {
+		if prop.Write && !writeEnabled {
+			continue
+		}
+		props[name] = prop
+	}
+	return props
+}
+
 // Help renders a tool's help topic from its definition, so help cannot drift
 // from the schema the agent is actually given. available is the action set for
 // the current mode.
@@ -157,10 +174,11 @@ func (spec ToolSpec) Help(srv *Server, available ActionSet) string {
 		fmt.Fprintf(&b, "\nFurther actions exist but are unavailable in read-only mode. See %s for how to enable them.\n", srv.HelpToolName())
 	}
 
-	if len(spec.Props) > 0 {
+	visible := spec.VisibleProps(srv.WriteEnabled())
+	if len(visible) > 0 {
 		b.WriteString("\nParameters:\n")
-		names := make([]string, 0, len(spec.Props))
-		for name := range spec.Props {
+		names := make([]string, 0, len(visible))
+		for name := range visible {
 			names = append(names, name)
 		}
 		sort.Strings(names)
@@ -172,7 +190,7 @@ func (spec ToolSpec) Help(srv *Server, available ActionSet) string {
 			}
 		}
 		for _, name := range names {
-			prop := spec.Props[name]
+			prop := visible[name]
 			required := ""
 			for _, r := range spec.Required {
 				if r == name {
@@ -218,13 +236,7 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 	// read-only session offered `config` or `rules` has been shown an
 	// affordance it cannot use, and nothing in the schema says which action
 	// they belong to.
-	props := make(map[string]Prop, len(spec.Props)+1)
-	for k, v := range spec.Props {
-		if v.Write && !srv.WriteEnabled() {
-			continue
-		}
-		props[k] = v
-	}
+	props := spec.VisibleProps(srv.WriteEnabled())
 	props["action"] = Prop{
 		Type: "string",
 		Desc: "Action: " + available.Summary(),
@@ -257,7 +269,7 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 				DestructiveHint: &destructive,
 			},
 		},
-		Handler: rejectUnknownArgs(srv, props, spec.Props, spec.Handler(srv)),
+		Handler: rejectUnknownArgs(srv, spec, props, spec.Handler(srv)),
 	}, true
 }
 
@@ -273,17 +285,25 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 //
 //   - An unauthenticated call is handed to the handler, so the caller is told to
 //     sign in rather than being corrected on an argument they cannot use yet.
+//
 //   - An argument that exists on the tool but is hidden by read-only mode is let
-//     through, so the write guard answers it. "restart with --allow-write" is
-//     the useful reply there; "unknown argument" would send the caller looking
-//     for a typo that is not there.
+//     through ONLY when the action being requested is itself hidden, so the
+//     write guard answers it. "restart with --allow-write" is the useful reply
+//     for {"action":"create","type":"HTTP"}; "unknown argument" would send the
+//     caller looking for a typo that is not there.
+//
+//     The action test matters. Without it, a hidden argument on a VISIBLE action
+//     — {"action":"list","type":"HTTP"} on gateway_sources — was exempted, then
+//     ignored by the handler, and the caller got an unfiltered list that read as
+//     a filtered one. That is the failure this guard exists to prevent, so the
+//     exemption cannot be allowed to reintroduce it.
 //
 // What is left is a genuine mistake: a name this tool has never had.
 //
 // Both exemptions look like holes and are not. TestUnknownArgumentsAreRejected
 // and TestHiddenWriteArgumentsGetTheWriteModeMessage, in
 // pkg/gateway/mcp/write_actions_test.go, fail if either is removed.
-func rejectUnknownArgs(srv *Server, visible, all map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
+func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		if r := srv.RequireAuth(); r != nil {
 			return next(ctx, req)
@@ -296,13 +316,21 @@ func rejectUnknownArgs(srv *Server, visible, all map[string]Prop, next mcpsdk.To
 			return next(ctx, req)
 		}
 
+		// Only defer when the caller is reaching for an action this mode hides.
+		// On a visible action a hidden argument is just as ignorable as an
+		// invented one, and has to be rejected.
+		requestedHidden := false
+		if action, found := spec.Actions.Find(in.String("action")); found {
+			requestedHidden = !action.Enabled(srv.WriteEnabled())
+		}
+
 		var unknown []string
 		for key := range in {
 			if _, visibleNow := visible[key]; visibleNow {
 				continue
 			}
-			if _, existsAtAll := all[key]; existsAtAll {
-				continue // hidden by mode; the write guard has the better message
+			if _, existsAtAll := spec.Props[key]; existsAtAll && requestedHidden {
+				continue // the write guard has the better message for this call
 			}
 			unknown = append(unknown, key)
 		}

@@ -1500,3 +1500,73 @@ func TestUnknownActionNamesTheSiblingTool(t *testing.T) {
 		textContent(t, callTool(t, session, "gateway_events", map[string]any{"action": "raw_body"})),
 		"gateway_event", "raw_body belongs to the singular tool; say so")
 }
+
+// A hidden write-only argument on a VISIBLE action must be rejected, not
+// exempted.
+//
+// The mode exemption exists so {"action":"create","type":"HTTP"} in read-only
+// mode gets "restart with --allow-write" rather than "unknown argument". But it
+// originally applied whatever action was requested, so {"action":"list","type":
+// "HTTP"} was exempted too — then ignored by the handler, and the caller got an
+// unfiltered list that read as a filtered one. That is the failure this guard
+// exists to prevent.
+func TestHiddenArgOnAVisibleActionIsRejected(t *testing.T) {
+	var got wireRequest
+	session := readSession(t, map[string]http.HandlerFunc{
+		"GET /2025-07-01/sources": ok(&got, listResponse(map[string]any{"id": "src_1"})),
+	})
+
+	result := callTool(t, session, "gateway_sources", map[string]any{
+		"action": "list", "type": "HTTP",
+	})
+
+	require.True(t, result.IsError, "list does not take type; ignoring it returns an unfiltered result")
+	assert.Contains(t, textContent(t, result), "unknown argument")
+	assert.Empty(t, got.query, "nothing should reach the API")
+}
+
+// The exemption still applies where it was meant to: the action itself hidden.
+func TestHiddenArgOnAHiddenActionDefersToTheWriteGuard(t *testing.T) {
+	session := readSession(t, nil)
+
+	result := callTool(t, session, "gateway_sources", map[string]any{
+		"action": "create", "name": "s", "type": "HTTP",
+	})
+
+	require.True(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "--allow-write")
+	assert.NotContains(t, text, "unknown argument")
+}
+
+// Help and the schema must offer the same parameters. A help topic listing
+// `config` for a tool whose schema does not have it gives an agent two answers,
+// and the help topic is the more persuasive one.
+func TestHelpAndSchemaAgreeOnParameters(t *testing.T) {
+	session := readSession(t, nil)
+	tools := listTools(t, session)
+
+	for _, tool := range []string{"gateway_sources", "gateway_destinations", "gateway_connections", "gateway_issues"} {
+		t.Run(tool, func(t *testing.T) {
+			help := textContent(t, callTool(t, session, "gateway_help", map[string]any{"topic": tool}))
+			schema := schemaPropertyNames(t, tools[tool])
+
+			for _, hidden := range []string{"config", "rules", "description"} {
+				if contains(schema, hidden) {
+					continue // visible in this mode; nothing to check
+				}
+				assert.NotContains(t, help, "\n  "+hidden+" ",
+					"help lists %q as a parameter of %s, but the schema does not offer it", hidden, tool)
+			}
+		})
+	}
+}
+
+func contains(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
+}

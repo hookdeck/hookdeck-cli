@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -763,4 +764,57 @@ func TestPublishWarnsWhenNothingMatched(t *testing.T) {
 
 	require.False(t, result.IsError, resultText(t, result))
 	assert.Contains(t, resultText(t, result), "matched no destinations")
+}
+
+// The read-only schema surface, pinned.
+//
+// Prop.Write is opt-in, so a write-only property added without it is exposed to
+// read-only sessions and nothing complains — which is how config, credentials,
+// filter, metadata, values, unset, hostname and theme were all advertised to
+// sessions that could not use them. Listing the expected set means adding a
+// property forces a deliberate choice here rather than defaulting to visible.
+//
+// If this fails after you added a property: decide whether read actions use it.
+// If they do, add it below. If only write actions do, mark it Write: true.
+func TestReadOnlyPropSurface(t *testing.T) {
+	expected := map[string][]string{
+		"tenants":           {"dir", "id", "limit", "next", "prev"},
+		"destinations":      {"id", "tenant_id", "topics", "type"},
+		"events":            {"destination_id", "dir", "id", "limit", "next", "order_by", "prev", "tenant_id", "time_after", "time_before", "topic"},
+		"attempts":          {"destination_id", "destination_type", "dir", "event_id", "id", "include", "limit", "next", "order_by", "prev", "status", "tenant_id", "time_after", "time_before", "topic"},
+		"topics":            {},
+		"destination_types": {"include_setup_docs", "type"},
+		"metrics":           {"dimensions", "end", "filters", "granularity", "measures", "start"},
+		"config":            {"key"},
+		"status":            {},
+	}
+
+	for _, spec := range resourceSpecs() {
+		t.Run(spec.Resource, func(t *testing.T) {
+			want, listed := expected[spec.Resource]
+			require.True(t, listed, "%s is not in the expected set; add it", spec.Resource)
+
+			got := make([]string, 0)
+			for name := range spec.VisibleProps(false) {
+				got = append(got, name)
+			}
+			sort.Strings(got)
+			sort.Strings(want)
+			assert.Equal(t, want, got,
+				"read-only mode advertises a different property set than expected for %s", spec.Resource)
+		})
+	}
+}
+
+// Write-only properties must reappear once write mode is on, or the tools that
+// need them cannot be called.
+func TestWriteModeRestoresTheHiddenProps(t *testing.T) {
+	for _, spec := range resourceSpecs() {
+		readOnly := len(spec.VisibleProps(false))
+		writeMode := len(spec.VisibleProps(true))
+		assert.GreaterOrEqual(t, writeMode, readOnly,
+			"%s must not lose properties in write mode", spec.Resource)
+		assert.Equal(t, len(spec.Props), writeMode,
+			"%s must advertise every property in write mode", spec.Resource)
+	}
 }
