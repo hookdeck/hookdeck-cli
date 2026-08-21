@@ -5,6 +5,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/cmd/outposttypes"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
@@ -129,6 +130,19 @@ func destinationsCreate(ctx context.Context, client *hookdeck.Client, in mcpcore
 		topics = hookdeck.OutpostTopics{hookdeck.OutpostTopicsWildcard}
 	}
 
+	// Fill in the schema's declared defaults for config the caller omitted. The
+	// API treats an absent key as unset rather than applying the default, so
+	// without this a rabbitmq destination created through the MCP server stored
+	// tls unset and sent its SASL credentials in the clear.
+	//
+	// The CLI announces applied defaults on stderr; there is no equivalent here
+	// because stderr is not part of the MCP transport. The created destination
+	// is returned in full, so the applied values are visible in the response.
+	//
+	// Create only, for the same reason as the CLI: update is a merge patch where
+	// an omitted key means "leave this alone".
+	cfg, _ = outposttypes.ApplyDefaultsForType(ctx, client, destinationType, cfg)
+
 	return destinationResult(client)(client.CreateOutpostDestination(ctx, tenantID, &hookdeck.OutpostDestinationCreateRequest{
 		Type:        destinationType,
 		Topics:      topics,
@@ -148,7 +162,7 @@ func destinationsUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore
 		Topics:      hookdeck.OutpostTopics(mcpcore.StringList(in, "topics")),
 		Config:      cfg,
 		Credentials: credentials,
-		Filter:      filter,
+		Filter:      hookdeck.OutpostFilterPatch(filter),
 		Metadata:    metadata,
 	}))
 }

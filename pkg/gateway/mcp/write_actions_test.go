@@ -900,13 +900,25 @@ func TestTransformationsRunReturnsTheResultOnSuccess(t *testing.T) {
 	assert.Contains(t, string(envelopeData(t, text)), `"x":1`)
 }
 
+// successfulRun is what the API actually returns for a run that completed: a
+// log level and the transformed request. Stubbing a bare {"log_level":"info"}
+// with no request describes a response the endpoint never sends — every run
+// observed without a request came back "fatal" — and made these tests pass
+// against a shape the success check is right to reject.
+func successfulRun() map[string]any {
+	return map[string]any{
+		"log_level": "info",
+		"request":   map[string]any{"headers": map[string]any{}, "body": map[string]any{}},
+	}
+}
+
 // The transformation engine errors without a content-type, and the schema tells
 // callers headers may be an empty object. The CLI has always supplied one; the
 // MCP path did not, so identical code worked from one surface and not the other.
 func TestTransformationsRunSuppliesAContentType(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{"log_level": "info"}),
+		"PUT /2025-07-01/transformations/run": ok(&got, successfulRun()),
 	})
 
 	succeeds(t, session, "gateway_transformations", map[string]any{
@@ -928,7 +940,7 @@ func TestTransformationsRunSuppliesAContentType(t *testing.T) {
 func TestTransformationsRunKeepsACallerContentType(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{"log_level": "info"}),
+		"PUT /2025-07-01/transformations/run": ok(&got, successfulRun()),
 	})
 
 	succeeds(t, session, "gateway_transformations", map[string]any{

@@ -145,9 +145,8 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 		return nil
 	}
 
-	// The endpoint answers 200 whether the code ran or threw, and log_level is
-	// the only thing that says which. Without this a throwing handler printed
-	// "Transformation run completed" and exited 0.
+	// The endpoint answers 200 whether the code ran or threw. Without this a
+	// throwing handler printed "Transformation run completed" and exited 0.
 	if result.Failed() {
 		if text := result.ConsoleText(); text != "" {
 			return fmt.Errorf("the transformation did not complete:\n%s", text)
@@ -156,6 +155,13 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 	}
 
 	fmt.Printf(SuccessCheck + " Transformation run completed\n\n")
+	// A run that completed can still have logged warnings or errors on the way.
+	// Printing the console only on failure hid the diagnostics from exactly the
+	// runs most likely to need them — a handler that logs an error and returns
+	// anyway is the case a user is most likely to be debugging.
+	if text := result.ConsoleText(); text != "" {
+		fmt.Printf("Console output (highest level logged: %s):\n%s\n\n", result.LogLevel, text)
+	}
 	if result.Request != nil {
 		// Pretty-print the transformed request as JSON
 		jsonBytes, err := json.MarshalIndent(result.Request, "", "  ")

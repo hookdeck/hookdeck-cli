@@ -60,12 +60,33 @@ func (dc *outpostDestinationEnableCmd) runOutpostDestinationEnableCmd(cmd *cobra
 }
 
 // printOutpostDestinationStateChange is shared by enable and disable, which
-// differ only in the verb they report.
+// differ only in the verb they intend.
+//
+// It reports the state the API returned rather than the verb that was asked
+// for. Announcing "Destination X enabled" after a call that left it disabled is
+// the same wrong-answer-that-reads-as-right the gateway event commands had:
+// message and exit code both claimed success while nothing had changed.
 func printOutpostDestinationStateChange(destination *hookdeck.OutpostDestination, output, verb string) error {
-	if output == "json" {
-		return printJSONIndented(destination)
+	actual := "enabled"
+	if destination.Disabled() {
+		actual = "disabled"
 	}
 
-	fmt.Printf("%s Destination %s %s\n", SuccessCheck, destination.ID, verb)
+	if output == "json" {
+		// Print the payload either way — it is the evidence — then fail if the
+		// state does not match what was asked for.
+		if err := printJSONIndented(destination); err != nil {
+			return err
+		}
+		if actual != verb {
+			return fmt.Errorf("destination %s is %s, not %s", destination.ID, actual, verb)
+		}
+		return nil
+	}
+
+	if actual != verb {
+		return fmt.Errorf("destination %s is %s, not %s", destination.ID, actual, verb)
+	}
+	fmt.Printf("%s Destination %s %s\n", SuccessCheck, destination.ID, actual)
 	return nil
 }

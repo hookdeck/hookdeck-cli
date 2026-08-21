@@ -116,7 +116,7 @@ func (dc *outpostDestinationUpdateCmd) runOutpostDestinationUpdateCmd(cmd *cobra
 		Topics:      dc.fields.resolveTopics(),
 		Config:      config,
 		Credentials: credentials,
-		Filter:      filter,
+		Filter:      hookdeck.OutpostFilterPatch(filter),
 		Metadata:    metadata,
 	})
 	if err != nil {

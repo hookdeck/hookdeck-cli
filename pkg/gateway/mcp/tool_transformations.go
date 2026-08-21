@@ -173,11 +173,15 @@ func transformationsRun(ctx context.Context, client *hookdeck.Client, in mcpcore
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
 
-	// The endpoint answers 200 whether the code ran or threw. log_level is the
-	// only thing that says which, and the reason is in console — returning the
-	// envelope alone gave the caller {"data":{}} for a syntax error, a throwing
-	// handler and a handler that returned nothing, all indistinguishable from
-	// each other and from success.
+	// The endpoint answers 200 whether the code ran or threw, and the reason is
+	// in console — returning the envelope alone gave the caller {"data":{}} for a
+	// syntax error, a throwing handler and a handler that returned nothing, all
+	// indistinguishable from each other and from success.
+	//
+	// Failed() is deliberately narrower than "log_level is bad": a handler that
+	// logs an error and still returns a request succeeded, and reporting that as
+	// an error threw away the result the caller asked for. On the success path
+	// the envelope carries log_level and console, so a noisy run is still legible.
 	if result.Failed() {
 		message := "the transformation did not complete"
 		if text := result.ConsoleText(); text != "" {

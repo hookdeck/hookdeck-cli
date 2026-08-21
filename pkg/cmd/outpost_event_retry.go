@@ -62,8 +62,22 @@ func (ec *outpostEventRetryCmd) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retry event: %w", err)
 	}
 
+	// The endpoint answers 200 with {"success": false} when it declines the
+	// retry, so the flag is the only thing that says whether anything was
+	// queued. Without this the command printed a tick and exited 0 either way.
 	if ec.output == "json" {
-		return printJSONIndented(resp)
+		if err := printJSONIndented(resp); err != nil {
+			return err
+		}
+		if !resp.Success {
+			return fmt.Errorf("the API did not accept the retry")
+		}
+		return nil
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("the API did not accept the retry for event %s to destination %s",
+			ec.eventID, ec.destinationID)
 	}
 
 	fmt.Printf("%s Retry accepted for event %s to destination %s\n", SuccessCheck, ec.eventID, ec.destinationID)

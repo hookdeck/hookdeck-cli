@@ -63,13 +63,34 @@ type OutpostDestinationCreateRequest struct {
 //
 // The endpoint applies JSON merge-patch semantics, so omitted fields are left
 // alone — hence omitempty on everything. Filter is the exception: the API
-// replaces it wholesale rather than merging into it.
+// replaces it wholesale rather than merging into it, which makes sending an
+// empty object the way to clear a filter.
+//
+// Filter is therefore a pointer. On a plain map, omitempty drops any empty map,
+// so an explicit --filter '{}' marshalled to nothing and the request became a
+// no-op that still reported success — there was no way to clear a filter and no
+// sign that clearing had failed. A pointer separates "not supplied" (nil) from
+// "supplied as empty" (non-nil, marshals to {}), which is verified to clear it.
+//
+// Metadata has no equivalent escape hatch: merge-patch semantics mean clearing
+// a key requires sending it as null, which a map[string]string cannot express.
+// Sending {} leaves existing metadata untouched.
 type OutpostDestinationUpdateRequest struct {
-	Topics      OutpostTopics          `json:"topics,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
-	Credentials map[string]interface{} `json:"credentials,omitempty"`
-	Filter      map[string]interface{} `json:"filter,omitempty"`
-	Metadata    map[string]string      `json:"metadata,omitempty"`
+	Topics      OutpostTopics           `json:"topics,omitempty"`
+	Config      map[string]interface{}  `json:"config,omitempty"`
+	Credentials map[string]interface{}  `json:"credentials,omitempty"`
+	Filter      *map[string]interface{} `json:"filter,omitempty"`
+	Metadata    map[string]string       `json:"metadata,omitempty"`
+}
+
+// OutpostFilterPatch prepares a resolved filter for an update request, keeping
+// the distinction the wire format needs: nil means the caller did not mention
+// the filter, and a non-nil empty map means they asked to clear it.
+func OutpostFilterPatch(filter map[string]interface{}) *map[string]interface{} {
+	if filter == nil {
+		return nil
+	}
+	return &filter
 }
 
 // ListOutpostDestinations retrieves a tenant's destinations, optionally filtered

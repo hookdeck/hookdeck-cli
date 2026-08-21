@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -110,12 +111,21 @@ func eventsRetry(ctx context.Context, client *hookdeck.Client, in mcpcore.Input)
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
+	// The endpoint answers 200 with {"success": false} when it declines the
+	// retry. Reporting status "queued" regardless made a declined retry read as
+	// an accepted one, with the contradiction buried in a sibling field the
+	// caller had no reason to check.
+	if !result.Success {
+		return mcpcore.ErrorResult(fmt.Sprintf(
+			"the API did not accept the retry of event %s to destination %s", id, destinationID)), nil
+	}
+
 	// The retry is queued, not performed inline, so report acceptance rather
 	// than delivery.
 	return mcpcore.JSONResultEnvelopeForClient(map[string]any{
 		"event_id":       id,
 		"destination_id": destinationID,
-		"accepted":       result.Success,
+		"accepted":       true,
 		"status":         "queued",
 	}, client)
 }

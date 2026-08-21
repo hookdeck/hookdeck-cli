@@ -396,7 +396,7 @@ func (c *Client) resolveRequestURL(path string) (*url.URL, error) {
 
 	resolved := c.BaseURL.ResolveReference(ref)
 
-	if err := checkResolvedPath(ref, resolved); err != nil {
+	if err := checkResolvedPath(c.BaseURL, ref, resolved); err != nil {
 		return nil, err
 	}
 
@@ -412,16 +412,45 @@ func (c *Client) resolveRequestURL(path string) (*url.URL, error) {
 // reporting the id it was given. Call sites build their paths with apiPath,
 // which rejects those values; this check exists so that a call site which does
 // not still cannot send the request.
-func checkResolvedPath(ref, resolved *url.URL) error {
+func checkResolvedPath(base, ref, resolved *url.URL) error {
+	// The host comes first, because every check below it is about paths and a
+	// reference carrying its own authority keeps a path that passes all of them.
+	// "//evil.example.com/<prefix>/sources" resolves to a different host with an
+	// untouched, correct-looking path — and the request would carry the caller's
+	// API key there. Compared against the client's own base rather than an
+	// allowlist: this asks "is this the server we were configured to talk to",
+	// which stays true for self-hosted and test servers alike.
+	if resolved.Scheme != base.Scheme || resolved.Host != base.Host {
+		return fmt.Errorf("%w: %q would have been sent to %s://%s rather than %s://%s",
+			ErrRequestPathRejected, ref.String(), resolved.Scheme, resolved.Host, base.Scheme, base.Host)
+	}
+
 	got := resolved.EscapedPath()
 
 	if got != APIPathPrefix && !strings.HasPrefix(got, APIPathPrefix+"/") {
 		return fmt.Errorf("%w: %q does not address the %s API", ErrRequestPathRejected, got, APIPathPrefix)
 	}
 
-	// An absolute reference is used verbatim unless it contained "." or ".."
-	// segments, so any difference here means the path was rewritten in transit.
-	if want := ref.EscapedPath(); strings.HasPrefix(want, "/") && want != got {
+	// Every path this package sends is built by apiPath, which joins non-empty
+	// validated segments. An empty segment therefore cannot come from a correct
+	// call site, and "//" is meaningful to some routers, so it is rejected here
+	// rather than passed on for a server to interpret.
+	for _, segment := range strings.Split(strings.TrimPrefix(got, "/"), "/") {
+		if segment == "" {
+			return fmt.Errorf("%w: %q contains an empty path segment", ErrRequestPathRejected, got)
+		}
+	}
+
+	// Any difference between what was asked for and what would be sent means the
+	// path was rewritten by reference resolution — "." or ".." normalising into
+	// a different resource. Relative references were previously exempt from this
+	// comparison, which left the rewrite they are most likely to perform
+	// unchecked; they are now resolved against the prefix and compared the same way.
+	want := ref.EscapedPath()
+	if !strings.HasPrefix(want, "/") {
+		want = APIPathPrefix + "/" + want
+	}
+	if want != got {
 		return fmt.Errorf("%w: %q would have been sent as %q", ErrRequestPathRejected, want, got)
 	}
 

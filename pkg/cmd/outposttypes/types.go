@@ -91,6 +91,30 @@ func ValidateFields(fields []Field, values map[string]interface{}, kind string) 
 	return validateFields(fields, values, kind, true)
 }
 
+// ApplyDefaultsForType looks up destinationType's schema and fills in its
+// declared defaults for config fields the caller did not supply, returning the
+// names of the fields it set.
+//
+// This lives here rather than in pkg/cmd because both entry points that create
+// a destination need it. It was originally wired into the CLI create command
+// only, which left the MCP server still creating rabbitmq destinations with
+// tls unset — the same defect on a surface where nobody was watching stderr.
+//
+// A schema that cannot be fetched or found is not an error: the caller's input
+// is passed through untouched and the API decides, which is the behaviour that
+// existed before defaults were applied at all.
+func ApplyDefaultsForType(ctx context.Context, client *hookdeck.Client, destinationType string, config map[string]interface{}) (map[string]interface{}, []string) {
+	schemas, err := FetchDestinationTypes(ctx, client)
+	if err != nil {
+		return config, nil
+	}
+	schema, found := Find(schemas, destinationType)
+	if !found {
+		return config, nil
+	}
+	return ApplyDefaults(schema.ConfigFields, config)
+}
+
 // ApplyDefaults fills in the schema's declared default for any field the caller
 // did not supply, and reports which keys it set.
 //

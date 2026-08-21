@@ -170,16 +170,7 @@ func resolveOutpostMetadata(pairs []string, file string) (map[string]string, err
 // the CLI warns and lets the API decide. It does mean the default is not
 // applied, which is the pre-existing behaviour rather than a new risk.
 func applyOutpostDestinationDefaults(ctx context.Context, destinationType string, config map[string]interface{}) map[string]interface{} {
-	schemas, err := outposttypes.FetchDestinationTypes(ctx, Config.GetOutpostAPIClient())
-	if err != nil {
-		return config
-	}
-	schema, found := outposttypes.Find(schemas, destinationType)
-	if !found {
-		return config
-	}
-
-	config, applied := outposttypes.ApplyDefaults(schema.ConfigFields, config)
+	config, applied := outposttypes.ApplyDefaultsForType(ctx, Config.GetOutpostAPIClient(), destinationType, config)
 	if len(applied) > 0 {
 		sort.Strings(applied)
 		parts := make([]string, 0, len(applied))

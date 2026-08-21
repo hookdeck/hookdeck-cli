@@ -97,8 +97,28 @@ type TransformationConsoleLine struct {
 }
 
 // Failed reports whether the run did not complete.
+//
+// Only "fatal" means that. log_level is the highest severity the run logged,
+// not a completion flag — a handler that calls console.error and then returns a
+// transformed request reports "error" and succeeded. Treating that as a failure
+// discarded the result the caller asked for, which is the same shape of wrong
+// answer this type was extended to prevent, inverted.
+//
+// Verified against the live API:
+//
+//	clean run                  log_level=info   request present
+//	console.warn then returns  log_level=warn   request present
+//	console.error then returns log_level=error  request present
+//	handler returns nothing    log_level=fatal  no request
+//	handler throws             log_level=fatal  no request
+//
+// A missing request is checked too: the two failing cases have no request, so a
+// run that produced one completed however loudly it complained on the way.
 func (r *TransformationRunResponse) Failed() bool {
-	return r != nil && (r.LogLevel == "fatal" || r.LogLevel == "error")
+	if r == nil {
+		return false
+	}
+	return r.LogLevel == "fatal" || r.Request == nil
 }
 
 // ConsoleText renders the console output as lines, for an error message.
