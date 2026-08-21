@@ -30,10 +30,12 @@ func newOutpostTenantUpsertCmd() *outpostTenantUpsertCmd {
 Tenant IDs are chosen by you, not generated, so this is the only way to create one.
 Re-running with the same ID updates the tenant's metadata rather than failing.
 
-Metadata is replaced wholesale, not merged: pass every key you want to keep.`,
+Metadata is replaced wholesale, not merged: pass every key you want to keep.
+Supplying no metadata at all clears it, so an upsert run only to make sure a
+tenant exists will remove metadata it already had.`,
 		PreRunE: tc.validateFlags,
 		RunE:    tc.runOutpostTenantUpsertCmd,
-		Example: `  # Create or update a tenant
+		Example: `  # Create a tenant, or clear the metadata of one that exists
   hookdeck outpost tenant upsert acme
 
   # With metadata

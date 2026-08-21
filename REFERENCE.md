@@ -2060,6 +2060,8 @@ Tenant IDs are chosen by you, not generated, so this is the only way to create o
 Re-running with the same ID updates the tenant's metadata rather than failing.
 
 Metadata is replaced wholesale, not merged: pass every key you want to keep.
+Supplying no metadata at all clears it, so an upsert run only to make sure a
+tenant exists will remove metadata it already had.
 
 **Usage:**
 
@@ -2084,7 +2086,7 @@ hookdeck outpost tenant upsert <tenant-id> [flags]
 **Examples:**
 
 ```bash
-# Create or update a tenant
+# Create a tenant, or clear the metadata of one that exists
 hookdeck outpost tenant upsert acme
 
 # With metadata

@@ -12,7 +12,7 @@ import (
 var tenantsActions = mcpcore.ActionSet{
 	{Name: "list", Desc: "list tenants"},
 	{Name: "get", Desc: "get one tenant by id"},
-	{Name: "upsert", Desc: "create a tenant or update its metadata", Write: true},
+	{Name: "upsert", Desc: "create a tenant or replace its metadata", Write: true},
 	{Name: "delete", Desc: "delete a tenant and everything belonging to it", Write: true, Destructive: true},
 	{Name: "token", Desc: "mint a tenant-scoped access token", Write: true},
 	{Name: "portal", Desc: "get a URL granting access to the tenant portal", Write: true},
@@ -24,7 +24,7 @@ var tenantsSpec = mcpcore.ToolSpec{
 	Actions:  tenantsActions,
 	Props: map[string]mcpcore.Prop{
 		"id":       {Type: "string", Desc: "Tenant ID. Required for get/upsert/delete/token/portal. On list, filters by tenant ID(s). " + descListValue},
-		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata.", Write: true},
+		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata wholesale — pass every key you want to keep, and note that omitting this argument clears any metadata the tenant already had.", Write: true},
 		"theme":    {Type: "string", Desc: "Portal colour scheme: light or dark (portal).", Write: true},
 		"limit":    {Type: "integer", Desc: "Max results (list)"},
 		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)"},
