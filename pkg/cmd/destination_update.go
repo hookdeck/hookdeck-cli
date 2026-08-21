@@ -107,7 +107,24 @@ func (dc *destinationUpdateCmd) runDestinationUpdateCmd(cmd *cobra.Command, args
 	if dc.destType != "" {
 		req.Type = strings.ToUpper(dc.destType)
 	}
-	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
+
+	// Config flags are interpreted per destination type, and update does not
+	// require --type. Look the stored type up rather than building the config
+	// without one, which silently dropped every type-specific flag and still
+	// reported success.
+	//
+	// Only fetched when such a flag is actually set, so the ordinary
+	// rename-only update still costs one request.
+	configType := dc.destType
+	if configType == "" && typeSpecificDestinationFlagsSet(&dc.destinationConfigFlags) {
+		existing, err := client.GetDestination(ctx, destID, nil)
+		if err != nil {
+			return fmt.Errorf("failed to look up the destination's type (pass --type to skip this): %w", err)
+		}
+		configType = existing.Type
+	}
+
+	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, configType, &dc.destinationConfigFlags)
 	if err != nil {
 		return err
 	}

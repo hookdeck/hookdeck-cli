@@ -35,7 +35,11 @@ type ConnectionCreateRequest struct {
 	DestinationID *string                 `json:"destination_id,omitempty"`
 	Source        *SourceCreateInput      `json:"source,omitempty"`
 	Destination   *DestinationCreateInput `json:"destination,omitempty"`
-	Rules         []Rule                  `json:"rules,omitempty"`
+	// Rules is a pointer so that an explicitly empty array can be sent. The API
+	// replaces the ruleset wholesale, so [] is how a caller removes every rule,
+	// but omitempty drops an empty slice — `connection update --rules '[]'`
+	// marshalled to nothing, changed nothing, and exited 0.
+	Rules *[]Rule `json:"rules,omitempty"`
 }
 
 // ConnectionListResponse represents the response from listing connections

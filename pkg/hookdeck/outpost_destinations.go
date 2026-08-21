@@ -83,14 +83,18 @@ type OutpostDestinationUpdateRequest struct {
 	Metadata    map[string]string       `json:"metadata,omitempty"`
 }
 
-// OutpostFilterPatch prepares a resolved filter for an update request, keeping
-// the distinction the wire format needs: nil means the caller did not mention
-// the filter, and a non-nil empty map means they asked to clear it.
-func OutpostFilterPatch(filter map[string]interface{}) *map[string]interface{} {
-	if filter == nil {
+// OutpostObjectPatch prepares a resolved JSON object for a request field that
+// has to tell "not supplied" apart from "supplied as empty".
+//
+// omitempty drops an empty map, so both cases marshal to nothing. Taking the
+// address separates them: nil stays absent, and a non-nil empty map marshals
+// as {}. Used for a destination filter, where {} clears it, and for a publish
+// payload, where {} is a legitimate empty event body.
+func OutpostObjectPatch(obj map[string]interface{}) *map[string]interface{} {
+	if obj == nil {
 		return nil
 	}
-	return &filter
+	return &obj
 }
 
 // ListOutpostDestinations retrieves a tenant's destinations, optionally filtered

@@ -117,7 +117,7 @@ func connectionRequest(in mcpcore.Input) (*hookdeck.ConnectionCreateRequest, err
 	if err != nil {
 		return nil, err
 	}
-	req.Rules = rules
+	req.Rules = &rules
 	return req, nil
 }
 

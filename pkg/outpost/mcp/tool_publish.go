@@ -107,7 +107,7 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 			DestinationID:    in.String("destination_id"),
 			EligibleForRetry: eligibleForRetry,
 			Metadata:         metadata,
-			Data:             data,
+			Data:             hookdeck.OutpostObjectPatch(data),
 		})
 		if err != nil {
 			return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil

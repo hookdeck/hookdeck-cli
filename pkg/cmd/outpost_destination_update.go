@@ -29,8 +29,11 @@ func newOutpostDestinationUpdateCmd(parent *outpostDestinationCmd) *outpostDesti
 
 Only the fields you pass are changed; omitted fields are left alone.
 
---filter and --metadata are the exceptions: the API replaces each wholesale
-rather than merging into it, so pass the complete value you want.`,
+--filter is the exception: the API replaces it wholesale rather than merging
+into it, so pass the complete filter you want, and --filter '{}' clears it.
+
+--metadata merges. Keys you pass are set and keys you do not are left alone,
+so metadata cannot be cleared here.`,
 		PreRunE: dc.validateFlags,
 		RunE:    dc.runOutpostDestinationUpdateCmd,
 		Example: `  # Point a destination at a new URL
@@ -40,7 +43,7 @@ rather than merging into it, so pass the complete value you want.`,
   # Change which topics it receives
   hookdeck outpost destination update des_abc123 --tenant-id acme --topics "*"
 
-  # Replace the metadata
+  # Set metadata keys (merged with what is already there)
   hookdeck outpost destination update des_abc123 --tenant-id acme \
     --metadata owner=platform --metadata tier=pro`,
 		Annotations: map[string]string{
@@ -89,6 +92,12 @@ func (dc *outpostDestinationUpdateCmd) runOutpostDestinationUpdateCmd(cmd *cobra
 		return err
 	}
 	metadata, err := dc.fields.resolveMetadata()
+	// An explicitly empty metadata object reads as "clear the metadata", and
+	// the API cannot do that — it merges, so an empty object is a no-op. Saying
+	// so beats accepting it, sending nothing and reporting success.
+	if err == nil && metadata != nil && len(metadata) == 0 {
+		return fmt.Errorf("metadata cannot be cleared: the API merges metadata rather than replacing it, so pass the keys you want to set")
+	}
 	if err != nil {
 		return err
 	}
@@ -116,7 +125,7 @@ func (dc *outpostDestinationUpdateCmd) runOutpostDestinationUpdateCmd(cmd *cobra
 		Topics:      dc.fields.resolveTopics(),
 		Config:      config,
 		Credentials: credentials,
-		Filter:      hookdeck.OutpostFilterPatch(filter),
+		Filter:      hookdeck.OutpostObjectPatch(filter),
 		Metadata:    metadata,
 	})
 	if err != nil {

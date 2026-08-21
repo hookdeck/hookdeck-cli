@@ -2329,8 +2329,11 @@ Update an existing destination by its ID.
 
 Only the fields you pass are changed; omitted fields are left alone.
 
-`--filter` and `--metadata` are the exceptions: the API replaces each wholesale
-rather than merging into it, so pass the complete value you want.
+`--filter` is the exception: the API replaces it wholesale rather than merging
+into it, so pass the complete filter you want, and `--filter` '{}' clears it.
+
+`--metadata` merges. Keys you pass are set and keys you do not are left alone,
+so metadata cannot be cleared here.
 
 **Usage:**
 
@@ -2369,7 +2372,7 @@ hookdeck outpost destination update des_abc123 --tenant-id acme \
 # Change which topics it receives
 hookdeck outpost destination update des_abc123 --tenant-id acme --topics "*"
 
-# Replace the metadata
+# Set metadata keys (merged with what is already there)
 hookdeck outpost destination update des_abc123 --tenant-id acme \
 --metadata owner=platform --metadata tier=pro
 ```

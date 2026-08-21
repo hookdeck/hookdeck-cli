@@ -5,13 +5,13 @@ import (
 	"testing"
 )
 
-// TestOutpostFilterPatch pins the distinction the update wire format depends on.
+// TestOutpostObjectPatch pins the distinction the update wire format depends on.
 //
 // Verified against the live API: PATCH {"filter":{}} clears a destination's
 // filter, while a body with no filter key leaves it alone. On a plain map,
 // omitempty collapsed both cases to "absent", so --filter '{}' reported success
 // and changed nothing.
-func TestOutpostFilterPatch(t *testing.T) {
+func TestOutpostObjectPatch(t *testing.T) {
 	tests := []struct {
 		name   string
 		filter map[string]interface{}
@@ -25,7 +25,7 @@ func TestOutpostFilterPatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, err := json.Marshal(&OutpostDestinationUpdateRequest{
-				Filter: OutpostFilterPatch(tt.filter),
+				Filter: OutpostObjectPatch(tt.filter),
 			})
 			if err != nil {
 				t.Fatalf("marshal: %v", err)

@@ -130,7 +130,7 @@ func (pc *outpostPublishCmd) run(cmd *cobra.Command, args []string) error {
 		Topic:         pc.topic,
 		DestinationID: pc.destinationID,
 		Metadata:      metadata,
-		Data:          payload,
+		Data:          hookdeck.OutpostObjectPatch(payload),
 	}
 	// Only send the flag when the caller set it, so the API default stands.
 	if cmd.Flags().Changed("eligible-for-retry") {

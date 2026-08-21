@@ -118,8 +118,17 @@ func (cu *connectionUpdateCmd) runConnectionUpdateCmd(cmd *cobra.Command, args [
 	if err != nil {
 		return err
 	}
-	if len(rules) > 0 {
-		req.Rules = rules
+	// Keyed off whether the flag was given rather than whether it produced any
+	// rules, so that an explicit empty array reaches the API and clears the
+	// ruleset instead of being read as "no rules mentioned".
+	if cmd.Flags().Changed("rules") || cmd.Flags().Changed("rules-file") {
+		if rules == nil {
+			rules = []hookdeck.Rule{}
+		}
+		req.Rules = &rules
+		hasChanges = true
+	} else if len(rules) > 0 {
+		req.Rules = &rules
 		hasChanges = true
 	}
 

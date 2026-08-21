@@ -162,7 +162,7 @@ func destinationsUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore
 		Topics:      hookdeck.OutpostTopics(mcpcore.StringList(in, "topics")),
 		Config:      cfg,
 		Credentials: credentials,
-		Filter:      hookdeck.OutpostFilterPatch(filter),
+		Filter:      hookdeck.OutpostObjectPatch(filter),
 		Metadata:    metadata,
 	}))
 }

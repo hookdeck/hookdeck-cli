@@ -447,7 +447,7 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 		return err
 	}
 	if len(rules) > 0 {
-		req.Rules = rules
+		req.Rules = &rules
 	}
 
 	// Single API call to create the connection

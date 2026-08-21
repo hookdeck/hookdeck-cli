@@ -154,6 +154,18 @@ func buildDestinationConfigFromIndividualFlags(destType string, f *destinationCo
 // buildDestinationConfigFromFlags parses destination config from --config/--config-file
 // or from individual flags. When configStr or configFile is set, that takes precedence.
 // destType is used when building from individual flags (HTTP requires url, etc.).
+// typeSpecificDestinationFlagsSet reports whether any flag was set that only
+// means something once the destination type is known.
+//
+// buildDestinationConfig keys those flags off the type, so without one they
+// were dropped on the floor: `destination update <id> --url https://…` — the
+// form the help text itself gives as an example — reported success and changed
+// nothing. Callers use this to fetch the stored type rather than silently
+// discarding what the user asked for.
+func typeSpecificDestinationFlagsSet(f *destinationConfigFlags) bool {
+	return f.URL != "" || f.CliPath != "" || f.HTTPMethod != "" || f.PathForwardingDisabled != nil
+}
+
 func buildDestinationConfigFromFlags(configStr, configFile, destType string, individual *destinationConfigFlags) (map[string]interface{}, error) {
 	if configStr != "" {
 		var out map[string]interface{}

@@ -29,7 +29,11 @@ type OutpostPublishRequest struct {
 	EligibleForRetry *bool                  `json:"eligible_for_retry,omitempty"`
 	Time             *time.Time             `json:"time,omitempty"`
 	Metadata         map[string]string      `json:"metadata,omitempty"`
-	Data             map[string]interface{} `json:"data,omitempty"`
+	// Data is a pointer for the same reason a destination filter is: the API
+	// requires a payload and accepts an empty object, but omitempty dropped an
+	// empty map, so --data '{}' sent no data at all and the publish failed
+	// with "data is required" for a payload the caller had supplied.
+	Data *map[string]interface{} `json:"data,omitempty"`
 }
 
 // OutpostPublishResponse is the acknowledgement returned by a publish.

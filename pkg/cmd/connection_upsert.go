@@ -508,7 +508,7 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		return nil, err
 	}
 	if len(rules) > 0 {
-		req.Rules = rules
+		req.Rules = &rules
 	}
 
 	return req, nil
@@ -668,7 +668,7 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		}
 
 		// Check rules changes
-		if len(req.Rules) > 0 {
+		if req.Rules != nil && len(*req.Rules) > 0 {
 			changes++
 			rulesJSON, _ := json.MarshalIndent(req.Rules, "    ", "  ")
 			fmt.Printf("  • Rules:\n")
@@ -687,7 +687,7 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		if req.DestinationID == nil && req.Destination == nil && existing.Destination != nil {
 			fmt.Printf("  • Destination: %s (unchanged)\n", existing.Destination.Name)
 		}
-		if len(req.Rules) == 0 && len(existing.Rules) > 0 {
+		if (req.Rules == nil || len(*req.Rules) == 0) && len(existing.Rules) > 0 {
 			fmt.Printf("  • Rules: %d rules (unchanged)\n", len(existing.Rules))
 		}
 	} else {
@@ -712,7 +712,7 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 			fmt.Printf("  • Destination: %s (type: %s, inline creation)\n", req.Destination.Name, req.Destination.Type)
 		}
 
-		if len(req.Rules) > 0 {
+		if req.Rules != nil && len(*req.Rules) > 0 {
 			rulesJSON, _ := json.MarshalIndent(req.Rules, "    ", "  ")
 			fmt.Printf("  • Rules: %s\n", string(rulesJSON))
 		}
