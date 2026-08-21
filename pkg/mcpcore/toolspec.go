@@ -25,6 +25,10 @@ import (
 // investigation, so it is not gated, but a tool offering it is not a pure read
 // and must not claim ReadOnlyHint. Keeping the two flags apart lets the gating
 // decision and the annotation disagree on purpose rather than by accident.
+//
+// If Mutates looks redundant: collapsing it into Write is exactly the change
+// that breaks "a tool offering pause is not annotated read-only" and
+// TestWriteGuard_PauseIsNotGated, both in pkg/gateway/mcp/write_mode_test.go.
 type Action struct {
 	Name        string
 	Desc        string
@@ -196,6 +200,14 @@ func (spec ToolSpec) Help(srv *Server, available ActionSet) string {
 // absent from the enum and from the description, so an agent is never told
 // about an action it cannot use. Tools whose every action is a write are not
 // registered at all rather than registered to always fail.
+//
+// THE INVARIANT: four things here depend on the mode and must agree — the
+// action enum, the properties, the description, and the annotations. Nothing in
+// the type system holds them together, and each has been wrong separately:
+// descriptions named actions the enum had dropped, and schemas offered
+// parameters belonging to actions that were not on offer. If you add another
+// mode-dependent field, add it to TestReadOnlyModeHidesWriteOnlyPropsAndProse
+// in pkg/gateway/mcp/server_test.go, which is what catches them drifting apart.
 func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 	available := spec.Actions.Available(srv.WriteEnabled())
 	if len(available) == 0 {
@@ -236,6 +248,11 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 			Description: description,
 			InputSchema: Schema(props, append([]string{"action"}, spec.Required...)...),
 			Annotations: &mcpsdk.ToolAnnotations{
+				// HasChanging, not HasWrite: an action can change state and
+				// still be offered in read-only mode (connections pause). Using
+				// HasWrite here would tell a client this tool is a pure read
+				// while it can halt delivery. Pinned by "a tool offering pause
+				// is not annotated read-only" in pkg/gateway/mcp/write_mode_test.go.
 				ReadOnlyHint:    !available.HasChanging(),
 				DestructiveHint: &destructive,
 			},
@@ -262,6 +279,10 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 //     for a typo that is not there.
 //
 // What is left is a genuine mistake: a name this tool has never had.
+//
+// Both exemptions look like holes and are not. TestUnknownArgumentsAreRejected
+// and TestHiddenWriteArgumentsGetTheWriteModeMessage, in
+// pkg/gateway/mcp/write_actions_test.go, fail if either is removed.
 func rejectUnknownArgs(srv *Server, visible, all map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		if r := srv.RequireAuth(); r != nil {

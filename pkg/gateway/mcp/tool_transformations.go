@@ -30,6 +30,8 @@ var transformationsActions = mcpcore.ActionSet{
 	// a session that can read transformation code but cannot try it against a
 	// sample payload cannot actually debug a transformation, which is the
 	// investigation work read-only mode exists for.
+	//
+	// TestWriteGuard_TransformationRunIsNotGated fails if this is gated.
 	{Name: "run", Desc: "execute transformation code against a sample request and return the result"},
 }
 

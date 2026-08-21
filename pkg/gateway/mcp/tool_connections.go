@@ -27,6 +27,7 @@ var connectionsActions = mcpcore.ActionSet{
 	// rather than dropping events.
 	//
 	// This is a decision, not an oversight. Every other mutation below is gated.
+	// TestWriteGuard_PauseIsNotGated fails if these are given Write: true.
 	//
 	// Mutates: true keeps the annotation honest about it. They are not gated,
 	// but they do change delivery, so this tool must not tell a client it is a
