@@ -71,6 +71,12 @@ func commandSummaryFor502Log(args []string) string {
 // output looks like a transient Hookdeck API HTTP 502/500. Logs each retry clearly via t.Logf.
 func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, args []string, run func() (stdout, stderr string, err error)) (stdout, stderr string, err error) {
 	r.t.Helper()
+
+	// Every CLI command a runner executes passes through here, which makes it
+	// the one place resource bookkeeping can happen without each call site
+	// having to remember it. See resource_cleanup.go.
+	defer func() { r.recordCommandResources(args, stdout, err) }()
+
 	var lastStdout, lastStderr string
 	var lastErr error
 	for attempt := 1; attempt <= acceptance502MaxAttempts; attempt++ {
@@ -376,6 +382,28 @@ type CLIRunner struct {
 	apiKey      string
 	projectRoot string
 	configPath  string // when set (ACCEPTANCE_SLICE), HOOKDECK_CONFIG_FILE is set so each slice uses its own config file
+
+	// tracker records the gateway resources commands run through this runner
+	// created, so anything the test does not delete itself is deleted when the
+	// test ends. See resource_cleanup.go. Nil for runners that are not pointed
+	// at an acceptance-test project.
+	trackerMu sync.Mutex
+	tracker   *resourceTracker
+}
+
+// enableResourceSweep starts recording created resources and registers the sweep
+// that deletes the leftovers. Call it from a constructor, before the runner runs
+// anything, so the sweep is the last cleanup to run and the cleanups the test
+// registers itself still get first go.
+func (r *CLIRunner) enableResourceSweep() {
+	if r.t == nil || r.tracker != nil {
+		return
+	}
+	r.tracker = &resourceTracker{
+		seen:    make(map[string]bool),
+		deleted: make(map[string]bool),
+	}
+	r.t.Cleanup(r.sweepCreatedResources)
 }
 
 // NewCLIRunner creates a new CLI runner for tests
@@ -396,6 +424,7 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 		projectRoot: projectRoot,
 		configPath:  getAcceptanceConfigPath(),
 	}
+	runner.enableResourceSweep()
 
 	// Authenticate in CI mode for tests
 	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
@@ -419,6 +448,7 @@ func NewCLIRunnerWithConfigPath(t *testing.T, configPath string) *CLIRunner {
 		projectRoot: projectRoot,
 		configPath:  configPath,
 	}
+	runner.enableResourceSweep()
 	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
 	require.NoError(t, err, "Failed to authenticate CLI with config at %s: stdout=%s stderr=%s", configPath, stdout, stderr)
 	return runner
@@ -433,12 +463,14 @@ func NewCLIRunnerWithConfigPathNoCI(t *testing.T, configPath string) *CLIRunner 
 	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY must be set")
 	projectRoot, err := filepath.Abs("../..")
 	require.NoError(t, err, "Failed to get project root path")
-	return &CLIRunner{
+	runner := &CLIRunner{
 		t:           t,
 		apiKey:      apiKey,
 		projectRoot: projectRoot,
 		configPath:  configPath,
 	}
+	runner.enableResourceSweep()
+	return runner
 }
 
 // getAcceptanceAPIKey returns the API key for the current acceptance slice.
@@ -479,6 +511,7 @@ func NewOutpostCLIRunner(t *testing.T) *CLIRunner {
 		projectRoot: projectRoot,
 		configPath:  getAcceptanceConfigPath(),
 	}
+	runner.enableResourceSweep()
 
 	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
 	require.NoError(t, err, "Failed to authenticate CLI against the Outpost project: stdout=%s, stderr=%s", stdout, stderr)
@@ -623,6 +656,10 @@ func (r *CLIRunner) RunWithEnv(extraEnv map[string]string, args ...string) (stdo
 // non-nil because the process was killed). Uses the same project root and config env as Run().
 func (r *CLIRunner) RunListenWithTimeout(args []string, runDuration time.Duration) (stdout, stderr string, err error) {
 	r.t.Helper()
+	// listen creates the source it is pointed at when that source does not
+	// exist, along with a cli-<source> connection and destination. None of that
+	// goes through Run, so it is registered for cleanup by name instead.
+	registerListenCleanup(r.t, r, args)
 	tmpBinary := filepath.Join(r.projectRoot, "hookdeck-listen-test-"+generateTimestamp())
 	defer os.Remove(tmpBinary)
 
@@ -1196,7 +1233,9 @@ func createTestConnectionWithMockDestination(t *testing.T, cli *CLIRunner) strin
 }
 
 // deleteConnection deletes a connection by ID using the --force flag
-// This is safe to use in cleanup functions and won't prompt for confirmation
+// This is safe to use in cleanup functions and won't prompt for confirmation.
+// It deletes the connection only; the source and destination created with it are
+// deleted by the runner's sweep when the test ends (see resource_cleanup.go).
 func deleteConnection(t *testing.T, cli *CLIRunner, id string) {
 	t.Helper()
 
@@ -1209,16 +1248,6 @@ func deleteConnection(t *testing.T, cli *CLIRunner, id string) {
 	}
 
 	t.Logf("Deleted connection: %s", id)
-}
-
-// cleanupConnections deletes multiple connections
-// Useful for cleaning up test resources
-func cleanupConnections(t *testing.T, cli *CLIRunner, ids []string) {
-	t.Helper()
-
-	for _, id := range ids {
-		deleteConnection(t, cli, id)
-	}
 }
 
 // createTestSource creates a WEBHOOK source and returns its ID

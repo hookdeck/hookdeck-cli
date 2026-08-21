@@ -232,6 +232,11 @@ The [`RequireCLIAuthenticationOnce(t)`](helpers.go:268) helper function:
   - Helper functions for creating/deleting test resources
   - JSON parsing utilities
   - Data structures (Connection, etc.)
+
+- **`resource_cleanup.go`** - The bookkeeping that stops tests leaking resources
+  - Records what each CLI command created and deletes the leftovers when the test ends
+  - `cleanupListenResources` for the source and CLI destination `hookdeck listen` creates on the fly
+  - See [Resource cleanup](#resource-cleanup)
   
 - **`basic_test.go`** - Basic CLI functionality tests
   - Version command
@@ -318,6 +323,33 @@ All tests should:
    t.Logf("Created connection: %s (ID: %s)", name, id)
    ```
 
+## Resource cleanup
+
+Deleting a connection does **not** delete the source and destination it was created with. `gateway connection create --source-name … --destination-name …` creates three resources, and a test that cleans up the connection alone leaves two behind. That is how the test projects reached ~36,000 orphaned sources and ~36,500 destinations ([#362](https://github.com/hookdeck/hookdeck-cli/issues/362)).
+
+So `CLIRunner` keeps the books itself, in [`resource_cleanup.go`](resource_cleanup.go):
+
+- every command that reports creating a gateway resource has that resource's id recorded — including the source and destination returned inline by a connection create;
+- every command that deletes one by id has it struck off;
+- whatever is still on the list when the test ends is deleted, connections first.
+
+Two consequences worth knowing:
+
+- **A test that cleans up after itself costs nothing.** Its resources are struck off before the sweep runs, so the sweep makes no API calls for them. Keep writing the explicit `t.Cleanup` — it deletes earlier, and it says what the test meant.
+- **A test that fails half-way still cleans up.** Resources created before the failing assertion are already recorded, which is exactly the case explicit cleanup misses, because the `t.Cleanup` call is usually below the assertion that failed.
+
+When the sweep has work to do it says so:
+
+```
+resource_cleanup.go:239: acceptance cleanup: deleted 2 resource(s) the test left behind (0 already gone, 0 failed)
+```
+
+`hookdeck listen` is the exception: it creates the source it is pointed at when that source does not exist, plus a `cli-<source>` connection and destination, and none of that goes through `CLIRunner.Run`, so no id is ever seen. Tests that start `listen` through `startListenCapturingOutput` or `RunListenWithTimeout` are covered automatically (both call `registerListenCleanup`). A test that starts the binary itself must register the cleanup by name:
+
+```go
+t.Cleanup(func() { cleanupListenResources(t, cli, sourceName) })
+```
+
 ## Environment Requirements
 
 - **Go 1.24.9+**
@@ -377,4 +409,4 @@ Error: HOOKDECK_CLI_TESTING_API_KEY (or HOOKDECK_CLI_TESTING_API_KEY_2 for slice
 If commands fail to execute, ensure you're running from the project root or that the working directory is set correctly.
 
 ### Resource Cleanup
-Tests use `t.Cleanup()` to ensure resources are deleted even if tests fail. If you see orphaned resources, check the cleanup logic in your test.
+Tests use `t.Cleanup()` to ensure resources are deleted even if tests fail, and `CLIRunner` sweeps up whatever they miss (see [Resource cleanup](#resource-cleanup)). If you see orphaned resources, check the log line each test prints when the sweep had work to do.

@@ -49,6 +49,11 @@ func (b *syncBuffer) String() string {
 func startListenCapturingOutput(t *testing.T, cli *CLIRunner, extraArgs ...string) (*exec.Cmd, *syncBuffer, *syncBuffer, chan error) {
 	t.Helper()
 
+	// Registered before the cleanup that kills the process, so it runs after it:
+	// listen creates the source it is pointed at, plus a cli-<source> connection
+	// and destination, and nothing else in the test knows their ids.
+	registerListenCleanup(t, cli, extraArgs)
+
 	projectRoot, err := filepath.Abs("../..")
 	require.NoError(t, err, "Failed to get project root")
 
@@ -305,19 +310,8 @@ func TestListenUsesHookdeckAPIKeyInsteadOfGuestAccount(t *testing.T) {
 	combined := stdout.String() + stderr.String()
 	t.Logf("Output:\n%s", combined)
 
-	// Clean up the source listen auto-created, and its CLI destination.
-	t.Cleanup(func() {
-		var sources SourceListResponseForCleanup
-		if err := cleanupCLI.RunJSON(&sources, "gateway", "source", "list"); err != nil {
-			t.Logf("cleanup: could not list sources: %v", err)
-			return
-		}
-		for _, s := range sources.Models {
-			if s.Name == sourceName {
-				_, _, _ = cleanupCLI.Run("gateway", "source", "delete", s.ID, "--force")
-			}
-		}
-	})
+	// Clean up the source listen auto-created, and its CLI connection and destination.
+	t.Cleanup(func() { cleanupListenResources(t, cleanupCLI, sourceName) })
 
 	assert.NotContains(t, combined, "without a permanent account",
 		"listen must not create a guest account when HOOKDECK_API_KEY is set (#334)")
@@ -336,14 +330,6 @@ func TestListenUsesHookdeckAPIKeyInsteadOfGuestAccount(t *testing.T) {
 		"the project from HOOKDECK_API_KEY should be saved")
 	assert.NotContains(t, string(configBytes), "console.hookdeck.com/e/",
 		"a guest URL must not be present when authenticating via HOOKDECK_API_KEY")
-}
-
-// SourceListResponseForCleanup is a minimal shape for the cleanup step above.
-type SourceListResponseForCleanup struct {
-	Models []struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	} `json:"models"`
 }
 
 // TestListenCommandBasic tests that the listen command starts without errors
@@ -507,17 +493,7 @@ func TestListenPrefersEnvAPIKeyOverGuestProfile(t *testing.T) {
 	combined := stdout.String() + stderr.String()
 	t.Logf("Output:\n%s", combined)
 
-	t.Cleanup(func() {
-		var sources SourceListResponseForCleanup
-		if err := cleanupCLI.RunJSON(&sources, "gateway", "source", "list"); err != nil {
-			return
-		}
-		for _, s := range sources.Models {
-			if s.Name == sourceName {
-				_, _, _ = cleanupCLI.Run("gateway", "source", "delete", s.ID, "--force")
-			}
-		}
-	})
+	t.Cleanup(func() { cleanupListenResources(t, cleanupCLI, sourceName) })
 
 	assert.Contains(t, combined, "configured on project",
 		"HOOKDECK_API_KEY must take precedence over a stored guest profile (#334)")
