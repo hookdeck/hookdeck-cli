@@ -75,7 +75,12 @@ func buildMetricsParams(in mcpcore.Input) (hookdeck.MetricsQueryParams, error) {
 	if start == "" || end == "" {
 		return hookdeck.MetricsQueryParams{}, fmt.Errorf("start and end are required (ISO 8601 datetime)")
 	}
-	measures := in.StringSlice("measures")
+	// StringList, not StringSlice: every other tool on this surface accepts a
+	// comma-separated string where an array is declared, and argument checking
+	// deliberately lets that form through. Reading it with StringSlice dropped
+	// it, and the caller was then told "measures is required" for an argument
+	// they had supplied.
+	measures := mcpcore.StringList(in, "measures")
 	if len(measures) == 0 {
 		return hookdeck.MetricsQueryParams{}, fmt.Errorf("measures is required (e.g. [\"count\"], [\"successful_count\", \"failed_count\"])")
 	}
@@ -85,7 +90,7 @@ func buildMetricsParams(in mcpcore.Input) (hookdeck.MetricsQueryParams, error) {
 		End:           end,
 		Granularity:   in.String("granularity"),
 		Measures:      measures,
-		Dimensions:    in.StringSlice("dimensions"),
+		Dimensions:    mcpcore.StringList(in, "dimensions"),
 		SourceID:      in.String("source_id"),
 		DestinationID: in.String("destination_id"),
 		ConnectionID:  in.String("connection_id"),

@@ -254,10 +254,24 @@ func connectionsList(ctx context.Context, client *hookdeck.Client, in mcpcore.In
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
-	if bp := disabled; bp != nil {
-		if *bp {
-			params["disabled_at[any]"] = "true"
+	// Only true is expressible. The endpoint filters on the presence of
+	// disabled_at, so disabled_at[any] selects disabled connections whatever
+	// value it is given — false returns the disabled ones too — and
+	// disabled_at[is_null]=true returns everything. Verified against the API
+	// with a disabled connection present.
+	//
+	// So disabled:false is refused rather than dropped. Accepting it returned
+	// every connection as though it had been filtered to the enabled ones,
+	// which is the wrong answer that reads like a right one; sending it anyway
+	// returns exactly the opposite of what was asked for.
+	if disabled != nil {
+		if !*disabled {
+			return mcpcore.ErrorResult(
+				"disabled: false is not supported — the API can only filter to disabled connections, " +
+					"not to enabled ones. Omit disabled to list every connection, and read disabled_at " +
+					"on each result to tell them apart."), nil
 		}
+		params["disabled_at[any]"] = "true"
 	}
 
 	result, err := client.ListConnections(ctx, params)

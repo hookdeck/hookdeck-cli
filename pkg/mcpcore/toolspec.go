@@ -374,6 +374,14 @@ func checkArgumentTypes(visible map[string]Prop, in Input) []string {
 	return problems
 }
 
+// actionScopeHint names the actions a write-only property belongs to.
+func actionScopeHint(writeActions []string) string {
+	if len(writeActions) == 0 {
+		return "it belongs to this tool's write actions"
+	}
+	return "it belongs to " + strings.Join(writeActions, ", ")
+}
+
 func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		if r := srv.RequireAuth(); r != nil {
@@ -390,14 +398,27 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next
 		// Only defer when the caller is reaching for an action this mode hides.
 		// On a visible action a hidden argument is just as ignorable as an
 		// invented one, and has to be rejected.
-		requestedHidden := false
-		if action, found := spec.Actions.Find(in.String("action")); found {
-			requestedHidden = !action.Enabled(srv.WriteEnabled())
-		}
+		requestedAction, haveAction := spec.Actions.Find(in.String("action"))
+		requestedHidden := haveAction && !requestedAction.Enabled(srv.WriteEnabled())
 
-		var unknown []string
+		var unknown, wrongAction []string
 		for key := range in {
-			if _, visibleNow := visible[key]; visibleNow {
+			if prop, visibleNow := visible[key]; visibleNow {
+				// A write-only property belongs to the write actions, and the
+				// read actions do not read it. In read-only mode it is hidden
+				// and so rejected, but once write mode made it visible it was
+				// accepted on a read action and then ignored — gateway_sources
+				// with {"action":"list","type":"STRIPE"} returned every source
+				// as though it were filtered. That is the exact failure this
+				// guard exists to prevent, so enabling writes must not
+				// reintroduce it on the actions that never took the argument.
+				if prop.Write && haveAction && !requestedAction.Write {
+					// Reported separately: the tool does have this argument, so
+					// calling it unknown while listing it among the accepted
+					// ones contradicts itself and sends the caller hunting for
+					// a typo that is not there.
+					wrongAction = append(wrongAction, key)
+				}
 				continue
 			}
 			if _, existsAtAll := spec.Props[key]; existsAtAll && requestedHidden {
@@ -405,6 +426,23 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next
 			}
 			unknown = append(unknown, key)
 		}
+		if len(wrongAction) > 0 {
+			sort.Strings(wrongAction)
+			writeActions := make([]string, 0, len(spec.Actions))
+			for _, a := range spec.Actions {
+				if a.Write {
+					writeActions = append(writeActions, a.Name)
+				}
+			}
+			sort.Strings(writeActions)
+			return ErrorResult(fmt.Sprintf(
+				"%s cannot be used with action %q — %s. "+
+					"The action ignores it, so the result would have looked filtered without being filtered.",
+				strings.Join(wrongAction, ", "), requestedAction.Name,
+				actionScopeHint(writeActions),
+			)), nil
+		}
+
 		if len(unknown) == 0 {
 			// Only once the names are known to be real is it worth talking about
 			// their values; an unknown name has a better message of its own.
