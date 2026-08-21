@@ -34,9 +34,9 @@ var requestsSpec = mcpcore.ToolSpec{
 		"created_before":  {Type: "string", Desc: "created_at upper bound. " + descDateBefore},
 		"ingested_after":  {Type: "string", Desc: "ingested_at lower bound. " + descDateAfter},
 		"ingested_before": {Type: "string", Desc: "ingested_at upper bound. " + descDateBefore},
-		"body":            {Type: "string", Desc: "Filter by request body. " + descJSONFilter},
-		"headers":         {Type: "string", Desc: "Filter by request headers. " + descJSONFilter},
-		"parsed_query":    {Type: "string", Desc: "Filter by parsed query string as JSON. " + descJSONFilter},
+		"body":            {Type: "string", JSONValue: true, Desc: "Filter by request body. " + descJSONFilter},
+		"headers":         {Type: "string", JSONValue: true, Desc: "Filter by request headers. " + descJSONFilter},
+		"parsed_query":    {Type: "string", JSONValue: true, Desc: "Filter by parsed query string as JSON. " + descJSONFilter},
 		"path":            {Type: "string", Desc: descPathFilter},
 		"search_term":     {Type: "string", Desc: descSearchTerm},
 		// A request's counts are how you find the ones that fanned out to many

@@ -2056,3 +2056,77 @@ func TestAttemptsList_429RateLimitError(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Error translation: additional cases
 // ---------------------------------------------------------------------------
+
+// TestArgumentValuesThatCannotBeUsedAreRejected covers the second half of what
+// rejectUnknownArgs is for. A name the tool does not have is one way to get a
+// wrong answer that reads as a right one; a name it does have carrying a value
+// it cannot use is the other. The input helpers discarded those values, so
+// {"measures":["count",5]} queried one measure and reported success.
+func TestArgumentValuesThatCannotBeUsedAreRejected(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	rejected := []struct {
+		name string
+		tool string
+		args map[string]any
+		want string
+	}{
+		{
+			name: "a non-string inside a string array",
+			tool: "gateway_metrics",
+			args: map[string]any{"action": "events", "measures": []any{"count", 5}},
+			want: "measures[1] must be a string",
+		},
+		{
+			name: "an array where a single value belongs",
+			tool: "gateway_events",
+			args: map[string]any{"action": "list", "status": []any{"FAILED"}},
+			want: "status takes a single value, not an array",
+		},
+		{
+			name: "a scalar where a JSON filter belongs",
+			tool: "gateway_events",
+			args: map[string]any{"action": "list", "body": 42},
+			want: "body must be a JSON string or object",
+		},
+	}
+
+	for _, tt := range rejected {
+		t.Run(tt.name, func(t *testing.T) {
+			result := callTool(t, session, tt.tool, tt.args)
+			assert.True(t, result.IsError, "the call must be reported as an error")
+			assert.Contains(t, textContent(t, result), tt.want)
+		})
+	}
+}
+
+// The conversions the input helpers make on purpose must survive the check
+// above: rejecting these would turn a deliberate convenience into an error.
+func TestDeliberateArgumentConversionsStillWork(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+
+	accepted := []struct {
+		name string
+		tool string
+		args map[string]any
+	}{
+		{"a comma-separated string for an array", "gateway_metrics",
+			map[string]any{"action": "events", "measures": "count,failed_count"}},
+		{"a JSON filter given as an object", "gateway_events",
+			map[string]any{"action": "list", "body": map[string]any{"type": "charge.succeeded"}}},
+		{"a JSON filter given as a string", "gateway_events",
+			map[string]any{"action": "list", "body": `{"type":"charge.succeeded"}`}},
+	}
+
+	for _, tt := range accepted {
+		t.Run(tt.name, func(t *testing.T) {
+			result := callTool(t, session, tt.tool, tt.args)
+			// The call reaches the API (and fails there, unauthenticated); what
+			// matters is that it was not rejected by argument validation.
+			assert.NotContains(t, textContent(t, result), "must be")
+			assert.NotContains(t, textContent(t, result), "takes a single value")
+		})
+	}
+}

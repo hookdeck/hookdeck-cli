@@ -303,6 +303,77 @@ func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
 // Both exemptions look like holes and are not. TestUnknownArgumentsAreRejected
 // and TestHiddenWriteArgumentsGetTheWriteModeMessage, in
 // pkg/gateway/mcp/write_actions_test.go, fail if either is removed.
+// checkArgumentTypes reports arguments whose value this tool cannot use.
+//
+// The schema declares a type for every property and, as with
+// additionalProperties, nothing enforces it at this layer. The input helpers
+// discard what they cannot convert: a non-string element is dropped from an
+// array, and a non-string scalar reads as absent. So {"topics":["orders",5]}
+// subscribed a destination to one topic and reported success, and a name given
+// as a number left the name unchanged with nothing said. Both are the failure
+// this package keeps finding — a wrong answer that reads like a right one.
+//
+// It is deliberately narrower than full schema validation, because two
+// conversions here are intentional and in use: a comma-separated string is
+// accepted where an array is declared, and numbers and booleans are accepted as
+// strings (NumberOrString, BoolOrString). Enforcing the declared type strictly
+// would reject callers those helpers exist to support. What is rejected is only
+// what nothing can consume: a non-string inside a string array, and an array or
+// object where a single value belongs.
+func checkArgumentTypes(visible map[string]Prop, in Input) []string {
+	var problems []string
+
+	for key, value := range in {
+		prop, known := visible[key]
+		if !known || value == nil {
+			continue
+		}
+
+		// A JSON-filter property is satisfied by an object or by a string
+		// holding JSON; anything else is dropped by JSONFilterParam.
+		if prop.JSONValue {
+			switch value.(type) {
+			case map[string]interface{}, string:
+			default:
+				// Same wording as JSONFilterParam, which reports this when the
+				// value reaches it by another route. One condition, one message.
+				problems = append(problems, fmt.Sprintf("%s must be a JSON string or object", key))
+			}
+			continue
+		}
+
+		switch prop.Type {
+		case "array":
+			arr, isArray := value.([]interface{})
+			if !isArray {
+				// A bare string is the comma-separated form StringList accepts.
+				if _, isString := value.(string); !isString {
+					problems = append(problems, fmt.Sprintf("%s must be an array", key))
+				}
+				continue
+			}
+			if prop.Items == nil || prop.Items.Type != "string" {
+				continue
+			}
+			for i, item := range arr {
+				if _, isString := item.(string); !isString {
+					problems = append(problems, fmt.Sprintf("%s[%d] must be a string", key, i))
+				}
+			}
+		case "string", "integer", "number", "boolean":
+			switch value.(type) {
+			case []interface{}:
+				problems = append(problems, fmt.Sprintf("%s takes a single value, not an array", key))
+			case map[string]interface{}:
+				problems = append(problems, fmt.Sprintf("%s takes a single value, not an object", key))
+			}
+		}
+	}
+
+	sort.Strings(problems)
+	return problems
+}
+
 func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		if r := srv.RequireAuth(); r != nil {
@@ -335,6 +406,11 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next
 			unknown = append(unknown, key)
 		}
 		if len(unknown) == 0 {
+			// Only once the names are known to be real is it worth talking about
+			// their values; an unknown name has a better message of its own.
+			if problems := checkArgumentTypes(visible, in); len(problems) > 0 {
+				return ErrorResult(strings.Join(problems, "; ")), nil
+			}
 			return next(ctx, req)
 		}
 
