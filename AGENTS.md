@@ -608,6 +608,7 @@ Each slice's key belongs to a **different project**, which is why tests must use
 - **Never copy a skill into a second location.** `.agents/skills/` and a root `skills/` briefly held byte-identical copies, so a fix applied to one left the other wrong (see #336). One canonical directory, symlinks everywhere else.
 - **Windows:** Git must create symlinks correctly (`core.symlinks` / Developer Mode). If symlinks are missing after clone, recreate them (`mklink /D` on Windows, or copy `.agents/skills/` into `.cursor/skills` and `.claude/skills` as a fallback).
 - **Releases:** For cutting GitHub releases, tags, npm/beta publish flow, and drafting release notes, use **`.agents/skills/hookdeck-cli-release/SKILL.md`**; human-facing steps remain in **README.md § Releasing**.
+- **Manual QA:** For exploratory testing of the CLI and MCP servers against the live API, use **`.agents/skills/hookdeck-cli-manual-qa/SKILL.md`**. It carries the credential guard that keeps destructive commands inside acceptance-test projects and off your own login — use it rather than pointing a shell at a project by hand.
 
 ---
 
