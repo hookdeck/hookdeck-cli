@@ -157,11 +157,21 @@ func requestRetry(ctx context.Context, client *hookdeck.Client, in mcpcore.Input
 	if ids := mcpcore.StringList(in, "connection_ids"); len(ids) > 0 {
 		body = &hookdeck.RequestRetryRequest{WebhookIDs: ids}
 	}
-	if err := client.RetryRequest(ctx, id, body); err != nil {
+	result, err := client.RetryRequest(ctx, id, body)
+	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return mcpcore.JSONResultEnvelopeForClient(map[string]string{
+	// Report the events the retry created rather than a fixed "retried". A
+	// retry that matches no connection — including one aimed at a connection
+	// the request never went through — is accepted and creates nothing, and
+	// saying "retried" for that is a wrong answer that reads like a right one.
+	eventIDs := make([]string, 0, len(result.Events))
+	for _, event := range result.Events {
+		eventIDs = append(eventIDs, event.ID)
+	}
+	return mcpcore.JSONResultEnvelopeForClient(map[string]any{
 		"request_id": id,
-		"status":     "retried",
+		"events":     eventIDs,
+		"retried":    len(eventIDs) > 0,
 	}, client)
 }

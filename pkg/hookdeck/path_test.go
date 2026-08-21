@@ -219,7 +219,8 @@ func byIDCalls() []byIDCall {
 			return err
 		}, at("requests", "%s"), false},
 		{"RetryRequest", func(ctx context.Context, c *Client, id string) error {
-			return c.RetryRequest(ctx, id, nil)
+			_, err := c.RetryRequest(ctx, id, nil)
+			return err
 		}, at("requests", "%s", "retry"), false},
 		{"GetRequestEvents", func(ctx context.Context, c *Client, id string) error {
 			_, err := c.GetRequestEvents(ctx, id, nil)

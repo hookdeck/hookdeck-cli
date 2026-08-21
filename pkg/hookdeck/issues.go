@@ -130,6 +130,16 @@ func (c *Client) UpdateIssue(ctx context.Context, id string, req *IssueUpdateReq
 }
 
 // DismissIssue dismisses an issue (DELETE /issues/{id}).
+//
+// Dismissing sets dismissed_at and deliberately leaves status alone: an issue
+// that is still OPENED after a successful dismiss is correct, because dismissal
+// and resolution are separate axes. Verified against the API — DELETE returns
+// 200 with dismissed_at populated and status unchanged.
+//
+// Two independent QA passes have reported this as "dismiss does not dismiss"
+// after checking status and not dismissed_at. It is not a defect, and changing
+// this to PUT {"status":"IGNORED"} — which does change status — would conflate
+// the two concepts and throw away the distinction the API is drawing.
 func (c *Client) DismissIssue(ctx context.Context, id string) (*Issue, error) {
 	path, err := apiPath("issues", id)
 	if err != nil {

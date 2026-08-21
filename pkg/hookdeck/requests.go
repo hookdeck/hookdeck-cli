@@ -89,25 +89,45 @@ func (c *Client) GetRequest(ctx context.Context, id string, params map[string]st
 	return &req, nil
 }
 
+// RequestRetryResponse is what a retry returns: the request as it now stands
+// and the events the retry created.
+//
+// Events is the part that matters. A retry that matches no connection is
+// accepted and creates nothing, so the caller has to be able to tell those
+// apart — reporting "retried" without reading this said the same thing either
+// way.
+type RequestRetryResponse struct {
+	Request *Request `json:"request"`
+	Events  []Event  `json:"events"`
+}
+
 // RetryRequest retries a request by ID. Pass nil or empty WebhookIDs to retry on all connections; otherwise only for the given connection IDs.
-func (c *Client) RetryRequest(ctx context.Context, requestID string, body *RequestRetryRequest) error {
+func (c *Client) RetryRequest(ctx context.Context, requestID string, body *RequestRetryRequest) (*RequestRetryResponse, error) {
 	path, err := apiPath("requests", requestID, "retry")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if body == nil {
 		body = &RequestRetryRequest{}
 	}
 	data, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request retry body: %w", err)
+		return nil, fmt.Errorf("failed to marshal request retry body: %w", err)
 	}
 	resp, err := c.Post(ctx, path, data, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
-	return checkAndPrintError(resp)
+	if err := checkAndPrintError(resp); err != nil {
+		return nil, err
+	}
+
+	var out RequestRetryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to parse request retry response: %w", err)
+	}
+	return &out, nil
 }
 
 // GetRequestEvents returns the list of events for a request (GET /requests/{id}/events)

@@ -1162,10 +1162,20 @@ func TestRequestEventsAndIgnoredEvents(t *testing.T) {
 	}
 }
 
+// retriedRequest is what the retry endpoint actually returns: the request and
+// the events the retry created. Stubbing an empty body described a response the
+// API does not send, and hid whether a retry had produced anything.
+func retriedRequest() map[string]any {
+	return map[string]any{
+		"request": map[string]any{"id": "req_1"},
+		"events":  []any{map[string]any{"id": "evt_1"}},
+	}
+}
+
 func TestRequestRetrySendsSelectedConnections(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/requests/req_1/retry": ok(&got, nil),
+		"POST /2025-07-01/requests/req_1/retry": ok(&got, retriedRequest()),
 	})
 
 	text := succeeds(t, session, "gateway_request", map[string]any{
@@ -1177,7 +1187,10 @@ func TestRequestRetrySendsSelectedConnections(t *testing.T) {
 	// connection_ids is the MCP name for the API's webhook_ids; dropping it
 	// would retry every connection instead of the two asked for.
 	assert.Equal(t, []any{"web_1", "web_2"}, got.decodeBody(t)["webhook_ids"])
-	assert.JSONEq(t, `{"request_id":"req_1","status":"retried"}`, string(envelopeData(t, text)))
+	// Asserts the events the retry created, not a fixed "retried". The previous
+	// version of this line pinned the hardcoded status, so it passed whether or
+	// not the retry had produced anything.
+	assert.JSONEq(t, `{"request_id":"req_1","events":["evt_1"],"retried":true}`, string(envelopeData(t, text)))
 }
 
 // Omitting connection_ids must send an empty body, which the API reads as
@@ -1185,7 +1198,7 @@ func TestRequestRetrySendsSelectedConnections(t *testing.T) {
 func TestRequestRetryWithoutConnectionsSendsNoIDs(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/requests/req_1/retry": ok(&got, nil),
+		"POST /2025-07-01/requests/req_1/retry": ok(&got, retriedRequest()),
 	})
 
 	succeeds(t, session, "gateway_request", map[string]any{"action": "retry", "id": "req_1"})

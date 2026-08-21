@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -75,6 +76,14 @@ func (ic *issueDismissCmd) runIssueDismissCmd(cmd *cobra.Command, args []string)
 		return nil
 	}
 
+	// Report dismissed_at rather than just the id. Dismissing does not change
+	// status, so "Issue dismissed" followed by a get still showing OPENED reads
+	// like a failure; naming the field that did change says what happened.
+	if iss != nil && iss.DismissedAt != nil {
+		fmt.Printf(SuccessCheck+" Issue dismissed: %s (dismissed_at %s; status is unchanged at %s)\n",
+			issueID, iss.DismissedAt.Format(time.RFC3339), iss.Status)
+		return nil
+	}
 	fmt.Printf(SuccessCheck+" Issue dismissed: %s\n", issueID)
 	return nil
 }
