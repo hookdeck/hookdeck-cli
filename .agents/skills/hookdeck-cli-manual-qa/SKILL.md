@@ -108,6 +108,55 @@ report that says "verified: log_level is severity, not a completion flag, here
 are the five cases" is actionable; "this looks suspicious" costs someone else
 the same investigation.
 
+## Smoke-testing a published release
+
+Checking a published artifact is a different job from the QA above — it tests
+packaging, not behaviour — and it needs its own guard, because the documented
+install command is destructive to the operator's machine:
+
+```bash
+npm install -g hookdeck-cli@beta     # DO NOT run this to test a release
+```
+
+`-g` overwrites whatever `hookdeck` the operator already has. On a machine where
+the CLI came from Homebrew it writes into the same `bin` directory and shadows or
+replaces the working install, and the operator is left on a pre-release build
+without having asked to be.
+
+Install into an isolated prefix instead, and run the binary by path:
+
+```bash
+SMOKE="${TMPDIR:-/tmp}/hookdeck-smoke"
+rm -rf "$SMOKE" && mkdir -p "$SMOKE"
+npm install --prefix "$SMOKE" hookdeck-cli@beta
+HD="$SMOKE/node_modules/.bin/hookdeck"
+```
+
+Then use `$HD` for every command, still with `--hookdeck-config "$HD_CONFIG"`
+from the guard above, so neither the operator's binary nor their login is touched.
+
+**Record the before state and check it afterwards.** Claiming "nothing was
+changed" is worth nothing without evidence:
+
+```bash
+which hookdeck; hookdeck version | head -1      # before and after
+npm ls -g hookdeck-cli --depth=0                 # must stay unchanged
+md5 -q ~/.config/hookdeck/config.toml            # must be identical after
+```
+
+What is worth checking on a published artifact, none of which a local build can tell you:
+
+- the version reported matches the tag
+- a native binary is shipped for the host architecture, and is the one selected
+  (`file` the binary; an `arm64` host silently running an `amd64` build is a
+  packaging defect that still "works")
+- the command tree is present, and a real read reaches the API
+- for a release that renames or adds MCP tools, that `tools/list` shows the new
+  names from the *installed* package rather than from your working tree
+
+Remove the prefix when finished — it is around 90 MB, because the package ships
+binaries for every platform.
+
 ## Clean up
 
 Acceptance-test projects accumulate resources fast, and a QA pass adds to it.
