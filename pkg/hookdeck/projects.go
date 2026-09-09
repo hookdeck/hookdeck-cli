@@ -5,13 +5,13 @@ import (
 )
 
 type Project struct {
-	Id   string
-	Name string
-	Mode string
+	Id      string `json:"id"`
+	Name    string `json:"name"`
+	Product string `json:"product"`
 }
 
 func (c *Client) ListProjects() ([]Project, error) {
-	res, err := c.clientForCLIAuthValidate().Get(context.Background(), APIPathPrefix+"/teams", "", nil)
+	res, err := c.clientForCLIAuthValidate().Get(context.Background(), APIPathPrefix+"/projects", "", nil)
 	if err != nil {
 		return []Project{}, err
 	}

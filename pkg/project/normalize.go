@@ -16,14 +16,14 @@ type ProjectListItem struct {
 	Current bool
 }
 
-// NormalizeProjects converts API projects into a normalized list: parses name once, sets type from mode
-// (inbound and outbound both map to Gateway). Only modes with no known type are excluded. currentID is the profile's current project id for the Current flag.
+// NormalizeProjects converts API projects into a normalized list: parses name once and sets type from product.
+// Only projects with no known product are excluded. currentID is the profile's current project id for the Current flag.
 func NormalizeProjects(projects []hookdeck.Project, currentID string) []ProjectListItem {
 	var out []ProjectListItem
 	for _, p := range projects {
-		projectType := config.ModeToProjectType(p.Mode)
+		projectType := config.ProductToProjectType(p.Product)
 		if projectType == "" {
-			// unknown mode: exclude from list
+			// unknown product: exclude from list
 			continue
 		}
 		org, proj, err := ParseProjectName(p.Name)

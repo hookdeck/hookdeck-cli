@@ -47,6 +47,9 @@ func requireGatewayProject(cfg *config.Config) error {
 		return fmt.Errorf("no project selected. Run 'hookdeck project use' to select a project")
 	}
 	projectType := cfg.Profile.ProjectType
+	if projectType == "" && cfg.Profile.ProjectProduct != "" {
+		projectType = config.ProductToProjectType(cfg.Profile.ProjectProduct)
+	}
 	if projectType == "" && cfg.Profile.ProjectMode != "" {
 		projectType = config.ModeToProjectType(cfg.Profile.ProjectMode)
 	}

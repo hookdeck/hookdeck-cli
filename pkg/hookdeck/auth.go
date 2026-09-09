@@ -26,7 +26,7 @@ type ValidateAPIKeyResponse struct {
 	OrganizationID   string `json:"organization_id"`
 	ProjectID        string `json:"team_id"`
 	ProjectName      string `json:"team_name_no_org"`
-	ProjectMode      string `json:"team_mode"`
+	ProjectProduct   string `json:"team_product"`
 	ClientID         string `json:"client_id"`
 }
 
@@ -40,7 +40,7 @@ type PollAPIKeyResponse struct {
 	OrganizationID   string `json:"organization_id"`
 	ProjectID        string `json:"team_id"`
 	ProjectName      string `json:"team_name"`
-	ProjectMode      string `json:"team_mode"`
+	ProjectProduct   string `json:"team_product"`
 	APIKey           string `json:"key"`
 	ClientID         string `json:"client_id"`
 }

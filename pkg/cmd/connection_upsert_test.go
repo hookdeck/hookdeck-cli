@@ -433,6 +433,56 @@ func TestUpsertValidateDestinationFlagsAllowsNameOnly(t *testing.T) {
 	assert.NoError(t, err, "validateDestinationFlags should allow --destination-name alone for upsert")
 }
 
+func TestConnectionDestinationDeliveryPolicy(t *testing.T) {
+	cc := &connectionCreateCmd{
+		DestinationRateLimit:               100,
+		DestinationRateLimitPeriod:         "minute",
+		DestinationDeliveryGroupKey:        "headers.x-tenant-id",
+		DestinationDeliveryGroupRate:       10,
+		DestinationDeliveryGroupRatePeriod: "second",
+		DestinationDeliveryGroupOverrides:  `{"priority":{"rate":50,"rate_period":"second"}}`,
+	}
+
+	config, err := cc.buildDestinationConfig()
+	require.NoError(t, err)
+	policy, ok := config["delivery_policy"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, 100, policy["rate"])
+	groups, ok := policy["groups"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "headers.x-tenant-id", groups["key"])
+	assert.Equal(t, 10, groups["rate"])
+}
+
+func TestConnectionUpsertMergesDeliveryPolicy(t *testing.T) {
+	cu := &connectionUpsertCmd{connectionCreateCmd: &connectionCreateCmd{
+		DestinationDeliveryGroupKey:        "body.customer_id",
+		DestinationDeliveryGroupRate:       5,
+		DestinationDeliveryGroupRatePeriod: "second",
+	}}
+	existing := &hookdeck.Destination{
+		Name: "api",
+		Type: "HTTP",
+		Config: map[string]interface{}{
+			"url": "https://api.example.com",
+			"delivery_policy": map[string]interface{}{
+				"rate":   100,
+				"period": "minute",
+			},
+		},
+	}
+
+	input, err := cu.buildDestinationInputForUpdate(existing)
+	require.NoError(t, err)
+	policy, ok := input.Config["delivery_policy"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, 100, policy["rate"])
+	assert.Equal(t, "minute", policy["period"])
+	groups, ok := policy["groups"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "body.customer_id", groups["key"])
+}
+
 // TestUpsertBuildRequestFillsSourceTypeFromExisting verifies that when
 // --source-name is provided without --source-type during an update,
 // the existing source type is used.

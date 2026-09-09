@@ -83,7 +83,7 @@ func TestLogin_unauthorizedValidateStartsBrowserFlow(t *testing.T) {
 				"claimed":           true,
 				"key":               "hk_test_newkey_abcdefghij",
 				"team_id":           "tm_1",
-				"team_mode":         "gateway",
+				"team_product":      "event_gateway",
 				"team_name":         "Proj",
 				"user_name":         "U",
 				"user_email":        "u@example.com",
@@ -152,7 +152,7 @@ func TestLogin_guestProfileWithValidKeyStartsGuestUpgrade(t *testing.T) {
 				"organization_id":   "org_1",
 				"team_id":           "tm_console",
 				"team_name_no_org":  "Sandbox",
-				"team_mode":         "console",
+				"team_product":      "console",
 				"client_id":         "cl_guest",
 			}
 			enc, err := json.Marshal(resp)
@@ -217,7 +217,7 @@ func TestLogin_ciKeyHeadlessFailsFast(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(hookdeck.ValidateAPIKeyResponse{
 				ProjectID:        "tm_ci",
-				ProjectMode:      "inbound",
+				ProjectProduct:   "event_gateway",
 				OrganizationName: "Org",
 				OrganizationID:   "org_1",
 				ProjectName:      "CI",
@@ -276,7 +276,7 @@ func TestLogin_ciKeyStartsBrowserFlow(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(hookdeck.ValidateAPIKeyResponse{
 				ProjectID:        "tm_ci",
-				ProjectMode:      "inbound",
+				ProjectProduct:   "event_gateway",
 				OrganizationName: "Org",
 				OrganizationID:   "org_1",
 				ProjectName:      "CI",
@@ -297,7 +297,7 @@ func TestLogin_ciKeyStartsBrowserFlow(t *testing.T) {
 				"key":               "hk_test_userkey_abcdefghij",
 				"user_id":           "usr_1",
 				"team_id":           "tm_1",
-				"team_mode":         "inbound",
+				"team_product":      "event_gateway",
 				"team_name":         "Proj",
 				"user_name":         "U",
 				"user_email":        "u@example.com",

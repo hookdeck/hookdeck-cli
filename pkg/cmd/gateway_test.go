@@ -105,7 +105,7 @@ func TestRequireGatewayProject_resolveFromValidate(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(hookdeck.ValidateAPIKeyResponse{
 			ProjectID:   "team_from_validate",
-			ProjectMode: "inbound",
+			ProjectProduct: "event_gateway",
 		})
 	}))
 	t.Cleanup(server.Close)

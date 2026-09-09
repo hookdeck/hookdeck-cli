@@ -10,7 +10,7 @@ import (
 )
 
 const metricsEventsMeasures = "count, successful_count, failed_count, scheduled_count, paused_count, error_rate, avg_attempts, scheduled_retry_count, pending, queue_depth, max_depth, max_age"
-const metricsEventsDimensions = "connection_id, source_id, destination_id, issue_id"
+const metricsEventsDimensions = "connection_id, source_id, destination_id, delivery_group, issue_id"
 
 type metricsEventsCmd struct {
 	cmd   *cobra.Command

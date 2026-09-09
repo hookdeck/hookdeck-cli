@@ -52,7 +52,7 @@ func logRecordedTelemetry(t *testing.T, recorded []RecordedRequest) {
 }
 
 // TestTelemetryLoginProxy verifies what we send when we run "hookdeck login --api-key":
-// exactly one API call (GET /2025-07-01/cli-auth/validate) with one command_path and one
+// exactly one API call (GET /2026-09-01/cli-auth/validate) with one command_path and one
 // invocation_id. Uses the same proxy approach as other telemetry tests (record then forward
 // to the real API). Requires HOOKDECK_CLI_TESTING_CLI_KEY (the validate endpoint accepts
 // CLI keys from interactive login; API/CI keys may return 401).

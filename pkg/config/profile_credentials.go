@@ -10,8 +10,9 @@ func (p *Profile) ApplyValidateAPIKeyResponse(resp *hookdeck.ValidateAPIKeyRespo
 		return
 	}
 	p.ProjectId = resp.ProjectID
-	p.ProjectMode = resp.ProjectMode
-	p.ProjectType = ModeToProjectType(resp.ProjectMode)
+	p.ProjectProduct = resp.ProjectProduct
+	p.ProjectMode = ProductToLegacyMode(resp.ProjectProduct)
+	p.ProjectType = ProductToProjectType(resp.ProjectProduct)
 	if clearGuestURL {
 		p.GuestURL = ""
 	}
@@ -25,8 +26,9 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 	}
 	p.APIKey = resp.APIKey
 	p.ProjectId = resp.ProjectID
-	p.ProjectMode = resp.ProjectMode
-	p.ProjectType = ModeToProjectType(resp.ProjectMode)
+	p.ProjectProduct = resp.ProjectProduct
+	p.ProjectMode = ProductToLegacyMode(resp.ProjectProduct)
+	p.ProjectType = ProductToProjectType(resp.ProjectProduct)
 	p.GuestURL = guestURL
 }
 
@@ -34,7 +36,8 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 func (p *Profile) ApplyCIClient(ci hookdeck.CIClient) {
 	p.APIKey = ci.APIKey
 	p.ProjectId = ci.ProjectID
-	p.ProjectMode = ci.ProjectMode
-	p.ProjectType = ModeToProjectType(ci.ProjectMode)
+	p.ProjectProduct = ci.ProjectProduct
+	p.ProjectMode = ProductToLegacyMode(ci.ProjectProduct)
+	p.ProjectType = ProductToProjectType(ci.ProjectProduct)
 	p.GuestURL = ""
 }

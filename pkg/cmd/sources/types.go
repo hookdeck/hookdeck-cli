@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	openapiURL    = "https://api.hookdeck.com/2025-07-01/openapi"
+	openapiURL    = "https://api.hookdeck.com/2026-09-01/openapi"
 	cacheFileName = "hookdeck_source_types.json"
 	cacheTTL      = 24 * time.Hour
 )

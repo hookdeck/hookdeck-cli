@@ -13,7 +13,7 @@ This repository contains the Hookdeck CLI, a Go-based command-line tool for mana
 - `REFERENCE.md` - Complete CLI documentation and examples
 
 ### Key Files
-- `https://api.hookdeck.com/2025-07-01/openapi` - API specification (source of truth for all API interactions)
+- `https://api.hookdeck.com/2026-09-01/openapi` - API specification (source of truth for all API interactions)
 - `pkg/cmd/sources/` - Fetches and caches the OpenAPI spec for source type enum and auth rules; use for validation and help in source and connection management
 - `pkg/cmd/helptext.go` - Shared Short/Long help for resource commands (sources, connections); use when adding or editing command help to avoid duplication
 - `.plans/` - Implementation plans and architectural decisions

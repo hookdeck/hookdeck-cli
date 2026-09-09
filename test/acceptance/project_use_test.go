@@ -23,10 +23,10 @@ import (
 // - TestLocalConfigHelpers (no API calls, tests helper functions)
 //
 // Manual tests (in project_use_manual_test.go):
-// - TestProjectUseLocalCreatesConfig (requires /teams endpoint access)
-// - TestProjectUseSmartDefault (requires /teams endpoint access)
-// - TestProjectUseLocalCreateDirectory (requires /teams endpoint access)
-// - TestProjectUseLocalSecurityWarning (requires /teams endpoint access)
+// - TestProjectUseLocalCreatesConfig (requires /projects endpoint access)
+// - TestProjectUseSmartDefault (requires /projects endpoint access)
+// - TestProjectUseLocalCreateDirectory (requires /projects endpoint access)
+// - TestProjectUseLocalSecurityWarning (requires /projects endpoint access)
 //
 // To run manual tests: go test -tags=manual -v ./test/acceptance/
 

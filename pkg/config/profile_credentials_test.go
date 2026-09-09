@@ -22,9 +22,10 @@ func TestProfile_ApplyValidateAPIKeyResponse(t *testing.T) {
 		p := &Profile{GuestURL: "https://guest"}
 		p.ApplyValidateAPIKeyResponse(&hookdeck.ValidateAPIKeyResponse{
 			ProjectID:   "team_1",
-			ProjectMode: "inbound",
+			ProjectProduct: "event_gateway",
 		}, true)
 		require.Equal(t, "team_1", p.ProjectId)
+		require.Equal(t, "event_gateway", p.ProjectProduct)
 		require.Equal(t, "inbound", p.ProjectMode)
 		require.Equal(t, ProjectTypeGateway, p.ProjectType)
 		require.Empty(t, p.GuestURL)
@@ -34,7 +35,7 @@ func TestProfile_ApplyValidateAPIKeyResponse(t *testing.T) {
 		p := &Profile{GuestURL: "https://guest.example/x"}
 		p.ApplyValidateAPIKeyResponse(&hookdeck.ValidateAPIKeyResponse{
 			ProjectID:   "team_2",
-			ProjectMode: "console",
+			ProjectProduct: "console",
 		}, false)
 		require.Equal(t, "team_2", p.ProjectId)
 		require.Equal(t, ProjectTypeConsole, p.ProjectType)
@@ -55,7 +56,7 @@ func TestProfile_ApplyPollAPIKeyResponse(t *testing.T) {
 		p.ApplyPollAPIKeyResponse(&hookdeck.PollAPIKeyResponse{
 			APIKey:      "key_from_poll",
 			ProjectID:   "team_p",
-			ProjectMode: "inbound",
+			ProjectProduct: "event_gateway",
 		}, "https://guest")
 		require.Equal(t, "key_from_poll", p.APIKey)
 		require.Equal(t, "team_p", p.ProjectId)
@@ -68,7 +69,7 @@ func TestProfile_ApplyPollAPIKeyResponse(t *testing.T) {
 		p.ApplyPollAPIKeyResponse(&hookdeck.PollAPIKeyResponse{
 			APIKey:      "k123456789012",
 			ProjectID:   "t",
-			ProjectMode: "inbound",
+			ProjectProduct: "event_gateway",
 		}, "")
 		require.Empty(t, p.GuestURL)
 	})
@@ -79,7 +80,7 @@ func TestProfile_ApplyCIClient(t *testing.T) {
 	p.ApplyCIClient(hookdeck.CIClient{
 		APIKey:      "ci_key_123456",
 		ProjectID:   "team_ci",
-		ProjectMode: "inbound",
+		ProjectProduct: "event_gateway",
 	})
 	require.Equal(t, "ci_key_123456", p.APIKey)
 	require.Equal(t, "team_ci", p.ProjectId)
@@ -121,4 +122,5 @@ team_mode = "inbound"
 	assert.NotContains(t, tomlText, "team_id")
 	assert.NotContains(t, tomlText, "team_mode")
 	assert.Contains(t, tomlText, "project_id")
+	assert.Contains(t, tomlText, `project_product = 'event_gateway'`)
 }

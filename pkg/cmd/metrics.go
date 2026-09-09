@@ -61,6 +61,7 @@ type metricsCommonFlags struct {
 	dimensions    string
 	sourceID      string
 	destinationID string
+	deliveryGroup string
 	connectionID  string
 	status        string
 	issueID       string
@@ -79,9 +80,10 @@ func addMetricsCommonFlagsEx(cmd *cobra.Command, f *metricsCommonFlags, skipIssu
 	cmd.Flags().StringVar(&f.end, "end", "", "End of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.granularity, "granularity", "", granularityHelp)
 	cmd.Flags().StringVar(&f.measures, "measures", "", "Comma-separated list of measures to return")
-	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (e.g. connection_id, source_id, destination_id, status)")
+	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (e.g. connection_id, source_id, destination_id, delivery_group, status)")
 	cmd.Flags().StringVar(&f.sourceID, "source-id", "", "Filter by source ID")
 	cmd.Flags().StringVar(&f.destinationID, "destination-id", "", "Filter by destination ID")
+	cmd.Flags().StringVar(&f.deliveryGroup, "delivery-group", "", "Filter by delivery group")
 	cmd.Flags().StringVar(&f.connectionID, "connection-id", "", "Filter by connection ID")
 	cmd.Flags().StringVar(&f.status, "status", "", "Filter by status (e.g. SUCCESSFUL, FAILED)")
 	if !skipIssueID {
@@ -122,6 +124,7 @@ func metricsParamsFromFlags(f *metricsCommonFlags) hookdeck.MetricsQueryParams {
 		Dimensions:    dimensions,
 		SourceID:      f.sourceID,
 		DestinationID: f.destinationID,
+		DeliveryGroup: f.deliveryGroup,
 		ConnectionID:  f.connectionID,
 		Status:        f.status,
 		IssueID:       f.issueID,

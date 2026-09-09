@@ -32,7 +32,7 @@ func TestConfigureFromClaimedCliKey_guestProfileReplacesCredentials(t *testing.T
 			"organization_id":   "org_1",
 			"team_id":           "tm_gateway",
 			"team_name_no_org":  "Production",
-			"team_mode":         "inbound",
+			"team_product":      "event_gateway",
 			"client_id":         "cl_onboard",
 		})
 		require.NoError(t, err)

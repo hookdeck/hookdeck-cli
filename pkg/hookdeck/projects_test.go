@@ -17,12 +17,12 @@ func TestListProjects_omitsTeamAndProjectHeadersWhenConfigHasProjectID(t *testin
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawTeamHeader = r.Header.Get("X-Team-ID") != ""
 		sawProjectHeader = r.Header.Get("X-Project-ID") != ""
-		if r.URL.Path != APIPathPrefix+"/teams" {
+		if r.URL.Path != APIPathPrefix+"/projects" {
 			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]Project{{Id: "tm_1", Name: "[Org] Proj", Mode: "inbound"}})
+		_ = json.NewEncoder(w).Encode([]Project{{Id: "tm_1", Name: "[Org] Proj", Product: "event_gateway"}})
 	}))
 	t.Cleanup(server.Close)
 

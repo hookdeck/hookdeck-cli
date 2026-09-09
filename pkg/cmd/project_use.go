@@ -119,13 +119,13 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		}
 	}
 
-	// Use project by id and mode derived from type
-	mode := config.ProjectTypeToMode(selected.Type)
+	// Use project by id and public API product derived from the display type.
+	product := config.ProjectTypeToProduct(selected.Type)
 	var configPath string
 	var isNewConfig bool
 
 	if lc.local {
-		isNewConfig, err = Config.UseProjectLocal(selected.Id, mode)
+		isNewConfig, err = Config.UseProjectLocal(selected.Id, product)
 		if err != nil {
 			return err
 		}
@@ -143,13 +143,13 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		localConfigExists, _ := Config.FileExists(localConfigPath)
 
 		if localConfigExists {
-			isNewConfig, err = Config.UseProjectLocal(selected.Id, mode)
+			isNewConfig, err = Config.UseProjectLocal(selected.Id, product)
 			if err != nil {
 				return err
 			}
 			configPath = localConfigPath
 		} else {
-			err = Config.UseProject(selected.Id, mode)
+			err = Config.UseProject(selected.Id, product)
 			if err != nil {
 				return err
 			}

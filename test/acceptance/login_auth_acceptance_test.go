@@ -59,7 +59,7 @@ api_key = "hk_test_stale_accept01"
 				"claimed":           true,
 				"key":               "hk_test_newkey_accept01",
 				"team_id":           "tm_accept",
-				"team_mode":         "gateway",
+				"team_product":      "event_gateway",
 				"team_name":         "AcceptProj",
 				"user_name":         "Accept",
 				"user_email":        "accept@example.com",

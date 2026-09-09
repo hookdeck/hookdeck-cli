@@ -31,6 +31,7 @@ type MetricsQueryParams struct {
 	Dimensions    []string
 	SourceID      string
 	DestinationID string
+	DeliveryGroup string // sent as filters[delivery_group]
 	ConnectionID  string // sent as filters[webhook_id]
 	Status        string // e.g. SUCCESSFUL, FAILED
 	IssueID       string // sent as filters[issue_id]; required for events-by-issue
@@ -56,6 +57,9 @@ func buildMetricsQuery(p MetricsQueryParams) string {
 	}
 	if p.DestinationID != "" {
 		q.Set("filters[destination_id]", p.DestinationID)
+	}
+	if p.DeliveryGroup != "" {
+		q.Set("filters[delivery_group]", p.DeliveryGroup)
 	}
 	if p.ConnectionID != "" {
 		q.Set("filters[webhook_id]", p.ConnectionID)

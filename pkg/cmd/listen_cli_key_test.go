@@ -26,7 +26,7 @@ func validateStub(t *testing.T, projectID, projectName string) *httptest.Server 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(hookdeck.ValidateAPIKeyResponse{
 			ProjectID:   projectID,
-			ProjectMode: "console",
+			ProjectProduct: "console",
 			ProjectName: projectName,
 		})
 	}))

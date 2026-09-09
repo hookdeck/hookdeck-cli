@@ -48,9 +48,20 @@ func TestProjectTypeToMode(t *testing.T) {
 	}
 }
 
+func TestProductMappings(t *testing.T) {
+	assert.Equal(t, ProjectTypeGateway, ProductToProjectType("event_gateway"))
+	assert.Equal(t, ProjectTypeConsole, ProductToProjectType("console"))
+	assert.Equal(t, ProjectTypeOutpost, ProductToProjectType("outpost"))
+	assert.Equal(t, "", ProductToProjectType("unknown"))
+
+	assert.Equal(t, "event_gateway", ProjectTypeToProduct(ProjectTypeGateway))
+	assert.Equal(t, "inbound", ProductToLegacyMode("event_gateway"))
+	assert.Equal(t, "event_gateway", ModeToProduct("outbound"))
+}
+
 func TestIsGatewayProject(t *testing.T) {
 	// Gateway = inbound, outbound, or console (type or mode)
-	trueCases := []string{ProjectTypeGateway, "inbound", "outbound", "console", ProjectTypeConsole}
+	trueCases := []string{ProjectTypeGateway, ProjectProductEventGateway, "inbound", "outbound", "console", ProjectTypeConsole}
 	for _, v := range trueCases {
 		t.Run("true_"+v, func(t *testing.T) {
 			assert.True(t, IsGatewayProject(v))

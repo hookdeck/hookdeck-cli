@@ -20,7 +20,7 @@ func TestEnsureUserAssociatedCredentials_rejectsProjectScopedKey(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(hookdeck.ValidateAPIKeyResponse{
 			ProjectID:        "tm_ci",
-			ProjectMode:      "inbound",
+			ProjectProduct:   "event_gateway",
 			OrganizationName: "Org",
 			OrganizationID:   "org_1",
 			ProjectName:      "CI Project",

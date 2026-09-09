@@ -15,7 +15,7 @@ CONN_NAME="test-api-behavior-$(date +%s)"
 
 echo ""
 echo "=== Step 1: Creating connection with source and destination ==="
-CREATE_RESPONSE=$(curl -s -X PUT "https://api.hookdeck.com/2025-07-01/connections" \
+CREATE_RESPONSE=$(curl -s -X PUT "https://api.hookdeck.com/2026-09-01/connections" \
   -H "Authorization: Bearer $HOOKDECK_API_KEY" \
   -H "Content-Type: application/json" \
   -d "{
@@ -37,7 +37,7 @@ CONN_ID=$(echo "$CREATE_RESPONSE" | jq -r '.id')
 
 echo ""
 echo "=== Step 2: Updating ONLY description (no source/destination in request) ==="
-UPDATE_RESPONSE=$(curl -s -X PUT "https://api.hookdeck.com/2025-07-01/connections" \
+UPDATE_RESPONSE=$(curl -s -X PUT "https://api.hookdeck.com/2026-09-01/connections" \
   -H "Authorization: Bearer $HOOKDECK_API_KEY" \
   -H "Content-Type: application/json" \
   -d "{
@@ -51,7 +51,7 @@ echo "$UPDATE_RESPONSE" | jq '.'
 
 echo ""
 echo "=== Step 3: Cleanup ==="
-curl -s -X DELETE "https://api.hookdeck.com/2025-07-01/connections/$CONN_ID" \
+curl -s -X DELETE "https://api.hookdeck.com/2026-09-01/connections/$CONN_ID" \
   -H "Authorization: Bearer $HOOKDECK_API_KEY" > /dev/null
 
 echo "Deleted connection $CONN_ID"

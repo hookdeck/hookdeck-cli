@@ -55,6 +55,7 @@ func buildMetricsParams(in input) (hookdeck.MetricsQueryParams, error) {
 		Dimensions:    in.StringSlice("dimensions"),
 		SourceID:      in.String("source_id"),
 		DestinationID: in.String("destination_id"),
+		DeliveryGroup: in.String("delivery_group"),
 		ConnectionID:  in.String("connection_id"),
 		Status:        in.String("status"),
 		IssueID:       in.String("issue_id"),

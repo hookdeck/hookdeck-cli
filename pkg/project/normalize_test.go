@@ -10,14 +10,14 @@ import (
 
 func TestNormalizeProjects(t *testing.T) {
 	projects := []hookdeck.Project{
-		{Id: "p1", Name: "[Acme] Prod", Mode: "inbound"},
-		{Id: "p2", Name: "[Acme] Staging", Mode: "console"},
-		{Id: "p3", Name: "[Org2] Outpost", Mode: "outpost"},
-		{Id: "p4", Name: "[Org] Outbound", Mode: "outbound"},
-		{Id: "p5", Name: "No brackets", Mode: "inbound"},
+		{Id: "p1", Name: "[Acme] Prod", Product: "event_gateway"},
+		{Id: "p2", Name: "[Acme] Staging", Product: "console"},
+		{Id: "p3", Name: "[Org2] Outpost", Product: "outpost"},
+		{Id: "p4", Name: "[Org] Gateway", Product: "event_gateway"},
+		{Id: "p5", Name: "No brackets", Product: "event_gateway"},
 	}
 	items := NormalizeProjects(projects, "p2")
-	// inbound, outbound, console, outpost all have known types; 5 items (p4 outbound -> Gateway)
+	// event_gateway, console, and outpost are all known products.
 	require.Len(t, items, 5)
 
 	// p1: Gateway, Acme, Prod
@@ -27,17 +27,17 @@ func TestNormalizeProjects(t *testing.T) {
 	assert.Equal(t, "Gateway", items[0].Type)
 	assert.False(t, items[0].Current)
 
-	// p2: current, console mode -> Console type
+	// p2: current, console product -> Console type
 	assert.True(t, items[1].Current)
 	assert.Equal(t, "Console", items[1].Type)
 
 	// p3: Outpost
 	assert.Equal(t, "Outpost", items[2].Type)
 
-	// p4: outbound -> Gateway (same as inbound)
+	// p4: event_gateway product -> Gateway
 	assert.Equal(t, "p4", items[3].Id)
 	assert.Equal(t, "Org", items[3].Org)
-	assert.Equal(t, "Outbound", items[3].Project)
+	assert.Equal(t, "Gateway", items[3].Project)
 	assert.Equal(t, "Gateway", items[3].Type)
 
 	// p5: unparseable name -> org "", project "No brackets"
@@ -50,10 +50,9 @@ func TestNormalizeProjects_EmptyList(t *testing.T) {
 	assert.Empty(t, items)
 }
 
-// TestNormalizeProjects_OutboundMapsToGateway ensures outbound mode is treated as Gateway (same as inbound).
-func TestNormalizeProjects_OutboundMapsToGateway(t *testing.T) {
+func TestNormalizeProjects_EventGatewayProductMapsToGateway(t *testing.T) {
 	projects := []hookdeck.Project{
-		{Id: "p1", Name: "[A] P", Mode: "outbound"},
+		{Id: "p1", Name: "[A] P", Product: "event_gateway"},
 	}
 	items := NormalizeProjects(projects, "p1")
 	require.Len(t, items, 1)

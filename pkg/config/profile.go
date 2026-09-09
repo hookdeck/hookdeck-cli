@@ -8,6 +8,7 @@ type Profile struct {
 	Name        string // profile name
 	APIKey      string
 	ProjectId   string
+	ProjectProduct string
 	ProjectMode string
 	ProjectType string // display type: Gateway, Outpost, Console
 	GuestURL    string // URL to create permanent account for guest users
@@ -23,8 +24,12 @@ func (p *Profile) getConfigField(field string) string {
 func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
 	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
+	p.Config.viper.Set(p.getConfigField("project_product"), p.ProjectProduct)
 	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
 	projectType := p.ProjectType
+	if projectType == "" && p.ProjectProduct != "" {
+		projectType = ProductToProjectType(p.ProjectProduct)
+	}
 	if projectType == "" && p.ProjectMode != "" {
 		projectType = ModeToProjectType(p.ProjectMode)
 	}

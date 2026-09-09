@@ -60,8 +60,7 @@ Examples:
 	dc.cmd.Flags().StringVar(&dc.APIKeyTo, "api-key-to", "header", "Where to send API key (header or query)")
 	dc.cmd.Flags().StringVar(&dc.CustomSignatureSecret, "custom-signature-secret", "", "Signing secret for custom signature")
 	dc.cmd.Flags().StringVar(&dc.CustomSignatureKey, "custom-signature-key", "", "Key/header name for custom signature")
-	dc.cmd.Flags().IntVar(&dc.RateLimit, "rate-limit", 0, "Rate limit (requests per period)")
-	dc.cmd.Flags().StringVar(&dc.RateLimitPeriod, "rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
+	addDestinationDeliveryPolicyFlags(dc.cmd, &dc.destinationConfigFlags)
 	dc.cmd.Flags().StringVar(&dc.HTTPMethod, "http-method", "", "HTTP method for HTTP destinations")
 	dc.cmd.Flags().BoolVar(&dc.dryRun, "dry-run", false, "Preview changes without applying")
 	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
@@ -83,10 +82,7 @@ func (dc *destinationUpsertCmd) validateFlags(cmd *cobra.Command, args []string)
 	if dc.config != "" && dc.configFile != "" {
 		return fmt.Errorf("cannot use both --config and --config-file")
 	}
-	if dc.RateLimit > 0 && dc.RateLimitPeriod == "" {
-		return fmt.Errorf("--rate-limit-period is required when --rate-limit is set")
-	}
-	return nil
+	return dc.destinationConfigFlags.validateDeliveryPolicyFlags("")
 }
 
 func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args []string) error {

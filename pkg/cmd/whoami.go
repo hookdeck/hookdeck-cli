@@ -44,7 +44,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	projectName, orgName, projectMode, note := resolveActiveProject(response, Config.Profile.ProjectId, func() ([]hookdeck.Project, error) {
+	projectName, orgName, projectProduct, note := resolveActiveProject(response, Config.Profile.ProjectId, func() ([]hookdeck.Project, error) {
 		return Config.GetAPIClient().ListProjects()
 	})
 
@@ -69,11 +69,14 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	projectType := Config.Profile.ProjectType
+	if projectType == "" && Config.Profile.ProjectProduct != "" {
+		projectType = config.ProductToProjectType(Config.Profile.ProjectProduct)
+	}
 	if projectType == "" && Config.Profile.ProjectMode != "" {
 		projectType = config.ModeToProjectType(Config.Profile.ProjectMode)
 	}
-	if projectType == "" && projectMode != "" {
-		projectType = config.ModeToProjectType(projectMode)
+	if projectType == "" && projectProduct != "" {
+		projectType = config.ProductToProjectType(projectProduct)
 	}
 	if projectType != "" {
 		fmt.Printf("Project type: %s\n", projectType)
@@ -83,24 +86,24 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 }
 
 // resolveActiveProject returns the project name, organization name, and project
-// mode to display. /cli-auth/validate resolves the project from the API key's
+// product to display. /cli-auth/validate resolves the project from the API key's
 // bound team and ignores the profile's active project_id, so when the two
 // differ the active project is looked up via listProjects. A non-empty note is
 // returned when the active project could not be resolved and the key-bound
 // values are shown instead.
-func resolveActiveProject(response *hookdeck.ValidateAPIKeyResponse, activeProjectID string, listProjects func() ([]hookdeck.Project, error)) (projectName, orgName, projectMode, note string) {
+func resolveActiveProject(response *hookdeck.ValidateAPIKeyResponse, activeProjectID string, listProjects func() ([]hookdeck.Project, error)) (projectName, orgName, projectProduct, note string) {
 	projectName = response.ProjectName
 	orgName = response.OrganizationName
-	projectMode = response.ProjectMode
+	projectProduct = response.ProjectProduct
 
 	if activeProjectID == "" || activeProjectID == response.ProjectID {
-		return projectName, orgName, projectMode, ""
+		return projectName, orgName, projectProduct, ""
 	}
 
 	projects, err := listProjects()
 	if err != nil {
 		note = fmt.Sprintf("Warning: could not look up the active project (%s); showing the project associated with your API key.", activeProjectID)
-		return projectName, orgName, projectMode, note
+		return projectName, orgName, projectProduct, note
 	}
 
 	for _, p := range projects {
@@ -112,9 +115,9 @@ func resolveActiveProject(response *hookdeck.ValidateAPIKeyResponse, activeProje
 			org = ""
 			proj = p.Name
 		}
-		return proj, org, p.Mode, ""
+		return proj, org, p.Product, ""
 	}
 
 	note = fmt.Sprintf("Warning: the active project (%s) was not found; showing the project associated with your API key. Run 'hookdeck project use' to select a project.", activeProjectID)
-	return projectName, orgName, projectMode, note
+	return projectName, orgName, projectProduct, note
 }

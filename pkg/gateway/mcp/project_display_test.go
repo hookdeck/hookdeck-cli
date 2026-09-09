@@ -13,12 +13,12 @@ import (
 
 func TestFillProjectDisplayNameIfNeeded_SetsNameFromAPI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/2025-07-01/teams" {
+		if r.URL.Path != "/2026-09-01/projects" {
 			http.NotFound(w, r)
 			return
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"id": "proj_x", "name": "[Acme] production", "mode": "console"},
+			{"id": "proj_x", "name": "[Acme] production", "product": "console"},
 		})
 	}))
 	t.Cleanup(srv.Close)

@@ -7,6 +7,10 @@ const (
 	ProjectTypeGateway = "Gateway"
 	ProjectTypeOutpost = "Outpost"
 	ProjectTypeConsole = "Console"
+
+	ProjectProductEventGateway = "event_gateway"
+	ProjectProductOutpost      = "outpost"
+	ProjectProductConsole      = "console"
 )
 
 // OutboundMode is the API mode for outbound projects; treated as Gateway (same as inbound).
@@ -29,6 +33,64 @@ func ModeToProjectType(mode string) string {
 	}
 }
 
+// ProductToProjectType maps the public API product to the CLI display type.
+func ProductToProjectType(product string) string {
+	switch strings.ToLower(product) {
+	case ProjectProductEventGateway:
+		return ProjectTypeGateway
+	case ProjectProductConsole:
+		return ProjectTypeConsole
+	case ProjectProductOutpost:
+		return ProjectTypeOutpost
+	default:
+		return ""
+	}
+}
+
+// ProjectTypeToProduct maps the CLI display type to the public API product.
+func ProjectTypeToProduct(projectType string) string {
+	switch projectType {
+	case ProjectTypeGateway:
+		return ProjectProductEventGateway
+	case ProjectTypeConsole:
+		return ProjectProductConsole
+	case ProjectTypeOutpost:
+		return ProjectProductOutpost
+	default:
+		return ""
+	}
+}
+
+// ProductToLegacyMode returns a representative legacy mode for local config
+// compatibility. The public API intentionally combines inbound and outbound
+// projects under the event_gateway product.
+func ProductToLegacyMode(product string) string {
+	switch strings.ToLower(product) {
+	case ProjectProductEventGateway:
+		return "inbound"
+	case ProjectProductConsole:
+		return "console"
+	case ProjectProductOutpost:
+		return "outpost"
+	default:
+		return ""
+	}
+}
+
+// ModeToProduct maps a legacy internal API mode to the public product.
+func ModeToProduct(mode string) string {
+	switch strings.ToLower(mode) {
+	case "inbound", OutboundMode:
+		return ProjectProductEventGateway
+	case "console":
+		return ProjectProductConsole
+	case "outpost":
+		return ProjectProductOutpost
+	default:
+		return ""
+	}
+}
+
 // ProjectTypeToMode maps display type to API mode (for backward compat when only type is set).
 func ProjectTypeToMode(projectType string) string {
 	switch projectType {
@@ -43,10 +105,10 @@ func ProjectTypeToMode(projectType string) string {
 	}
 }
 
-// IsGatewayProject returns true if the given type or mode represents a Gateway project (inbound, outbound, or console).
-func IsGatewayProject(typeOrMode string) bool {
-	switch typeOrMode {
-	case ProjectTypeGateway, ProjectTypeConsole, "inbound", "outbound", "console":
+// IsGatewayProject returns true if the given type, product, or legacy mode represents a Gateway project.
+func IsGatewayProject(typeProductOrMode string) bool {
+	switch typeProductOrMode {
+	case ProjectTypeGateway, ProjectTypeConsole, ProjectProductEventGateway, "inbound", "outbound", "console":
 		return true
 	default:
 		return false
