@@ -11,7 +11,7 @@ when the output stream is not a terminal or when colors are disabled.
 
 **Affected:** v2.5.0 and earlier.
 
-**Recommended fix:** Update to **v2.5.1 or later**.
+**Recommended fix:** Update to **v2.6.0 or later**.
 
 - npm: `npm install -g hookdeck-cli@latest`
 - Homebrew: `brew upgrade hookdeck`
