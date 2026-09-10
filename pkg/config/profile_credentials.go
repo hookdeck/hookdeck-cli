@@ -2,6 +2,17 @@ package config
 
 import "github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 
+// resolveProduct returns the product to store. It prefers the current
+// team_product field and falls back to the pre-2026-09-01 team_mode, so a
+// response missing the new field leaves the profile usable rather than blank:
+// an empty product makes IsGatewayProject false and fails every gateway command.
+func resolveProduct(product, legacyMode string) string {
+	if product != "" {
+		return product
+	}
+	return ModeToProduct(legacyMode)
+}
+
 // ApplyValidateAPIKeyResponse updates project fields from GET /cli-auth/validate.
 // When clearGuestURL is true, GuestURL is cleared (e.g. hookdeck login re-verify).
 // When false, GuestURL is left unchanged (e.g. gateway PreRun resolving type only).
@@ -10,9 +21,10 @@ func (p *Profile) ApplyValidateAPIKeyResponse(resp *hookdeck.ValidateAPIKeyRespo
 		return
 	}
 	p.ProjectId = resp.ProjectID
-	p.ProjectProduct = resp.ProjectProduct
-	p.ProjectMode = ProductToLegacyMode(resp.ProjectProduct)
-	p.ProjectType = ProductToProjectType(resp.ProjectProduct)
+	product := resolveProduct(resp.ProjectProduct, resp.ProjectMode)
+	p.ProjectProduct = product
+	p.ProjectMode = ProductToLegacyMode(product)
+	p.ProjectType = ProductToProjectType(product)
 	if clearGuestURL {
 		p.GuestURL = ""
 	}
@@ -26,9 +38,10 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 	}
 	p.APIKey = resp.APIKey
 	p.ProjectId = resp.ProjectID
-	p.ProjectProduct = resp.ProjectProduct
-	p.ProjectMode = ProductToLegacyMode(resp.ProjectProduct)
-	p.ProjectType = ProductToProjectType(resp.ProjectProduct)
+	product := resolveProduct(resp.ProjectProduct, resp.ProjectMode)
+	p.ProjectProduct = product
+	p.ProjectMode = ProductToLegacyMode(product)
+	p.ProjectType = ProductToProjectType(product)
 	p.GuestURL = guestURL
 }
 
@@ -36,8 +49,9 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 func (p *Profile) ApplyCIClient(ci hookdeck.CIClient) {
 	p.APIKey = ci.APIKey
 	p.ProjectId = ci.ProjectID
-	p.ProjectProduct = ci.ProjectProduct
-	p.ProjectMode = ProductToLegacyMode(ci.ProjectProduct)
-	p.ProjectType = ProductToProjectType(ci.ProjectProduct)
+	product := resolveProduct(ci.ProjectProduct, ci.ProjectMode)
+	p.ProjectProduct = product
+	p.ProjectMode = ProductToLegacyMode(product)
+	p.ProjectType = ProductToProjectType(product)
 	p.GuestURL = ""
 }

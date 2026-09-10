@@ -274,14 +274,7 @@ func (c *Config) setProfileFieldsInViper(v *viper.Viper) {
 	v.Set(c.Profile.getConfigField("project_id"), c.Profile.ProjectId)
 	v.Set(c.Profile.getConfigField("project_product"), c.Profile.ProjectProduct)
 	v.Set(c.Profile.getConfigField("project_mode"), c.Profile.ProjectMode)
-	projectType := c.Profile.ProjectType
-	if projectType == "" && c.Profile.ProjectProduct != "" {
-		projectType = ProductToProjectType(c.Profile.ProjectProduct)
-	}
-	if projectType == "" && c.Profile.ProjectMode != "" {
-		projectType = ModeToProjectType(c.Profile.ProjectMode)
-	}
-	v.Set(c.Profile.getConfigField("project_type"), projectType)
+	v.Set(c.Profile.getConfigField("project_type"), c.Profile.ResolveProjectType())
 	if c.Profile.GuestURL != "" {
 		v.Set(c.Profile.getConfigField("guest_url"), c.Profile.GuestURL)
 	}
@@ -401,12 +394,7 @@ func (c *Config) constructConfig() {
 
 	// ProjectType: prefer project_type, then derive from the public product, then legacy mode.
 	c.Profile.ProjectType = stringCoalesce(c.Profile.ProjectType, c.viper.GetString(c.Profile.getConfigField("project_type")), c.viper.GetString("project_type"), "")
-	if c.Profile.ProjectType == "" && c.Profile.ProjectProduct != "" {
-		c.Profile.ProjectType = ProductToProjectType(c.Profile.ProjectProduct)
-	}
-	if c.Profile.ProjectType == "" && c.Profile.ProjectMode != "" {
-		c.Profile.ProjectType = ModeToProjectType(c.Profile.ProjectMode)
-	}
+	c.Profile.ProjectType = c.Profile.ResolveProjectType()
 	if c.Profile.ProjectProduct == "" && c.Profile.ProjectMode != "" {
 		c.Profile.ProjectProduct = ModeToProduct(c.Profile.ProjectMode)
 	}

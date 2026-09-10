@@ -1936,6 +1936,8 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 
 **Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--source-id`, `--destination-id`, `--connection-id`, `--status`, `--output` (json).
 
+`--delivery-group` filters by delivery group on `metrics events` and `metrics attempts` only. The requests and transformations endpoints do not accept it, so the flag is not offered there, and it cannot be combined with `--measures pending` or per-issue metrics.
+
 ## Utilities
 
 <!-- GENERATE:completion|ci:START -->

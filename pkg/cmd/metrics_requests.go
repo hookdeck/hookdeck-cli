@@ -10,7 +10,7 @@ import (
 const metricsRequestsMeasures = "count, accepted_count, rejected_count, discarded_count, avg_events_per_request, avg_ignored_per_request"
 
 type metricsRequestsCmd struct {
-	cmd  *cobra.Command
+	cmd   *cobra.Command
 	flags metricsCommonFlags
 }
 
@@ -23,7 +23,8 @@ func newMetricsRequestsCmd() *metricsRequestsCmd {
 		Long:  LongBeta(`Query metrics for requests (acceptance, rejection, etc.). Measures: ` + metricsRequestsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags)
+	// The requests filter schema has no delivery_group, and rejects unknown filters.
+	addMetricsCommonFlagsEx(c.cmd, &c.flags, metricsFlagOpts{skipDeliveryGroup: true})
 	return c
 }
 

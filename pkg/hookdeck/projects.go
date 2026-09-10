@@ -2,6 +2,7 @@ package hookdeck
 
 import (
 	"context"
+	"fmt"
 )
 
 type Project struct {
@@ -19,7 +20,11 @@ func (c *Client) ListProjects() ([]Project, error) {
 		return []Project{}, err
 	}
 	projects := []Project{}
-	postprocessJsonResponse(res, &projects)
+	// A shape mismatch here used to return an empty list and a nil error, so a
+	// renamed field or a wrapped envelope read as "you have no projects".
+	if _, err := postprocessJsonResponse(res, &projects); err != nil {
+		return []Project{}, fmt.Errorf("failed to parse project list response: %w", err)
+	}
 
 	return projects, nil
 }

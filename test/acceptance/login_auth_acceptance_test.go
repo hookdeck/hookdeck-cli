@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,6 +100,16 @@ api_key = "hk_test_stale_accept01"
 	require.NoError(t, err, "stdout=%q stderr=%q", stdout.String(), stderr.String())
 	require.Contains(t, stdout.String(), "no longer valid", "user should see stale-key message")
 	require.Equal(t, 1, pollHits, "mock should see exactly one poll after cli-auth")
+
+	// End-to-end check that the 2026-09-01 product survives the whole round trip:
+	// API response -> profile -> config file. Everything else about the rename is
+	// covered by unit tests against mocks that this repo also writes, so this is
+	// the only place the persisted field is verified against a real CLI run.
+	written, readErr := os.ReadFile(configPath)
+	require.NoError(t, readErr)
+	assert.Contains(t, string(written), "project_product = 'event_gateway'")
+	assert.Contains(t, string(written), "project_type = 'Gateway'")
+	assert.Contains(t, string(written), "project_id = 'tm_accept'")
 }
 
 // TestCIFailsFastWithInvalidAPIKeyAcceptance verifies hookdeck ci does not enter the

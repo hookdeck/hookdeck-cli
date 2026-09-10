@@ -16,8 +16,11 @@ type CIClient struct {
 	ProjectID        string `json:"team_id"`
 	ProjectName      string `json:"team_name"`
 	ProjectProduct   string `json:"team_product"`
-	APIKey           string `json:"key"`
-	ClientID         string `json:"client_id"`
+	// ProjectMode is the pre-2026-09-01 field. Kept so a response without
+	// team_product still resolves a project type instead of blanking it.
+	ProjectMode string `json:"team_mode"`
+	APIKey      string `json:"key"`
+	ClientID    string `json:"client_id"`
 }
 
 type CreateCIClientInput struct {

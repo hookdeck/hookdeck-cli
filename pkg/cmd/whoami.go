@@ -68,13 +68,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%s\n", note)
 	}
 
-	projectType := Config.Profile.ProjectType
-	if projectType == "" && Config.Profile.ProjectProduct != "" {
-		projectType = config.ProductToProjectType(Config.Profile.ProjectProduct)
-	}
-	if projectType == "" && Config.Profile.ProjectMode != "" {
-		projectType = config.ModeToProjectType(Config.Profile.ProjectMode)
-	}
+	projectType := Config.Profile.ResolveProjectType()
 	if projectType == "" && projectProduct != "" {
 		projectType = config.ProductToProjectType(projectProduct)
 	}

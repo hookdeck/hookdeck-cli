@@ -27,7 +27,10 @@ type ValidateAPIKeyResponse struct {
 	ProjectID        string `json:"team_id"`
 	ProjectName      string `json:"team_name_no_org"`
 	ProjectProduct   string `json:"team_product"`
-	ClientID         string `json:"client_id"`
+	// ProjectMode is the pre-2026-09-01 field. Kept so a response without
+	// team_product still resolves a project type instead of blanking it.
+	ProjectMode string `json:"team_mode"`
+	ClientID    string `json:"client_id"`
 }
 
 // PollAPIKeyResponse returns the data of the polling client login
@@ -41,8 +44,11 @@ type PollAPIKeyResponse struct {
 	ProjectID        string `json:"team_id"`
 	ProjectName      string `json:"team_name"`
 	ProjectProduct   string `json:"team_product"`
-	APIKey           string `json:"key"`
-	ClientID         string `json:"client_id"`
+	// ProjectMode is the pre-2026-09-01 field. Kept so a response without
+	// team_product still resolves a project type instead of blanking it.
+	ProjectMode string `json:"team_mode"`
+	APIKey      string `json:"key"`
+	ClientID    string `json:"client_id"`
 }
 
 // UpdateClientInput represents the input for updating a CLI client

@@ -260,6 +260,11 @@ func TestInitConfig(t *testing.T) {
 
 		assert.Equal(t, "inbound", c.Profile.ProjectMode)
 		assert.Equal(t, "Gateway", c.Profile.ProjectType)
+		// The upgrade path: a config written before 2026-09-01 has no
+		// project_product, so it has to be derived from the legacy mode.
+		// Without this, an upgraded user has an empty product until they
+		// log in again, and IsGatewayProject("") fails every gateway command.
+		assert.Equal(t, "event_gateway", c.Profile.ProjectProduct)
 	})
 
 	t.Run("project_type and project_mode - prefer project_type", func(t *testing.T) {
@@ -313,6 +318,25 @@ func TestWriteConfig(t *testing.T) {
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
 		assert.Contains(t, string(contentBytes), `project_id = 'new_team_id'`)
 		assert.Contains(t, string(contentBytes), `project_type = 'Gateway'`)
+		// A legacy mode in, the public product written back out.
+		assert.Contains(t, string(contentBytes), `project_product = 'event_gateway'`)
+		assert.Contains(t, string(contentBytes), `project_mode = 'inbound'`)
+	})
+
+	t.Run("use project with a product", func(t *testing.T) {
+		t.Parallel()
+
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/default-profile.toml")
+		c.InitConfig()
+
+		err := c.UseProject("new_team_id", "outpost")
+
+		assert.NoError(t, err)
+		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
+		assert.Contains(t, string(contentBytes), `project_product = 'outpost'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'Outpost'`)
+		assert.Contains(t, string(contentBytes), `project_mode = 'outpost'`)
 	})
 
 	t.Run("use profile", func(t *testing.T) {

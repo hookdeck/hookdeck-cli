@@ -48,15 +48,101 @@ func TestProjectTypeToMode(t *testing.T) {
 	}
 }
 
-func TestProductMappings(t *testing.T) {
-	assert.Equal(t, ProjectTypeGateway, ProductToProjectType("event_gateway"))
-	assert.Equal(t, ProjectTypeConsole, ProductToProjectType("console"))
-	assert.Equal(t, ProjectTypeOutpost, ProductToProjectType("outpost"))
-	assert.Equal(t, "", ProductToProjectType("unknown"))
+func TestProductToProjectType(t *testing.T) {
+	tests := []struct {
+		product  string
+		expected string
+	}{
+		{ProjectProductEventGateway, ProjectTypeGateway},
+		{ProjectProductConsole, ProjectTypeConsole},
+		{ProjectProductOutpost, ProjectTypeOutpost},
+		{"EVENT_GATEWAY", ProjectTypeGateway},
+		{"unknown", ""},
+		// An empty product is the response-missing-the-field case. It must not
+		// resolve to a type, and callers have to treat "" as "unknown", not as
+		// a project that happens to be a Gateway.
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.product, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ProductToProjectType(tt.product))
+		})
+	}
+}
 
-	assert.Equal(t, "event_gateway", ProjectTypeToProduct(ProjectTypeGateway))
-	assert.Equal(t, "inbound", ProductToLegacyMode("event_gateway"))
-	assert.Equal(t, "event_gateway", ModeToProduct("outbound"))
+func TestProjectTypeToProduct(t *testing.T) {
+	tests := []struct {
+		projectType string
+		expected    string
+	}{
+		{ProjectTypeGateway, ProjectProductEventGateway},
+		{ProjectTypeConsole, ProjectProductConsole},
+		{ProjectTypeOutpost, ProjectProductOutpost},
+		{"gateway", ProjectProductEventGateway},
+		{"Unknown", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.projectType, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ProjectTypeToProduct(tt.projectType))
+		})
+	}
+}
+
+func TestProductToLegacyMode(t *testing.T) {
+	tests := []struct {
+		product  string
+		expected string
+	}{
+		// event_gateway covers both inbound and outbound; "inbound" is the
+		// representative value written back to config.
+		{ProjectProductEventGateway, "inbound"},
+		{ProjectProductConsole, "console"},
+		{ProjectProductOutpost, "outpost"},
+		{"OUTPOST", "outpost"},
+		{"unknown", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.product, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ProductToLegacyMode(tt.product))
+		})
+	}
+}
+
+func TestModeToProduct(t *testing.T) {
+	tests := []struct {
+		mode     string
+		expected string
+	}{
+		{"inbound", ProjectProductEventGateway},
+		{OutboundMode, ProjectProductEventGateway},
+		{"console", ProjectProductConsole},
+		{"outpost", ProjectProductOutpost},
+		{"Inbound", ProjectProductEventGateway},
+		{"unknown", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.mode, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ModeToProduct(tt.mode))
+		})
+	}
+}
+
+// TestProductRoundTrip pins the deliberate lossiness of the mapping: the public
+// API folds inbound and outbound into one product, so a round trip through
+// product normalizes outbound to inbound. Type survives; mode does not.
+func TestProductRoundTrip(t *testing.T) {
+	for _, projectType := range []string{ProjectTypeGateway, ProjectTypeConsole, ProjectTypeOutpost} {
+		t.Run(projectType, func(t *testing.T) {
+			assert.Equal(t, projectType, ProductToProjectType(ProjectTypeToProduct(projectType)))
+		})
+	}
+
+	assert.Equal(t, "inbound", ProductToLegacyMode(ModeToProduct("outbound")),
+		"outbound is expected to normalize to inbound through the product mapping")
+	assert.Equal(t, "inbound", ProductToLegacyMode(ModeToProduct("inbound")))
 }
 
 func TestIsGatewayProject(t *testing.T) {
@@ -67,7 +153,8 @@ func TestIsGatewayProject(t *testing.T) {
 			assert.True(t, IsGatewayProject(v))
 		})
 	}
-	falseCases := []string{ProjectTypeOutpost, ""}
+	trueCases = append(trueCases, "EVENT_GATEWAY", "Inbound")
+	falseCases := []string{ProjectTypeOutpost, ProjectProductOutpost, "", "unknown"}
 	for _, v := range falseCases {
 		t.Run("false_"+v, func(t *testing.T) {
 			assert.False(t, IsGatewayProject(v))

@@ -5,13 +5,13 @@ import (
 )
 
 type Profile struct {
-	Name        string // profile name
-	APIKey      string
-	ProjectId   string
+	Name           string // profile name
+	APIKey         string
+	ProjectId      string
 	ProjectProduct string
-	ProjectMode string
-	ProjectType string // display type: Gateway, Outpost, Console
-	GuestURL    string // URL to create permanent account for guest users
+	ProjectMode    string
+	ProjectType    string // display type: Gateway, Outpost, Console
+	GuestURL       string // URL to create permanent account for guest users
 
 	Config *Config
 }
@@ -21,19 +21,26 @@ func (p *Profile) getConfigField(field string) string {
 	return p.Name + "." + field
 }
 
+// ResolveProjectType returns the display type for this profile: the stored type
+// if there is one, otherwise derived from the product, otherwise from the legacy
+// mode. This precedence was open-coded in five places; keep it here so a caller
+// cannot get the order subtly wrong.
+func (p *Profile) ResolveProjectType() string {
+	if p.ProjectType != "" {
+		return p.ProjectType
+	}
+	if t := ProductToProjectType(p.ProjectProduct); t != "" {
+		return t
+	}
+	return ModeToProjectType(p.ProjectMode)
+}
+
 func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
 	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
 	p.Config.viper.Set(p.getConfigField("project_product"), p.ProjectProduct)
 	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
-	projectType := p.ProjectType
-	if projectType == "" && p.ProjectProduct != "" {
-		projectType = ProductToProjectType(p.ProjectProduct)
-	}
-	if projectType == "" && p.ProjectMode != "" {
-		projectType = ModeToProjectType(p.ProjectMode)
-	}
-	p.Config.viper.Set(p.getConfigField("project_type"), projectType)
+	p.Config.viper.Set(p.getConfigField("project_type"), p.ResolveProjectType())
 	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
 
 	if err := p.removeLegacyConfigKeys(); err != nil {

@@ -48,13 +48,14 @@ func ProductToProjectType(product string) string {
 }
 
 // ProjectTypeToProduct maps the CLI display type to the public API product.
+// Case-insensitive, like the other mappers in this file.
 func ProjectTypeToProduct(projectType string) string {
-	switch projectType {
-	case ProjectTypeGateway:
+	switch strings.ToLower(projectType) {
+	case strings.ToLower(ProjectTypeGateway):
 		return ProjectProductEventGateway
-	case ProjectTypeConsole:
+	case strings.ToLower(ProjectTypeConsole):
 		return ProjectProductConsole
-	case ProjectTypeOutpost:
+	case strings.ToLower(ProjectTypeOutpost):
 		return ProjectProductOutpost
 	default:
 		return ""
@@ -106,9 +107,10 @@ func ProjectTypeToMode(projectType string) string {
 }
 
 // IsGatewayProject returns true if the given type, product, or legacy mode represents a Gateway project.
+// Case-insensitive, like the other mappers in this file.
 func IsGatewayProject(typeProductOrMode string) bool {
-	switch typeProductOrMode {
-	case ProjectTypeGateway, ProjectTypeConsole, ProjectProductEventGateway, "inbound", "outbound", "console":
+	switch strings.ToLower(typeProductOrMode) {
+	case strings.ToLower(ProjectTypeGateway), strings.ToLower(ProjectTypeConsole), ProjectProductEventGateway, "inbound", "outbound", "console":
 		return true
 	default:
 		return false
