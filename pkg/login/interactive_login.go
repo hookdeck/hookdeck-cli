@@ -158,7 +158,11 @@ func protectTerminalState() (chan os.Signal, error) {
 		return nil, err
 	}
 
-	signalChan := make(chan os.Signal)
+	// Buffered by one: signal.Notify never blocks, so it drops signals sent
+	// while nobody is receiving. The goroutine below is started immediately
+	// after, but a Ctrl-C in that window would be discarded and the terminal
+	// left in the raw state the prompt put it in.
+	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 
 	go func() {
