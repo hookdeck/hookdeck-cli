@@ -2,15 +2,19 @@ package config
 
 import "github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 
-// resolveProduct returns the product to store. It prefers the current
-// team_product field and falls back to the pre-2026-09-01 team_mode, so a
-// response missing the new field leaves the profile usable rather than blank:
-// an empty product makes IsGatewayProject false and fails every gateway command.
-func resolveProduct(product, legacyMode string) string {
-	if product != "" {
-		return product
+// resolveType returns the project type to store. It prefers the current
+// team_type field, then team_product (served briefly before the rename), then
+// the pre-2026-09-01 team_mode. Without the fallbacks a response missing the
+// newest field leaves the profile blank: an empty type makes IsGatewayProject
+// false and fails every gateway command.
+func resolveType(projectType, legacyProduct, legacyMode string) string {
+	if t := NormalizeProjectType(projectType); t != "" {
+		return t
 	}
-	return ModeToProduct(legacyMode)
+	if t := NormalizeProjectType(legacyProduct); t != "" {
+		return t
+	}
+	return ModeToType(legacyMode)
 }
 
 // ApplyValidateAPIKeyResponse updates project fields from GET /cli-auth/validate.
@@ -21,10 +25,9 @@ func (p *Profile) ApplyValidateAPIKeyResponse(resp *hookdeck.ValidateAPIKeyRespo
 		return
 	}
 	p.ProjectId = resp.ProjectID
-	product := resolveProduct(resp.ProjectProduct, resp.ProjectMode)
-	p.ProjectProduct = product
-	p.ProjectMode = ProductToLegacyMode(product)
-	p.ProjectType = ProductToProjectType(product)
+	projectType := resolveType(resp.ProjectType, resp.ProjectProduct, resp.ProjectMode)
+	p.ProjectType = projectType
+	p.ProjectMode = TypeToLegacyMode(projectType)
 	if clearGuestURL {
 		p.GuestURL = ""
 	}
@@ -38,10 +41,9 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 	}
 	p.APIKey = resp.APIKey
 	p.ProjectId = resp.ProjectID
-	product := resolveProduct(resp.ProjectProduct, resp.ProjectMode)
-	p.ProjectProduct = product
-	p.ProjectMode = ProductToLegacyMode(product)
-	p.ProjectType = ProductToProjectType(product)
+	projectType := resolveType(resp.ProjectType, resp.ProjectProduct, resp.ProjectMode)
+	p.ProjectType = projectType
+	p.ProjectMode = TypeToLegacyMode(projectType)
 	p.GuestURL = guestURL
 }
 
@@ -49,9 +51,8 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 func (p *Profile) ApplyCIClient(ci hookdeck.CIClient) {
 	p.APIKey = ci.APIKey
 	p.ProjectId = ci.ProjectID
-	product := resolveProduct(ci.ProjectProduct, ci.ProjectMode)
-	p.ProjectProduct = product
-	p.ProjectMode = ProductToLegacyMode(product)
-	p.ProjectType = ProductToProjectType(product)
+	projectType := resolveType(ci.ProjectType, ci.ProjectProduct, ci.ProjectMode)
+	p.ProjectType = projectType
+	p.ProjectMode = TypeToLegacyMode(projectType)
 	p.GuestURL = ""
 }

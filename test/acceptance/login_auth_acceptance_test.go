@@ -60,7 +60,7 @@ api_key = "hk_test_stale_accept01"
 				"claimed":           true,
 				"key":               "hk_test_newkey_accept01",
 				"team_id":           "tm_accept",
-				"team_product":      "event_gateway",
+				"team_type":         "event_gateway",
 				"team_name":         "AcceptProj",
 				"user_name":         "Accept",
 				"user_email":        "accept@example.com",
@@ -101,14 +101,15 @@ api_key = "hk_test_stale_accept01"
 	require.Contains(t, stdout.String(), "no longer valid", "user should see stale-key message")
 	require.Equal(t, 1, pollHits, "mock should see exactly one poll after cli-auth")
 
-	// End-to-end check that the 2026-09-01 product survives the whole round trip:
+	// End-to-end check that the 2026-09-01 project type survives the whole round trip:
 	// API response -> profile -> config file. Everything else about the rename is
 	// covered by unit tests against mocks that this repo also writes, so this is
 	// the only place the persisted field is verified against a real CLI run.
 	written, readErr := os.ReadFile(configPath)
 	require.NoError(t, readErr)
-	assert.Contains(t, string(written), "project_product = 'event_gateway'")
-	assert.Contains(t, string(written), "project_type = 'Gateway'")
+	assert.Contains(t, string(written), "project_type = 'event_gateway'")
+	assert.Contains(t, string(written), "project_mode = 'inbound'", "the legacy mode is still written for older CLIs")
+	assert.NotContains(t, string(written), "project_product", "the short-lived product key must not be written")
 	assert.Contains(t, string(written), "project_id = 'tm_accept'")
 }
 

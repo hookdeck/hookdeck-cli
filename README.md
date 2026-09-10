@@ -1212,7 +1212,7 @@ The Hookdeck CLI configuration file is stored in TOML format and typically inclu
 ```toml
 api_key = "api_key_xxxxxxxxxxxxxxxxxxxx"
 project_id = "tm_xxxxxxxxxxxxxxx"
-project_product = "event_gateway" | "outpost" | "console"
+project_type = "event_gateway" | "outpost" | "console"
 ```
 
 ### Local Configuration
@@ -1243,12 +1243,12 @@ profile = "dev"
 [dev]
   api_key = "api_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   project_id = "tm_5JxTelcYxOJy"
-  project_product = "event_gateway"
+  project_type = "event_gateway"
 
 [prod]
   api_key = "api_key_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
   project_id = "tm_U9Zod13qtsHp"
-  project_product = "event_gateway"
+  project_type = "event_gateway"
 ```
 
 This allows you to run commands against different projects. For example, to listen to the `webhooks` source in the `dev` profile, run:

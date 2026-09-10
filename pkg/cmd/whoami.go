@@ -44,7 +44,7 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	projectName, orgName, projectProduct, note := resolveActiveProject(response, Config.Profile.ProjectId, func() ([]hookdeck.Project, error) {
+	projectName, orgName, apiProjectType, note := resolveActiveProject(response, Config.Profile.ProjectId, func() ([]hookdeck.Project, error) {
 		return Config.GetAPIClient().ListProjects()
 	})
 
@@ -69,35 +69,36 @@ func (lc *whoamiCmd) runWhoamiCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	projectType := Config.Profile.ResolveProjectType()
-	if projectType == "" && projectProduct != "" {
-		projectType = config.ProductToProjectType(projectProduct)
+	if projectType == "" {
+		projectType = config.NormalizeProjectType(apiProjectType)
 	}
-	if projectType != "" {
-		fmt.Printf("Project type: %s\n", projectType)
+	if label := config.TypeLabel(projectType); label != "" {
+		fmt.Printf("Project type: %s\n", label)
 	}
 
 	return nil
 }
 
 // resolveActiveProject returns the project name, organization name, and project
-// product to display. /cli-auth/validate resolves the project from the API key's
+// type to display. /cli-auth/validate resolves the project from the API key's
 // bound team and ignores the profile's active project_id, so when the two
 // differ the active project is looked up via listProjects. A non-empty note is
 // returned when the active project could not be resolved and the key-bound
 // values are shown instead.
-func resolveActiveProject(response *hookdeck.ValidateAPIKeyResponse, activeProjectID string, listProjects func() ([]hookdeck.Project, error)) (projectName, orgName, projectProduct, note string) {
+func resolveActiveProject(response *hookdeck.ValidateAPIKeyResponse, activeProjectID string, listProjects func() ([]hookdeck.Project, error)) (projectName, orgName, apiProjectType, note string) {
 	projectName = response.ProjectName
 	orgName = response.OrganizationName
-	projectProduct = response.ProjectProduct
+	// Newest field first: team_type, then the short-lived team_product, then team_mode.
+	apiProjectType = firstKnownProjectType(response.ProjectType, response.ProjectProduct, response.ProjectMode)
 
 	if activeProjectID == "" || activeProjectID == response.ProjectID {
-		return projectName, orgName, projectProduct, ""
+		return projectName, orgName, apiProjectType, ""
 	}
 
 	projects, err := listProjects()
 	if err != nil {
 		note = fmt.Sprintf("Warning: could not look up the active project (%s); showing the project associated with your API key.", activeProjectID)
-		return projectName, orgName, projectProduct, note
+		return projectName, orgName, apiProjectType, note
 	}
 
 	for _, p := range projects {
@@ -109,9 +110,22 @@ func resolveActiveProject(response *hookdeck.ValidateAPIKeyResponse, activeProje
 			org = ""
 			proj = p.Name
 		}
-		return proj, org, p.Product, ""
+		return proj, org, p.Type, ""
 	}
 
 	note = fmt.Sprintf("Warning: the active project (%s) was not found; showing the project associated with your API key. Run 'hookdeck project use' to select a project.", activeProjectID)
-	return projectName, orgName, projectProduct, note
+	return projectName, orgName, apiProjectType, note
+}
+
+// firstKnownProjectType returns the first value that resolves to a known API
+// project type. The auth endpoints renamed this field twice, so a response can
+// carry any one of team_type, team_product or team_mode depending on how far the
+// API has been rolled out.
+func firstKnownProjectType(values ...string) string {
+	for _, v := range values {
+		if t := config.NormalizeProjectType(v); t != "" {
+			return t
+		}
+	}
+	return ""
 }

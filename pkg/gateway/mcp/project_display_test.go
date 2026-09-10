@@ -18,7 +18,7 @@ func TestFillProjectDisplayNameIfNeeded_SetsNameFromAPI(t *testing.T) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"id": "proj_x", "name": "[Acme] production", "product": "console"},
+			{"id": "proj_x", "name": "[Acme] production", "type": "console"},
 		})
 	}))
 	t.Cleanup(srv.Close)

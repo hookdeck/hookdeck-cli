@@ -181,16 +181,16 @@ func (c *Config) InitConfig() {
 	log.SetFormatter(logFormatter)
 }
 
-// UseProject selects the active project. projectProduct is the public API
-// product; legacy mode values are still accepted for config compatibility.
-func (c *Config) UseProject(projectId string, projectProduct string) error {
-	c.setProjectIdentity(projectId, projectProduct)
+// UseProject selects the active project. projectType is the API project type;
+// display labels and legacy mode values are still accepted for compatibility.
+func (c *Config) UseProject(projectId string, projectType string) error {
+	c.setProjectIdentity(projectId, projectType)
 	return c.Profile.SaveProfile()
 }
 
 // UseProjectLocal selects the active project to be used in local config
 // Returns true if a new file was created, false if existing file was updated
-func (c *Config) UseProjectLocal(projectId string, projectProduct string) (bool, error) {
+func (c *Config) UseProjectLocal(projectId string, projectType string) (bool, error) {
 	// Get current working directory
 	workingDir, err := os.Getwd()
 	if err != nil {
@@ -213,7 +213,7 @@ func (c *Config) UseProjectLocal(projectId string, projectProduct string) (bool,
 	}
 
 	// Update in-memory state
-	c.setProjectIdentity(projectId, projectProduct)
+	c.setProjectIdentity(projectId, projectType)
 
 	// Write to local config file using shared helper
 	if err := c.writeProjectConfig(localConfigPath, !fileExists); err != nil {
@@ -223,16 +223,17 @@ func (c *Config) UseProjectLocal(projectId string, projectProduct string) (bool,
 	return !fileExists, nil
 }
 
-func (c *Config) setProjectIdentity(projectID, productOrLegacyMode string) {
+func (c *Config) setProjectIdentity(projectID, typeOrLegacyMode string) {
 	c.Profile.ProjectId = projectID
-	c.Profile.ProjectProduct = productOrLegacyMode
-	c.Profile.ProjectType = ProductToProjectType(productOrLegacyMode)
-	c.Profile.ProjectMode = ProductToLegacyMode(productOrLegacyMode)
-	if c.Profile.ProjectType == "" {
-		c.Profile.ProjectProduct = ModeToProduct(productOrLegacyMode)
-		c.Profile.ProjectMode = productOrLegacyMode
-		c.Profile.ProjectType = ModeToProjectType(productOrLegacyMode)
+	projectType := NormalizeProjectType(typeOrLegacyMode)
+	c.Profile.ProjectType = projectType
+	if projectType != "" {
+		c.Profile.ProjectMode = TypeToLegacyMode(projectType)
+		return
 	}
+	// Unknown value: keep it as the legacy mode rather than discarding it, so a
+	// future CLI that understands it can still read the config.
+	c.Profile.ProjectMode = typeOrLegacyMode
 }
 
 // writeProjectConfig writes the current profile's project configuration to the specified config file
@@ -272,7 +273,6 @@ func (c *Config) setProfileFieldsInViper(v *viper.Viper) {
 	}
 	v.Set("profile", c.Profile.Name)
 	v.Set(c.Profile.getConfigField("project_id"), c.Profile.ProjectId)
-	v.Set(c.Profile.getConfigField("project_product"), c.Profile.ProjectProduct)
 	v.Set(c.Profile.getConfigField("project_mode"), c.Profile.ProjectMode)
 	v.Set(c.Profile.getConfigField("project_type"), c.Profile.ResolveProjectType())
 	if c.Profile.GuestURL != "" {
@@ -388,16 +388,13 @@ func (c *Config) constructConfig() {
 
 	c.Profile.ProjectId = stringCoalesce(c.Profile.ProjectId, c.viper.GetString(c.Profile.getConfigField("project_id")), c.viper.GetString("project_id"), c.viper.GetString(c.Profile.getConfigField("workspace_id")), c.viper.GetString(c.Profile.getConfigField("team_id")), c.viper.GetString("workspace_id"), "")
 
-	c.Profile.ProjectProduct = stringCoalesce(c.Profile.ProjectProduct, c.viper.GetString(c.Profile.getConfigField("project_product")), c.viper.GetString("project_product"), "")
-
 	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
 
-	// ProjectType: prefer project_type, then derive from the public product, then legacy mode.
+	// ProjectType: prefer project_type, then derive from the legacy mode.
+	// Configs written before this release stored a display label here, so the
+	// value is normalized rather than trusted.
 	c.Profile.ProjectType = stringCoalesce(c.Profile.ProjectType, c.viper.GetString(c.Profile.getConfigField("project_type")), c.viper.GetString("project_type"), "")
 	c.Profile.ProjectType = c.Profile.ResolveProjectType()
-	if c.Profile.ProjectProduct == "" && c.Profile.ProjectMode != "" {
-		c.Profile.ProjectProduct = ModeToProduct(c.Profile.ProjectMode)
-	}
 
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
 
@@ -444,7 +441,6 @@ func (c *Config) ClearActiveProfileCredentials() error {
 func zeroProfileCredentialFields(p *Profile) {
 	p.APIKey = ""
 	p.ProjectId = ""
-	p.ProjectProduct = ""
 	p.ProjectMode = ""
 	p.ProjectType = ""
 	p.GuestURL = ""

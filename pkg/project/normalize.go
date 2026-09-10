@@ -12,18 +12,18 @@ type ProjectListItem struct {
 	Id      string
 	Org     string
 	Project string
-	Type    string // display type: Gateway, Outpost, Console
+	Type    string // API project type: event_gateway, console, outpost
 	Current bool
 }
 
-// NormalizeProjects converts API projects into a normalized list: parses name once and sets type from product.
-// Only projects with no known product are excluded. currentID is the profile's current project id for the Current flag.
+// NormalizeProjects converts API projects into a normalized list: parses name once and keeps the API type.
+// Only projects with an unrecognized type are excluded. currentID is the profile's current project id for the Current flag.
 func NormalizeProjects(projects []hookdeck.Project, currentID string) []ProjectListItem {
 	var out []ProjectListItem
 	for _, p := range projects {
-		projectType := config.ProductToProjectType(p.Product)
+		projectType := config.NormalizeProjectType(p.Type)
 		if projectType == "" {
-			// unknown product: exclude from list
+			// unrecognized type: exclude from list
 			continue
 		}
 		org, proj, err := ParseProjectName(p.Name)
@@ -43,7 +43,7 @@ func NormalizeProjects(projects []hookdeck.Project, currentID string) []ProjectL
 	return out
 }
 
-// FilterByType returns items whose Type (display) matches the given type filter (lowercase: gateway, outpost, console).
+// FilterByType returns items whose type matches the given filter (lowercase: gateway, outpost, console).
 func FilterByType(items []ProjectListItem, typeFilter string) []ProjectListItem {
 	if typeFilter == "" {
 		return items
@@ -66,7 +66,7 @@ func (it *ProjectListItem) DisplayLine() string {
 	if it.Current {
 		namePart += " (current)"
 	}
-	return namePart + " | " + it.Type
+	return namePart + " | " + config.TypeLabel(it.Type)
 }
 
 // FilterByOrgProject filters items by org and/or project name substrings (case-insensitive).

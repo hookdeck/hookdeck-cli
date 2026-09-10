@@ -81,7 +81,7 @@ func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), br
 				"claimed":           true,
 				"key":               "hk_test_guest_claimed",
 				"team_id":           "tm_guest",
-				"team_product":      "console",
+				"team_type":         "console",
 				"team_name":         "Guest Sandbox",
 				"user_name":         "Guest",
 				"user_email":        "guest@example.com",
@@ -143,7 +143,7 @@ func TestGuestLoginDefaultClaimGuestAcceptance(t *testing.T) {
 				"organization_id":   "org_guest",
 				"team_id":           "tm_guest",
 				"team_name_no_org":  "Guest Sandbox",
-				"team_product":      "console",
+				"team_type":         "console",
 				"client_id":         "cl_guest",
 			})
 			require.NoError(t, encErr)

@@ -10,11 +10,11 @@ import (
 
 func TestNormalizeProjects(t *testing.T) {
 	projects := []hookdeck.Project{
-		{Id: "p1", Name: "[Acme] Prod", Product: "event_gateway"},
-		{Id: "p2", Name: "[Acme] Staging", Product: "console"},
-		{Id: "p3", Name: "[Org2] Outpost", Product: "outpost"},
-		{Id: "p4", Name: "[Org] Gateway", Product: "event_gateway"},
-		{Id: "p5", Name: "No brackets", Product: "event_gateway"},
+		{Id: "p1", Name: "[Acme] Prod", Type: "event_gateway"},
+		{Id: "p2", Name: "[Acme] Staging", Type: "console"},
+		{Id: "p3", Name: "[Org2] Outpost", Type: "outpost"},
+		{Id: "p4", Name: "[Org] Gateway", Type: "event_gateway"},
+		{Id: "p5", Name: "No brackets", Type: "event_gateway"},
 	}
 	items := NormalizeProjects(projects, "p2")
 	// event_gateway, console, and outpost are all known products.
@@ -24,21 +24,21 @@ func TestNormalizeProjects(t *testing.T) {
 	assert.Equal(t, "p1", items[0].Id)
 	assert.Equal(t, "Acme", items[0].Org)
 	assert.Equal(t, "Prod", items[0].Project)
-	assert.Equal(t, "Gateway", items[0].Type)
+	assert.Equal(t, "event_gateway", items[0].Type)
 	assert.False(t, items[0].Current)
 
-	// p2: current, console product -> Console type
+	// p2: current, console type
 	assert.True(t, items[1].Current)
-	assert.Equal(t, "Console", items[1].Type)
+	assert.Equal(t, "console", items[1].Type)
 
 	// p3: Outpost
-	assert.Equal(t, "Outpost", items[2].Type)
+	assert.Equal(t, "outpost", items[2].Type)
 
-	// p4: event_gateway product -> Gateway
+	// p4: event_gateway
 	assert.Equal(t, "p4", items[3].Id)
 	assert.Equal(t, "Org", items[3].Org)
 	assert.Equal(t, "Gateway", items[3].Project)
-	assert.Equal(t, "Gateway", items[3].Type)
+	assert.Equal(t, "event_gateway", items[3].Type)
 
 	// p5: unparseable name -> org "", project "No brackets"
 	assert.Equal(t, "", items[4].Org)
@@ -50,35 +50,35 @@ func TestNormalizeProjects_EmptyList(t *testing.T) {
 	assert.Empty(t, items)
 }
 
-func TestNormalizeProjects_EventGatewayProductMapsToGateway(t *testing.T) {
+func TestNormalizeProjects_KeepsAPIType(t *testing.T) {
 	projects := []hookdeck.Project{
-		{Id: "p1", Name: "[A] P", Product: "event_gateway"},
+		{Id: "p1", Name: "[A] P", Type: "event_gateway"},
 	}
 	items := NormalizeProjects(projects, "p1")
 	require.Len(t, items, 1)
 	assert.Equal(t, "p1", items[0].Id)
-	assert.Equal(t, "Gateway", items[0].Type)
+	assert.Equal(t, "event_gateway", items[0].Type)
 	assert.True(t, items[0].Current)
 }
 
 func TestFilterByType(t *testing.T) {
 	items := []ProjectListItem{
-		{Type: "Gateway"},
-		{Type: "Outpost"},
-		{Type: "Gateway"},
-		{Type: "Console"},
+		{Type: "event_gateway"},
+		{Type: "outpost"},
+		{Type: "event_gateway"},
+		{Type: "console"},
 	}
 	got := FilterByType(items, "gateway")
 	require.Len(t, got, 2)
-	assert.Equal(t, "Gateway", got[0].Type)
-	assert.Equal(t, "Gateway", got[1].Type)
+	assert.Equal(t, "event_gateway", got[0].Type)
+	assert.Equal(t, "event_gateway", got[1].Type)
 
 	got = FilterByType(items, "")
 	require.Len(t, got, 4)
 
 	got = FilterByType(items, "console")
 	require.Len(t, got, 1)
-	assert.Equal(t, "Console", got[0].Type)
+	assert.Equal(t, "console", got[0].Type)
 }
 
 func TestFilterByOrgProject(t *testing.T) {
@@ -97,7 +97,7 @@ func TestFilterByOrgProject(t *testing.T) {
 }
 
 func TestProjectListItem_DisplayLine(t *testing.T) {
-	it := ProjectListItem{Org: "Acme", Project: "Prod", Type: "Gateway", Current: false}
+	it := ProjectListItem{Org: "Acme", Project: "Prod", Type: "event_gateway", Current: false}
 	assert.Equal(t, "Acme / Prod | Gateway", it.DisplayLine())
 
 	it.Current = true

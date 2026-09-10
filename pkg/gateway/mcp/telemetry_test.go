@@ -328,7 +328,7 @@ func TestMCPToolCall_MultipleAPICallsSameInvocation(t *testing.T) {
 		"GET /2026-09-01/projects": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "proj_abc", "name": "My Project", "product": "console"},
+				{"id": "proj_abc", "name": "My Project", "type": "console"},
 			})
 		}),
 	})

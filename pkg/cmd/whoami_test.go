@@ -11,14 +11,14 @@ func TestResolveActiveProject(t *testing.T) {
 	validateResponse := &hookdeck.ValidateAPIKeyResponse{
 		ProjectID:        "tm_bound",
 		ProjectName:      "Bound Project",
-		ProjectProduct:   "event_gateway",
+		ProjectType:      "event_gateway",
 		OrganizationName: "Org A",
 	}
 
 	projects := []hookdeck.Project{
-		{Id: "tm_bound", Name: "[Org A] Bound Project", Product: "event_gateway"},
-		{Id: "tm_active", Name: "[Org B] Active Project", Product: "event_gateway"},
-		{Id: "tm_unparsable", Name: "No Org Format", Product: "event_gateway"},
+		{Id: "tm_bound", Name: "[Org A] Bound Project", Type: "event_gateway"},
+		{Id: "tm_active", Name: "[Org B] Active Project", Type: "event_gateway"},
+		{Id: "tm_unparsable", Name: "No Org Format", Type: "event_gateway"},
 	}
 
 	t.Run("no active project id uses validate response", func(t *testing.T) {

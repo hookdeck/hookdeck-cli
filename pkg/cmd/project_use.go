@@ -10,7 +10,6 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/spf13/cobra"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -24,10 +23,10 @@ func newProjectUseCmd() *projectUseCmd {
 	lc := &projectUseCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:     "use [<organization_name> [<project_name>]]",
-		Args:    validators.MaximumNArgs(2),
-		Short:   "Set the active project for future commands",
-		RunE:    lc.runProjectUseCmd,
+		Use:   "use [<organization_name> [<project_name>]]",
+		Args:  validators.MaximumNArgs(2),
+		Short: "Set the active project for future commands",
+		RunE:  lc.runProjectUseCmd,
 		Example: `$ hookdeck project use
 Use the arrow keys to navigate: ↓ ↑ → ←
 ? Select Project:
@@ -119,13 +118,13 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		}
 	}
 
-	// Use project by id and public API product derived from the display type.
-	product := config.ProjectTypeToProduct(selected.Type)
+	// selected.Type is already the API project type.
+	projectType := selected.Type
 	var configPath string
 	var isNewConfig bool
 
 	if lc.local {
-		isNewConfig, err = Config.UseProjectLocal(selected.Id, product)
+		isNewConfig, err = Config.UseProjectLocal(selected.Id, projectType)
 		if err != nil {
 			return err
 		}
@@ -143,13 +142,13 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		localConfigExists, _ := Config.FileExists(localConfigPath)
 
 		if localConfigExists {
-			isNewConfig, err = Config.UseProjectLocal(selected.Id, product)
+			isNewConfig, err = Config.UseProjectLocal(selected.Id, projectType)
 			if err != nil {
 				return err
 			}
 			configPath = localConfigPath
 		} else {
-			err = Config.UseProject(selected.Id, product)
+			err = Config.UseProject(selected.Id, projectType)
 			if err != nil {
 				return err
 			}

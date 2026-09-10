@@ -22,7 +22,7 @@ func TestListProjects_omitsTeamAndProjectHeadersWhenConfigHasProjectID(t *testin
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]Project{{Id: "tm_1", Name: "[Org] Proj", Product: "event_gateway"}})
+		_ = json.NewEncoder(w).Encode([]Project{{Id: "tm_1", Name: "[Org] Proj", Type: "event_gateway"}})
 	}))
 	t.Cleanup(server.Close)
 

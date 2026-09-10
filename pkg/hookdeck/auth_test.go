@@ -30,7 +30,7 @@ func TestValidateAPIKey_omitsTeamAndProjectHeadersWhenConfigHasProjectID(t *test
 			OrganizationID:   "o1",
 			ProjectID:        "t1",
 			ProjectName:      "p",
-			ProjectProduct:   "event_gateway",
+			ProjectType:      "event_gateway",
 		})
 	}))
 	t.Cleanup(server.Close)
@@ -49,5 +49,5 @@ func TestValidateAPIKey_omitsTeamAndProjectHeadersWhenConfigHasProjectID(t *test
 	require.False(t, sawTeamHeader, "validate must not send X-Team-ID")
 	require.False(t, sawProjectHeader, "validate must not send X-Project-ID")
 	require.Equal(t, "t1", resp.ProjectID)
-	require.Equal(t, "event_gateway", resp.ProjectProduct)
+	require.Equal(t, "event_gateway", resp.ProjectType)
 }

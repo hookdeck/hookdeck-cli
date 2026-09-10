@@ -245,7 +245,7 @@ func TestInitConfig(t *testing.T) {
 		}
 		c.InitConfig()
 
-		assert.Equal(t, "Gateway", c.Profile.ProjectType)
+		assert.Equal(t, "event_gateway", c.Profile.ProjectType)
 		assert.Equal(t, "", c.Profile.ProjectMode)
 	})
 
@@ -259,12 +259,12 @@ func TestInitConfig(t *testing.T) {
 		c.InitConfig()
 
 		assert.Equal(t, "inbound", c.Profile.ProjectMode)
-		assert.Equal(t, "Gateway", c.Profile.ProjectType)
+		assert.Equal(t, "event_gateway", c.Profile.ProjectType)
 		// The upgrade path: a config written before 2026-09-01 has no
-		// project_product, so it has to be derived from the legacy mode.
+		// project_type, so it has to be derived from the legacy mode.
 		// Without this, an upgraded user has an empty product until they
 		// log in again, and IsGatewayProject("") fails every gateway command.
-		assert.Equal(t, "event_gateway", c.Profile.ProjectProduct)
+		assert.Equal(t, "event_gateway", c.Profile.ProjectType)
 	})
 
 	t.Run("project_type and project_mode - prefer project_type", func(t *testing.T) {
@@ -276,7 +276,7 @@ func TestInitConfig(t *testing.T) {
 		}
 		c.InitConfig()
 
-		assert.Equal(t, "Outpost", c.Profile.ProjectType)
+		assert.Equal(t, "outpost", c.Profile.ProjectType)
 		assert.Equal(t, "inbound", c.Profile.ProjectMode)
 	})
 }
@@ -317,9 +317,9 @@ func TestWriteConfig(t *testing.T) {
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
 		assert.Contains(t, string(contentBytes), `project_id = 'new_team_id'`)
-		assert.Contains(t, string(contentBytes), `project_type = 'Gateway'`)
-		// A legacy mode in, the public product written back out.
-		assert.Contains(t, string(contentBytes), `project_product = 'event_gateway'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'event_gateway'`)
+		// A legacy mode in, the API project type written back out.
+		assert.Contains(t, string(contentBytes), `project_type = 'event_gateway'`)
 		assert.Contains(t, string(contentBytes), `project_mode = 'inbound'`)
 	})
 
@@ -334,8 +334,8 @@ func TestWriteConfig(t *testing.T) {
 
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
-		assert.Contains(t, string(contentBytes), `project_product = 'outpost'`)
-		assert.Contains(t, string(contentBytes), `project_type = 'Outpost'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'outpost'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'outpost'`)
 		assert.Contains(t, string(contentBytes), `project_mode = 'outpost'`)
 	})
 

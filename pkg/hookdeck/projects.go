@@ -6,9 +6,9 @@ import (
 )
 
 type Project struct {
-	Id      string `json:"id"`
-	Name    string `json:"name"`
-	Product string `json:"product"`
+	Id   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
 }
 
 func (c *Client) ListProjects() ([]Project, error) {

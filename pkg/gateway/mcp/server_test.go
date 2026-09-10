@@ -108,7 +108,7 @@ func mockAPI(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Serve
 				"organization_id":   "org_test",
 				"team_id":           "proj_test123",
 				"team_name_no_org":  "Production",
-				"team_product":      "console",
+				"team_type":         "console",
 			})
 		}
 	}
@@ -790,10 +790,10 @@ func TestEventsList_MetadataFilters(t *testing.T) {
 	})
 
 	result := callTool(t, session, "hookdeck_events", map[string]any{
-		"action":   "list",
-		"id":       "evt_1,evt_2",
-		"attempts": "3",
-		"cli_id":   "cli_abc",
+		"action":         "list",
+		"id":             "evt_1,evt_2",
+		"attempts":       "3",
+		"cli_id":         "cli_abc",
 		"delivery_group": "cus_123",
 	})
 	assert.False(t, result.IsError)
@@ -1110,8 +1110,8 @@ func TestProjectsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "proj_test123", "name": "Production", "product": "console"},
-				{"id": "proj_other", "name": "Staging", "product": "console"},
+				{"id": "proj_test123", "name": "Production", "type": "console"},
+				{"id": "proj_other", "name": "Staging", "type": "console"},
 			})
 		},
 	})
@@ -1149,8 +1149,8 @@ func TestProjectsUse_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "proj_test123", "name": "Production", "product": "console"},
-				{"id": "proj_new", "name": "Staging", "product": "console"},
+				{"id": "proj_test123", "name": "Production", "type": "console"},
+				{"id": "proj_new", "name": "Staging", "type": "console"},
 			})
 		},
 	})
@@ -1176,7 +1176,7 @@ func TestProjectsUse_ProjectNotFound(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "proj_test123", "name": "Production", "product": "console"},
+				{"id": "proj_test123", "name": "Production", "type": "console"},
 			})
 		},
 	})
@@ -1227,10 +1227,10 @@ func TestMetricsEvents_DefaultRoute(t *testing.T) {
 	})
 
 	result := callTool(t, session, "hookdeck_metrics", map[string]any{
-		"action":   "events",
-		"start":    "2025-01-01T00:00:00Z",
-		"end":      "2025-01-02T00:00:00Z",
-		"measures": []any{"count"},
+		"action":         "events",
+		"start":          "2025-01-01T00:00:00Z",
+		"end":            "2025-01-02T00:00:00Z",
+		"measures":       []any{"count"},
 		"delivery_group": "cus_123",
 	})
 	assert.False(t, result.IsError)
@@ -1362,7 +1362,7 @@ func TestLoginTool_AlreadyAuthenticated(t *testing.T) {
 				"organization_id":   "org_1",
 				"team_id":           "tm_1",
 				"team_name_no_org":  "Proj",
-				"team_product":      "event_gateway",
+				"team_type":         "event_gateway",
 			})
 		},
 	})
@@ -1382,7 +1382,7 @@ func TestLoginTool_CIScopedKeyStartsLogin(t *testing.T) {
 				"organization_id":   "org_1",
 				"team_id":           "tm_ci",
 				"team_name_no_org":  "CI Project",
-				"team_product":      "event_gateway",
+				"team_type":         "event_gateway",
 			})
 		},
 		"/2026-09-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
@@ -1568,7 +1568,7 @@ func TestLoginTool_PollSurvivesAcrossToolCalls(t *testing.T) {
 					"key":               "sk_test_survive12345",
 					"team_id":           "proj_survive",
 					"team_name":         "Survive Project",
-					"team_product":      "console",
+					"team_type":         "console",
 					"user_name":         "test-user",
 					"organization_name": "test-org",
 				})
