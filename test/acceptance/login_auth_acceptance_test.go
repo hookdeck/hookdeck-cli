@@ -81,12 +81,12 @@ api_key = "hk_test_stale_accept01"
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "go", append([]string{"run", mainGo,
+	cmd := exec.CommandContext(ctx, "go", []string{"run", mainGo,
 		"--api-base", ts.URL,
 		"--hookdeck-config", configPath,
 		"--log-level", "error",
 		"login",
-	})...)
+	}...)
 	cmd.Dir = projectRoot
 	env := appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", configPath)
 	env = appendEnvOverride(env, "SSH_CONNECTION", "acceptance-login-mock")
@@ -135,11 +135,11 @@ func TestCIFailsFastWithInvalidAPIKeyAcceptance(t *testing.T) {
 	defer cancel()
 
 	invalidKey := "hk_test_ci_invalid_accept01" // valid shape, not a real key
-	cmd := exec.CommandContext(ctx, "go", append([]string{"run", mainGo,
+	cmd := exec.CommandContext(ctx, "go", []string{"run", mainGo,
 		"--hookdeck-config", configPath,
 		"--log-level", "error",
 		"ci", "--api-key", invalidKey,
-	})...)
+	}...)
 	cmd.Dir = projectRoot
 	env := appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", configPath)
 	env = appendEnvOverride(env, "HOOKDECK_CLI_TELEMETRY_DISABLED", "1")
