@@ -128,10 +128,18 @@ func getCharset() charset {
 
 const duration = time.Duration(100) * time.Millisecond
 
+// CanSpin reports whether a live spinner can be drawn on w. Callers that print
+// status through a spinner must check this first: StartNewSpinner returns nil
+// when it is false, and a caller that treats nil as "nothing to say" silently
+// drops the status entirely.
+func CanSpin(w io.Writer) bool {
+	return isTerminal(w) && shouldUseColors(w)
+}
+
 // StartNewSpinner starts a new spinner with the given message. If the writer is not
 // a terminal or doesn't support colors, it simply prints the message.
 func StartNewSpinner(msg string, w io.Writer) *spinner.Spinner {
-	if !isTerminal(w) || !shouldUseColors(w) {
+	if !CanSpin(w) {
 		fmt.Fprintln(w, msg)
 		return nil
 	}
