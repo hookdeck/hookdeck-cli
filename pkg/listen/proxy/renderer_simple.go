@@ -37,41 +37,67 @@ func NewSimpleRenderer(cfg *RendererConfig, quietMode bool) *SimpleRenderer {
 
 // OnConnecting is called when starting to connect
 func (r *SimpleRenderer) OnConnecting() {
-	r.spinner = ansi.StartNewSpinner("Getting ready...", log.StandardLogger().Out)
+	r.showStatus("Getting ready...")
+}
+
+// showStatus reports a connection-state change. With a terminal it animates a
+// spinner on the log stream, as before. Without one it writes a plain line to
+// stdout, next to the connection banner and the event log, so a caller reading
+// stdout sees the whole state machine on one stream.
+func (r *SimpleRenderer) showStatus(msg string) {
+	if ansi.CanSpin(log.StandardLogger().Out) {
+		r.spinner = ansi.StartNewSpinner(msg, log.StandardLogger().Out)
+		return
+	}
+
+	r.spinner = nil
+	fmt.Println(msg)
+}
+
+// stopStatus clears any running spinner. Safe when there is none.
+func (r *SimpleRenderer) stopStatus() {
+	if r.spinner != nil {
+		ansi.StopSpinner(r.spinner, "", log.StandardLogger().Out)
+		r.spinner = nil
+	}
 }
 
 // OnConnected is called when websocket connects
 func (r *SimpleRenderer) OnConnected() {
 	r.hasConnected = true
 	r.isReconnecting = false // Reset reconnection state
-	if r.spinner != nil {
-		ansi.StopSpinner(r.spinner, "", log.StandardLogger().Out)
-		r.spinner = nil
-		color := ansi.Color(os.Stdout)
 
-		// Display filter warning if filters are active
-		if r.cfg.Filters != nil {
-			fmt.Printf("\n%s Filters provided, only events matching the filter will be forwarded for this session\n", color.Yellow("⏺"))
-			if r.cfg.Filters.Body != nil {
-				fmt.Printf("  • Body: %s\n", color.Faint(string(*r.cfg.Filters.Body)))
-			}
-			if r.cfg.Filters.Headers != nil {
-				fmt.Printf("  • Headers: %s\n", color.Faint(string(*r.cfg.Filters.Headers)))
-			}
-			if r.cfg.Filters.Query != nil {
-				fmt.Printf("  • Query: %s\n", color.Faint(string(*r.cfg.Filters.Query)))
-			}
-			if r.cfg.Filters.Path != nil {
-				fmt.Printf("  • Path: %s\n", color.Faint(string(*r.cfg.Filters.Path)))
-			}
-			fmt.Println()
-		}
+	// Ready is the one line every non-interactive caller waits for, so it must not
+	// depend on how the terminal is dressed. This used to sit inside `if r.spinner
+	// != nil`, which is false whenever the log stream is not a TTY or --color=off
+	// is set: `listen` connected, forwarded events, and never said it was ready, so
+	// scripts and CI could only conclude "connection timed out".
+	r.stopStatus()
 
-		if r.quietMode {
-			fmt.Printf("%s\n\n", color.Faint("Connected. Quiet mode: only errors and warnings will be shown."))
-		} else {
-			fmt.Printf("%s\n\n", color.Faint("Connected. Waiting for events..."))
+	color := ansi.Color(os.Stdout)
+
+	// Display filter warning if filters are active
+	if r.cfg.Filters != nil {
+		fmt.Printf("\n%s Filters provided, only events matching the filter will be forwarded for this session\n", color.Yellow("⏺"))
+		if r.cfg.Filters.Body != nil {
+			fmt.Printf("  • Body: %s\n", color.Faint(string(*r.cfg.Filters.Body)))
 		}
+		if r.cfg.Filters.Headers != nil {
+			fmt.Printf("  • Headers: %s\n", color.Faint(string(*r.cfg.Filters.Headers)))
+		}
+		if r.cfg.Filters.Query != nil {
+			fmt.Printf("  • Query: %s\n", color.Faint(string(*r.cfg.Filters.Query)))
+		}
+		if r.cfg.Filters.Path != nil {
+			fmt.Printf("  • Path: %s\n", color.Faint(string(*r.cfg.Filters.Path)))
+		}
+		fmt.Println()
+	}
+
+	if r.quietMode {
+		fmt.Printf("%s\n\n", color.Faint("Connected. Quiet mode: only errors and warnings will be shown."))
+	} else {
+		fmt.Printf("%s\n\n", color.Faint("Connected. Waiting for events..."))
 	}
 }
 
@@ -81,12 +107,11 @@ func (r *SimpleRenderer) OnDisconnected() {
 	if r.hasConnected && !r.isReconnecting {
 		// First disconnection - print newline for visual separation
 		fmt.Println()
-		// Stop any existing spinner first
-		if r.spinner != nil {
-			ansi.StopSpinner(r.spinner, "", log.StandardLogger().Out)
-		}
-		// Start new spinner with reconnection message
-		r.spinner = ansi.StartNewSpinner("Connection lost, reconnecting...", log.StandardLogger().Out)
+		r.stopStatus()
+		// Announce the drop the same way readiness is announced: a spinner on a
+		// terminal, a plain stdout line otherwise. Routing this to the log stream
+		// only left stdout with a bare blank line and no reason for it.
+		r.showStatus("Connection lost, reconnecting...")
 		r.isReconnecting = true
 	}
 	// If we haven't connected yet, the "Getting ready..." spinner is still showing
@@ -200,10 +225,7 @@ func (r *SimpleRenderer) OnServerHealthChanged(healthy bool, err error) {
 
 // Cleanup stops the spinner and cleans up resources
 func (r *SimpleRenderer) Cleanup() {
-	if r.spinner != nil {
-		ansi.StopSpinner(r.spinner, "", log.StandardLogger().Out)
-		r.spinner = nil
-	}
+	r.stopStatus()
 }
 
 // Done returns a channel that is closed when the renderer wants to quit
