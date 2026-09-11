@@ -36,6 +36,8 @@ For a complete reference of all commands and flags, see [REFERENCE.md](REFERENCE
   - [Running in CI](#running-in-ci)
   - [Event Gateway](#event-gateway)
   - [Event Gateway MCP](#event-gateway-mcp)
+  - [Outpost](#outpost)
+  - [Outpost MCP](#outpost-mcp)
   - [Manage connections](#manage-connections)
   - [Transformations](#transformations)
   - [Requests, events, and attempts](#requests-events-and-attempts)
@@ -612,23 +614,60 @@ Claude Desktop (`claude_desktop_config.json`):
 
 The client starts `hookdeck gateway mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool is available to log in via the browser.
 
+#### Read-only by default
+
+The server starts read-only. Tools advertise only the actions that read data, so an agent is never offered an action it cannot perform. Pass `--allow-write` (or set `HOOKDECK_MCP_ALLOW_WRITE=true`) to enable creating, changing and deleting:
+
+```json
+{
+  "mcpServers": {
+    "hookdeck": {
+      "command": "hookdeck",
+      "args": ["gateway", "mcp", "--allow-write"]
+    }
+  }
+}
+```
+
+`--read-only` is accepted explicitly and wins if both are passed.
+
+Pausing and unpausing a connection are available in **both** modes. Read-only is the mode incidents get investigated in, and stopping a misbehaving connection is the natural end of an investigation; both are reversible, and pausing buffers delivery rather than dropping events.
+
 #### Available tools
 
-| Tool | Description |
-|------|-------------|
-| `hookdeck_projects` | List projects or switch the active project for this session |
-| `hookdeck_connections` | Inspect connections and control delivery flow (list, get, pause, unpause) |
-| `hookdeck_sources` | Inspect inbound sources (HTTP endpoints that receive events) |
-| `hookdeck_destinations` | Inspect delivery destinations (HTTP endpoints where events are sent) |
-| `hookdeck_transformations` | Inspect JavaScript transformations applied to event payloads |
-| `hookdeck_requests` | Query inbound requests — list, get details, raw body, linked events |
-| `hookdeck_events` | Query processed events — list, get details, raw payload body |
-| `hookdeck_attempts` | Query delivery attempts — retry history, response codes, errors |
-| `hookdeck_issues` | Inspect aggregated failure signals (delivery failures, transform errors, backpressure) |
-| `hookdeck_metrics` | Query aggregate metrics — counts, failure rates, queue depth over time |
-| `hookdeck_help` | Discover available tools and their actions |
+Product tools are prefixed `gateway_`. Signing in and switching project are Hookdeck operations rather than Event Gateway ones, so they keep the platform `hookdeck_` prefix and are shared with `hookdeck outpost mcp`.
 
-`hookdeck_events` and `hookdeck_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `hookdeck_help` with topic `hookdeck_events` or `hookdeck_requests` for the full parameter list.
+| Tool | Read actions | Added by `--allow-write` |
+|------|--------------|--------------------------|
+| `hookdeck_projects` | list, use | — |
+| `hookdeck_login` | (sign in) | — |
+| `gateway_connections` | list, get, pause, unpause | create, upsert, update, delete, enable, disable |
+| `gateway_sources` | list, get | create, upsert, update, delete, enable, disable |
+| `gateway_destinations` | list, get | create, upsert, update, delete, enable, disable |
+| `gateway_transformations` | list, get | create, upsert, update, delete, run |
+| `gateway_requests` | list | — |
+| `gateway_request` | get, raw_body, events, ignored_events | retry |
+| `gateway_events` | list | — |
+| `gateway_event` | get, raw_body | retry, cancel, mute |
+| `gateway_attempts` | list, get | — |
+| `gateway_issues` | list, get | update, dismiss |
+| `gateway_metrics` | events, requests, attempts, transformations | — |
+| `gateway_help` | overview, per-tool topics | — |
+
+`transformations run` executes code without storing anything, but it is gated as a write: a read-only session should not be able to run caller-supplied code.
+
+Events and requests are each split into a **plural** tool that searches and a **singular** tool that acts on one record:
+
+- `gateway_events` / `gateway_requests` (plural) take the filters and return IDs. They cannot fetch or change a single record.
+- `gateway_event` / `gateway_request` (singular) take an `id` and nothing else (plus `connection_ids` on request retry). They cannot search.
+
+The usual flow is plural to find an ID, then singular with that ID. The split keeps ~20 list filters out of the schema for actions that only need an id.
+
+`gateway_events` and `gateway_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `gateway_help` with topic `gateway_events` or `gateway_requests` for the full parameter list.
+
+The only relationship traversal the API supports is request → events: `gateway_request` with action `events` (or `ignored_events`). There is no `request_id` filter on events and no `event_id` filter on requests. To go the other way, read `request_id` off an event and call `gateway_request` with action `get`.
+
+`gateway_help` reports which mode the session is in and lists only the actions it can perform.
 
 #### Example prompts
 
@@ -636,32 +675,144 @@ Once the MCP server is configured, you can ask your agent questions like:
 
 ```
 "Are any of my events failing right now?"
-→ Agent uses hookdeck_issues to list open issues, then hookdeck_events to inspect recent failures.
+→ Agent uses gateway_issues to list open issues, then gateway_events to inspect recent failures.
 
 "Show me the last 10 events for my Stripe source and check if any failed."
-→ Agent uses hookdeck_sources to find the Stripe source, then hookdeck_events filtered by source and status.
+→ Agent uses gateway_sources to find the Stripe source, then gateway_events filtered by source and status.
 
 "What's the error rate for my API destination over the last 24 hours?"
-→ Agent uses hookdeck_metrics with measures like failed_count and count, grouped by destination.
+→ Agent uses gateway_metrics with measures like failed_count and count, grouped by destination.
 
 "Trace request req_abc123 — what events did it produce, and did they all deliver successfully?"
-→ Agent uses hookdeck_requests to get the request, then the events action to list generated events.
+→ Agent uses gateway_request to get the request, then its events action to list generated events.
 
 "Why is my checkout endpoint returning 500s? Show me the latest attempt details."
-→ Agent uses hookdeck_events filtered by status FAILED, then hookdeck_attempts to inspect delivery details.
+→ Agent uses gateway_events filtered by status FAILED, then gateway_attempts to inspect delivery details.
 
 "Pause the connection between Stripe and my staging endpoint while I debug."
-→ Agent uses hookdeck_connections to find and pause the connection.
+→ Agent uses gateway_connections to find and pause the connection.
 
 "Compare failure rates across all my destinations this week."
-→ Agent uses hookdeck_metrics with dimensions set to destination_id and measures like error_rate.
+→ Agent uses gateway_metrics with dimensions set to destination_id and measures like error_rate.
 
 "Find Stripe charge.succeeded events from the last week."
-→ Agent uses hookdeck_events list with body filter {"type":"charge.succeeded"} and created_after / created_before ISO datetimes.
+→ Agent uses gateway_events list with body filter {"type":"charge.succeeded"} and created_after / created_before ISO datetimes.
 
 "Show failed events that had delivery attempts in the last 24 hours."
-→ Agent uses hookdeck_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
+→ Agent uses gateway_events list with status FAILED and last_attempt_after set to yesterday's ISO datetime.
 ```
+
+### Outpost
+
+Manage [Hookdeck Outpost](https://hookdeck.com/docs/outpost) — your users (tenants), the destinations they own, and the events delivered to them.
+
+These commands require an Outpost project. Switch with `hookdeck project use`; pointing them at an Event Gateway project reports which type the project is rather than failing obscurely.
+
+```sh
+hookdeck outpost [command]
+
+# Available commands
+hookdeck outpost tenant            # Manage tenants
+hookdeck outpost destination       # Manage a tenant's destinations
+hookdeck outpost destination-type  # Inspect available destination types and their fields
+hookdeck outpost event             # Inspect published events, and retry delivery
+hookdeck outpost attempt           # Inspect delivery attempts
+hookdeck outpost publish           # Publish an event
+hookdeck outpost topic             # Inspect available topics
+hookdeck outpost metrics           # Query aggregate metrics
+hookdeck outpost config            # Manage project configuration and the portal domain
+hookdeck outpost status            # Show the deployment status
+```
+
+#### Destination config
+
+Config and credential fields differ per destination type, and are defined by the Outpost deployment rather than the CLI, so they are passed as repeatable `key=value` pairs:
+
+```sh
+hookdeck outpost tenant upsert acme
+
+hookdeck outpost destination create --tenant-id acme --type webhook \
+  --config url=https://example.com/hooks --topics user.created
+```
+
+To find out what a type accepts, either ask for it directly or add `--type` to `--help`:
+
+```sh
+hookdeck outpost destination-type get kafka
+hookdeck outpost destination create --type kafka --help
+```
+
+Both list every field with whether it is required, whether it is sensitive, and any values or format it is constrained to. `--config-file` accepts a JSON object, and nested values — should a type ever need them — use dotted paths (`--config a.b=c`).
+
+Tenants and destinations also carry `--metadata key=value` (repeatable, or `--metadata-file` for a JSON object) for your own correlation data. It is replaced wholesale rather than merged, so pass every key you want to keep.
+
+#### Publishing
+
+`hookdeck outpost publish` is the one command that does **not** use the credentials stored by `hookdeck login`. The publish API requires a Hookdeck **Project API key**, so pass `--api-key` or set `HOOKDECK_API_KEY`:
+
+```sh
+hookdeck outpost publish --tenant-id acme --topic user.created \
+  --data '{"user_id":"123"}' --api-key $HOOKDECK_API_KEY
+```
+
+Create a Project API key in the Hookdeck dashboard under your project's settings. See [CLI authentication keys](#cli-authentication-keys) for how the key types differ.
+
+Publishing is asynchronous: a successful response means the event was accepted, not delivered. Use `hookdeck outpost attempt list` to see the outcome.
+
+For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
+
+### Outpost MCP
+
+`hookdeck outpost mcp` starts an [MCP](https://modelcontextprotocol.io/) server exposing your Outpost project to AI agents: tenants, their destinations, the events published to them, and every delivery attempt. Tools are prefixed `outpost_`, so this server and [Event Gateway MCP](#event-gateway-mcp) can be configured in the same client.
+
+```json
+{
+  "mcpServers": {
+    "hookdeck-outpost": {
+      "command": "hookdeck",
+      "args": ["outpost", "mcp"]
+    }
+  }
+}
+```
+
+The client starts `hookdeck outpost mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool logs in via the browser. The active project must be an Outpost project; `hookdeck_projects` lists the Outpost projects available to you and switches between them. Signing in and switching projects are Hookdeck operations rather than Outpost ones, so they keep the `hookdeck_` prefix in both servers.
+
+#### Read-only by default
+
+The server starts read-only. Each tool advertises only the actions that read data, so an agent is never offered an action it cannot perform. Add `--allow-write` (or set `HOOKDECK_MCP_ALLOW_WRITE=true`; the flag wins) to enable the rest:
+
+```json
+"args": ["outpost", "mcp", "--allow-write"]
+```
+
+`--read-only` is accepted as an explicit way to ask for the default, and wins if both are passed.
+
+Two actions that only read are gated with the writes, because both return a reusable credential: `outpost_tenants` `token` mints a tenant-scoped access token, and `outpost_tenants` `portal` returns a URL granting access to a tenant's portal.
+
+Publishing needs a Hookdeck **Project API key**, which the credentials stored by `hookdeck login` cannot substitute for. Without one the `outpost_publish` tool is not registered at all; pass `--publish-api-key` or set `HOOKDECK_OUTPOST_PUBLISH_API_KEY` to enable it.
+
+`HOOKDECK_API_KEY` is deliberately **not** read here. Elsewhere in the CLI it means "a key to exchange for CLI credentials" and is commonly exported for CI, so reading it here would let an ambient variable silently grant an agent the ability to publish real events to real destinations.
+
+#### Available tools
+
+| Tool | Description |
+|------|-------------|
+| `hookdeck_login` | Sign in via the browser |
+| `hookdeck_projects` | List Outpost projects or switch the active one for this session |
+| `outpost_tenants` | Inspect tenants (list, get) and manage them (upsert, delete, token, portal) |
+| `outpost_destinations` | Inspect a tenant's destinations (list, get) and manage them (create, update, delete, enable, disable) |
+| `outpost_events` | Query published events (list, get) and retry delivery |
+| `outpost_attempts` | Query delivery attempts — status, response codes, retry history |
+| `outpost_publish` | Publish an event to a topic |
+| `outpost_topics` | List the topics available in the project |
+| `outpost_destination_types` | Inspect destination types and the config and credential fields each accepts |
+| `outpost_metrics` | Query aggregate publish and delivery metrics |
+| `outpost_config` | Read and change project configuration, including the portal's custom domain |
+| `outpost_status` | Show the deployment status |
+| `outpost_help` | Discover the available tools, their actions, and the current mode |
+
+Call `outpost_help` at any time to see which mode the session is in and which actions it can perform.
 
 ### Manage connections
 
@@ -1621,6 +1772,31 @@ These settings ensure that all changes to `main` go through proper review and te
 ## CLI authentication keys
 
 Reference for how Hookdeck credentials relate to CLI commands. After any successful login or `hookdeck ci`, the CLI stores a **CLI client key** in your config file as `api_key` (see [Configuration files](#configuration-files)). The same field name is used regardless of how the key was obtained.
+
+> **The `api_key` field in your config is not a Project API key.** It holds whichever CLI client key the last login produced. The field name is historical, so you cannot tell from the config file alone which kind of credential you have, or what it is allowed to do.
+
+### Which key can do what
+
+| | `hookdeck login`<br>`hookdeck login --cli-key` | `hookdeck ci --api-key` | Project API key<br>(dashboard) |
+|---|---|---|---|
+| What it is | CLI client key, tied to your user | CLI client key, tied to one project | Long-lived key from project settings |
+| Stored in config as `api_key` | Yes | Yes | No — exchanged, never stored |
+| `hookdeck listen`, `hookdeck gateway …` | Yes | Yes | No |
+| `hookdeck project list` / `project use` | **Yes** | **No** — single project, no user | No |
+| Accepted by `hookdeck ci --api-key` | No | No | **Yes** |
+
+The distinction that catches people out is the middle column: a key from `hookdeck ci` works fine for everyday commands but is pinned to one project, so anything that spans projects fails.
+
+### Check which key you have
+
+`hookdeck whoami` shows the active project but not the key's scope. To tell the two CLI client keys apart, ask for something only a user-associated key can do:
+
+```sh
+hookdeck project list
+```
+
+- **A list of projects** — you have a user-associated key and can switch projects.
+- **An error saying the credential is scoped to a single project** — you have a project-scoped key from `hookdeck ci`. Run `hookdeck login` (or `hookdeck login --cli-key <key>`) for account-wide access.
 
 ### CLI client keys (what the CLI runs as)
 

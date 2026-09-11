@@ -35,7 +35,11 @@ type ConnectionCreateRequest struct {
 	DestinationID *string                 `json:"destination_id,omitempty"`
 	Source        *SourceCreateInput      `json:"source,omitempty"`
 	Destination   *DestinationCreateInput `json:"destination,omitempty"`
-	Rules         []Rule                  `json:"rules,omitempty"`
+	// Rules is a pointer so that an explicitly empty array can be sent. The API
+	// replaces the ruleset wholesale, so [] is how a caller removes every rule,
+	// but omitempty drops an empty slice — `connection update --rules '[]'`
+	// marshalled to nothing, changed nothing, and exited 0.
+	Rules *[]Rule `json:"rules,omitempty"`
 }
 
 // ConnectionListResponse represents the response from listing connections
@@ -84,7 +88,12 @@ func (c *Client) ListConnections(ctx context.Context, params map[string]string) 
 
 // GetConnection retrieves a single connection by ID
 func (c *Client) GetConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/connections/"+id, "", nil)
+	path, err := apiPath("connections", id)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -144,12 +153,17 @@ func (c *Client) UpsertConnection(ctx context.Context, req *ConnectionCreateRequ
 // UpdateConnection updates an existing connection by ID
 // Uses PUT /connections/{id} endpoint
 func (c *Client) UpdateConnection(ctx context.Context, id string, req *ConnectionCreateRequest) (*Connection, error) {
+	path, err := apiPath("connections", id)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal connection update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, APIPathPrefix+"/connections/"+id, data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -165,8 +179,12 @@ func (c *Client) UpdateConnection(ctx context.Context, id string, req *Connectio
 
 // DeleteConnection deletes a connection
 func (c *Client) DeleteConnection(ctx context.Context, id string) error {
-	url := APIPathPrefix + "/connections/" + id
-	req, err := c.newRequest(ctx, "DELETE", url, nil)
+	path, err := apiPath("connections", id)
+	if err != nil {
+		return err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -182,62 +200,39 @@ func (c *Client) DeleteConnection(ctx context.Context, id string) error {
 
 // EnableConnection enables a connection
 func (c *Client) EnableConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/connections/"+id+"/enable", []byte("{}"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var connection Connection
-	_, err = postprocessJsonResponse(resp, &connection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection response: %w", err)
-	}
-
-	return &connection, nil
+	return c.setConnectionState(ctx, id, "enable")
 }
 
 // DisableConnection disables a connection
 func (c *Client) DisableConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/connections/"+id+"/disable", []byte("{}"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var connection Connection
-	_, err = postprocessJsonResponse(resp, &connection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection response: %w", err)
-	}
-
-	return &connection, nil
+	return c.setConnectionState(ctx, id, "disable")
 }
 
 // PauseConnection pauses a connection
 func (c *Client) PauseConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/connections/"+id+"/pause", []byte("{}"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var connection Connection
-	_, err = postprocessJsonResponse(resp, &connection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection response: %w", err)
-	}
-
-	return &connection, nil
+	return c.setConnectionState(ctx, id, "pause")
 }
 
 // UnpauseConnection unpauses a connection
 func (c *Client) UnpauseConnection(ctx context.Context, id string) (*Connection, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/connections/"+id+"/unpause", []byte("{}"), nil)
+	return c.setConnectionState(ctx, id, "unpause")
+}
+
+// setConnectionState applies one of the connection state-change actions, which
+// differ only in the final path segment and all answer with the connection.
+func (c *Client) setConnectionState(ctx context.Context, id, action string) (*Connection, error) {
+	path, err := apiPath("connections", id, action)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Put(ctx, path, []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var connection Connection
-	_, err = postprocessJsonResponse(resp, &connection)
-	if err != nil {
+	if _, err := postprocessJsonResponse(resp, &connection); err != nil {
 		return nil, fmt.Errorf("failed to parse connection response: %w", err)
 	}
 
@@ -265,13 +260,12 @@ func (c *Client) CountConnections(ctx context.Context, params map[string]string)
 	return &result, nil
 }
 
-// newRequest creates a new HTTP request (helper for DELETE)
+// newRequest creates a new HTTP request (helper for DELETE and PATCH)
 func (c *Client) newRequest(ctx context.Context, method, path string, body []byte) (*http.Request, error) {
-	u, err := url.Parse(path)
+	u, err := c.resolveRequestURL(path)
 	if err != nil {
 		return nil, err
 	}
-	u = c.BaseURL.ResolveReference(u)
 
 	var bodyReader io.Reader
 	if body != nil {

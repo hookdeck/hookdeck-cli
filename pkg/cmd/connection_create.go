@@ -447,7 +447,7 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 		return err
 	}
 	if len(rules) > 0 {
-		req.Rules = rules
+		req.Rules = &rules
 	}
 
 	// Single API call to create the connection
@@ -781,15 +781,15 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 	}
 	// Build from individual --source-* flags using shared logic
 	f := &sourceConfigFlags{
-		WebhookSecret:        cc.SourceWebhookSecret,
-		APIKey:               cc.SourceAPIKey,
-		BasicAuthUser:        cc.SourceBasicAuthUser,
-		BasicAuthPass:        cc.SourceBasicAuthPass,
-		HMACSecret:           cc.SourceHMACSecret,
-		HMACAlgo:             cc.SourceHMACAlgo,
-		AllowedHTTPMethods:   cc.SourceAllowedHTTPMethods,
-		CustomResponseBody:   cc.SourceCustomResponseBody,
-		CustomResponseType:   cc.SourceCustomResponseType,
+		WebhookSecret:      cc.SourceWebhookSecret,
+		APIKey:             cc.SourceAPIKey,
+		BasicAuthUser:      cc.SourceBasicAuthUser,
+		BasicAuthPass:      cc.SourceBasicAuthPass,
+		HMACSecret:         cc.SourceHMACSecret,
+		HMACAlgo:           cc.SourceHMACAlgo,
+		AllowedHTTPMethods: cc.SourceAllowedHTTPMethods,
+		CustomResponseBody: cc.SourceCustomResponseBody,
+		CustomResponseType: cc.SourceCustomResponseType,
 	}
 	config, err := buildSourceConfigFromIndividualFlags(f, "source-", cc.sourceType)
 	if err != nil {

@@ -82,6 +82,11 @@ func (c *Client) ListDestinations(ctx context.Context, params map[string]string)
 
 // GetDestination retrieves a single destination by ID
 func (c *Client) GetDestination(ctx context.Context, id string, params map[string]string) (*Destination, error) {
+	path, err := apiPath("destinations", id)
+	if err != nil {
+		return nil, err
+	}
+
 	queryStr := ""
 	if len(params) > 0 {
 		queryParams := url.Values{}
@@ -91,7 +96,7 @@ func (c *Client) GetDestination(ctx context.Context, id string, params map[strin
 		queryStr = queryParams.Encode()
 	}
 
-	resp, err := c.Get(ctx, APIPathPrefix+"/destinations/"+id, queryStr, nil)
+	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -149,12 +154,17 @@ func (c *Client) UpsertDestination(ctx context.Context, req *DestinationCreateRe
 
 // UpdateDestination updates an existing destination by ID
 func (c *Client) UpdateDestination(ctx context.Context, id string, req *DestinationUpdateRequest) (*Destination, error) {
+	path, err := apiPath("destinations", id)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal destination update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, APIPathPrefix+"/destinations/"+id, data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -170,8 +180,12 @@ func (c *Client) UpdateDestination(ctx context.Context, id string, req *Destinat
 
 // DeleteDestination deletes a destination
 func (c *Client) DeleteDestination(ctx context.Context, id string) error {
-	urlPath := APIPathPrefix + "/destinations/" + id
-	req, err := c.newRequest(ctx, "DELETE", urlPath, nil)
+	path, err := apiPath("destinations", id)
+	if err != nil {
+		return err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -187,30 +201,27 @@ func (c *Client) DeleteDestination(ctx context.Context, id string) error {
 
 // EnableDestination enables a destination
 func (c *Client) EnableDestination(ctx context.Context, id string) (*Destination, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/destinations/"+id+"/enable", []byte("{}"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var destination Destination
-	_, err = postprocessJsonResponse(resp, &destination)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination response: %w", err)
-	}
-
-	return &destination, nil
+	return c.setDestinationEnabled(ctx, id, "enable")
 }
 
 // DisableDestination disables a destination
 func (c *Client) DisableDestination(ctx context.Context, id string) (*Destination, error) {
-	resp, err := c.Put(ctx, APIPathPrefix+"/destinations/"+id+"/disable", []byte("{}"), nil)
+	return c.setDestinationEnabled(ctx, id, "disable")
+}
+
+func (c *Client) setDestinationEnabled(ctx context.Context, id, action string) (*Destination, error) {
+	path, err := apiPath("destinations", id, action)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Put(ctx, path, []byte("{}"), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var destination Destination
-	_, err = postprocessJsonResponse(resp, &destination)
-	if err != nil {
+	if _, err := postprocessJsonResponse(resp, &destination); err != nil {
 		return nil, fmt.Errorf("failed to parse destination response: %w", err)
 	}
 
@@ -266,8 +277,8 @@ type DestinationUpdateRequest struct {
 
 // DestinationListResponse represents the response from listing destinations
 type DestinationListResponse struct {
-	Models     []Destination        `json:"models"`
-	Pagination PaginationResponse   `json:"pagination"`
+	Models     []Destination      `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
 }
 
 // DestinationCountResponse represents the response from counting destinations

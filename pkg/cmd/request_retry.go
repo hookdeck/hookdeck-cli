@@ -12,8 +12,8 @@ import (
 )
 
 type requestRetryCmd struct {
-	cmd            *cobra.Command
-	connectionIDs  string
+	cmd           *cobra.Command
+	connectionIDs string
 }
 
 func newRequestRetryCmd() *requestRetryCmd {
@@ -53,9 +53,16 @@ func (rc *requestRetryCmd) runRequestRetryCmd(cmd *cobra.Command, args []string)
 		}
 	}
 
-	if err := client.RetryRequest(ctx, requestID, body); err != nil {
+	result, err := client.RetryRequest(ctx, requestID, body)
+	if err != nil {
 		return fmt.Errorf("failed to retry request: %w", err)
 	}
-	fmt.Printf("Request %s retry requested.\n", requestID)
+	// Say how many events the retry produced. A retry that matches no
+	// connection is accepted and creates nothing, and "retry requested" reads
+	// the same for both.
+	if len(result.Events) == 0 {
+		return fmt.Errorf("request %s was retried but matched no connection, so no events were created", requestID)
+	}
+	fmt.Printf("Request %s retried: %d event(s) created.\n", requestID, len(result.Events))
 	return nil
 }

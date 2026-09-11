@@ -71,6 +71,12 @@ func commandSummaryFor502Log(args []string) string {
 // output looks like a transient Hookdeck API HTTP 502/500. Logs each retry clearly via t.Logf.
 func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, args []string, run func() (stdout, stderr string, err error)) (stdout, stderr string, err error) {
 	r.t.Helper()
+
+	// Every CLI command a runner executes passes through here, which makes it
+	// the one place resource bookkeeping can happen without each call site
+	// having to remember it. See resource_cleanup.go.
+	defer func() { r.recordCommandResources(args, stdout, err) }()
+
 	var lastStdout, lastStderr string
 	var lastErr error
 	for attempt := 1; attempt <= acceptance502MaxAttempts; attempt++ {
@@ -106,8 +112,13 @@ func (r *CLIRunner) runWithHTTP502Retry(commandSummary string, args []string, ru
 
 // RecordedRequest holds a single HTTP request as captured by the recording proxy.
 type RecordedRequest struct {
-	Method    string
-	Path      string
+	Method string
+	Path   string
+	// Query is the raw, still-encoded query string. Filter tests assert on it
+	// because a list command that sends a filter under the wrong key is not an
+	// error the API reports — the parameter is ignored and the unfiltered list
+	// comes back looking like a correct answer.
+	Query     string
 	Telemetry string
 }
 
@@ -202,7 +213,7 @@ func resetRecordingProxiesForArgs(args []string) {
 
 // StartRecordingProxy starts an httptest.Server that acts as a reverse proxy to
 // upstreamBase (e.g. https://api.hookdeck.com). Every request is recorded
-// (method, path, X-Hookdeck-CLI-Telemetry) and then forwarded to the upstream;
+// (method, path, query, X-Hookdeck-CLI-Telemetry) and then forwarded to the upstream;
 // the upstream response is returned to the client. Use with CLIRunner.Run("--api-base", proxy.URL(), "gateway", ...).
 func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
 	t.Helper()
@@ -221,6 +232,7 @@ func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
 		p.recorded = append(p.recorded, RecordedRequest{
 			Method:    r.Method,
 			Path:      r.URL.Path,
+			Query:     r.URL.RawQuery,
 			Telemetry: r.Header.Get("X-Hookdeck-CLI-Telemetry"),
 		})
 		p.mu.Unlock()
@@ -267,6 +279,34 @@ func StartRecordingProxy(t *testing.T, upstreamBase string) *RecordingProxy {
 
 	registerRecordingProxy(p)
 	return p
+}
+
+// RecordedQueryForPath returns the parsed query string of the first recorded
+// request whose path ends with suffix, failing the test if there is none.
+//
+// Use it to assert that a list command's filter flags reached the API under the
+// keys the API expects. An unrecognised query parameter is ignored rather than
+// rejected, so a command that misspells a filter key still exits zero and still
+// prints results — asserting on the query is the only way to catch it.
+func RecordedQueryForPath(t *testing.T, proxy *RecordingProxy, suffix string) url.Values {
+	t.Helper()
+
+	recorded := proxy.Recorded()
+	for _, r := range recorded {
+		if !strings.HasSuffix(r.Path, suffix) {
+			continue
+		}
+		values, err := url.ParseQuery(r.Query)
+		require.NoError(t, err, "parse recorded query %q", r.Query)
+		return values
+	}
+
+	paths := make([]string, 0, len(recorded))
+	for _, r := range recorded {
+		paths = append(paths, r.Method+" "+r.Path)
+	}
+	t.Fatalf("no request recorded for a path ending %q; recorded: %v", suffix, paths)
+	return nil
 }
 
 // telemetryPayload is the structure of the X-Hookdeck-CLI-Telemetry header (JSON).
@@ -342,6 +382,28 @@ type CLIRunner struct {
 	apiKey      string
 	projectRoot string
 	configPath  string // when set (ACCEPTANCE_SLICE), HOOKDECK_CONFIG_FILE is set so each slice uses its own config file
+
+	// tracker records the gateway resources commands run through this runner
+	// created, so anything the test does not delete itself is deleted when the
+	// test ends. See resource_cleanup.go. Nil for runners that are not pointed
+	// at an acceptance-test project.
+	trackerMu sync.Mutex
+	tracker   *resourceTracker
+}
+
+// enableResourceSweep starts recording created resources and registers the sweep
+// that deletes the leftovers. Call it from a constructor, before the runner runs
+// anything, so the sweep is the last cleanup to run and the cleanups the test
+// registers itself still get first go.
+func (r *CLIRunner) enableResourceSweep() {
+	if r.t == nil || r.tracker != nil {
+		return
+	}
+	r.tracker = &resourceTracker{
+		seen:    make(map[string]bool),
+		deleted: make(map[string]bool),
+	}
+	r.t.Cleanup(r.sweepCreatedResources)
 }
 
 // NewCLIRunner creates a new CLI runner for tests
@@ -362,6 +424,7 @@ func NewCLIRunner(t *testing.T) *CLIRunner {
 		projectRoot: projectRoot,
 		configPath:  getAcceptanceConfigPath(),
 	}
+	runner.enableResourceSweep()
 
 	// Authenticate in CI mode for tests
 	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
@@ -385,6 +448,7 @@ func NewCLIRunnerWithConfigPath(t *testing.T, configPath string) *CLIRunner {
 		projectRoot: projectRoot,
 		configPath:  configPath,
 	}
+	runner.enableResourceSweep()
 	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
 	require.NoError(t, err, "Failed to authenticate CLI with config at %s: stdout=%s stderr=%s", configPath, stdout, stderr)
 	return runner
@@ -399,12 +463,14 @@ func NewCLIRunnerWithConfigPathNoCI(t *testing.T, configPath string) *CLIRunner 
 	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY must be set")
 	projectRoot, err := filepath.Abs("../..")
 	require.NoError(t, err, "Failed to get project root path")
-	return &CLIRunner{
+	runner := &CLIRunner{
 		t:           t,
 		apiKey:      apiKey,
 		projectRoot: projectRoot,
 		configPath:  configPath,
 	}
+	runner.enableResourceSweep()
+	return runner
 }
 
 // getAcceptanceAPIKey returns the API key for the current acceptance slice.
@@ -422,6 +488,35 @@ func getAcceptanceAPIKey(t *testing.T) string {
 		}
 	}
 	return os.Getenv("HOOKDECK_CLI_TESTING_API_KEY")
+}
+
+// NewOutpostCLIRunner creates a runner authenticated against the Outpost test
+// project.
+//
+// It cannot share the keys the other slices use: every `hookdeck outpost`
+// command requires an Outpost project, and those keys belong to Gateway
+// projects, so the project gate would reject them before any request is made.
+func NewOutpostCLIRunner(t *testing.T) *CLIRunner {
+	t.Helper()
+
+	apiKey := os.Getenv("HOOKDECK_CLI_OUTPOST_TESTING_API_KEY")
+	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_OUTPOST_TESTING_API_KEY must be set (a Project API key for an Outpost project)")
+
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root path")
+
+	runner := &CLIRunner{
+		t:           t,
+		apiKey:      apiKey,
+		projectRoot: projectRoot,
+		configPath:  getAcceptanceConfigPath(),
+	}
+	runner.enableResourceSweep()
+
+	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
+	require.NoError(t, err, "Failed to authenticate CLI against the Outpost project: stdout=%s, stderr=%s", stdout, stderr)
+
+	return runner
 }
 
 // NewCLIRunnerWithKey creates a new CLI runner authenticated with the given CLI key via
@@ -561,6 +656,10 @@ func (r *CLIRunner) RunWithEnv(extraEnv map[string]string, args ...string) (stdo
 // non-nil because the process was killed). Uses the same project root and config env as Run().
 func (r *CLIRunner) RunListenWithTimeout(args []string, runDuration time.Duration) (stdout, stderr string, err error) {
 	r.t.Helper()
+	// listen creates the source it is pointed at when that source does not
+	// exist, along with a cli-<source> connection and destination. None of that
+	// goes through Run, so it is registered for cleanup by name instead.
+	registerListenCleanup(r.t, r, args)
 	tmpBinary := filepath.Join(r.projectRoot, "hookdeck-listen-test-"+generateTimestamp())
 	defer os.Remove(tmpBinary)
 
@@ -591,11 +690,24 @@ func (r *CLIRunner) RunListenWithTimeout(args []string, runDuration time.Duratio
 	return stdoutBuf.String(), stderrBuf.String(), waitErr
 }
 
-// RunGatewayMCPSubprocess builds the CLI binary, runs `gateway mcp` with optional stdin,
+// RunGatewayMCPSubprocess runs `gateway mcp`. See RunMCPSubprocess.
+func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
+	t.Helper()
+	return RunMCPSubprocess(t, projectRoot, configPath, []string{"gateway", "mcp"}, extraEnv, stdin, runDuration)
+}
+
+// RunOutpostMCPSubprocess runs `outpost mcp` with the given extra arguments
+// (e.g. --allow-write). See RunMCPSubprocess.
+func RunOutpostMCPSubprocess(t *testing.T, projectRoot, configPath string, args []string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
+	t.Helper()
+	return RunMCPSubprocess(t, projectRoot, configPath, append([]string{"outpost", "mcp"}, args...), extraEnv, stdin, runDuration)
+}
+
+// RunMCPSubprocess builds the CLI binary, runs the given MCP command with optional stdin,
 // lets it run for runDuration, then kills the process. Returns stdout, stderr, and the
 // error from Wait (often non-nil because the process was killed). configPath, when non-empty,
 // is passed as HOOKDECK_CONFIG_FILE. extraEnv entries override the process environment.
-func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
+func RunMCPSubprocess(t *testing.T, projectRoot, configPath string, args []string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
 	t.Helper()
 	tmpBinary := filepath.Join(projectRoot, "hookdeck-mcp-test-"+generateTimestamp())
 	defer os.Remove(tmpBinary)
@@ -603,10 +715,10 @@ func RunGatewayMCPSubprocess(t *testing.T, projectRoot, configPath string, extra
 	buildCmd := exec.Command("go", "build", "-o", tmpBinary, ".")
 	buildCmd.Dir = projectRoot
 	if buildErr := buildCmd.Run(); buildErr != nil {
-		return "", "", fmt.Errorf("build CLI for gateway mcp test: %w", buildErr)
+		return "", "", fmt.Errorf("build CLI for mcp test: %w", buildErr)
 	}
 
-	cmd := exec.Command(tmpBinary, "gateway", "mcp")
+	cmd := exec.Command(tmpBinary, args...)
 	cmd.Dir = projectRoot
 	env := os.Environ()
 	if configPath != "" {
@@ -696,24 +808,67 @@ func findJSONRPCResponseByID(t *testing.T, stdout string, id int) map[string]any
 	return nil
 }
 
+// mcpInitializeJSON is a minimal initialize request, for tests that only need
+// the server to answer one.
+const mcpInitializeJSON = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}`
+
+// firstJSONRPCMessageLine returns the first JSON-RPC message on stdout.
+func firstJSONRPCMessageLine(t *testing.T, stdout string) map[string]any {
+	t.Helper()
+	for _, line := range strings.Split(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var msg map[string]any
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		if _, ok := msg["jsonrpc"]; ok {
+			return msg
+		}
+	}
+	t.Fatalf("no JSON-RPC line in stdout: %q", stdout)
+	return nil
+}
+
+// mcpHandshake is the initialize + initialized prelude every session needs
+// before it can issue requests.
+var mcpHandshake = []string{
+	`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"acceptance-test","version":"1.0"},"capabilities":{}}}`,
+	`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+}
+
 // CallGatewayMCPTool runs initialize + notifications/initialized + tools/call over gateway mcp stdio.
 func CallGatewayMCPTool(t *testing.T, projectRoot, configPath, toolName string, arguments map[string]any, runDuration time.Duration) MCPToolCallResult {
 	t.Helper()
+	return CallMCPTool(t, projectRoot, configPath, []string{"gateway", "mcp"}, toolName, arguments, runDuration)
+}
+
+// CallOutpostMCPTool runs a tools/call over outpost mcp stdio. args carries the
+// command's own flags (e.g. --allow-write).
+func CallOutpostMCPTool(t *testing.T, projectRoot, configPath string, args []string, toolName string, arguments map[string]any, runDuration time.Duration) MCPToolCallResult {
+	t.Helper()
+	return CallMCPTool(t, projectRoot, configPath, append([]string{"outpost", "mcp"}, args...), toolName, arguments, runDuration)
+}
+
+// CallMCPTool runs initialize + notifications/initialized + tools/call over the
+// given MCP command's stdio.
+func CallMCPTool(t *testing.T, projectRoot, configPath string, command []string, toolName string, arguments map[string]any, runDuration time.Duration) MCPToolCallResult {
+	t.Helper()
 	argsJSON, err := json.Marshal(arguments)
 	require.NoError(t, err)
-	stdin := strings.Join([]string{
-		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"acceptance-test","version":"1.0"},"capabilities":{}}}`,
-		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+	stdin := strings.Join(append(append([]string{}, mcpHandshake...),
 		fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":%q,"arguments":%s}}`, toolName, string(argsJSON)),
-	}, "\n") + "\n"
+	), "\n") + "\n"
 
 	extra := map[string]string{}
 	if configPath != "" {
 		extra["HOOKDECK_CONFIG_FILE"] = configPath
 	}
-	stdout, stderr, waitErr := RunGatewayMCPSubprocess(t, projectRoot, configPath, extra, stdin, runDuration)
+	stdout, stderr, waitErr := RunMCPSubprocess(t, projectRoot, configPath, command, extra, stdin, runDuration)
 	if waitErr != nil {
-		t.Logf("gateway mcp subprocess wait: %v (stderr=%q)", waitErr, stderr)
+		t.Logf("%v subprocess wait: %v (stderr=%q)", command, waitErr, stderr)
 	}
 
 	resp := findJSONRPCResponseByID(t, stdout, 2)
@@ -729,6 +884,66 @@ func CallGatewayMCPTool(t *testing.T, projectRoot, configPath, toolName string, 
 			if text, ok := block["text"].(string); ok {
 				out.Text = text
 			}
+		}
+	}
+	return out
+}
+
+// ListMCPTools runs initialize + notifications/initialized + tools/list over the
+// given MCP command's stdio, and returns the tools by name along with the raw
+// stdout and stderr so callers can also assert on stream hygiene.
+func ListMCPTools(t *testing.T, projectRoot, configPath string, command []string, runDuration time.Duration) (tools map[string]map[string]any, stdout, stderr string) {
+	t.Helper()
+	stdin := strings.Join(append(append([]string{}, mcpHandshake...),
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
+	), "\n") + "\n"
+
+	extra := map[string]string{}
+	if configPath != "" {
+		extra["HOOKDECK_CONFIG_FILE"] = configPath
+	}
+	stdout, stderr, waitErr := RunMCPSubprocess(t, projectRoot, configPath, command, extra, stdin, runDuration)
+	if waitErr != nil {
+		t.Logf("%v subprocess wait: %v (stderr=%q)", command, waitErr, stderr)
+	}
+
+	resp := findJSONRPCResponseByID(t, stdout, 2)
+	result, ok := resp["result"].(map[string]any)
+	require.True(t, ok, "tools/list result missing in %v", resp)
+
+	list, ok := result["tools"].([]any)
+	require.True(t, ok, "tools/list returned no tools array: %v", result)
+
+	tools = make(map[string]map[string]any, len(list))
+	for _, entry := range list {
+		tool, ok := entry.(map[string]any)
+		require.True(t, ok)
+		name, _ := tool["name"].(string)
+		tools[name] = tool
+	}
+	return tools, stdout, stderr
+}
+
+// MCPToolActionEnum returns the action enum a tool advertises, which is how an
+// MCP server tells a client which actions it may call.
+func MCPToolActionEnum(t *testing.T, tool map[string]any) []string {
+	t.Helper()
+	schema, ok := tool["inputSchema"].(map[string]any)
+	require.True(t, ok, "tool has no inputSchema: %v", tool)
+	properties, ok := schema["properties"].(map[string]any)
+	require.True(t, ok, "schema has no properties: %v", schema)
+	action, ok := properties["action"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	rawEnum, ok := action["enum"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(rawEnum))
+	for _, v := range rawEnum {
+		if s, ok := v.(string); ok {
+			out = append(out, s)
 		}
 	}
 	return out
@@ -947,6 +1162,10 @@ type Event struct {
 // Request represents a Hookdeck request for testing
 type Request struct {
 	ID string `json:"id"`
+	// EventsCount is how many events the request produced. The count filters
+	// are checked against it, since "produced no events" is the query that
+	// explains a webhook that appears to have gone missing.
+	EventsCount int `json:"events_count"`
 }
 
 // Attempt represents a Hookdeck attempt for testing
@@ -1014,7 +1233,9 @@ func createTestConnectionWithMockDestination(t *testing.T, cli *CLIRunner) strin
 }
 
 // deleteConnection deletes a connection by ID using the --force flag
-// This is safe to use in cleanup functions and won't prompt for confirmation
+// This is safe to use in cleanup functions and won't prompt for confirmation.
+// It deletes the connection only; the source and destination created with it are
+// deleted by the runner's sweep when the test ends (see resource_cleanup.go).
 func deleteConnection(t *testing.T, cli *CLIRunner, id string) {
 	t.Helper()
 
@@ -1027,16 +1248,6 @@ func deleteConnection(t *testing.T, cli *CLIRunner, id string) {
 	}
 
 	t.Logf("Deleted connection: %s", id)
-}
-
-// cleanupConnections deletes multiple connections
-// Useful for cleaning up test resources
-func cleanupConnections(t *testing.T, cli *CLIRunner, ids []string) {
-	t.Helper()
-
-	for _, id := range ids {
-		deleteConnection(t, cli, id)
-	}
 }
 
 // createTestSource creates a WEBHOOK source and returns its ID

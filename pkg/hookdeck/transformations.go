@@ -5,17 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 )
 
 // Transformation represents a Hookdeck transformation
 type Transformation struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name"`
-	Code      string                 `json:"code"`
-	Env       map[string]string      `json:"env,omitempty"`
-	UpdatedAt time.Time              `json:"updated_at"`
-	CreatedAt time.Time              `json:"created_at"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Code      string            `json:"code"`
+	Env       map[string]string `json:"env,omitempty"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	CreatedAt time.Time         `json:"created_at"`
 }
 
 // TransformationCreateRequest is the request body for create and upsert (POST/PUT /transformations).
@@ -48,29 +49,88 @@ type TransformationCountResponse struct {
 // TransformationRunRequest is the request body for PUT /transformations/run.
 // Either Code or TransformationID must be set. Request.Headers is required (can be empty object).
 type TransformationRunRequest struct {
-	Code             string                    `json:"code,omitempty"`
-	TransformationID string                    `json:"transformation_id,omitempty"`
-	WebhookID        string                    `json:"webhook_id,omitempty"`
-	Env              map[string]string         `json:"env,omitempty"`
+	Code             string                         `json:"code,omitempty"`
+	TransformationID string                         `json:"transformation_id,omitempty"`
+	WebhookID        string                         `json:"webhook_id,omitempty"`
+	Env              map[string]string              `json:"env,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
 }
 
 // TransformationRunRequestInput is the "request" object for run (required headers; optional body, path, query).
 type TransformationRunRequestInput struct {
-	Headers    map[string]string      `json:"headers"`
-	Body       interface{}            `json:"body,omitempty"`
-	Path       string                 `json:"path,omitempty"`
-	Query      string                 `json:"query,omitempty"`
+	Headers     map[string]string      `json:"headers"`
+	Body        interface{}            `json:"body,omitempty"`
+	Path        string                 `json:"path,omitempty"`
+	Query       string                 `json:"query,omitempty"`
 	ParsedQuery map[string]interface{} `json:"parsed_query,omitempty"`
 }
 
 // TransformationRunResponse is the response from PUT /transformations/run.
 // Matches OpenAPI schema TransformationExecutorOutput.
 type TransformationRunResponse struct {
-	RequestID        string                 `json:"request_id,omitempty"`
-	TransformationID string                 `json:"transformation_id,omitempty"`
-	ExecutionID      string                 `json:"execution_id,omitempty"`
+	RequestID        string                         `json:"request_id,omitempty"`
+	TransformationID string                         `json:"transformation_id,omitempty"`
+	ExecutionID      string                         `json:"execution_id,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
+
+	// LogLevel is how the run ended, and the only signal that it failed: the
+	// endpoint answers 200 for a throwing handler, a syntax error and a clean
+	// run alike. "fatal" and "error" mean the code did not complete.
+	//
+	// It was omitted from this struct, so both surfaces reported success for a
+	// transformation that threw — the CLI printed "✔ Transformation run
+	// completed" and exited 0.
+	LogLevel string `json:"log_level,omitempty"`
+
+	// Console is everything the code printed, and where the failure reason
+	// lives. A throwing handler answers with no Request at all and the error
+	// only here:
+	//
+	//   {"log_level":"fatal","console":[{"type":"error","message":"Error: ..."}]}
+	Console []TransformationConsoleLine `json:"console,omitempty"`
+}
+
+// TransformationConsoleLine is one line the transformation code emitted.
+type TransformationConsoleLine struct {
+	Type    string `json:"type"` // error, log, warn, info, debug
+	Message string `json:"message"`
+}
+
+// Failed reports whether the run did not complete.
+//
+// Only "fatal" means that. log_level is the highest severity the run logged,
+// not a completion flag — a handler that calls console.error and then returns a
+// transformed request reports "error" and succeeded. Treating that as a failure
+// discarded the result the caller asked for, which is the same shape of wrong
+// answer this type was extended to prevent, inverted.
+//
+// Verified against the live API:
+//
+//	clean run                  log_level=info   request present
+//	console.warn then returns  log_level=warn   request present
+//	console.error then returns log_level=error  request present
+//	handler returns nothing    log_level=fatal  no request
+//	handler throws             log_level=fatal  no request
+//
+// A missing request is checked too: the two failing cases have no request, so a
+// run that produced one completed however loudly it complained on the way.
+func (r *TransformationRunResponse) Failed() bool {
+	if r == nil {
+		return false
+	}
+	return r.LogLevel == "fatal" || r.Request == nil
+}
+
+// ConsoleText renders the console output as lines, for an error message.
+func (r *TransformationRunResponse) ConsoleText() string {
+	if r == nil || len(r.Console) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(r.Console))
+	for _, line := range r.Console {
+		lines = append(lines, fmt.Sprintf("[%s] %s", line.Type, line.Message))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // TransformationExecution represents a single transformation execution
@@ -109,7 +169,12 @@ func (c *Client) ListTransformations(ctx context.Context, params map[string]stri
 
 // GetTransformation retrieves a single transformation by ID
 func (c *Client) GetTransformation(ctx context.Context, id string) (*Transformation, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/transformations/"+id, "", nil)
+	path, err := apiPath("transformations", id)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -167,12 +232,17 @@ func (c *Client) UpsertTransformation(ctx context.Context, req *TransformationCr
 
 // UpdateTransformation updates an existing transformation by ID
 func (c *Client) UpdateTransformation(ctx context.Context, id string, req *TransformationUpdateRequest) (*Transformation, error) {
+	path, err := apiPath("transformations", id)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal transformation update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, APIPathPrefix+"/transformations/"+id, data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -188,8 +258,12 @@ func (c *Client) UpdateTransformation(ctx context.Context, id string, req *Trans
 
 // DeleteTransformation deletes a transformation
 func (c *Client) DeleteTransformation(ctx context.Context, id string) error {
-	urlPath := APIPathPrefix + "/transformations/" + id
-	req, err := c.newRequest(ctx, "DELETE", urlPath, nil)
+	path, err := apiPath("transformations", id)
+	if err != nil {
+		return err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -247,12 +321,17 @@ func (c *Client) RunTransformation(ctx context.Context, req *TransformationRunRe
 
 // ListTransformationExecutions lists executions for a transformation
 func (c *Client) ListTransformationExecutions(ctx context.Context, transformationID string, params map[string]string) (*TransformationExecutionListResponse, error) {
+	path, err := apiPath("transformations", transformationID, "executions")
+	if err != nil {
+		return nil, err
+	}
+
 	queryParams := url.Values{}
 	for k, v := range params {
 		queryParams.Add(k, v)
 	}
 
-	resp, err := c.Get(ctx, APIPathPrefix+"/transformations/"+transformationID+"/executions", queryParams.Encode(), nil)
+	resp, err := c.Get(ctx, path, queryParams.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +347,12 @@ func (c *Client) ListTransformationExecutions(ctx context.Context, transformatio
 
 // GetTransformationExecution retrieves a single execution by transformation ID and execution ID
 func (c *Client) GetTransformationExecution(ctx context.Context, transformationID, executionID string) (*TransformationExecution, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/transformations/"+transformationID+"/executions/"+executionID, "", nil)
+	path, err := apiPath("transformations", transformationID, "executions", executionID)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}

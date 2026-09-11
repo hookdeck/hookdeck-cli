@@ -2,60 +2,84 @@ package mcp
 
 import (
 	"context"
-	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-func handleAttempts(client *hookdeck.Client) mcpsdk.ToolHandler {
+// attempts is read-only: a delivery attempt is a record of something that
+// already happened. Retrying is an action on the event, not on the attempt.
+var attemptsActions = mcpcore.ActionSet{
+	{Name: "list", Desc: "list delivery attempts"},
+	{Name: "get", Desc: "get one attempt, including the response data"},
+}
+
+var attemptsSpec = mcpcore.ToolSpec{
+	Resource: "attempts",
+	Summary:  "Query delivery attempts (each HTTP request made to deliver an event to its destination). Filter by event to see retry history, response status codes, and error details.",
+	Actions:  attemptsActions,
+	Props: map[string]mcpcore.Prop{
+		"id":       {Type: "string", Desc: "Attempt ID (required for get)"},
+		"event_id": {Type: "string", Desc: "Filter by event (list)"},
+		"limit":    {Type: "integer", Desc: "Max results (list)"},
+		"order_by": {Type: "string", Desc: "Sort field (list)"},
+		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)"},
+		"next":     {Type: "string", Desc: "Next page cursor"},
+		"prev":     {Type: "string", Desc: "Previous page cursor"},
+	},
+	Handler: handleAttempts,
+}
+
+func handleAttempts(srv *mcpcore.Server) mcpsdk.ToolHandler {
+	client := srv.Client()
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		if r := requireAuth(client); r != nil {
+		if r := srv.RequireAuth(); r != nil {
 			return r, nil
 		}
 
-		in, err := parseInput(req.Params.Arguments)
+		in, err := mcpcore.ParseInput(req.Params.Arguments)
 		if err != nil {
-			return ErrorResult(err.Error()), nil
+			return mcpcore.ErrorResult(err.Error()), nil
 		}
 
-		action := in.String("action")
-		switch action {
-		case "list", "":
-			return attemptsList(ctx, client, in)
-		case "get":
-			return attemptsGet(ctx, client, in)
-		default:
-			return ErrorResult(fmt.Sprintf("unknown action %q; expected list or get", action)), nil
+		action, blocked := mcpcore.DispatchWithDefault(srv, attemptsActions, in.String("action"), "list")
+		if blocked != nil {
+			return blocked, nil
 		}
+
+		if action == "list" {
+			return attemptsList(ctx, client, in)
+		}
+		return attemptsGet(ctx, client, in)
 	}
 }
 
-func attemptsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func attemptsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	params := make(map[string]string)
-	setIfNonEmpty(params, "event_id", in.String("event_id"))
-	setInt(params, "limit", in.Int("limit", 0))
-	setIfNonEmpty(params, "order_by", in.String("order_by"))
-	setIfNonEmpty(params, "dir", in.String("dir"))
-	setIfNonEmpty(params, "next", in.String("next"))
-	setIfNonEmpty(params, "prev", in.String("prev"))
+	mcpcore.SetIfNonEmpty(params, "event_id", in.String("event_id"))
+	mcpcore.SetInt(params, "limit", in.Int("limit", 0))
+	mcpcore.SetIfNonEmpty(params, "order_by", in.String("order_by"))
+	mcpcore.SetIfNonEmpty(params, "dir", in.String("dir"))
+	mcpcore.SetIfNonEmpty(params, "next", in.String("next"))
+	mcpcore.SetIfNonEmpty(params, "prev", in.String("prev"))
 
 	result, err := client.ListAttempts(ctx, params)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
-func attemptsGet(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+func attemptsGet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
 	id := in.String("id")
 	if id == "" {
-		return ErrorResult("id is required for the get action"), nil
+		return mcpcore.ErrorResult("id is required for the get action"), nil
 	}
 	attempt, err := client.GetAttempt(ctx, id)
 	if err != nil {
-		return ErrorResult(TranslateAPIError(err)), nil
+		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return JSONResultEnvelopeForClient(attempt, client)
+	return mcpcore.JSONResultEnvelopeForClient(attempt, client)
 }

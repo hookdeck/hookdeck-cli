@@ -21,7 +21,7 @@ func newSourceEnableCmd() *sourceEnableCmd {
 		Args:  validators.ExactArgs(1),
 		Short: ShortEnable(ResourceSource),
 		Long:  LongEnableIntro(ResourceSource),
-		RunE: sc.runSourceEnableCmd,
+		RunE:  sc.runSourceEnableCmd,
 	}
 
 	return sc

@@ -1,0 +1,90 @@
+package hookdeck
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/url"
+	"strconv"
+)
+
+// The Outpost API is served from its own host (see DefaultOutpostAPIBaseURL)
+// but shares the Hookdeck API's calendar version prefix, so paths are built
+// with APIPathPrefix exactly as the Event Gateway resources are.
+
+// OutpostTopicsWildcard is the value meaning "all topics".
+const OutpostTopicsWildcard = "*"
+
+// OutpostTopics is a destination's `topics` field. The API represents it as
+// either the bare string "*" or an array of topic strings, so decoding it into
+// a plain []string fails whenever a destination subscribes to everything.
+//
+// Individual entries may themselves contain "*" as a wildcard (e.g. "user.*"),
+// which is why the wildcard is not modelled as a separate flag.
+type OutpostTopics []string
+
+// UnmarshalJSON accepts both representations, normalising "*" to a single-element
+// slice so callers only deal with one shape.
+func (t *OutpostTopics) UnmarshalJSON(data []byte) error {
+	var single string
+	if err := json.Unmarshal(data, &single); err == nil {
+		*t = OutpostTopics{single}
+		return nil
+	}
+
+	var list []string
+	if err := json.Unmarshal(data, &list); err != nil {
+		return fmt.Errorf(`topics must be "*" or an array of strings: %w`, err)
+	}
+	*t = OutpostTopics(list)
+	return nil
+}
+
+// MarshalJSON emits the wildcard in the canonical bare-string form the API
+// documents, and everything else as an array.
+func (t OutpostTopics) MarshalJSON() ([]byte, error) {
+	if len(t) == 1 && t[0] == OutpostTopicsWildcard {
+		return json.Marshal(OutpostTopicsWildcard)
+	}
+	return json.Marshal([]string(t))
+}
+
+// IsWildcard reports whether the destination subscribes to every topic.
+func (t OutpostTopics) IsWildcard() bool {
+	return len(t) == 1 && t[0] == OutpostTopicsWildcard
+}
+
+// outpostQuery builds an Outpost API query string.
+//
+// Scalar params are added as-is; that includes the API's bracketed filter keys
+// (e.g. "time[gte]"), which callers pass through verbatim. Repeated values use
+// indexed bracket notation — id[0]=a&id[1]=b — which is what the Outpost API
+// expects; repeating the bare key is not equivalent.
+func outpostQuery(params map[string]string, lists map[string][]string) string {
+	values := url.Values{}
+	for k, v := range params {
+		if v == "" {
+			continue
+		}
+		values.Add(k, v)
+	}
+	for key, list := range lists {
+		for i, v := range list {
+			if v == "" {
+				continue
+			}
+			values.Add(key+"["+strconv.Itoa(i)+"]", v)
+		}
+	}
+	return values.Encode()
+}
+
+// setOutpostTimeRange adds the API's comparison-operator filters for a time
+// field. Empty bounds are skipped, so a caller can set either end or both.
+func setOutpostTimeRange(params map[string]string, field, after, before string) {
+	if after != "" {
+		params[field+"[gte]"] = after
+	}
+	if before != "" {
+		params[field+"[lte]"] = before
+	}
+}

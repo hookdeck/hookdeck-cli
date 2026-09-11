@@ -26,7 +26,7 @@ func newTransformationGetCmd() *transformationGetCmd {
 		Use:   "get <transformation-id-or-name>",
 		Args:  validators.ExactArgs(1),
 		Short: ShortGet(ResourceTransformation),
-		Long:  LongGetIntro(ResourceTransformation) + `
+		Long: LongGetIntro(ResourceTransformation) + `
 
 Examples:
   hookdeck gateway transformation get trn_abc123

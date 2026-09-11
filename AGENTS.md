@@ -579,6 +579,26 @@ Summary for code and docs work:
 - **Guest** — `listen` without login may call `POST /cli/guest`; separate from `--cli-key` onboarding.
 - **`project list`** — Requires a user-associated CLI client key (`hookdeck login` or `hookdeck login --cli-key`). CI keys from `hookdeck ci` and raw Project API keys cannot list or switch projects (acceptance: `HOOKDECK_CLI_TESTING_CLI_KEY`).
 
+- **`outpost publish`** — The publish API requires a **Project API key** sent as a bearer token and does not accept the CLI client key stored by `hookdeck login`. It therefore has its own `--api-key` flag defaulting to `HOOKDECK_API_KEY`, in the same shape as `hookdeck ci --api-key`. Every other `hookdeck outpost` command uses the stored credentials normally. When the key is missing the command fails with its own guidance rather than a bare 401, which the generic handler would otherwise rewrite into "your API key is invalid or expired" — accurate but useless here, since the stored key is never valid for this endpoint.
+
+### Diagnosing a key before you debug anything else
+
+The config file cannot tell you which credential you hold — `api_key` is the field name for every CLI client key regardless of origin. When a command fails with a permission or project error, establish the key's scope first:
+
+- `hookdeck whoami` — the active project and its type. Does **not** reveal the key's scope.
+- `hookdeck project list` — succeeds only with a user-associated key. A "scoped to a single project" error means the key came from `hookdeck ci`.
+
+A project-scoped key is bound to one project, so it also ignores any attempt to target another project. Do not chase a project-selection bug before ruling this out.
+
+### Keys used by acceptance tests
+
+| Env var | Kind | Used for |
+|---|---|---|
+| `HOOKDECK_CLI_TESTING_API_KEY` (`_2`, `_3`) | Project API key, one per slice | The default runner; exchanged via `hookdeck ci` (`getAcceptanceAPIKey` in `test/acceptance/helpers.go`) |
+| `HOOKDECK_CLI_TESTING_CLI_KEY` | User-associated CLI key | Only `project list` / `project use` tests, via `NewCLIRunnerWithKey` |
+
+Each slice's key belongs to a **different project**, which is why tests must use unique resource names rather than assuming an empty project.
+
 ---
 
 ## Agent skills
@@ -588,6 +608,7 @@ Summary for code and docs work:
 - **Never copy a skill into a second location.** `.agents/skills/` and a root `skills/` briefly held byte-identical copies, so a fix applied to one left the other wrong (see #336). One canonical directory, symlinks everywhere else.
 - **Windows:** Git must create symlinks correctly (`core.symlinks` / Developer Mode). If symlinks are missing after clone, recreate them (`mklink /D` on Windows, or copy `.agents/skills/` into `.cursor/skills` and `.claude/skills` as a fallback).
 - **Releases:** For cutting GitHub releases, tags, npm/beta publish flow, and drafting release notes, use **`.agents/skills/hookdeck-cli-release/SKILL.md`**; human-facing steps remain in **README.md § Releasing**.
+- **Manual QA:** For exploratory testing of the CLI and MCP servers against the live API, use **`.agents/skills/hookdeck-cli-manual-qa/SKILL.md`**. It carries the credential guard that keeps destructive commands inside acceptance-test projects and off your own login — use it rather than pointing a shell at a project by hand.
 
 ---
 

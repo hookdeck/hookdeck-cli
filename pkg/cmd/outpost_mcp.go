@@ -1,0 +1,127 @@
+package cmd
+
+import (
+	"context"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	outpostmcp "github.com/hookdeck/hookdeck-cli/pkg/outpost/mcp"
+	"github.com/hookdeck/hookdeck-cli/pkg/validators"
+)
+
+// publishAPIKeyEnvVar carries the Project API key the publish tool needs.
+//
+// It is deliberately distinct from HOOKDECK_API_KEY. That variable means
+// "exchange this for CLI credentials" everywhere else in the CLI, and is
+// commonly exported for CI; reusing it here would give one name two meanings and
+// let an ambient variable silently enable sending real events.
+const publishAPIKeyEnvVar = "HOOKDECK_OUTPOST_PUBLISH_API_KEY"
+
+type outpostMCPCmd struct {
+	cmd *cobra.Command
+
+	allowWrite bool
+	readOnly   bool
+	apiKey     string
+}
+
+func newOutpostMCPCmd() *outpostMCPCmd {
+	mc := &outpostMCPCmd{}
+	mc.cmd = &cobra.Command{
+		Use:   "mcp",
+		Args:  validators.NoArgs,
+		Short: ShortBeta("Start an MCP server for AI agent access to Outpost"),
+		Long: LongBeta(`Starts a Model Context Protocol (MCP) server over stdio.
+
+The server exposes Hookdeck Outpost resources — tenants, destinations, events,
+attempts, topics, metrics and project configuration — as MCP tools that AI
+agents and LLM-based clients can invoke. Tools are prefixed outpost_, so this
+server and 'hookdeck gateway mcp' can be configured in the same client.
+
+The server starts read-only: tools advertise only the actions that read data,
+so an agent is never offered an action it cannot perform. Pass --allow-write to
+enable creating, changing and deleting. Two reads count as writes and are also
+gated, because both return a reusable credential: 'outpost_tenants token' mints
+a tenant-scoped access token, and 'outpost_tenants portal' returns a URL
+granting access to a tenant's portal.
+
+Publishing needs a Hookdeck Project API key, which the credentials stored by
+'hookdeck login' cannot substitute for. Without one the publish tool is not
+registered at all; pass --publish-api-key or set HOOKDECK_OUTPOST_PUBLISH_API_KEY.
+
+This deliberately does not read HOOKDECK_API_KEY, which elsewhere in the CLI
+means "a key to exchange for CLI credentials". Publishing sends real events to
+real destinations and cannot be undone, so it should not be switched on by a
+variable that happens to be exported for something else.
+
+If the CLI is already authenticated, all tools are available immediately. If
+not, the server still starts and hookdeck_login initiates browser-based sign-in.
+Signing in is a Hookdeck operation rather than an Outpost one, so it keeps the
+hookdeck_ prefix here as it does in 'hookdeck gateway mcp'.
+Protocol traffic uses stdout only (JSON-RPC); status and errors from the CLI
+before the server runs go to stderr.`),
+		Example: `  # Start the MCP server, read-only (stdio transport)
+  hookdeck outpost mcp
+
+  # Allow tools that change data
+  hookdeck outpost mcp --allow-write
+
+  # Allow writes, including publishing events
+  hookdeck outpost mcp --allow-write --publish-api-key $HOOKDECK_OUTPOST_PUBLISH_API_KEY
+
+  # Pipe a JSON-RPC initialize request for testing
+  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}' | hookdeck outpost mcp`,
+		RunE: mc.runOutpostMCPCmd,
+	}
+
+	addWriteModeFlags(mc.cmd, &mc.allowWrite, &mc.readOnly,
+		"Enable tools that create, change or delete data, and that return tenant credentials.")
+	// The env var is read at run time rather than used as the flag default, so a
+	// key that is already in the environment is not printed back out by --help.
+	mc.cmd.Flags().StringVar(&mc.apiKey, "publish-api-key", "", "Hookdeck Project API key, required by the publish tool. Also read from "+publishAPIKeyEnvVar+". HOOKDECK_API_KEY is deliberately not used here.")
+
+	return mc
+}
+
+func addOutpostMCPCmdTo(parent *cobra.Command) {
+	parent.AddCommand(newOutpostMCPCmd().cmd)
+}
+
+func (mc *outpostMCPCmd) runOutpostMCPCmd(cmd *cobra.Command, args []string) error {
+	// Always build the client — it may have an empty APIKey if the CLI is not
+	// yet authenticated. The server handles that by registering hookdeck_login
+	// rather than failing to start.
+	//
+	// This must be the Outpost client: the projects and login tools set the
+	// project on the client they are given, and setting it on the Gateway client
+	// would leave every Outpost call pointed at the previous project.
+	client := Config.GetOutpostAPIClient()
+
+	// Deliberately not HOOKDECK_API_KEY. That variable means "exchange this for
+	// CLI credentials" for `hookdeck ci` and `listen`, and the CLI encourages
+	// exporting it for CI — so reading it here would let an unrelated ambient
+	// variable silently grant an agent the ability to send real events.
+	publishAPIKey := mc.apiKey
+	if publishAPIKey == "" {
+		publishAPIKey = os.Getenv(publishAPIKeyEnvVar)
+	}
+
+	writeEnabled := resolveAllowWrite(
+		mc.allowWrite,
+		cmd.Flags().Changed("allow-write"),
+		mc.readOnly,
+		os.Getenv(allowWriteEnvVar),
+	)
+
+	srv := outpostmcp.NewServer(outpostmcp.ServerOptions{
+		Client: client,
+		// Listing projects and validating credentials are account-level calls
+		// that the Outpost host does not serve, so they go to the main API.
+		AccountClient: Config.GetAPIClient(),
+		Config:        &Config,
+		WriteEnabled:  writeEnabled,
+		PublishAPIKey: publishAPIKey,
+	})
+	return srv.RunStdio(context.Background())
+}

@@ -10,7 +10,7 @@ import (
 const metricsRequestsMeasures = "count, accepted_count, rejected_count, discarded_count, avg_events_per_request, avg_ignored_per_request"
 
 type metricsRequestsCmd struct {
-	cmd  *cobra.Command
+	cmd   *cobra.Command
 	flags metricsCommonFlags
 }
 

@@ -58,7 +58,9 @@ func TestEventRetry(t *testing.T) {
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
 	stdout := cli.RunExpectSuccess("gateway", "event", "retry", eventID)
-	assert.Contains(t, stdout, "retry requested")
+	// The command reports the status the API returned, not the one requested.
+	assert.Contains(t, stdout, eventID)
+	assert.Regexp(t, `is now [A-Z]+`, stdout)
 }
 
 func TestEventCancel(t *testing.T) {
@@ -71,7 +73,16 @@ func TestEventCancel(t *testing.T) {
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
 	stdout := cli.RunExpectSuccess("gateway", "event", "cancel", eventID)
-	assert.Contains(t, stdout, "cancelled")
+
+	// This test previously asserted the output said "cancelled". It was pinning
+	// a bug: the event created here has already been delivered, so cancelling it
+	// is a no-op, the API answers 200, and the command asserted an outcome
+	// nobody had checked. It now reports the status the API returned, which for
+	// an already-delivered event is SUCCESSFUL.
+	assert.Contains(t, stdout, eventID)
+	assert.Regexp(t, `is now [A-Z]+`, stdout)
+	assert.NotContains(t, stdout, "cancelled",
+		"a no-op must not be reported as though it changed the event")
 }
 
 func TestEventMute(t *testing.T) {
@@ -84,7 +95,13 @@ func TestEventMute(t *testing.T) {
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
 	stdout := cli.RunExpectSuccess("gateway", "event", "mute", eventID)
-	assert.Contains(t, stdout, "muted")
+
+	// As above: a delivered event cannot be muted, and the command now says so
+	// rather than claiming it was.
+	assert.Contains(t, stdout, eventID)
+	assert.Regexp(t, `is now [A-Z]+`, stdout)
+	assert.NotContains(t, stdout, "muted",
+		"a no-op must not be reported as though it changed the event")
 }
 
 func TestEventListJSON(t *testing.T) {
@@ -386,4 +403,63 @@ func triggerEvent(t *testing.T, cli *CLIRunner, connID string) {
 	require.NotEmpty(t, src.URL, "source URL")
 
 	triggerTestEvent(t, src.URL)
+}
+
+// The filters added in the v3 pass over the events query. Running them through
+// the recording proxy asserts both halves at once: the real API accepts the
+// request, and the flags reached it under the keys it expects. Without the
+// second half a misspelled key would still pass — the API ignores parameters it
+// does not recognise and returns the unfiltered list.
+func TestEventListNewFiltersReachTheAPI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	proxy := StartRecordingProxy(t, defaultAPIUpstream)
+	defer proxy.Close()
+
+	_, _, err := cli.Run(
+		"--api-base", proxy.URL(),
+		"gateway", "event", "list", "--limit", "5",
+		"--search-term", "acceptance",
+		"--delivery-group", "grp_acceptance",
+		"--next-attempt-at-after", "2020-01-01T00:00:00Z",
+		"--next-attempt-at-before", "2030-01-01T00:00:00Z",
+	)
+	require.NoError(t, err)
+
+	query := RecordedQueryForPath(t, proxy, "/events")
+	assert.Equal(t, "acceptance", query.Get("search_term"))
+	assert.Equal(t, "grp_acceptance", query.Get("delivery_group"))
+	// next_attempt_at is a date-operator filter: the bounds are separate
+	// bracketed keys, and a bare next_attempt_at would be a different query.
+	assert.Equal(t, "2020-01-01T00:00:00Z", query.Get("next_attempt_at[gte]"))
+	assert.Equal(t, "2030-01-01T00:00:00Z", query.Get("next_attempt_at[lte]"))
+	assert.Empty(t, query.Get("next_attempt_at"))
+}
+
+func TestEventListWithSearchTerm(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	cli.RunExpectSuccess("gateway", "event", "list", "--search-term", "acceptance", "--limit", "5")
+}
+
+func TestEventListWithDeliveryGroup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	cli.RunExpectSuccess("gateway", "event", "list", "--delivery-group", "grp_acceptance", "--limit", "5")
+}
+
+func TestEventListWithNextAttemptAtBounds(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	cli.RunExpectSuccess("gateway", "event", "list", "--next-attempt-at-after", "2020-01-01T00:00:00Z", "--limit", "5")
+	cli.RunExpectSuccess("gateway", "event", "list", "--next-attempt-at-before", "2030-01-01T00:00:00Z", "--limit", "5")
 }

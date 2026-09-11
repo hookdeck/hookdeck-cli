@@ -27,7 +27,7 @@ func TestWithTelemetry(t *testing.T) {
 	tel := &CLITelemetry{
 		Source:       "mcp",
 		Environment:  "interactive",
-		CommandPath:  "hookdeck_events/list",
+		CommandPath:  "gateway_events/list",
 		InvocationID: "inv_test123",
 		DeviceName:   "test-machine",
 		MCPClient:    "test-client/1.0",
@@ -69,7 +69,7 @@ func TestPerformRequestUsesTelemetryOverride(t *testing.T) {
 	tel := &CLITelemetry{
 		Source:       "mcp",
 		Environment:  "ci",
-		CommandPath:  "hookdeck_events/list",
+		CommandPath:  "gateway_events/list",
 		InvocationID: "inv_abcdef0123456789",
 		DeviceName:   "test-device",
 		MCPClient:    "claude-desktop/1.0",
@@ -91,7 +91,7 @@ func TestPerformRequestUsesTelemetryOverride(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(receivedHeader), &parsed))
 	require.Equal(t, "mcp", parsed.Source)
 	require.Equal(t, "ci", parsed.Environment)
-	require.Equal(t, "hookdeck_events/list", parsed.CommandPath)
+	require.Equal(t, "gateway_events/list", parsed.CommandPath)
 	require.Equal(t, "inv_abcdef0123456789", parsed.InvocationID)
 	require.Equal(t, "claude-desktop/1.0", parsed.MCPClient)
 }

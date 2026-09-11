@@ -39,9 +39,10 @@ func (ec *eventRetryCmd) runEventRetryCmd(cmd *cobra.Command, args []string) err
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	if err := client.RetryEvent(ctx, eventID); err != nil {
+	event, err := client.RetryEvent(ctx, eventID)
+	if err != nil {
 		return fmt.Errorf("failed to retry event: %w", err)
 	}
-	fmt.Printf("Event %s retry requested.\n", eventID)
+	fmt.Printf("Event %s is now %s.\n", eventID, event.Status)
 	return nil
 }

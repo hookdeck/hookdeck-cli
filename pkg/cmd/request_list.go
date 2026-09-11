@@ -15,25 +15,29 @@ import (
 type requestListCmd struct {
 	cmd *cobra.Command
 
-	id              string
-	sourceID        string
-	status          string
-	verified        string
-	rejectionCause  string
-	createdAfter    string
-	createdBefore   string
-	ingestedAfter   string
-	ingestedBefore  string
-	headers         string
-	body            string
-	path            string
-	parsedQuery     string
-	orderBy         string
-	dir             string
-	limit           int
-	next            string
-	prev            string
-	output          string
+	id             string
+	sourceID       string
+	status         string
+	verified       string
+	rejectionCause string
+	createdAfter   string
+	createdBefore  string
+	ingestedAfter  string
+	ingestedBefore string
+	headers        string
+	body           string
+	path           string
+	parsedQuery    string
+	searchTerm     string
+	eventsCount    string
+	ignoredCount   string
+	cliEventsCount string
+	orderBy        string
+	dir            string
+	limit          int
+	next           string
+	prev           string
+	output         string
 }
 
 func newRequestListCmd() *requestListCmd {
@@ -45,9 +49,15 @@ func newRequestListCmd() *requestListCmd {
 		Short: ShortList(ResourceRequest),
 		Long: `List requests (raw inbound webhooks). Filter by source ID.
 
+Use --search-term to find a complete value across the body, headers, parsed query or path
+at once. --events-count 0 finds requests that produced no events, which is the usual reason a
+webhook appears to have gone missing.
+
 Examples:
   hookdeck gateway request list
-  hookdeck gateway request list --source-id src_abc123 --limit 20`,
+  hookdeck gateway request list --source-id src_abc123 --limit 20
+  hookdeck gateway request list --search-term cus_1234
+  hookdeck gateway request list --events-count 0`,
 		RunE: rc.runRequestListCmd,
 	}
 
@@ -64,6 +74,10 @@ Examples:
 	rc.cmd.Flags().StringVar(&rc.body, "body", "", "Filter by body (JSON string)")
 	rc.cmd.Flags().StringVar(&rc.path, "path", "", "Filter by path")
 	rc.cmd.Flags().StringVar(&rc.parsedQuery, "parsed-query", "", "Filter by parsed query (JSON string)")
+	rc.cmd.Flags().StringVar(&rc.searchTerm, "search-term", "", "Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters)")
+	rc.cmd.Flags().StringVar(&rc.eventsCount, "events-count", "", "Filter by number of events produced. A whole number, e.g. 0 for requests that produced none")
+	rc.cmd.Flags().StringVar(&rc.ignoredCount, "ignored-count", "", "Filter by number of ignored events. A whole number")
+	rc.cmd.Flags().StringVar(&rc.cliEventsCount, "cli-events-count", "", "Filter by number of CLI events. A whole number")
 	rc.cmd.Flags().StringVar(&rc.orderBy, "order-by", "", "Sort key (e.g. created_at)")
 	rc.cmd.Flags().StringVar(&rc.dir, "dir", "", "Sort direction (asc, desc)")
 	rc.cmd.Flags().IntVar(&rc.limit, "limit", 100, "Limit number of results")
@@ -119,6 +133,18 @@ func (rc *requestListCmd) runRequestListCmd(cmd *cobra.Command, args []string) e
 	}
 	if rc.parsedQuery != "" {
 		params["parsed_query"] = rc.parsedQuery
+	}
+	if rc.searchTerm != "" {
+		params["search_term"] = rc.searchTerm
+	}
+	if rc.eventsCount != "" {
+		params["events_count"] = rc.eventsCount
+	}
+	if rc.ignoredCount != "" {
+		params["ignored_count"] = rc.ignoredCount
+	}
+	if rc.cliEventsCount != "" {
+		params["cli_events_count"] = rc.cliEventsCount
 	}
 	if rc.orderBy != "" {
 		params["order_by"] = rc.orderBy

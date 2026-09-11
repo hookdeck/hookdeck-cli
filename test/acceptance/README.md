@@ -15,6 +15,22 @@ These tests run automatically in CI using API keys from `hookdeck ci`. They don'
 
 **Guest login (mock API, `guest` tag):** `guest_login_acceptance_test.go` asserts `POST /cli-auth` receives guest credentials when a guest profile is present, and omits them after logout (empty profile).
 
+### 1b. Outpost live smoke test (`outpostlive` tag)
+
+`outpost_live_test.go` carries `//go:build outpostlive` and is **not** part of the pull-request acceptance matrix. It calls the Outpost API client directly against a real Outpost host, which is the only thing that proves the client's stored credentials, request shapes and response decoding work outside a stub server — everything under `-tags=outpost` drives the CLI, and the client's unit tests only assert the implementation's assumptions back at it.
+
+It is kept out of the PR gate because a live-deployment problem would then fail every unrelated pull request. Instead it runs:
+
+- **nightly**, and on demand, via `.github/workflows/outpost-live.yml` (`workflow_dispatch`);
+- **before cutting a release** — run it manually if the last nightly is not recent.
+
+```bash
+# Requires HOOKDECK_CLI_OUTPOST_TESTING_API_KEY (a Project API key for an Outpost project)
+go test -tags=outpostlive ./test/acceptance/... -v -timeout 12m
+```
+
+The tests skip themselves when the key is absent, which is right on a developer machine and wrong in CI, so the workflow fails fast if the secret is missing rather than reporting a green job that tested nothing.
+
 ### 2. Manual Tests (Require Human Interaction)
 These tests require browser-based authentication via `hookdeck login` and must be run manually by developers.
 
@@ -69,7 +85,7 @@ No test-name list in the workflow—tests are partitioned by **feature tags** (s
 ### Run all automated tests (one key)
 Pass all feature tags so every automated test file is included:
 ```bash
-go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation" ./test/acceptance/... -v
+go test -tags="basic guest connection source destination gateway mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update request event telemetry attempt metrics issue transformation outpost" ./test/acceptance/... -v
 ```
 
 ### Run one slice (for CI or local)
@@ -80,6 +96,9 @@ ACCEPTANCE_SLICE=0 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="basic guest 
 
 # Slice 1 (same tags as CI job 1)
 ACCEPTANCE_SLICE=1 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="request event" ./test/acceptance/... -v -timeout 12m
+
+# Slice 3 (same tags as CI job 3) - requires HOOKDECK_CLI_OUTPOST_TESTING_API_KEY
+ACCEPTANCE_SLICE=3 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="outpost" ./test/acceptance/... -v -timeout 12m
 
 # Slice 2 (same tags as CI job 2)
 ACCEPTANCE_SLICE=2 HOOKDECK_CLI_TELEMETRY_DISABLED=1 go test -tags="attempt metrics issue transformation destination gateway" ./test/acceptance/... -v -timeout 12m
@@ -213,6 +232,11 @@ The [`RequireCLIAuthenticationOnce(t)`](helpers.go:268) helper function:
   - Helper functions for creating/deleting test resources
   - JSON parsing utilities
   - Data structures (Connection, etc.)
+
+- **`resource_cleanup.go`** - The bookkeeping that stops tests leaking resources
+  - Records what each CLI command created and deletes the leftovers when the test ends
+  - `cleanupListenResources` for the source and CLI destination `hookdeck listen` creates on the fly
+  - See [Resource cleanup](#resource-cleanup)
   
 - **`basic_test.go`** - Basic CLI functionality tests
   - Version command
@@ -299,6 +323,33 @@ All tests should:
    t.Logf("Created connection: %s (ID: %s)", name, id)
    ```
 
+## Resource cleanup
+
+Deleting a connection does **not** delete the source and destination it was created with. `gateway connection create --source-name … --destination-name …` creates three resources, and a test that cleans up the connection alone leaves two behind. That is how the test projects reached ~36,000 orphaned sources and ~36,500 destinations ([#362](https://github.com/hookdeck/hookdeck-cli/issues/362)).
+
+So `CLIRunner` keeps the books itself, in [`resource_cleanup.go`](resource_cleanup.go):
+
+- every command that reports creating a gateway resource has that resource's id recorded — including the source and destination returned inline by a connection create;
+- every command that deletes one by id has it struck off;
+- whatever is still on the list when the test ends is deleted, connections first.
+
+Two consequences worth knowing:
+
+- **A test that cleans up after itself costs nothing.** Its resources are struck off before the sweep runs, so the sweep makes no API calls for them. Keep writing the explicit `t.Cleanup` — it deletes earlier, and it says what the test meant.
+- **A test that fails half-way still cleans up.** Resources created before the failing assertion are already recorded, which is exactly the case explicit cleanup misses, because the `t.Cleanup` call is usually below the assertion that failed.
+
+When the sweep has work to do it says so:
+
+```
+resource_cleanup.go:239: acceptance cleanup: deleted 2 resource(s) the test left behind (0 already gone, 0 failed)
+```
+
+`hookdeck listen` is the exception: it creates the source it is pointed at when that source does not exist, plus a `cli-<source>` connection and destination, and none of that goes through `CLIRunner.Run`, so no id is ever seen. Tests that start `listen` through `startListenCapturingOutput` or `RunListenWithTimeout` are covered automatically (both call `registerListenCleanup`). A test that starts the binary itself must register the cleanup by name:
+
+```go
+t.Cleanup(func() { cleanupListenResources(t, cli, sourceName) })
+```
+
 ## Environment Requirements
 
 - **Go 1.24.9+**
@@ -358,4 +409,4 @@ Error: HOOKDECK_CLI_TESTING_API_KEY (or HOOKDECK_CLI_TESTING_API_KEY_2 for slice
 If commands fail to execute, ensure you're running from the project root or that the working directory is set correctly.
 
 ### Resource Cleanup
-Tests use `t.Cleanup()` to ensure resources are deleted even if tests fail. If you see orphaned resources, check the cleanup logic in your test.
+Tests use `t.Cleanup()` to ensure resources are deleted even if tests fail, and `CLIRunner` sweeps up whatever they miss (see [Resource cleanup](#resource-cleanup)). If you see orphaned resources, check the log line each test prints when the sweep had work to do.

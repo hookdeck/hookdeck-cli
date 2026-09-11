@@ -1,137 +1,16 @@
 package mcp
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
 
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
-
-// newCallToolRequest creates a CallToolRequest with the given arguments JSON.
-func newCallToolRequest(argsJSON string) *mcpsdk.CallToolRequest {
-	return &mcpsdk.CallToolRequest{
-		Params: &mcpsdk.CallToolParamsRaw{
-			Arguments: json.RawMessage(argsJSON),
-		},
-	}
-}
-
-func TestExtractAction(t *testing.T) {
-	tests := []struct {
-		name     string
-		req      *mcpsdk.CallToolRequest
-		expected string
-	}{
-		{"valid action", newCallToolRequest(`{"action":"list"}`), "list"},
-		{"no action field", newCallToolRequest(`{"id":"123"}`), ""},
-		{"empty object", newCallToolRequest(`{}`), ""},
-		{"action with other fields", newCallToolRequest(`{"action":"get","id":"evt_123"}`), "get"},
-		{"nil arguments", &mcpsdk.CallToolRequest{Params: &mcpsdk.CallToolParamsRaw{}}, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := extractAction(tt.req)
-			require.Equal(t, tt.expected, got)
-		})
-	}
-}
-
-func TestMCPClientInfoNilSession(t *testing.T) {
-	req := newCallToolRequest(`{}`)
-	req.Session = nil
-	got := mcpClientInfo(req)
-	require.Equal(t, "", got)
-}
-
-func TestWrapWithTelemetrySetsAndClears(t *testing.T) {
-	client := &hookdeck.Client{}
-	s := &Server{client: client}
-
-	var capturedTelemetry *hookdeck.CLITelemetry
-
-	innerHandler := mcpsdk.ToolHandler(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		require.NotNil(t, s.client.Telemetry)
-		require.Equal(t, "mcp", s.client.Telemetry.Source)
-		require.Equal(t, "hookdeck_events/list", s.client.Telemetry.CommandPath)
-		require.NotEmpty(t, s.client.Telemetry.InvocationID)
-		require.NotEmpty(t, s.client.Telemetry.DeviceName)
-		// Capture a copy
-		cp := *s.client.Telemetry
-		capturedTelemetry = &cp
-		return &mcpsdk.CallToolResult{}, nil
-	})
-
-	wrapped := s.wrapWithTelemetry("hookdeck_events", innerHandler)
-
-	req := newCallToolRequest(`{"action":"list"}`)
-	result, err := wrapped(context.Background(), req)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Telemetry should have been captured inside the handler
-	require.NotNil(t, capturedTelemetry)
-	require.Equal(t, "mcp", capturedTelemetry.Source)
-	require.Equal(t, "hookdeck_events/list", capturedTelemetry.CommandPath)
-
-	// After the wrapper returns, telemetry should be cleared on the shared client
-	require.Nil(t, s.client.Telemetry)
-}
-
-func TestWrapWithTelemetryNoAction(t *testing.T) {
-	client := &hookdeck.Client{}
-	s := &Server{client: client}
-
-	var capturedPath string
-
-	innerHandler := mcpsdk.ToolHandler(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		capturedPath = s.client.Telemetry.CommandPath
-		return &mcpsdk.CallToolResult{}, nil
-	})
-
-	wrapped := s.wrapWithTelemetry("hookdeck_help", innerHandler)
-
-	req := newCallToolRequest(`{"topic":"hookdeck_events"}`)
-	_, err := wrapped(context.Background(), req)
-	require.NoError(t, err)
-
-	// No "action" field, so command path should just be the tool name
-	require.Equal(t, "hookdeck_help", capturedPath)
-}
-
-func TestWrapWithTelemetryUniqueInvocationIDs(t *testing.T) {
-	client := &hookdeck.Client{}
-	s := &Server{client: client}
-
-	var ids []string
-
-	innerHandler := mcpsdk.ToolHandler(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		ids = append(ids, s.client.Telemetry.InvocationID)
-		return &mcpsdk.CallToolResult{}, nil
-	})
-
-	wrapped := s.wrapWithTelemetry("hookdeck_events", innerHandler)
-
-	for i := 0; i < 5; i++ {
-		req := newCallToolRequest(`{"action":"list"}`)
-		_, _ = wrapped(context.Background(), req)
-	}
-
-	require.Len(t, ids, 5)
-	// All IDs should be unique
-	seen := make(map[string]bool)
-	for _, id := range ids {
-		require.False(t, seen[id], "duplicate invocation ID: %s", id)
-		seen[id] = true
-	}
-}
 
 // ---------------------------------------------------------------------------
 // End-to-end integration tests: MCP tool call → HTTP request → telemetry header
@@ -195,7 +74,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError, "tool call should succeed")
 
 	// Verify the telemetry header was sent.
@@ -204,7 +83,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 
 	tel := parseTelemetryHeader(t, raw)
 	require.Equal(t, "mcp", tel.Source)
-	require.Equal(t, "hookdeck_sources/list", tel.CommandPath)
+	require.Equal(t, "gateway_sources/list", tel.CommandPath)
 	require.True(t, strings.HasPrefix(tel.InvocationID, "inv_"), "invocation ID must start with inv_")
 	require.NotEmpty(t, tel.DeviceName)
 	require.Contains(t, []string{"interactive", "ci"}, tel.Environment)
@@ -227,7 +106,7 @@ func TestMCPToolCall_EachCallGetsUniqueInvocationID(t *testing.T) {
 
 	// Make three separate tool calls.
 	for i := 0; i < 3; i++ {
-		result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+		result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 		require.False(t, result.IsError)
 	}
 
@@ -259,18 +138,55 @@ func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
 	})
 
 	// Call "list" action.
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	listTel := parseTelemetryHeader(t, capture.all()[0])
-	require.Equal(t, "hookdeck_sources/list", listTel.CommandPath)
+	require.Equal(t, "gateway_sources/list", listTel.CommandPath)
 
 	// Call "get" action.
-	result = callTool(t, session, "hookdeck_sources", map[string]any{"action": "get", "id": "src_1"})
+	result = callTool(t, session, "gateway_sources", map[string]any{"action": "get", "id": "src_1"})
 	require.False(t, result.IsError)
 
 	getTel := parseTelemetryHeader(t, capture.all()[1])
-	require.Equal(t, "hookdeck_sources/get", getTel.CommandPath)
+	require.Equal(t, "gateway_sources/get", getTel.CommandPath)
+}
+
+// command_path is "<tool>/<action>", so splitting a tool changes what
+// telemetry reports for the actions that moved. The singular tools have to
+// report their own names, not the plural ones they came from.
+func TestMCPToolCall_TelemetryNamesTheSingularTools(t *testing.T) {
+	t.Setenv("HOOKDECK_CLI_TELEMETRY_DISABLED", "")
+
+	cases := []struct {
+		tool, action, id, path, want string
+	}{
+		{"gateway_event", "get", "evt_1", "/2025-07-01/events/evt_1", "gateway_event/get"},
+		{"gateway_request", "get", "req_1", "/2025-07-01/requests/req_1", "gateway_request/get"},
+		{"gateway_events", "list", "", "/2025-07-01/events", "gateway_events/list"},
+		{"gateway_requests", "list", "", "/2025-07-01/requests", "gateway_requests/list"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.want, func(t *testing.T) {
+			capture := &headerCapture{}
+			session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+				tc.path: capture.handler(func(w http.ResponseWriter, r *http.Request) {
+					json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "res_1"}))
+				}),
+			})
+
+			args := map[string]any{"action": tc.action}
+			if tc.id != "" {
+				args["id"] = tc.id
+			}
+			result := callTool(t, session, tc.tool, args)
+			require.False(t, result.IsError)
+
+			tel := parseTelemetryHeader(t, capture.last())
+			require.Equal(t, tc.want, tel.CommandPath)
+		})
+	}
 }
 
 func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
@@ -290,7 +206,7 @@ func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
 	client.TelemetryDisabled = true
 	session := connectInMemory(t, client)
 
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	raw := capture.last()
@@ -310,7 +226,7 @@ func TestMCPToolCall_TelemetryDisabledByEnvVar(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "hookdeck_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	raw := capture.last()

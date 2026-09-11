@@ -21,7 +21,7 @@ func newSourceDisableCmd() *sourceDisableCmd {
 		Args:  validators.ExactArgs(1),
 		Short: ShortDisable(ResourceSource),
 		Long:  LongDisableIntro(ResourceSource),
-		RunE: sc.runSourceDisableCmd,
+		RunE:  sc.runSourceDisableCmd,
 	}
 
 	return sc

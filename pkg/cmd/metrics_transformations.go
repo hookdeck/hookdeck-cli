@@ -10,7 +10,7 @@ import (
 const metricsTransformationsMeasures = "count, successful_count, failed_count, error_rate, error_count, warn_count, info_count, debug_count"
 
 type metricsTransformationsCmd struct {
-	cmd  *cobra.Command
+	cmd   *cobra.Command
 	flags metricsCommonFlags
 }
 

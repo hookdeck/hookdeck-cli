@@ -260,12 +260,17 @@ func pollForAPIKey(pollURL string, interval time.Duration, maxAttempts int) (*Po
 
 // UpdateClient updates a CLI client's device name
 func (c *Client) UpdateClient(clientID string, input UpdateClientInput) error {
+	path, err := apiPath("cli", clientID)
+	if err != nil {
+		return err
+	}
+
 	jsonData, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.Put(context.Background(), APIPathPrefix+"/cli/"+clientID, jsonData, nil)
+	_, err = c.Put(context.Background(), path, jsonData, nil)
 	return err
 }
 

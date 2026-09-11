@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"time"
 )
@@ -40,8 +41,8 @@ type EventData struct {
 
 // EventListResponse is the response from listing events
 type EventListResponse struct {
-	Models     []Event             `json:"models"`
-	Pagination PaginationResponse  `json:"pagination"`
+	Models     []Event            `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
 }
 
 // ListEvents retrieves events with optional filters (params: webhook_id, status, source_id, destination_id, limit, order_by, dir, next, prev, etc.)
@@ -64,6 +65,10 @@ func (c *Client) ListEvents(ctx context.Context, params map[string]string) (*Eve
 
 // GetEvent retrieves a single event by ID
 func (c *Client) GetEvent(ctx context.Context, id string, params map[string]string) (*Event, error) {
+	path, err := apiPath("events", id)
+	if err != nil {
+		return nil, err
+	}
 	queryStr := ""
 	if len(params) > 0 {
 		q := url.Values{}
@@ -72,7 +77,7 @@ func (c *Client) GetEvent(ctx context.Context, id string, params map[string]stri
 		}
 		queryStr = q.Encode()
 	}
-	resp, err := c.Get(ctx, APIPathPrefix+"/events/"+id, queryStr, nil)
+	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -84,39 +89,63 @@ func (c *Client) GetEvent(ctx context.Context, id string, params map[string]stri
 	return &event, nil
 }
 
-// RetryEvent retries an event by ID (POST /events/{id}/retry; no request body)
-func (c *Client) RetryEvent(ctx context.Context, eventID string) error {
-	resp, err := c.Post(ctx, APIPathPrefix+"/events/"+eventID+"/retry", []byte("{}"), nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return checkAndPrintError(resp)
+// RetryEvent retries an event by ID (POST /events/{id}/retry) and returns the
+// event as it stands afterwards.
+func (c *Client) RetryEvent(ctx context.Context, eventID string) (*Event, error) {
+	return c.eventStateChange(ctx, eventID, "retry", http.MethodPost)
 }
 
-// CancelEvent cancels an event by ID (PUT /events/{id}/cancel; no request body)
-func (c *Client) CancelEvent(ctx context.Context, eventID string) error {
-	resp, err := c.Put(ctx, APIPathPrefix+"/events/"+eventID+"/cancel", []byte("{}"), nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return checkAndPrintError(resp)
+// CancelEvent cancels an event by ID (PUT /events/{id}/cancel) and returns the
+// event as it stands afterwards.
+func (c *Client) CancelEvent(ctx context.Context, eventID string) (*Event, error) {
+	return c.eventStateChange(ctx, eventID, "cancel", http.MethodPut)
 }
 
-// MuteEvent mutes an event by ID (PUT /events/{id}/mute; no request body)
-func (c *Client) MuteEvent(ctx context.Context, eventID string) error {
-	resp, err := c.Put(ctx, APIPathPrefix+"/events/"+eventID+"/mute", []byte("{}"), nil)
+// MuteEvent mutes an event by ID (PUT /events/{id}/mute) and returns the event
+// as it stands afterwards.
+func (c *Client) MuteEvent(ctx context.Context, eventID string) (*Event, error) {
+	return c.eventStateChange(ctx, eventID, "mute", http.MethodPut)
+}
+
+// eventStateChange applies one of the by-id event mutations and decodes the
+// event the API answers with.
+//
+// These used to discard the response body and report success from the status
+// code alone, which meant callers asserted an outcome nobody had checked. The
+// API answers 200 for a no-op — cancelling an already-delivered event leaves it
+// SUCCESSFUL — so "cancel" was reported for events that were never cancelled.
+// The response says what actually happened; returning it lets the caller say so
+// too.
+func (c *Client) eventStateChange(ctx context.Context, eventID, action, method string) (*Event, error) {
+	path, err := apiPath("events", eventID, action)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer resp.Body.Close()
-	return checkAndPrintError(resp)
+
+	var resp *http.Response
+	if method == http.MethodPost {
+		resp, err = c.Post(ctx, path, []byte("{}"), nil)
+	} else {
+		resp, err = c.Put(ctx, path, []byte("{}"), nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var event Event
+	if _, err := postprocessJsonResponse(resp, &event); err != nil {
+		return nil, fmt.Errorf("failed to parse event %s response: %w", action, err)
+	}
+	return &event, nil
 }
 
 // GetEventRawBody returns the raw body of an event (GET /events/{id}/raw_body)
 func (c *Client) GetEventRawBody(ctx context.Context, eventID string) ([]byte, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/events/"+eventID+"/raw_body", "", nil)
+	path, err := apiPath("events", eventID, "raw_body")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
