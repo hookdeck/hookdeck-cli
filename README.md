@@ -1040,6 +1040,28 @@ $ hookdeck gateway connection create \
   --destination-rate-limit-period minute
 ```
 
+#### Configure delivery groups
+
+Isolate delivery queues by a payload field and optionally give selected groups a different maximum rate:
+
+```sh
+$ hookdeck gateway connection create \
+  --name "tenant-aware-delivery" \
+  --source-name "events" \
+  --source-type HTTP \
+  --destination-name "tenant-aware-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/endpoint" \
+  --destination-rate-limit 100 \
+  --destination-rate-limit-period second \
+  --destination-delivery-group-key body.customer_id \
+  --destination-delivery-group-rate 5 \
+  --destination-delivery-group-rate-period second \
+  --destination-delivery-group-overrides '{"cus_priority":{"rate":50,"rate_period":"second"}}'
+```
+
+Use `--config` or `--config-file` when you need to set `delivery_policy.groups` directly, including setting `groups` to `null` to disable grouping.
+
 #### Upsert connections
 
 Create or update connections idempotently based on connection name - perfect for CI/CD and infrastructure-as-code workflows:
@@ -1190,7 +1212,7 @@ The Hookdeck CLI configuration file is stored in TOML format and typically inclu
 ```toml
 api_key = "api_key_xxxxxxxxxxxxxxxxxxxx"
 project_id = "tm_xxxxxxxxxxxxxxx"
-project_mode = "inbound" | "console"
+project_type = "event_gateway" | "outpost" | "console"
 ```
 
 ### Local Configuration
@@ -1221,12 +1243,12 @@ profile = "dev"
 [dev]
   api_key = "api_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   project_id = "tm_5JxTelcYxOJy"
-  project_mode = "inbound"
+  project_type = "event_gateway"
 
 [prod]
   api_key = "api_key_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
   project_id = "tm_U9Zod13qtsHp"
-  project_mode = "inbound"
+  project_type = "event_gateway"
 ```
 
 This allows you to run commands against different projects. For example, to listen to the `webhooks` source in the `dev` profile, run:

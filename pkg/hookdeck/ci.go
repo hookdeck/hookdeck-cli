@@ -15,9 +15,16 @@ type CIClient struct {
 	OrganizationID   string `json:"organization_id"`
 	ProjectID        string `json:"team_id"`
 	ProjectName      string `json:"team_name"`
-	ProjectMode      string `json:"team_mode"`
-	APIKey           string `json:"key"`
-	ClientID         string `json:"client_id"`
+	ProjectType      string `json:"team_type"`
+	// ProjectProduct and ProjectMode are earlier names for the same field:
+	// team_product was served briefly before the rename to team_type, and
+	// team_mode before that. Both are still read so a response from an API
+	// that has not been updated yet resolves a project type instead of
+	// blanking it. Drop ProjectProduct once 2026-09-01 is deployed.
+	ProjectProduct string `json:"team_product"`
+	ProjectMode    string `json:"team_mode"`
+	APIKey         string `json:"key"`
+	ClientID       string `json:"client_id"`
 }
 
 type CreateCIClientInput struct {

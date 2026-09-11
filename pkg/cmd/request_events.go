@@ -19,6 +19,8 @@ type requestEventsCmd struct {
 	next   string
 	prev   string
 	output string
+
+	deliveryGroup string
 }
 
 func newRequestEventsCmd() *requestEventsCmd {
@@ -38,6 +40,7 @@ Examples:
 	rc.cmd.Flags().IntVar(&rc.limit, "limit", 100, "Limit number of results")
 	rc.cmd.Flags().StringVar(&rc.next, "next", "", "Pagination cursor for next page")
 	rc.cmd.Flags().StringVar(&rc.prev, "prev", "", "Pagination cursor for previous page")
+	rc.cmd.Flags().StringVar(&rc.deliveryGroup, "delivery-group", "", "Filter by delivery group")
 	rc.cmd.Flags().StringVar(&rc.output, "output", "", "Output format (json)")
 
 	return rc
@@ -57,6 +60,9 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 	}
 	if rc.prev != "" {
 		params["prev"] = rc.prev
+	}
+	if rc.deliveryGroup != "" {
+		params["delivery_group"] = rc.deliveryGroup
 	}
 
 	resp, err := client.GetRequestEvents(ctx, requestID, params)

@@ -55,7 +55,7 @@ func TestDestinationCreateWithConfigJSONExactValues(t *testing.T) {
 		err := cli.RunJSON(&resp, "gateway", "destination", "create",
 			"--name", name,
 			"--type", "HTTP",
-			"--config", `{"url":"https://api.example.com/hooks","rate_limit":100,"rate_limit_period":"second"}`,
+			"--config", `{"url":"https://api.example.com/hooks","delivery_policy":{"rate":100,"period":"second"}}`,
 		)
 		require.NoError(t, err, "Should create destination with rate limit config")
 
@@ -66,10 +66,10 @@ func TestDestinationCreateWithConfigJSONExactValues(t *testing.T) {
 		config, ok := resp["config"].(map[string]interface{})
 		require.True(t, ok, "Expected config object in response")
 		assert.Equal(t, "https://api.example.com/hooks", config["url"])
-		assert.Equal(t, float64(100), config["rate_limit"],
-			"rate_limit should be exactly 100")
-		assert.Equal(t, "second", config["rate_limit_period"],
-			"rate_limit_period should be 'second'")
+		deliveryPolicy, ok := config["delivery_policy"].(map[string]interface{})
+		require.True(t, ok, "Expected delivery_policy object in config")
+		assert.Equal(t, float64(100), deliveryPolicy["rate"], "rate should be exactly 100")
+		assert.Equal(t, "second", deliveryPolicy["period"], "period should be 'second'")
 	})
 }
 

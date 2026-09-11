@@ -105,7 +105,7 @@ scoped to the active project — if the wrong project is active, all results wil
 Also use this when unsure which project is currently active.
 
 Actions:
-  list  — List all projects. data.projects is the array (id, org, project, type gateway/outpost/console, current). meta includes active_project_id, active_project_name (short), and active_project_org when known. Outbound projects are excluded.
+  list  — List all projects. data.projects is the array (id, org, project, type gateway/outpost/console, current). meta includes active_project_id, active_project_name (short), and active_project_org when known.
   use   — Switch the active project for this session (in-memory only).
 
 If list or use fails with 401/403 (or similar), the error may mention hookdeck_login with reauth: true — the stored key may be a narrow dashboard API key.
@@ -120,7 +120,7 @@ Without arguments when already authenticated: confirms the session is active.
 When not authenticated: returns a URL the user opens in a browser; poll by calling this tool again.
 
 Parameters:
-  reauth  (boolean, optional) — If true, clears stored credentials and starts a new browser login. Use when hookdeck_projects list fails and the key may be a single-project or dashboard API key that cannot list teams.`,
+  reauth  (boolean, optional) — If true, clears stored credentials and starts a new browser login. Use when hookdeck_projects list fails and the key may be a single-project or dashboard API key that cannot list projects.`,
 
 	"hookdeck_connections": `hookdeck_connections — Inspect connections and control delivery flow
 
@@ -201,6 +201,7 @@ Parameters:
   status          (string)           — accepted or rejected (list)
   rejection_cause (string)           — Filter by rejection cause (list)
   verified        (boolean)          — Filter by verification status (list)
+  delivery_group  (string)           — Filter events generated from the request (events action)
 
 Date range filters (list):
   Use *_after / *_before with ISO 8601 datetimes (e.g. 2026-06-01T00:00:00Z). Do not pass API bracket keys like created_at[gte] in MCP args.
@@ -235,6 +236,7 @@ Parameters:
   connection_id    (string)           — Filter by connection (list, maps to webhook_id)
   source_id        (string)           — Filter by source (list)
   destination_id   (string)           — Filter by destination (list)
+  delivery_group   (string)           — Filter by delivery group (list)
   status           (string)           — SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED
   attempts         (string)           — Filter by attempt count (list); integer or API operator syntax
   issue_id         (string)           — Filter by issue (list)
@@ -313,6 +315,7 @@ Parameters:
   dimensions     (string[])           — Grouping dimensions (varies by action)
   source_id      (string)             — Filter by source
   destination_id (string)             — Filter by destination
+  delivery_group (string)             — Filter by delivery group (events and attempts)
   connection_id  (string)             — Filter by connection (maps to webhook_id)
   status         (string)             — Filter by status
   issue_id       (string)             — Filter by issue (events only)`,

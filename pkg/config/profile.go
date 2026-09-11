@@ -20,15 +20,22 @@ func (p *Profile) getConfigField(field string) string {
 	return p.Name + "." + field
 }
 
+// ResolveProjectType returns the API project type for this profile: the stored
+// type if there is one, otherwise derived from the legacy mode. Values written
+// by older CLIs held a display label, so everything goes through
+// NormalizeProjectType rather than being trusted as-is.
+func (p *Profile) ResolveProjectType() string {
+	if t := NormalizeProjectType(p.ProjectType); t != "" {
+		return t
+	}
+	return ModeToType(p.ProjectMode)
+}
+
 func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
 	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
 	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
-	projectType := p.ProjectType
-	if projectType == "" && p.ProjectMode != "" {
-		projectType = ModeToProjectType(p.ProjectMode)
-	}
-	p.Config.viper.Set(p.getConfigField("project_type"), projectType)
+	p.Config.viper.Set(p.getConfigField("project_type"), p.ResolveProjectType())
 	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
 
 	if err := p.removeLegacyConfigKeys(); err != nil {

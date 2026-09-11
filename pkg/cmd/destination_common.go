@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 // destinationConfigFlags holds destination config flags for create/upsert/update.
@@ -24,8 +26,43 @@ type destinationConfigFlags struct {
 	CustomSignatureKey      string
 	RateLimit               int
 	RateLimitPeriod         string
+	DeliveryGroupKey        string
+	DeliveryGroupRate       int
+	DeliveryGroupRatePeriod string
+	DeliveryGroupOverrides  string
 	PathForwardingDisabled  *bool
 	HTTPMethod              string
+}
+
+func addDestinationDeliveryPolicyFlags(cmd *cobra.Command, flags *destinationConfigFlags) {
+	cmd.Flags().IntVar(&flags.RateLimit, "rate-limit", 0, "Rate limit (requests per period)")
+	cmd.Flags().StringVar(&flags.RateLimitPeriod, "rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
+	cmd.Flags().StringVar(&flags.DeliveryGroupKey, "delivery-group-key", "", "Payload field path used to group deliveries (for example body.customer_id)")
+	cmd.Flags().IntVar(&flags.DeliveryGroupRate, "delivery-group-rate", 0, "Default maximum delivery rate for each delivery group")
+	cmd.Flags().StringVar(&flags.DeliveryGroupRatePeriod, "delivery-group-rate-period", "", "Delivery group rate period (second, minute, hour)")
+	cmd.Flags().StringVar(&flags.DeliveryGroupOverrides, "delivery-group-overrides", "", "JSON object of group-specific delivery rate overrides")
+}
+
+func addConnectionDestinationDeliveryPolicyFlags(cmd *cobra.Command, flags *connectionCreateCmd) {
+	cmd.Flags().IntVar(&flags.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
+	cmd.Flags().StringVar(&flags.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
+	cmd.Flags().StringVar(&flags.DestinationDeliveryGroupKey, "destination-delivery-group-key", "", "Payload field path used to group deliveries (for example body.customer_id)")
+	cmd.Flags().IntVar(&flags.DestinationDeliveryGroupRate, "destination-delivery-group-rate", 0, "Default maximum delivery rate for each delivery group")
+	cmd.Flags().StringVar(&flags.DestinationDeliveryGroupRatePeriod, "destination-delivery-group-rate-period", "", "Delivery group rate period (second, minute, hour)")
+	cmd.Flags().StringVar(&flags.DestinationDeliveryGroupOverrides, "destination-delivery-group-overrides", "", "JSON object of group-specific delivery rate overrides")
+}
+
+func (f *destinationConfigFlags) validateDeliveryPolicyFlags(flagPrefix string) error {
+	_, err := buildDeliveryPolicy(
+		f.RateLimit,
+		f.RateLimitPeriod,
+		f.DeliveryGroupKey,
+		f.DeliveryGroupRate,
+		f.DeliveryGroupRatePeriod,
+		f.DeliveryGroupOverrides,
+		flagPrefix,
+	)
+	return err
 }
 
 // hasAnyDestinationConfig returns true if any individual destination config flag is set.
@@ -36,7 +73,72 @@ func (f *destinationConfigFlags) hasAnyDestinationConfig() bool {
 	return f.URL != "" || f.CliPath != "" || f.AuthMethod != "" ||
 		f.BearerToken != "" || f.BasicAuthUser != "" || f.BasicAuthPass != "" ||
 		f.APIKey != "" || f.APIKeyHeader != "" || f.CustomSignatureSecret != "" || f.CustomSignatureKey != "" ||
-		f.RateLimit > 0 || f.RateLimitPeriod != "" || f.PathForwardingDisabled != nil || f.HTTPMethod != ""
+		f.RateLimit > 0 || f.RateLimitPeriod != "" || f.DeliveryGroupKey != "" ||
+		f.DeliveryGroupRate > 0 || f.DeliveryGroupRatePeriod != "" || f.DeliveryGroupOverrides != "" ||
+		f.PathForwardingDisabled != nil || f.HTTPMethod != ""
+}
+
+func buildDeliveryPolicy(rate int, period, groupKey string, groupRate int, groupRatePeriod, overridesJSON, flagPrefix string) (map[string]interface{}, error) {
+	policy := make(map[string]interface{})
+	if period != "" && rate <= 0 {
+		return nil, fmt.Errorf("--%srate-limit must be a positive integer when rate limiting is configured", flagPrefix)
+	}
+	if rate > 0 {
+		if period == "" {
+			return nil, fmt.Errorf("--%srate-limit-period is required when --%srate-limit is set", flagPrefix, flagPrefix)
+		}
+		policy["rate"] = rate
+		policy["period"] = period
+	}
+
+	hasGroups := groupKey != "" || groupRate > 0 || groupRatePeriod != "" || overridesJSON != ""
+	if !hasGroups {
+		return policy, nil
+	}
+	groupFlagPrefix := "--" + flagPrefix + "delivery-group-"
+	if groupKey == "" {
+		return nil, fmt.Errorf("%skey is required when delivery groups are configured", groupFlagPrefix)
+	}
+	if groupRate <= 0 {
+		return nil, fmt.Errorf("%srate must be a positive integer when delivery groups are configured", groupFlagPrefix)
+	}
+	if groupRatePeriod == "" {
+		return nil, fmt.Errorf("%srate-period is required when delivery groups are configured", groupFlagPrefix)
+	}
+
+	groups := map[string]interface{}{
+		"key":         groupKey,
+		"rate":        groupRate,
+		"rate_period": groupRatePeriod,
+	}
+	if overridesJSON != "" {
+		var overrides map[string]interface{}
+		if err := json.Unmarshal([]byte(overridesJSON), &overrides); err != nil {
+			return nil, fmt.Errorf("%soverrides must be a valid JSON object: %w", groupFlagPrefix, err)
+		}
+		if overrides == nil {
+			return nil, fmt.Errorf("%soverrides must be a valid JSON object", groupFlagPrefix)
+		}
+		groups["overrides"] = overrides
+	}
+	policy["groups"] = groups
+	return policy, nil
+}
+
+func mergeDeliveryPolicy(config map[string]interface{}, policy map[string]interface{}) {
+	if len(policy) == 0 {
+		return
+	}
+	merged := make(map[string]interface{})
+	if existing, ok := config["delivery_policy"].(map[string]interface{}); ok {
+		for key, value := range existing {
+			merged[key] = value
+		}
+	}
+	for key, value := range policy {
+		merged[key] = value
+	}
+	config["delivery_policy"] = merged
 }
 
 // buildDestinationAuthConfig builds auth section for destination config from flags.
@@ -112,13 +214,19 @@ func buildDestinationConfigFromIndividualFlags(destType string, f *destinationCo
 		config["auth"] = auth
 	}
 
-	if f.RateLimit > 0 {
-		config["rate_limit"] = f.RateLimit
-		if f.RateLimitPeriod == "" {
-			return nil, fmt.Errorf("--rate-limit-period is required when --rate-limit is set")
-		}
-		config["rate_limit_period"] = f.RateLimitPeriod
+	policy, err := buildDeliveryPolicy(
+		f.RateLimit,
+		f.RateLimitPeriod,
+		f.DeliveryGroupKey,
+		f.DeliveryGroupRate,
+		f.DeliveryGroupRatePeriod,
+		f.DeliveryGroupOverrides,
+		"",
+	)
+	if err != nil {
+		return nil, err
 	}
+	mergeDeliveryPolicy(config, policy)
 
 	switch strings.ToUpper(destType) {
 	case "HTTP":

@@ -107,7 +107,12 @@ func requestsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mc
 	if id == "" {
 		return ErrorResult("id is required for the events action"), nil
 	}
-	result, err := client.GetRequestEvents(ctx, id, nil)
+	params := make(map[string]string)
+	setIfNonEmpty(params, "delivery_group", in.String("delivery_group"))
+	setInt(params, "limit", in.Int("limit", 0))
+	setIfNonEmpty(params, "next", in.String("next"))
+	setIfNonEmpty(params, "prev", in.String("prev"))
+	result, err := client.GetRequestEvents(ctx, id, params)
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}

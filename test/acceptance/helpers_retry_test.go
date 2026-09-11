@@ -58,7 +58,7 @@ func TestRunWithHTTP502RetryResetsRecordingProxy(t *testing.T) {
 // X-Hookdeck-CLI-Telemetry header with the given invocation_id and command_path.
 func makeProxiedTelemetryRequest(t *testing.T, proxyURL, invocationID, commandPath string) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, proxyURL+"/2025-07-01/connections", nil)
+	req, err := http.NewRequest(http.MethodGet, proxyURL+"/2026-09-01/connections", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-Hookdeck-CLI-Telemetry",
 		fmt.Sprintf(`{"command_path":%q,"invocation_id":%q}`, commandPath, invocationID))

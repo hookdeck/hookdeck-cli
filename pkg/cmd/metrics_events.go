@@ -10,7 +10,7 @@ import (
 )
 
 const metricsEventsMeasures = "count, successful_count, failed_count, scheduled_count, paused_count, error_rate, avg_attempts, scheduled_retry_count, pending, queue_depth, max_depth, max_age"
-const metricsEventsDimensions = "connection_id, source_id, destination_id, issue_id"
+const metricsEventsDimensions = "connection_id, source_id, destination_id, delivery_group, issue_id"
 
 type metricsEventsCmd struct {
 	cmd   *cobra.Command
@@ -75,6 +75,9 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 	// 2. If measures include "pending" with granularity → QueryEventsPendingTimeseries
 	// API expects measures[]=count; "pending" is only used for routing.
 	if hasMeasure(params, map[string]bool{"pending": true}) && params.Granularity != "" {
+		if params.DeliveryGroup != "" {
+			return nil, errors.New("--delivery-group cannot be used with --measures pending; the pending timeseries endpoint filters on destination only")
+		}
 		pendingParams := params
 		pendingParams.Measures = []string{"count"}
 		return client.QueryEventsPendingTimeseries(ctx, pendingParams)
@@ -84,6 +87,9 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 	if hasDimension(params, "issue_id") || params.IssueID != "" {
 		if params.IssueID == "" {
 			return nil, errors.New("per-issue metrics require --issue-id (required when using --dimensions issue_id)")
+		}
+		if params.DeliveryGroup != "" {
+			return nil, errors.New("--delivery-group cannot be used with per-issue metrics; the events-by-issue endpoint does not filter on delivery group")
 		}
 		return client.QueryEventsByIssue(ctx, params)
 	}

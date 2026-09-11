@@ -158,8 +158,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.DestinationGCPScope, "destination-gcp-scope", "", "GCP scope for service account authentication")
 
 	// Destination rate limiting flags
-	cu.cmd.Flags().IntVar(&cu.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
-	cu.cmd.Flags().StringVar(&cu.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
+	addConnectionDestinationDeliveryPolicyFlags(cu.cmd, cu.connectionCreateCmd)
 
 	addConnectionRuleFlags(cu.cmd, &cu.connectionCreateCmd.connectionRuleFlags)
 
@@ -245,6 +244,8 @@ func (cu *connectionUpsertCmd) hasAnyDestinationFlag() bool {
 		cu.destinationURL != "" || cu.destinationCliPath != "" ||
 		cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
 		cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" ||
+		cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
+		cu.DestinationDeliveryGroupRatePeriod != "" || cu.DestinationDeliveryGroupOverrides != "" ||
 		cu.DestinationAuthMethod != ""
 }
 
@@ -256,7 +257,9 @@ func (cu *connectionUpsertCmd) hasAnyRuleFlag() bool {
 
 // Helper to check if any rate limit flags are set
 func (cu *connectionUpsertCmd) hasAnyRateLimitFlag() bool {
-	return cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != ""
+	return cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" ||
+		cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
+		cu.DestinationDeliveryGroupRatePeriod != "" || cu.DestinationDeliveryGroupOverrides != ""
 }
 
 // Validate source flags for consistency
@@ -310,7 +313,9 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 
 	hasDestinationConfigOnly := (cu.destinationURL != "" || cu.destinationCliPath != "" ||
 		cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
-		cu.DestinationRateLimit != 0 || cu.DestinationAuthMethod != "") &&
+		cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" || cu.DestinationDeliveryGroupKey != "" ||
+		cu.DestinationDeliveryGroupRate != 0 || cu.DestinationDeliveryGroupRatePeriod != "" ||
+		cu.DestinationDeliveryGroupOverrides != "" || cu.DestinationAuthMethod != "") &&
 		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
 
 	// Also need to fetch existing when name is provided without type (to fill in the type)
@@ -478,6 +483,8 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 			cu.destinationPathForwardingDisabled != nil ||
 			cu.destinationHTTPMethod != "" ||
 			cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" ||
+			cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
+			cu.DestinationDeliveryGroupRatePeriod != "" || cu.DestinationDeliveryGroupOverrides != "" ||
 			cu.DestinationAuthMethod != ""
 
 		if hasDestinationConfigUpdate {
@@ -592,11 +599,19 @@ func (cu *connectionUpsertCmd) buildDestinationInputForUpdate(existingDest *hook
 		destConfig["http_method"] = method
 	}
 
-	// Apply rate limiting if provided
-	if cu.DestinationRateLimit > 0 {
-		destConfig["rate_limit"] = cu.DestinationRateLimit
-		destConfig["rate_limit_period"] = cu.DestinationRateLimitPeriod
+	policy, err := buildDeliveryPolicy(
+		cu.DestinationRateLimit,
+		cu.DestinationRateLimitPeriod,
+		cu.DestinationDeliveryGroupKey,
+		cu.DestinationDeliveryGroupRate,
+		cu.DestinationDeliveryGroupRatePeriod,
+		cu.DestinationDeliveryGroupOverrides,
+		"destination-",
+	)
+	if err != nil {
+		return nil, err
 	}
+	mergeDeliveryPolicy(destConfig, policy)
 
 	// Apply authentication config if provided
 	if cu.DestinationAuthMethod != "" {

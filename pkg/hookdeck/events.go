@@ -15,6 +15,7 @@ type Event struct {
 	WebhookID      string     `json:"webhook_id"`
 	SourceID       string     `json:"source_id"`
 	DestinationID  string     `json:"destination_id"`
+	DeliveryGroup  *string    `json:"delivery_group,omitempty"`
 	RequestID      string     `json:"request_id"`
 	Attempts       int        `json:"attempts"`
 	ResponseStatus *int       `json:"response_status,omitempty"`

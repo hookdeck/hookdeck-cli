@@ -10,7 +10,7 @@ import (
 const metricsTransformationsMeasures = "count, successful_count, failed_count, error_rate, error_count, warn_count, info_count, debug_count"
 
 type metricsTransformationsCmd struct {
-	cmd  *cobra.Command
+	cmd   *cobra.Command
 	flags metricsCommonFlags
 }
 
@@ -23,7 +23,8 @@ func newMetricsTransformationsCmd() *metricsTransformationsCmd {
 		Long:  LongBeta(`Query metrics for transformations. Measures: ` + metricsTransformationsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags)
+	// The transformations filter schema has no delivery_group, and rejects unknown filters.
+	addMetricsCommonFlagsEx(c.cmd, &c.flags, metricsFlagOpts{skipDeliveryGroup: true})
 	return c
 }
 

@@ -188,7 +188,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "webhook", "url": "https://example.com"},
 			))
@@ -218,7 +218,7 @@ func TestMCPToolCall_EachCallGetsUniqueInvocationID(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "webhook", "url": "https://example.com"},
 			))
@@ -248,12 +248,12 @@ func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"},
 			))
 		}),
-		"GET /2025-07-01/sources/src_1": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/sources/src_1": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"})
 		}),
 	})
@@ -279,7 +279,7 @@ func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
 	capture := &headerCapture{}
 
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"},
 			))
@@ -303,7 +303,7 @@ func TestMCPToolCall_TelemetryDisabledByEnvVar(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"},
 			))
@@ -325,10 +325,10 @@ func TestMCPToolCall_MultipleAPICallsSameInvocation(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/teams": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/projects": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "proj_abc", "name": "My Project", "mode": "console"},
+				{"id": "proj_abc", "name": "My Project", "type": "console"},
 			})
 		}),
 	})

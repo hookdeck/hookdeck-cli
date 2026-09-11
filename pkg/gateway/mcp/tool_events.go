@@ -41,6 +41,7 @@ func eventsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk
 	setIfNonEmpty(params, "webhook_id", in.String("connection_id"))
 	setIfNonEmpty(params, "source_id", in.String("source_id"))
 	setIfNonEmpty(params, "destination_id", in.String("destination_id"))
+	setIfNonEmpty(params, "delivery_group", in.String("delivery_group"))
 	setIfNonEmpty(params, "status", in.String("status"))
 	setIfNonEmpty(params, "attempts", in.String("attempts"))
 	setIfNonEmpty(params, "issue_id", in.String("issue_id"))

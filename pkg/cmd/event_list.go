@@ -41,6 +41,8 @@ type eventListCmd struct {
 	next            string
 	prev            string
 	output          string
+
+	deliveryGroup string
 }
 
 func newEventListCmd() *eventListCmd {
@@ -63,6 +65,7 @@ Examples:
 	ec.cmd.Flags().StringVar(&ec.connectionID, "connection-id", "", "Filter by connection ID")
 	ec.cmd.Flags().StringVar(&ec.sourceID, "source-id", "", "Filter by source ID")
 	ec.cmd.Flags().StringVar(&ec.destinationID, "destination-id", "", "Filter by destination ID")
+	ec.cmd.Flags().StringVar(&ec.deliveryGroup, "delivery-group", "", "Filter by delivery group")
 	ec.cmd.Flags().StringVar(&ec.status, "status", "", "Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED)")
 	ec.cmd.Flags().StringVar(&ec.attempts, "attempts", "", "Filter by number of attempts (integer or operators)")
 	ec.cmd.Flags().StringVar(&ec.responseStatus, "response-status", "", "Filter by HTTP response status (e.g. 200, 500)")
@@ -107,6 +110,9 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	}
 	if ec.destinationID != "" {
 		params["destination_id"] = ec.destinationID
+	}
+	if ec.deliveryGroup != "" {
+		params["delivery_group"] = ec.deliveryGroup
 	}
 	if ec.status != "" {
 		params["status"] = ec.status

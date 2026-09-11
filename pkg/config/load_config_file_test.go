@@ -27,5 +27,5 @@ project_mode = "inbound"
 	require.Equal(t, "sk_test_123456789012", c.Profile.APIKey)
 	require.Equal(t, "proj_a", c.Profile.ProjectId)
 	require.Equal(t, "inbound", c.Profile.ProjectMode)
-	require.Equal(t, ProjectTypeGateway, c.Profile.ProjectType)
+	require.Equal(t, ProjectTypeEventGateway, c.Profile.ProjectType)
 }

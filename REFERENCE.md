@@ -355,6 +355,10 @@ hookdeck gateway connection create [flags]
 | `--destination-cli-path` | `string` | CLI path for CLI destinations (default: /) (default "/") |
 | `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
 | `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--destination-delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--destination-delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--destination-delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--destination-description` | `string` | Destination description |
 | `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
 | `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
@@ -610,6 +614,10 @@ hookdeck gateway connection upsert <name> [flags]
 | `--destination-cli-path` | `string` | CLI path for CLI destinations (default: / for new connections) |
 | `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
 | `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--destination-delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--destination-delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--destination-delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--destination-description` | `string` | Destination description |
 | `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
 | `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
@@ -1085,6 +1093,10 @@ hookdeck gateway destination create [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | Destination description |
 | `--http-method` | `string` | HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE) |
 | `--name` | `string` | Destination name (required) |
@@ -1152,6 +1164,10 @@ hookdeck gateway destination update <destination-id> [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | New destination description |
 | `--http-method` | `string` | HTTP method for HTTP destinations |
 | `--name` | `string` | New destination name |
@@ -1216,6 +1232,10 @@ hookdeck gateway destination upsert <name> [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | Destination description |
 | `--dry-run` | `bool` | Preview changes without applying |
 | `--http-method` | `string` | HTTP method for HTTP destinations |
@@ -1574,6 +1594,7 @@ hookdeck gateway event list [flags]
 | `--connection-id` | `string` | Filter by connection ID |
 | `--created-after` | `string` | Filter events created after (ISO date-time) |
 | `--created-before` | `string` | Filter events created before (ISO date-time) |
+| `--delivery-group` | `string` | Filter by delivery group |
 | `--destination-id` | `string` | Filter by destination ID |
 | `--dir` | `string` | Sort direction (asc, desc) |
 | `--error-code` | `string` | Filter by error code |
@@ -1791,6 +1812,7 @@ hookdeck gateway request events <request-id> [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--delivery-group` | `string` | Filter by delivery group |
 | `--limit` | `int` | Limit number of results (default "100") |
 | `--next` | `string` | Pagination cursor for next page |
 | `--output` | `string` | Output format (json) |
@@ -1913,6 +1935,8 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 | Transformation errors | `hookdeck gateway metrics transformations --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,failed_count,error_rate` |
 
 **Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--source-id`, `--destination-id`, `--connection-id`, `--status`, `--output` (json).
+
+`--delivery-group` filters by delivery group on `metrics events` and `metrics attempts` only. The requests and transformations endpoints do not accept it, so the flag is not offered there, and it cannot be combined with `--measures pending` or per-issue metrics.
 
 ## Utilities
 

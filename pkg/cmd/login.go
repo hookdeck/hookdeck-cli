@@ -91,7 +91,13 @@ func (lc *loginCmd) runLoginCmd(cmd *cobra.Command, args []string) error {
 // saveLocalConfig writes the current profile credentials to .hookdeck/config.toml
 // and prints a security warning if the file is newly created.
 func saveLocalConfig() error {
-	isNewConfig, err := Config.UseProjectLocal(Config.Profile.ProjectId, Config.Profile.ProjectMode)
+	// Fall back to the raw mode when the type is unrecognized, so a value this
+	// CLI does not understand is carried through rather than dropped.
+	projectType := Config.Profile.ResolveProjectType()
+	if projectType == "" {
+		projectType = Config.Profile.ProjectMode
+	}
+	isNewConfig, err := Config.UseProjectLocal(Config.Profile.ProjectId, projectType)
 	if err != nil {
 		return err
 	}

@@ -46,10 +46,7 @@ func requireGatewayProject(cfg *config.Config) error {
 	if cfg.Profile.ProjectId == "" {
 		return fmt.Errorf("no project selected. Run 'hookdeck project use' to select a project")
 	}
-	projectType := cfg.Profile.ProjectType
-	if projectType == "" && cfg.Profile.ProjectMode != "" {
-		projectType = config.ModeToProjectType(cfg.Profile.ProjectMode)
-	}
+	projectType := cfg.Profile.ResolveProjectType()
 	if projectType == "" {
 		// Resolve team/project/mode/type from API (authoritative for the key). Do not clear
 		// guest_url here — gateway PreRun may run for users who still have a guest upgrade link.
@@ -62,7 +59,13 @@ func requireGatewayProject(cfg *config.Config) error {
 		_ = cfg.Profile.SaveProfile()
 	}
 	if !config.IsGatewayProject(projectType) {
-		return fmt.Errorf("this command requires a Gateway project; current project type is %s. Use 'hookdeck project use' to switch to a Gateway project", projectType)
+		// Show the label, not the wire value: "Outpost" is what the user saw in
+		// the project picker and in `project list`.
+		shown := config.TypeLabel(projectType)
+		if shown == "" {
+			shown = projectType
+		}
+		return fmt.Errorf("this command requires a Gateway project; current project type is %s. Use 'hookdeck project use' to switch to a Gateway project", shown)
 	}
 	return nil
 }

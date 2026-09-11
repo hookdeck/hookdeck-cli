@@ -61,30 +61,45 @@ type metricsCommonFlags struct {
 	dimensions    string
 	sourceID      string
 	destinationID string
+	deliveryGroup string
 	connectionID  string
 	status        string
 	issueID       string
 	output        string
 }
 
-// addMetricsCommonFlags adds common metrics flags to cmd and binds them to f.
-// For subcommands that take a required resource id as an argument (e.g. events-by-issue <issue-id>),
-// pass skipIssueID true so --issue-id is not added as a flag.
-func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags) {
-	addMetricsCommonFlagsEx(cmd, f, false)
+// metricsFlagOpts omits flags the target endpoint would reject. A flag the API
+// refuses is worse than a missing one: the filter is silently accepted by cobra
+// and comes back as an opaque 422 from the server.
+type metricsFlagOpts struct {
+	// skipIssueID omits --issue-id for subcommands that take the id as an
+	// argument instead (e.g. events-by-issue <issue-id>).
+	skipIssueID bool
+	// skipDeliveryGroup omits --delivery-group. Only the events, attempts and
+	// queue-depth filter schemas accept delivery_group; requests and
+	// transformations do not, and their filters are additionalProperties:false.
+	skipDeliveryGroup bool
 }
 
-func addMetricsCommonFlagsEx(cmd *cobra.Command, f *metricsCommonFlags, skipIssueID bool) {
+// addMetricsCommonFlags adds common metrics flags to cmd and binds them to f.
+func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags) {
+	addMetricsCommonFlagsEx(cmd, f, metricsFlagOpts{})
+}
+
+func addMetricsCommonFlagsEx(cmd *cobra.Command, f *metricsCommonFlags, opts metricsFlagOpts) {
 	cmd.Flags().StringVar(&f.start, "start", "", "Start of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.end, "end", "", "End of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.granularity, "granularity", "", granularityHelp)
 	cmd.Flags().StringVar(&f.measures, "measures", "", "Comma-separated list of measures to return")
-	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (e.g. connection_id, source_id, destination_id, status)")
+	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (e.g. connection_id, source_id, destination_id, delivery_group, status)")
 	cmd.Flags().StringVar(&f.sourceID, "source-id", "", "Filter by source ID")
 	cmd.Flags().StringVar(&f.destinationID, "destination-id", "", "Filter by destination ID")
+	if !opts.skipDeliveryGroup {
+		cmd.Flags().StringVar(&f.deliveryGroup, "delivery-group", "", "Filter by delivery group")
+	}
 	cmd.Flags().StringVar(&f.connectionID, "connection-id", "", "Filter by connection ID")
 	cmd.Flags().StringVar(&f.status, "status", "", "Filter by status (e.g. SUCCESSFUL, FAILED)")
-	if !skipIssueID {
+	if !opts.skipIssueID {
 		cmd.Flags().StringVar(&f.issueID, "issue-id", "", "Filter by issue ID (required for per-issue metrics, e.g. when using --dimensions issue_id)")
 	}
 	cmd.Flags().StringVar(&f.output, "output", "", "Output format (json)")
@@ -122,6 +137,7 @@ func metricsParamsFromFlags(f *metricsCommonFlags) hookdeck.MetricsQueryParams {
 		Dimensions:    dimensions,
 		SourceID:      f.sourceID,
 		DestinationID: f.destinationID,
+		DeliveryGroup: f.deliveryGroup,
 		ConnectionID:  f.connectionID,
 		Status:        f.status,
 		IssueID:       f.issueID,
