@@ -100,6 +100,10 @@ type Client struct {
 	// read by Stop(), which can run on the signal-handler goroutine.
 	stateMu sync.Mutex
 
+	// lastConnectErr is why the most recent connect attempt failed. Guarded by
+	// stateMu: written by Run, read by LastConnectErr from the proxy goroutine.
+	lastConnectErr error
+
 	NotifyExpired chan struct{}
 	notifyClose   chan error
 	send          chan *OutgoingMessage
@@ -129,6 +133,21 @@ func (c *Client) connected() bool {
 	return c.isConnected
 }
 
+// LastConnectErr returns why the most recent connect attempt failed, or nil if
+// none has. The reason is otherwise only visible at debug level, which left the
+// CLI able to say it had given up but not why.
+func (c *Client) LastConnectErr() error {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	return c.lastConnectErr
+}
+
+func (c *Client) setLastConnectErr(err error) {
+	c.stateMu.Lock()
+	c.lastConnectErr = err
+	c.stateMu.Unlock()
+}
+
 // HasConnected reports whether this client successfully established its
 // websocket connection at some point. It stays true after a disconnect, so
 // callers can distinguish "connected then dropped" from "never connected".
@@ -151,6 +170,7 @@ func (c *Client) Run(ctx context.Context) {
 
 	err := c.connect(ctx)
 	if err != nil {
+		c.setLastConnectErr(err)
 		c.cfg.Log.WithFields(log.Fields{
 			"prefix": "websocket.client.Run",
 		}).Debug(err)

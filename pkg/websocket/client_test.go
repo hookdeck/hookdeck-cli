@@ -256,3 +256,36 @@ func TestStopConcurrentWithConnect(t *testing.T) {
 	}()
 	wg.Wait()
 }
+
+// TestLastConnectErr covers the reason a connect attempt failed being readable
+// by the caller. It was previously logged at debug level only, so `listen` could
+// report that it had given up after ten attempts without saying whether the
+// cause was DNS, a refused connection, a proxy, or a rejected session.
+func TestLastConnectErr(t *testing.T) {
+	t.Run("nil before any attempt", func(t *testing.T) {
+		c := NewClient("ws://localhost:1", "cses_x", "key", "tm_x", nil, "", &Config{})
+		if err := c.LastConnectErr(); err != nil {
+			t.Fatalf("expected no error before connecting, got %v", err)
+		}
+	})
+
+	t.Run("records why the dial failed", func(t *testing.T) {
+		// Port 1 is reserved and nothing listens on it, so the dial fails fast.
+		c := NewClient("ws://127.0.0.1:1", "cses_x", "key", "tm_x", nil, "", &Config{})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Run signals ConnectionLost on failure; drain it so Run can return.
+		go func() { <-c.NotifyExpired }()
+		c.Run(ctx)
+
+		err := c.LastConnectErr()
+		if err == nil {
+			t.Fatal("a failed dial must leave a reason behind")
+		}
+		if !strings.Contains(err.Error(), "connect") {
+			t.Errorf("expected the reason to name the transport failure, got %q", err)
+		}
+	})
+}
