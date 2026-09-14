@@ -33,7 +33,7 @@ Measures: ` + metricsEventsMeasures + `.
 Dimensions: ` + metricsEventsDimensions + `.`),
 		RunE: c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.EventMetricsFilters)
+	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.EventMetricsFilters, hookdeck.EventMetricsDimensions, hookdeck.EventStatusValues)
 	return c
 }
 
@@ -64,6 +64,24 @@ func hasDimension(params hookdeck.MetricsQueryParams, name string) bool {
 	return false
 }
 
+// translateQueueDepthMeasures maps the CLI's "queue_depth" onto the API's
+// "max_depth", dropping a duplicate if both were requested.
+func translateQueueDepthMeasures(measures []string) []string {
+	out := make([]string, 0, len(measures))
+	seen := make(map[string]bool, len(measures))
+	for _, m := range measures {
+		if m == "queue_depth" {
+			m = "max_depth"
+		}
+		if seen[m] {
+			continue
+		}
+		seen[m] = true
+		out = append(out, m)
+	}
+	return out
+}
+
 // queryEventMetricsConsolidated routes to the correct underlying API endpoint
 // based on the requested measures and dimensions.
 func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client, params hookdeck.MetricsQueryParams) (hookdeck.MetricsResponse, error) {
@@ -73,11 +91,18 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		if err := rejectUnsupportedFilters(params, hookdeck.QueueDepthRouteFilters, "queue depth metrics"); err != nil {
 			return nil, err
 		}
-		return client.QueryQueueDepth(ctx, params)
+		// The endpoint accepts max_depth and max_age only. "queue_depth" is our own
+		// spelling for the route, advertised in --help, so translate it rather than
+		// letting the API reject a measure we told the user to pass.
+		queueParams := params
+		queueParams.Measures = translateQueueDepthMeasures(params.Measures)
+		return client.QueryQueueDepth(ctx, queueParams)
 	}
-	// 2. If measures include "pending" with granularity → QueryEventsPendingTimeseries
+	// 2. If measures include "pending" → QueryEventsPendingTimeseries.
 	// API expects measures[]=count; "pending" is only used for routing.
-	if hasMeasure(params, map[string]bool{"pending": true}) && params.Granularity != "" {
+	// Granularity is optional on this route, so it must not gate the routing:
+	// gating it sent "pending" to the default endpoint, which rejects the measure.
+	if hasMeasure(params, map[string]bool{"pending": true}) {
 		if err := rejectUnsupportedFilters(params, hookdeck.PendingTimeseriesRouteFilters, "pending event metrics (--measures pending)"); err != nil {
 			return nil, err
 		}

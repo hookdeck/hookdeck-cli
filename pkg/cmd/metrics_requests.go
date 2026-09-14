@@ -24,7 +24,7 @@ func newMetricsRequestsCmd() *metricsRequestsCmd {
 		Long:  LongBeta(`Query metrics for requests (acceptance, rejection, etc.). Measures: ` + metricsRequestsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.RequestMetricsFilters)
+	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.RequestMetricsFilters, hookdeck.RequestMetricsDimensions, hookdeck.RequestStatusValues)
 	return c
 }
 

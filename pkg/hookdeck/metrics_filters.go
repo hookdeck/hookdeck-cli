@@ -85,3 +85,20 @@ var MCPFilterNames = MetricsFilterNames{
 	IssueID:       "issue_id",
 	DeliveryGroup: "delivery_group",
 }
+
+// Dimension and status vocabularies per metrics route. These differ sharply
+// between endpoints, so --help must not advertise one generic list: naming a
+// dimension the route does not accept sends the user into an API 422.
+const (
+	RequestMetricsDimensions        = "source_id, rejection_cause, status, bulk_retry_ids, events_count, ignored_count"
+	AttemptMetricsDimensions        = "destination_id, delivery_group, event_id, status, error_code, bulk_retry_id, trigger"
+	TransformationMetricsDimensions = "transformation_id, webhook_id, log_level, issue_id"
+	EventMetricsDimensions          = "source_id, destination_id, connection_id, delivery_group, status, issue_id"
+)
+
+// Status vocabularies. Request events are accepted or rejected at the edge;
+// events and attempts carry a delivery status.
+const (
+	RequestStatusValues = "ACCEPTED, REJECTED"
+	EventStatusValues   = "SUCCESSFUL, FAILED, QUEUED, PAUSED"
+)
