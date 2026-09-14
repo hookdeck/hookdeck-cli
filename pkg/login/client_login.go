@@ -48,6 +48,16 @@ var ErrNoCredentialsNoTerminal = errors.New(
 		"or set HOOKDECK_API_KEY to a project API key",
 )
 
+// ErrGuestUpgradeNoTerminal is returned when a guest profile's browser sign-up
+// would have to read stdin and there is no terminal. Unlike the other two this
+// one has no headless equivalent - a permanent account is created in the
+// browser - so it names signing in with an account that already exists.
+var ErrGuestUpgradeNoTerminal = errors.New(
+	"creating a permanent account needs browser sign-up, and browser sign-up needs an interactive terminal; " +
+		"run hookdeck login in a terminal to keep this sandbox's data, " +
+		"or sign in to an account you already have with hookdeck ci --api-key or hookdeck login --cli-key",
+)
+
 // browserSignInNeedsStdin reports whether waitForLoginSession would take the
 // branch that prompts for Enter and opens a browser. Its other branch prints
 // the URL and polls without reading stdin, which works headlessly and must not
@@ -153,14 +163,18 @@ func waitForLoginSession(config *configpkg.Config, input io.Reader, session *hoo
 		fmt.Println("Press Enter to open the browser (^C to quit)")
 		fmt.Fscanln(input)
 
-		s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
+		// Print the URL whether or not the browser opens (#373). open.Browser
+		// is exec.Command(...).Start(), which returns nil the moment the child
+		// is spawned, so a browser that dies straight after - WSL, containers,
+		// VS Code Remote - reports success and leaves the user with a spinner
+		// and no link. The error branch below is the detectable half only.
+		fmt.Printf("To authenticate with Hookdeck, please go to: %s\n", session.BrowserURL)
 
-		err := openBrowser(session.BrowserURL)
-		if err != nil {
-			msg := fmt.Sprintf("Failed to open browser, please go to %s manually.", session.BrowserURL)
-			ansi.StopSpinner(s, msg, os.Stdout)
-			s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
+		if err := openBrowser(session.BrowserURL); err != nil {
+			fmt.Println("Could not open the browser for you; use the link above.")
 		}
+
+		s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 	}
 
 	response, err := session.WaitForAPIKey(0, 0)
@@ -285,6 +299,14 @@ func isSSH() bool {
 }
 
 func waitForGuestUpgrade(config *configpkg.Config, input io.Reader) error {
+	// The third copy of the same branch (#408). Refuse before
+	// RefreshGuestSigninLink mints a link for a sign-up nobody can complete:
+	// without this, a guest profile with a still-valid key opened a browser
+	// window unasked and then polled for four minutes.
+	if !stdinIsTerminal() && browserSignInNeedsStdin() {
+		return ErrGuestUpgradeNoTerminal
+	}
+
 	guestURL := RefreshGuestSigninLink(config)
 	if guestURL == "" {
 		return fmt.Errorf("unable to create guest sign-up link")
@@ -295,17 +317,20 @@ func waitForGuestUpgrade(config *configpkg.Config, input io.Reader) error {
 		fmt.Printf("To create a permanent Hookdeck account, please go to: %s\n", guestURL)
 		s = ansi.StartNewSpinner("Waiting for account creation...", os.Stdout)
 	} else {
-		fmt.Printf("Press Enter to open the browser (^C to quit)")
+		// Reached only with a terminal on stdin (guarded above), so there is
+		// someone to press Enter and a terminal to deliver ^C to.
+		fmt.Println("Press Enter to open the browser (^C to quit)")
 		fmt.Fscanln(input)
 
-		s = ansi.StartNewSpinner("Waiting for account creation...", os.Stdout)
+		// Printed whether or not the browser opens, for the reason given in
+		// waitForLoginSession (#373).
+		fmt.Printf("To create a permanent Hookdeck account, please go to: %s\n", guestURL)
 
-		err := openBrowser(guestURL)
-		if err != nil {
-			msg := fmt.Sprintf("Failed to open browser, please go to %s manually.", guestURL)
-			ansi.StopSpinner(s, msg, os.Stdout)
-			s = ansi.StartNewSpinner("Waiting for account creation...", os.Stdout)
+		if err := openBrowser(guestURL); err != nil {
+			fmt.Println("Could not open the browser for you; use the link above.")
 		}
+
+		s = ansi.StartNewSpinner("Waiting for account creation...", os.Stdout)
 	}
 
 	response, err := waitForGuestUpgradeCompletion(config)
