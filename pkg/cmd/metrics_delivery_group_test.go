@@ -12,9 +12,10 @@ import (
 
 // TestDeliveryGroupFlagOnlyWhereTheAPIAcceptsIt covers the filter schemas the API
 // actually declares: delivery_group exists on events, attempts and queue-depth,
-// and not on requests or transformations. Those filters are additionalProperties:
-// false, so offering the flag where it is not accepted turns a typo-level mistake
-// into an opaque 422 from the server.
+// and not on requests or transformations. The API does not reject the unknown
+// filter - it drops it and returns unfiltered totals - so offering the flag
+// where it has no effect is worse than an error: the caller gets numbers that
+// look filtered and are not.
 func TestDeliveryGroupFlagOnlyWhereTheAPIAcceptsIt(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -33,7 +34,7 @@ func TestDeliveryGroupFlagOnlyWhereTheAPIAcceptsIt(t *testing.T) {
 			if tt.expected {
 				assert.NotNil(t, flag, "%s accepts delivery_group and should offer the flag", tt.name)
 			} else {
-				assert.Nil(t, flag, "%s rejects unknown filters; the flag must not be offered", tt.name)
+				assert.Nil(t, flag, "%s ignores delivery_group; offering the flag would imply a filter that does nothing", tt.name)
 			}
 		})
 	}

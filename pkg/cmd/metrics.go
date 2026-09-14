@@ -76,8 +76,12 @@ type metricsFlagOpts struct {
 	// argument instead (e.g. events-by-issue <issue-id>).
 	skipIssueID bool
 	// skipDeliveryGroup omits --delivery-group. Only the events, attempts and
-	// queue-depth filter schemas accept delivery_group; requests and
-	// transformations do not, and their filters are additionalProperties:false.
+	// queue-depth filter schemas accept delivery_group. The others do not
+	// reject it either - the API silently drops the unknown filter and returns
+	// unfiltered totals, so offering the flag there hands back numbers that
+	// look filtered and are not. Verified against production: requests over 14
+	// days returned 87 with and without --delivery-group, while a bogus
+	// --source-id on the same call returned 0.
 	skipDeliveryGroup bool
 }
 

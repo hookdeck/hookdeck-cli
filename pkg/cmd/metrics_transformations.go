@@ -23,7 +23,8 @@ func newMetricsTransformationsCmd() *metricsTransformationsCmd {
 		Long:  LongBeta(`Query metrics for transformations. Measures: ` + metricsTransformationsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	// The transformations filter schema has no delivery_group, and rejects unknown filters.
+	// The transformations filter schema has no delivery_group; the API ignores
+	// it rather than erroring, which would silently return unfiltered totals.
 	addMetricsCommonFlagsEx(c.cmd, &c.flags, metricsFlagOpts{skipDeliveryGroup: true})
 	return c
 }
