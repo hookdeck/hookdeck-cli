@@ -80,7 +80,14 @@ func (f *destinationConfigFlags) hasAnyDestinationConfig() bool {
 
 func buildDeliveryPolicy(rate int, period, groupKey string, groupRate int, groupRatePeriod, overridesJSON, flagPrefix string) (map[string]interface{}, error) {
 	policy := make(map[string]interface{})
-	if period != "" && rate <= 0 {
+	// A negative rate is something the caller typed, so it has to be rejected
+	// rather than treated as absent. Testing only `rate > 0` let `--rate-limit -5`
+	// fall through both guards and be dropped, and the command then succeeded
+	// having quietly ignored the value.
+	if rate < 0 {
+		return nil, fmt.Errorf("--%srate-limit must be a positive integer", flagPrefix)
+	}
+	if period != "" && rate == 0 {
 		return nil, fmt.Errorf("--%srate-limit must be a positive integer when rate limiting is configured", flagPrefix)
 	}
 	if rate > 0 {
@@ -91,7 +98,9 @@ func buildDeliveryPolicy(rate int, period, groupKey string, groupRate int, group
 		policy["period"] = period
 	}
 
-	hasGroups := groupKey != "" || groupRate > 0 || groupRatePeriod != "" || overridesJSON != ""
+	// Same again for the group rate: a negative value must count as configured,
+	// or it is silently discarded instead of refused.
+	hasGroups := groupKey != "" || groupRate != 0 || groupRatePeriod != "" || overridesJSON != ""
 	if !hasGroups {
 		return policy, nil
 	}

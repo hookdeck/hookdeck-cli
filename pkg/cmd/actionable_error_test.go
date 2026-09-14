@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
@@ -86,9 +88,19 @@ func TestUnauthorizedServerMessage(t *testing.T) {
 			expected: "This credential is scoped to a single project",
 		},
 		{
-			name: "the bare status word adds nothing",
-			// What /cli-auth/validate and /cli-auth/ci actually return today.
+			name:     "the bare status word adds nothing",
 			err:      &hookdeck.APIError{StatusCode: 401, Message: "Unauthorized"},
+			expected: "",
+		},
+		{
+			// The shape checkAndPrintError actually produces for a non-JSON body,
+			// which is what these endpoints send. Asserting on a hand-built
+			// APIError missed this: the first version of this helper let the
+			// boilerplate through, so every user with an expired key saw
+			// "Authentication failed: unexpected http status code: 401, raw
+			// response body: Unauthorized" instead of the guidance.
+			name:     "our own synthesized boilerplate is not a server message",
+			err:      &hookdeck.APIError{StatusCode: 401, Message: "unexpected http status code: 401, raw response body: Unauthorized"},
 			expected: "",
 		},
 		{
@@ -113,4 +125,32 @@ func TestUnauthorizedServerMessage(t *testing.T) {
 			assert.Equal(t, tt.expected, unauthorizedServerMessage(tt.err))
 		})
 	}
+}
+
+// TestUnauthorizedServerMessageThroughTheRealClient drives the helper with an
+// error the client genuinely produced, rather than one built by hand.
+//
+// That distinction is the whole point: the hand-built cases above all passed
+// while the helper was broken, because they supplied a Message the real client
+// never generates for these endpoints. /cli-auth/validate answers 401 with a
+// text/plain "Unauthorized" body, so json.Unmarshal fails and checkAndPrintError
+// stores its own synthesized string instead.
+func TestUnauthorizedServerMessageThroughTheRealClient(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("Unauthorized"))
+	}))
+	t.Cleanup(ts.Close)
+
+	baseURL, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	client := &hookdeck.Client{BaseURL: baseURL, APIKey: "hk_test_key", TelemetryDisabled: true}
+	_, err = client.ValidateAPIKey()
+	require.Error(t, err)
+	require.True(t, hookdeck.IsUnauthorizedError(err), "should be recognized as a 401")
+
+	assert.Empty(t, unauthorizedServerMessage(err),
+		"a plain-text 401 carries no explanation, so the caller must fall back to guidance")
 }

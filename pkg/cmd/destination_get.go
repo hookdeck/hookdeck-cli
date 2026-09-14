@@ -17,8 +17,8 @@ import (
 type destinationGetCmd struct {
 	cmd *cobra.Command
 
-	output            string
-	includeDestAuth   bool
+	output          string
+	includeDestAuth bool
 }
 
 func newDestinationGetCmd() *destinationGetCmd {

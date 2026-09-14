@@ -3,16 +3,23 @@ package sources
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 var (
-	openapiURL    = "https://api.hookdeck.com/2026-09-01/openapi"
-	cacheFileName = "hookdeck_source_types.json"
+	// Both derived from the one version constant, so they cannot drift apart.
+	// They did: the URL moved to 2026-09-01 while the cache name stayed put, so
+	// upgrading within the 24 hour TTL served source types parsed from the
+	// previous spec - stale auth schemes and required fields, used to validate
+	// `source create`.
+	openapiURL    = "https://api.hookdeck.com" + hookdeck.APIPathPrefix + "/openapi"
+	cacheFileName = "hookdeck_source_types" + strings.ReplaceAll(hookdeck.APIPathPrefix, "/", "_") + ".json"
 	cacheTTL      = 24 * time.Hour
 )
 

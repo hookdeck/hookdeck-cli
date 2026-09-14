@@ -84,6 +84,13 @@ func (dc *destinationUpdateCmd) validateFlags(cmd *cobra.Command, args []string)
 	if dc.config != "" && dc.configFile != "" {
 		return fmt.Errorf("cannot use both --config and --config-file")
 	}
+	// --config / --config-file take precedence: buildDestinationConfigFromFlags
+	// returns their JSON and never looks at the individual flags. Validating
+	// those flags here anyway rejected commands over a value that would have
+	// been ignored.
+	if dc.config != "" || dc.configFile != "" {
+		return nil
+	}
 	return dc.destinationConfigFlags.validateDeliveryPolicyFlags("")
 }
 

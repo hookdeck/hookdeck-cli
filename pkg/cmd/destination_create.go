@@ -89,6 +89,13 @@ func (dc *destinationCreateCmd) validateFlags(cmd *cobra.Command, args []string)
 	if t == "HTTP" && dc.url == "" && dc.config == "" && dc.configFile == "" {
 		return fmt.Errorf("--url is required for HTTP destinations")
 	}
+	// --config / --config-file take precedence: buildDestinationConfigFromFlags
+	// returns their JSON and never looks at the individual flags. Validating
+	// those flags here anyway rejected commands over a value that would have
+	// been ignored.
+	if dc.config != "" || dc.configFile != "" {
+		return nil
+	}
 	return dc.destinationConfigFlags.validateDeliveryPolicyFlags("")
 }
 

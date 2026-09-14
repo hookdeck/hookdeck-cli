@@ -220,11 +220,11 @@ $ hookdeck listen 3000 stripe --cli-key <your-cli-key>
 $ hookdeck listen 3000 stripe --api-key <your-project-api-key>
 ```
 
-Both flags are global, so they work with any command. Which key you hold decides what the CLI can do:
+Which key you hold decides what the CLI can do. The supported ways to supply one are `hookdeck login` for a CLI key, `hookdeck login --cli-key` to paste an existing one, and `hookdeck ci --api-key` for a project API key:
 
 | Key | Where it comes from | Reach | `project list` / `project use` |
 | --- | --- | --- | --- |
-| **CLI key** | `hookdeck login` | every project in every organization you belong to | yes |
+| **CLI key** | `hookdeck login`, or `hookdeck login --cli-key` | every project in every organization you belong to | yes |
 | **Project API key** | dashboard, or `hookdeck ci --api-key` | the one project it belongs to | no |
 | **Organization API key** | dashboard | its organization's projects, given the `projects.read` scope | no |
 
@@ -1224,7 +1224,7 @@ The Hookdeck CLI configuration file is stored in TOML format and typically inclu
 ```toml
 api_key = "api_key_xxxxxxxxxxxxxxxxxxxx"
 project_id = "tm_xxxxxxxxxxxxxxx"
-project_type = "event_gateway" | "outpost" | "console"
+project_type = "Gateway" | "Outpost" | "Console"
 ```
 
 ### Local Configuration
@@ -1255,12 +1255,12 @@ profile = "dev"
 [dev]
   api_key = "api_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   project_id = "tm_5JxTelcYxOJy"
-  project_type = "event_gateway"
+  project_type = "Gateway"
 
 [prod]
   api_key = "api_key_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
   project_id = "tm_U9Zod13qtsHp"
-  project_type = "event_gateway"
+  project_type = "Gateway"
 ```
 
 This allows you to run commands against different projects. For example, to listen to the `webhooks` source in the `dev` profile, run:

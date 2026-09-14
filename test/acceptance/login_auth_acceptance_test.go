@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestLoginAfterValidate401FailsFastWithoutTerminalAcceptance runs the real CLI against a local
+// TestLoginAfterValidate401StartsBrowserFlowAcceptance runs the real CLI against a local
 // mock API: GET validate returns 401, then POST /cli-auth and poll complete the device flow.
 // SSH_CONNECTION avoids the "Press Enter to open the browser" branch (non-interactive).
-func TestLoginAfterValidate401FailsFastWithoutTerminalAcceptance(t *testing.T) {
+func TestLoginAfterValidate401StartsBrowserFlowAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
@@ -98,16 +98,18 @@ api_key = "hk_test_stale_accept01"
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 
-	// A stale key used to drop into browser sign-in here. That cannot complete
-	// without a terminal - there is nobody to press Enter or finish the flow in
-	// a browser - so the CLI now refuses instead of polling for a confirmation
-	// that will never arrive. CI is exactly that environment, which is why this
-	// test observes the refusal rather than the flow.
-	require.Error(t, err, "a rejected key with no terminal must fail, not start browser sign-in")
-	combined := stdout.String() + stderr.String()
-	require.Contains(t, combined, "browser sign-in needs an interactive terminal")
-	require.Contains(t, combined, "CLI key", "the error should say what kind of key is expected")
-	require.Zero(t, pollHits, "must not poll for a confirmation nobody can give")
+	// SSH_CONNECTION is set above on purpose: waitForLoginSession prints the URL
+	// and polls in that case, without ever reading stdin, so the flow completes
+	// with no terminal and a human elsewhere. That is the path this test covers.
+	//
+	// It briefly did not. A guard added for the CI hang refused on "no terminal"
+	// alone, which took this branch out too, and this test was then rewritten to
+	// assert the refusal - encoding the regression rather than catching it. The
+	// guard now only refuses where nobody can act; see
+	// TestLogin_rejectedKeyHeadlessFailsFast for that case.
+	require.NoError(t, err, "stdout=%q stderr=%q", stdout.String(), stderr.String())
+	require.Contains(t, stdout.String(), "no longer valid", "user should see stale-key message")
+	require.Equal(t, 1, pollHits, "mock should see exactly one poll after cli-auth")
 
 }
 

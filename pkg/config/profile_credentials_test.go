@@ -180,3 +180,28 @@ team_mode = "inbound"
 	assert.Contains(t, tomlText, "project_id")
 	assert.Contains(t, tomlText, `project_type = 'Gateway'`)
 }
+
+// TestProfile_UnrecognizedTypeIsNotDiscarded covers a project type this CLI does
+// not know about - the API adding a fourth, say.
+//
+// Deriving the legacy mode from an unresolved type wrote an empty string over
+// whatever the API sent, so the profile ended up with no type and no mode: every
+// gateway command then failed with "current project type is ." and the value
+// another CLI version could have used was gone. Config.setProjectIdentity
+// already keeps unknown values for the same reason.
+func TestProfile_UnrecognizedTypeIsNotDiscarded(t *testing.T) {
+	p := &Profile{}
+	p.ApplyValidateAPIKeyResponse(&hookdeck.ValidateAPIKeyResponse{
+		ProjectID:   "team_future",
+		ProjectType: "some_future_product",
+	}, false)
+
+	// The raw value survives, so a CLI that understands it can read the config
+	// and this one reports something meaningful instead of an empty string.
+	require.Equal(t, "some_future_product", p.ProjectType)
+
+	// It still does not resolve here, which is what keeps gateway commands from
+	// acting on a project type this CLI does not understand.
+	require.Empty(t, p.ResolveProjectType())
+	require.False(t, IsGatewayProject(p.ProjectType))
+}

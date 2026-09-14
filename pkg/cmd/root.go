@@ -377,8 +377,16 @@ func unauthorizedServerMessage(err error) string {
 		return ""
 	}
 	msg := strings.TrimSpace(apiErr.Message)
-	// Not a message, just the status word. Nothing to add.
-	if msg == "" || strings.EqualFold(msg, "unauthorized") {
+	// APIError.Message is not always the server's words. When the body is not
+	// JSON, checkAndPrintError synthesizes "unexpected http status code: N, raw
+	// response body: ..." and stores that here. These endpoints answer 401 with
+	// a text/plain "Unauthorized", so that is exactly what lands - and printing
+	// it back is strictly worse than the generic guidance it would replace.
+	if msg == "" || strings.HasPrefix(msg, "unexpected http status code:") {
+		return ""
+	}
+	// The bare status word says nothing the status code did not.
+	if strings.EqualFold(msg, "unauthorized") {
 		return ""
 	}
 	return msg
