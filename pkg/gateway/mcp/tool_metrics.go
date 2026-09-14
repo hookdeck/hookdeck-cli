@@ -102,6 +102,12 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 		return ErrorResult(err.Error()), nil
 	}
 
+	// Only one endpoint is called, so measures belonging to different ones
+	// cannot all be answered. Shared with the CLI so the two cannot drift.
+	if err := hookdeck.RejectMixedMeasureRoutes(params.Measures, "measures"); err != nil {
+		return ErrorResult(err.Error()), nil
+	}
+
 	// Route to the correct events metrics endpoint based on measures/dimensions.
 	// Each route accepts a different set of filters, so the ones it would ignore
 	// are refused here rather than silently dropped by the API.

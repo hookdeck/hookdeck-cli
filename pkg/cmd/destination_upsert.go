@@ -96,58 +96,9 @@ func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	dc.destinationConfigFlags.URL = dc.url
-	dc.destinationConfigFlags.CliPath = dc.cliPath
-
-	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
+	req, err := dc.buildUpsertRequest(ctx, client)
 	if err != nil {
 		return err
-	}
-
-	t := strings.ToUpper(dc.destType)
-	if config == nil {
-		config = make(map[string]interface{})
-	}
-	if t == "HTTP" && dc.url != "" {
-		config["url"] = dc.url
-	}
-	if t == "CLI" {
-		applyCLIPath(config, dc.cliPath, false)
-	}
-
-	req := &hookdeck.DestinationCreateRequest{
-		Name: dc.name,
-	}
-	if dc.description != "" {
-		req.Description = &dc.description
-	}
-	if t != "" {
-		req.Type = t
-	}
-	if len(config) > 0 {
-		req.Config = config
-	}
-
-	// API requires config on PUT. When doing partial update (e.g. only --description), fetch existing and merge.
-	// A groups object sent without overrides also needs the stored config, because
-	// the API replaces groups wholesale and would drop the overrides with it.
-	needsOverrides := deliveryGroupsNeedOverrides(req.Config)
-	if req.Config == nil || len(req.Config) == 0 || needsOverrides {
-		params := map[string]string{"name": dc.name}
-		listResp, err := client.ListDestinations(ctx, params)
-		if err == nil && listResp.Models != nil && len(listResp.Models) > 0 {
-			existing, err := client.GetDestination(ctx, listResp.Models[0].ID, nil)
-			if err == nil && existing.Config != nil {
-				if len(req.Config) == 0 {
-					req.Config = existing.Config
-					if req.Type == "" {
-						req.Type = existing.Type
-					}
-				} else {
-					preserveDeliveryGroupOverrides(req.Config, existing.Config)
-				}
-			}
-		}
 	}
 
 	if dc.dryRun {
@@ -185,4 +136,85 @@ func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args
 		fmt.Printf("URL: %s\n", *u)
 	}
 	return nil
+}
+
+// buildUpsertRequest assembles the PUT body, consulting the stored destination
+// where a flag alone cannot answer the question. Separated from the command so
+// the guards it applies are reachable from a test with a real HTTP client.
+func (dc *destinationUpsertCmd) buildUpsertRequest(ctx context.Context, client *hookdeck.Client) (*hookdeck.DestinationCreateRequest, error) {
+	dc.destinationConfigFlags.URL = dc.url
+	dc.destinationConfigFlags.CliPath = dc.cliPath
+
+	// The stored destination answers two separate questions below: what type it
+	// is, so the CLI delivery-policy guard can run when --type is omitted, and
+	// what delivery-group overrides it holds, so a bare groups object does not
+	// destroy them. Fetch it at most once, and only when it is needed.
+	var (
+		existingDest    *hookdeck.Destination
+		fetchedExisting bool
+	)
+	lookupExisting := func() (*hookdeck.Destination, error) {
+		if fetchedExisting {
+			return existingDest, nil
+		}
+		found, err := fetchDestinationByName(ctx, client, dc.name)
+		if err != nil {
+			return nil, err
+		}
+		existingDest, fetchedExisting = found, true
+		return found, nil
+	}
+
+	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
+	if err != nil {
+		return nil, err
+	}
+
+	// --type is normally omitted on upsert, so the delivery-policy guard has to
+	// resolve the stored type or it never fires for the common invocation.
+	policyType, err := destinationTypeForPolicyCheck(
+		dc.destType,
+		dc.config != "" || dc.configFile != "",
+		&dc.destinationConfigFlags,
+		lookupExisting,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectDeliveryPolicyInConfigForCLI(policyType, config, ""); err != nil {
+		return nil, err
+	}
+
+	t := strings.ToUpper(dc.destType)
+	if config == nil {
+		config = make(map[string]interface{})
+	}
+	if t == "HTTP" && dc.url != "" {
+		config["url"] = dc.url
+	}
+	if t == "CLI" {
+		applyCLIPath(config, dc.cliPath, false)
+	}
+
+	req := &hookdeck.DestinationCreateRequest{
+		Name: dc.name,
+	}
+	if dc.description != "" {
+		req.Description = &dc.description
+	}
+	if t != "" {
+		req.Type = t
+	}
+	if len(config) > 0 {
+		req.Config = config
+	}
+
+	// API requires config on PUT. When doing partial update (e.g. only --description), fetch existing and merge.
+	// A groups object sent without overrides also needs the stored config, because
+	// the API replaces groups wholesale and would drop the overrides with it.
+	if err := applyStoredDestinationConfig(dc.name, req, lookupExisting); err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }

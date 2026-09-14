@@ -99,27 +99,9 @@ func (dc *destinationUpdateCmd) runDestinationUpdateCmd(cmd *cobra.Command, args
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	dc.destinationConfigFlags.URL = dc.url
-	dc.destinationConfigFlags.CliPath = dc.cliPath
-
-	req := &hookdeck.DestinationUpdateRequest{}
-	req.Name = dc.name
-	if dc.description != "" {
-		req.Description = &dc.description
-	}
-	if dc.destType != "" {
-		req.Type = strings.ToUpper(dc.destType)
-	}
-	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
+	req, err := dc.buildUpdateRequest(ctx, client, destID)
 	if err != nil {
 		return err
-	}
-	if len(config) > 0 {
-		req.Config = config
-	}
-
-	if destinationUpdateRequestEmpty(req) {
-		return fmt.Errorf("no updates specified (set at least one of --name, --description, --type, or config flags)")
 	}
 
 	dst, err := client.UpdateDestination(ctx, destID, req)
@@ -143,4 +125,75 @@ func (dc *destinationUpdateCmd) runDestinationUpdateCmd(cmd *cobra.Command, args
 		fmt.Printf("URL: %s\n", *u)
 	}
 	return nil
+}
+
+// buildUpdateRequest assembles the PUT body, consulting the stored destination
+// where a flag alone cannot answer the question. Separated from the command so
+// the guards it applies are reachable from a test with a real HTTP client.
+func (dc *destinationUpdateCmd) buildUpdateRequest(ctx context.Context, client *hookdeck.Client, destID string) (*hookdeck.DestinationUpdateRequest, error) {
+	dc.destinationConfigFlags.URL = dc.url
+	dc.destinationConfigFlags.CliPath = dc.cliPath
+
+	req := &hookdeck.DestinationUpdateRequest{}
+	req.Name = dc.name
+	if dc.description != "" {
+		req.Description = &dc.description
+	}
+	if dc.destType != "" {
+		req.Type = strings.ToUpper(dc.destType)
+	}
+	// The stored destination answers two questions below: what type it is, so
+	// the CLI delivery-policy guard can run when --type is omitted, and what
+	// delivery-group overrides it holds, so a bare groups object does not
+	// destroy them. Fetch it at most once, and only when it is needed.
+	var (
+		existingDest    *hookdeck.Destination
+		fetchedExisting bool
+	)
+	lookupExisting := func() (*hookdeck.Destination, error) {
+		if fetchedExisting {
+			return existingDest, nil
+		}
+		found, err := client.GetDestination(ctx, destID, nil)
+		if err != nil {
+			return nil, err
+		}
+		existingDest, fetchedExisting = found, true
+		return found, nil
+	}
+
+	// --type is normally omitted on update, so the delivery-policy guard has to
+	// resolve the stored type or it never fires for the common invocation.
+	policyType, err := destinationTypeForPolicyCheck(
+		dc.destType,
+		dc.config != "" || dc.configFile != "",
+		&dc.destinationConfigFlags,
+		lookupExisting,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectDeliveryPolicyInConfigForCLI(policyType, config, ""); err != nil {
+		return nil, err
+	}
+	// update is a PUT and the API replaces delivery_policy.groups wholesale, so
+	// "just bump the group rate" was destroying the stored overrides here just
+	// as it was on upsert (#393).
+	if err := preserveStoredDeliveryGroupOverrides(destID, config, lookupExisting); err != nil {
+		return nil, err
+	}
+	if len(config) > 0 {
+		req.Config = config
+	}
+
+	if destinationUpdateRequestEmpty(req) {
+		return nil, fmt.Errorf("no updates specified (set at least one of --name, --description, --type, or config flags)")
+	}
+
+	return req, nil
 }

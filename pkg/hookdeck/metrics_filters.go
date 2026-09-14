@@ -122,3 +122,63 @@ func TranslateQueueDepthMeasures(measures []string) []string {
 	}
 	return out
 }
+
+// Names of the events-metrics routes, as they appear to the caller in errors.
+const (
+	EventRouteDefault    = "event metrics"
+	EventRouteQueueDepth = "queue depth metrics"
+	EventRoutePending    = "pending event metrics"
+)
+
+// eventMeasureRoutes maps every measure `metrics events` advertises onto the API
+// endpoint that measure selects. The by-issue route is chosen by dimension
+// rather than by measure, so it has no entry here.
+//
+// A measure that is absent from this map does not influence routing: the
+// request goes to the default endpoint and the API rejects the measure itself,
+// which is a better error than one this package could invent.
+var eventMeasureRoutes = map[string]string{
+	"count":                 EventRouteDefault,
+	"successful_count":      EventRouteDefault,
+	"failed_count":          EventRouteDefault,
+	"scheduled_count":       EventRouteDefault,
+	"paused_count":          EventRouteDefault,
+	"error_rate":            EventRouteDefault,
+	"avg_attempts":          EventRouteDefault,
+	"scheduled_retry_count": EventRouteDefault,
+
+	"queue_depth": EventRouteQueueDepth,
+	"max_depth":   EventRouteQueueDepth,
+	"max_age":     EventRouteQueueDepth,
+
+	"pending": EventRoutePending,
+}
+
+// RejectMixedMeasureRoutes refuses a measure list that spans more than one
+// events-metrics endpoint.
+//
+// Routing picks a single endpoint from the measures, so a mixed list is not a
+// combined query: the extra measures are either silently dropped (the pending
+// route replaces the whole list with "count") or rewritten into something the
+// endpoint rejects with a 422. Neither is what the caller asked for, so say so
+// here instead. measuresName is the caller's own spelling of the argument, so a
+// CLI user reads "--measures" and an MCP client reads "measures".
+func RejectMixedMeasureRoutes(measures []string, measuresName string) error {
+	firstMeasure := ""
+	firstRoute := ""
+	for _, m := range measures {
+		route, known := eventMeasureRoutes[m]
+		if !known {
+			continue
+		}
+		if firstRoute == "" {
+			firstMeasure, firstRoute = m, route
+			continue
+		}
+		if route != firstRoute {
+			return fmt.Errorf("%s cannot mix %q (%s) with %q (%s): these are separate API endpoints, so ask for one route's measures at a time",
+				measuresName, firstMeasure, firstRoute, m, route)
+		}
+	}
+	return nil
+}

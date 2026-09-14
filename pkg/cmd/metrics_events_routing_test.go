@@ -83,3 +83,76 @@ func TestTranslateQueueDepthMeasures(t *testing.T) {
 	assert.Equal(t, []string{"max_depth", "max_age"}, hookdeck.TranslateQueueDepthMeasures([]string{"queue_depth", "max_age"}))
 	assert.Empty(t, hookdeck.TranslateQueueDepthMeasures(nil))
 }
+
+// TestMixedMeasureRoutesAreRejected pins the guard against a measure list that
+// spans more than one endpoint. Only one endpoint is called, so the surplus
+// measures were either dropped (pending replaces the list with "count") or
+// rewritten into a 422 (queue_depth becomes max_depth). Both looked like a
+// successful answer to a question that was never asked.
+func TestMixedMeasureRoutesAreRejected(t *testing.T) {
+	tests := []struct {
+		name     string
+		measures []string
+		contains []string
+	}{
+		{
+			name:     "pending with a default-route measure",
+			measures: []string{"pending", "failed_count"},
+			contains: []string{"--measures", `"pending"`, `"failed_count"`, "pending event metrics", "event metrics"},
+		},
+		{
+			name:     "default-route measure with queue depth",
+			measures: []string{"count", "queue_depth"},
+			contains: []string{`"count"`, `"queue_depth"`, "queue depth metrics"},
+		},
+		{
+			name:     "pending with queue depth",
+			measures: []string{"max_age", "pending"},
+			contains: []string{`"max_age"`, `"pending"`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, path, _ := routeCapture(t)
+
+			_, err := queryEventMetricsConsolidated(context.Background(), client,
+				hookdeck.MetricsQueryParams{Measures: tt.measures})
+			require.Error(t, err, "a cross-route measure list must not be answered from one endpoint")
+			for _, want := range tt.contains {
+				assert.Contains(t, err.Error(), want)
+			}
+			assert.Empty(t, *path, "the API must not be called at all")
+		})
+	}
+}
+
+// TestSingleRouteMeasureCombinationsStillWork is the other half: measures that
+// all belong to one endpoint must still be sent together.
+func TestSingleRouteMeasureCombinationsStillWork(t *testing.T) {
+	t.Run("default route", func(t *testing.T) {
+		client, path, query := routeCapture(t)
+		_, err := queryEventMetricsConsolidated(context.Background(), client,
+			hookdeck.MetricsQueryParams{Measures: []string{"count", "failed_count", "error_rate"}})
+		require.NoError(t, err)
+		assert.Contains(t, *path, "metrics/events")
+		assert.Equal(t, []string{"count", "failed_count", "error_rate"}, (*query)["measures[]"])
+	})
+
+	t.Run("queue depth route", func(t *testing.T) {
+		client, path, query := routeCapture(t)
+		_, err := queryEventMetricsConsolidated(context.Background(), client,
+			hookdeck.MetricsQueryParams{Measures: []string{"queue_depth", "max_age"}})
+		require.NoError(t, err)
+		assert.Contains(t, *path, "queue-depth")
+		assert.Equal(t, []string{"max_depth", "max_age"}, (*query)["measures[]"])
+	})
+
+	t.Run("a measure this package does not know does not trigger the guard", func(t *testing.T) {
+		client, path, _ := routeCapture(t)
+		_, err := queryEventMetricsConsolidated(context.Background(), client,
+			hookdeck.MetricsQueryParams{Measures: []string{"count", "not_a_measure"}})
+		require.NoError(t, err, "an unknown measure is the API's to reject, with a better message")
+		assert.Contains(t, *path, "metrics/events")
+	})
+}

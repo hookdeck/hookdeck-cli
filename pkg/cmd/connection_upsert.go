@@ -292,18 +292,16 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 	return nil
 }
 
-func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args []string) error {
-	// Get name from positional argument
-	name := args[0]
-	cu.name = name
-
-	client := Config.GetAPIClient()
-
-	// Determine if we need to fetch existing connection
-	// Only needed when:
-	// 1. Dry-run mode (to show preview)
-	// 2. Partial update (source/destination config fields without name/type)
-	// 3. Updating config fields without recreating the resource
+// needsExistingConnection reports whether the upsert has to look the connection
+// up before building the request. The lookup is skipped where it cannot change
+// the outcome, because upsert is otherwise a single API call.
+//
+// It is needed when:
+//  1. Dry-run mode (to show the preview)
+//  2. Partial update (source/destination config fields without name/type)
+//  3. A name is given without a type, which is filled in from the stored record
+//  4. A create-time default would otherwise be applied to a stored destination
+func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 	hasSourceConfigOnly := (cu.SourceWebhookSecret != "" || cu.SourceAPIKey != "" ||
 		cu.SourceBasicAuthUser != "" || cu.SourceBasicAuthPass != "" ||
 		cu.SourceHMACSecret != "" || cu.SourceHMACAlgo != "" ||
@@ -322,12 +320,41 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	hasPartialSourceInline := (cu.sourceName != "" && cu.sourceType == "" && cu.sourceID == "")
 	hasPartialDestinationInline := (cu.destinationName != "" && cu.destinationType == "" && cu.destinationID == "")
 
-	needsExisting := cu.dryRun || (!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) || hasSourceConfigOnly || hasDestinationConfigOnly || hasPartialSourceInline || hasPartialDestinationInline
+	// The ordinary idempotent form supplies --destination-name and
+	// --destination-type together, which none of the conditions above catch.
+	// Two create-time behaviours are wrong against a connection that already
+	// exists, and both need to know whether it does:
+	//   - a CLI destination with no --destination-cli-path gets the "/" default,
+	//     resetting a stored custom path;
+	//   - delivery-group flags without --destination-delivery-group-overrides
+	//     build a bare groups object, which replaces the stored one and takes
+	//     the overrides with it (#393).
+	inlineDestination := cu.destinationID == "" && (cu.destinationName != "" || cu.destinationType != "")
+	cliPathDefaultWouldApply := inlineDestination &&
+		strings.EqualFold(cu.destinationType, "CLI") && cu.destinationCliPath == ""
+	groupsWouldDropOverrides := inlineDestination &&
+		cu.DestinationDeliveryGroupOverrides == "" &&
+		(cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
+			cu.DestinationDeliveryGroupRatePeriod != "")
+
+	return cu.dryRun ||
+		(!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) ||
+		hasSourceConfigOnly || hasDestinationConfigOnly ||
+		hasPartialSourceInline || hasPartialDestinationInline ||
+		cliPathDefaultWouldApply || groupsWouldDropOverrides
+}
+
+func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args []string) error {
+	// Get name from positional argument
+	name := args[0]
+	cu.name = name
+
+	client := Config.GetAPIClient()
 
 	var existing *hookdeck.Connection
 	var isUpdate bool
 
-	if needsExisting {
+	if cu.needsExistingConnection() {
 		connections, err := client.ListConnections(context.Background(), map[string]string{
 			"name": name,
 		})

@@ -67,6 +67,13 @@ func hasDimension(params hookdeck.MetricsQueryParams, name string) bool {
 // queryEventMetricsConsolidated routes to the correct underlying API endpoint
 // based on the requested measures and dimensions.
 func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client, params hookdeck.MetricsQueryParams) (hookdeck.MetricsResponse, error) {
+	// Only one endpoint is called, so measures belonging to different ones
+	// cannot all be answered: the surplus would be dropped or rewritten into a
+	// 422. Refuse the combination by name rather than exit 0 with less data
+	// than was asked for.
+	if err := hookdeck.RejectMixedMeasureRoutes(params.Measures, "--measures"); err != nil {
+		return nil, err
+	}
 	// Route based on measures/dimensions:
 	// 1. If measures include queue_depth, max_depth, or max_age → QueryQueueDepth
 	if hasMeasure(params, queueDepthMeasures) {

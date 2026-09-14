@@ -77,6 +77,21 @@ func TestMetricsEventsQueueDepth(t *testing.T) {
 	assert.NotEmpty(t, stdout)
 }
 
+// TestMetricsEventsQueueDepthMeasure covers the advertised spelling of the
+// measure. `queue_depth` is what --help tells the user to pass, but the
+// endpoint's enum accepts max_depth and max_age only, so the flag could never
+// succeed until the CLI started translating it. TestMetricsEventsQueueDepth
+// above passes max_depth, the wire spelling, so it never exercised the name
+// the CLI documents.
+func TestMetricsEventsQueueDepthMeasure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "queue_depth")...)
+	assert.NotEmpty(t, stdout)
+}
+
 func TestMetricsEventsQueueDepthWithDimensions(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -94,6 +109,21 @@ func TestMetricsEventsPending(t *testing.T) {
 	}
 	cli := NewCLIRunner(t)
 	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "pending", "--granularity", "1h")...)
+	assert.NotEmpty(t, stdout)
+}
+
+// TestMetricsEventsPendingWithoutGranularity covers --measures pending on its
+// own. Routing to the pending-timeseries endpoint used to be gated on
+// --granularity also being set; without it the call fell through to the default
+// events route, which rejects the measure. Granularity is optional on that
+// endpoint, so TestMetricsEventsPending above — which always passes
+// --granularity 1h — could never have caught it.
+func TestMetricsEventsPendingWithoutGranularity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	stdout := cli.RunExpectSuccess(append(metricsArgs("events"), "--measures", "pending")...)
 	assert.NotEmpty(t, stdout)
 }
 

@@ -577,7 +577,13 @@ func (cc *connectionCreateCmd) buildDestinationInput() (*hookdeck.DestinationCre
 			destinationConfig["http_method"] = method
 		}
 	case "CLI":
-		destinationConfig["path"] = cc.destinationCliPath
+		// An empty path means "leave it alone". connection create never reaches
+		// that (its --destination-cli-path defaults to "/"), but connection
+		// upsert deliberately clears it against an existing CLI destination, and
+		// sending "" would reset the stored path just as "/" did.
+		if cc.destinationCliPath != "" {
+			destinationConfig["path"] = cc.destinationCliPath
+		}
 	case "MOCK_API":
 		// No extra fields needed for MOCK_API
 	default:

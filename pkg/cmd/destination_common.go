@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 // destinationConfigFlags holds destination config flags for create/upsert/update.
@@ -211,15 +214,135 @@ func preserveDeliveryGroupOverrides(config, existingConfig map[string]interface{
 	}
 }
 
+// applyStoredDestinationConfig fills in what an upsert PUT needs from the stored
+// destination. Two distinct cases share the lookup:
+//
+//   - a partial update (only --description, say) sends no config at all, and the
+//     API requires one on PUT, so the stored config is carried forward;
+//   - a delivery_policy.groups object sent without overrides would replace the
+//     stored groups wholesale and take the overrides with it (#393), so the
+//     stored overrides are carried forward.
+//
+// The two differ in how a failed lookup has to be treated. The first can carry
+// on: the worst outcome is the API rejecting a config-less PUT, which is visible.
+// The second cannot: continuing sends the bare groups object and destroys the
+// overrides this is here to protect, and the PUT succeeds, so nothing reports it.
+func applyStoredDestinationConfig(name string, req *hookdeck.DestinationCreateRequest, lookup func() (*hookdeck.Destination, error)) error {
+	if len(req.Config) > 0 {
+		return preserveStoredDeliveryGroupOverrides(name, req.Config, lookup)
+	}
+
+	// Partial update: the API requires a config on PUT, so the stored one is
+	// carried forward. A failed lookup is tolerable here — the worst outcome is
+	// the API rejecting a config-less PUT, which the user sees.
+	existing, err := lookup()
+	if err != nil || existing == nil || existing.Config == nil {
+		return nil
+	}
+	req.Config = existing.Config
+	if req.Type == "" {
+		req.Type = existing.Type
+	}
+	return nil
+}
+
+// preserveStoredDeliveryGroupOverrides carries the stored
+// delivery_policy.groups.overrides into config when config sets groups without
+// them, and refuses to proceed if it cannot read them.
+//
+// The API replaces groups wholesale, so sending a bare groups object destroys
+// the stored overrides (#393) — and the PUT succeeds, so nothing reports it.
+// That makes a failed lookup unrecoverable: carrying on would do the exact
+// damage this is here to prevent. Every command that can send a groups object
+// goes through here, so update, upsert and connection upsert cannot drift.
+func preserveStoredDeliveryGroupOverrides(name string, config map[string]interface{}, lookup func() (*hookdeck.Destination, error)) error {
+	if !deliveryGroupsNeedOverrides(config) {
+		return nil
+	}
+	existing, err := lookup()
+	if err != nil {
+		return fmt.Errorf("failed to look up destination %q to preserve its delivery group overrides; refusing to send a delivery group that would replace them: %w", name, err)
+	}
+	if existing == nil || existing.Config == nil {
+		return nil
+	}
+	preserveDeliveryGroupOverrides(config, existing.Config)
+	return nil
+}
+
+// hasAnyDeliveryPolicyFlag reports whether a rate-limit or delivery-group flag
+// was given. It decides whether resolving the stored destination type is worth
+// an extra API call.
+func (f *destinationConfigFlags) hasAnyDeliveryPolicyFlag() bool {
+	if f == nil {
+		return false
+	}
+	return f.RateLimit != 0 || f.RateLimitPeriod != "" || f.DeliveryGroupKey != "" ||
+		f.DeliveryGroupRate != 0 || f.DeliveryGroupRatePeriod != "" || f.DeliveryGroupOverrides != ""
+}
+
+// destinationTypeForPolicyCheck resolves the type that rejectDeliveryPolicyForCLI
+// has to be applied to.
+//
+// `destination update` and `destination upsert` normally omit --type, so the
+// flag alone is "" and the guard passed: rate-limit and delivery-group flags
+// then reached a stored CLI destination, where the API accepts the request and
+// discards the policy. Resolving the stored type is preferred over refusing the
+// command, because the type the user omitted is already knowable and every one
+// of these commands is addressing a destination the API can name.
+//
+// lookup returns the stored destination, or (nil, nil) when there is none —
+// an upsert that is really a create, where a typeless request is the API's to
+// reject. It is only called when the answer can change the outcome.
+func destinationTypeForPolicyCheck(declaredType string, usesConfigJSON bool, flags *destinationConfigFlags, lookup func() (*hookdeck.Destination, error)) (string, error) {
+	if declaredType != "" || usesConfigJSON || !flags.hasAnyDeliveryPolicyFlag() {
+		return declaredType, nil
+	}
+	existing, err := lookup()
+	if err != nil {
+		return "", fmt.Errorf("failed to look up the destination to check whether --rate-limit and --delivery-group-* apply to it: %w", err)
+	}
+	if existing == nil {
+		return declaredType, nil
+	}
+	return existing.Type, nil
+}
+
+// fetchDestinationByName returns the stored destination with this exact name, or
+// (nil, nil) when none exists. The list endpoint filters by name, but returns a
+// summary, so the full record is fetched for its config.
+func fetchDestinationByName(ctx context.Context, client *hookdeck.Client, name string) (*hookdeck.Destination, error) {
+	listResp, err := client.ListDestinations(ctx, map[string]string{"name": name})
+	if err != nil {
+		return nil, err
+	}
+	if listResp == nil || len(listResp.Models) == 0 {
+		return nil, nil
+	}
+	return client.GetDestination(ctx, listResp.Models[0].ID, nil)
+}
+
 // rejectDeliveryPolicyForCLI refuses delivery-policy flags on a CLI destination.
 // CLI destinations carry no delivery_policy in the API schema: the request is
 // accepted and the policy discarded, so without this the flags look applied and
-// never take effect.
+// never take effect. destType must be the resolved type, not the raw --type flag
+// — see destinationTypeForPolicyCheck.
 func rejectDeliveryPolicyForCLI(destType string, policy map[string]interface{}, flagPrefix string) error {
 	if len(policy) == 0 || strings.ToUpper(destType) != "CLI" {
 		return nil
 	}
 	return fmt.Errorf("--%srate-limit and --%sdelivery-group-* are not supported for CLI destinations", flagPrefix, flagPrefix)
+}
+
+// rejectDeliveryPolicyInConfigForCLI applies the same guard to an already-built
+// config. update and upsert build the config before the stored type is known,
+// and the type is what decides whether the policy survives the API.
+func rejectDeliveryPolicyInConfigForCLI(destType string, config map[string]interface{}, flagPrefix string) error {
+	policy, ok := config["delivery_policy"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return rejectDeliveryPolicyForCLI(destType, policy, flagPrefix)
 }
 
 func mergeDeliveryPolicy(config map[string]interface{}, policy map[string]interface{}) {
