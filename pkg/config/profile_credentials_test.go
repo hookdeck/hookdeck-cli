@@ -205,3 +205,68 @@ func TestProfile_UnrecognizedTypeIsNotDiscarded(t *testing.T) {
 	require.Empty(t, p.ResolveProjectType())
 	require.False(t, IsGatewayProject(p.ProjectType))
 }
+
+// TestUnknownProjectTypeSurvivesDisk covers both routes an unrecognized project
+// type can take to config.toml. Reported in review with two failing cases; both
+// wrote project_type = ” before this.
+//
+// It matters for forward compatibility rather than for the three types that
+// exist today. If the API adds a fourth and this CLI writes an empty value for
+// it, then a user running this CLI once destroys the setting for the newer CLI
+// they were using, and every gateway command here reports an empty type.
+func TestUnknownProjectTypeSurvivesDisk(t *testing.T) {
+	writeAndReload := func(t *testing.T, c *Config) string {
+		t.Helper()
+		require.NoError(t, c.Profile.SaveProfile())
+		written, err := os.ReadFile(c.viper.ConfigFileUsed())
+		require.NoError(t, err)
+		return string(written)
+	}
+
+	t.Run("arriving from an auth response", func(t *testing.T) {
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/default-profile.toml")
+		c.InitConfig()
+
+		c.Profile.ApplyValidateAPIKeyResponse(&hookdeck.ValidateAPIKeyResponse{
+			ProjectID:   "tm_future",
+			ProjectType: "future_type",
+		}, false)
+
+		assert.Contains(t, writeAndReload(t, &c), "project_type = 'future_type'")
+	})
+
+	t.Run("already on disk, then rewritten", func(t *testing.T) {
+		path := setupTempConfig(t, "./testdata/default-profile.toml")
+		require.NoError(t, os.WriteFile(path, []byte(`profile = "default"
+
+[default]
+api_key = "test_key"
+project_id = "tm_future"
+project_type = "future_type"
+`), 0o600))
+
+		c := Config{LogLevel: "info", ConfigFileFlag: path}
+		c.InitConfig()
+
+		// Loading must not normalize it away, which is the half that persistence
+		// alone could not fix.
+		require.Equal(t, "future_type", c.Profile.ProjectType)
+		assert.Contains(t, writeAndReload(t, &c), "project_type = 'future_type'")
+	})
+
+	t.Run("a recognized type is still stored as its label", func(t *testing.T) {
+		c := Config{LogLevel: "info"}
+		c.ConfigFileFlag = setupTempConfig(t, "./testdata/default-profile.toml")
+		c.InitConfig()
+
+		c.Profile.ApplyValidateAPIKeyResponse(&hookdeck.ValidateAPIKeyResponse{
+			ProjectID:   "tm_known",
+			ProjectType: ProjectTypeEventGateway,
+		}, false)
+
+		out := writeAndReload(t, &c)
+		assert.Contains(t, out, "project_type = 'Gateway'", "older CLIs read the label")
+		assert.Contains(t, out, "project_mode = 'inbound'")
+	})
+}

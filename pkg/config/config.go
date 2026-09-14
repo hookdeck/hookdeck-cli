@@ -391,10 +391,20 @@ func (c *Config) constructConfig() {
 	c.Profile.ProjectMode = stringCoalesce(c.Profile.ProjectMode, c.viper.GetString(c.Profile.getConfigField("project_mode")), c.viper.GetString("project_mode"), c.viper.GetString(c.Profile.getConfigField("workspace_mode")), c.viper.GetString(c.Profile.getConfigField("team_mode")), c.viper.GetString("workspace_mode"), "")
 
 	// ProjectType: prefer project_type, then derive from the legacy mode.
-	// Configs written before this release stored a display label here, so the
-	// value is normalized rather than trusted.
+	// Configs written before this release stored a display label here, and reads
+	// go through NormalizeProjectType, so the stored value does not need to be
+	// normalized on the way in - and must not be, or an unrecognized type is
+	// discarded at load and written back empty.
 	c.Profile.ProjectType = stringCoalesce(c.Profile.ProjectType, c.viper.GetString(c.Profile.getConfigField("project_type")), c.viper.GetString("project_type"), "")
-	c.Profile.ProjectType = c.Profile.ResolveProjectType()
+	if resolved := c.Profile.ResolveProjectType(); resolved != "" {
+		// Recognized: hold the API value in memory. Consumers compare against it
+		// directly - pkg/listen tests ProjectType == ProjectTypeConsole to pick
+		// console links - so a stored display label has to become the API value
+		// here rather than at each call site.
+		c.Profile.ProjectType = resolved
+	}
+	// Unrecognized: leave the raw value alone. It cannot match anything, which is
+	// the correct outcome, and it survives to be written back unchanged.
 
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
 

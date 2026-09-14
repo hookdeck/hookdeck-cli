@@ -398,3 +398,71 @@ api_key = "hk_test_rejected_abcdefghij"
 	require.False(t, sawCLIAuthPost, "browser sign-in must not be started without a terminal")
 	require.Contains(t, err.Error(), "CLI key", "the error should say what kind of key is expected")
 }
+
+// TestLogin_rejectedKeyNoBrowserStillSignsIn covers the third environment in the
+// matrix: no terminal, no browser, stale key. waitForLoginSession prints the URL
+// and polls in that case without reading stdin, so a human opening it elsewhere
+// completes the flow - a Linux container invoked without a TTY, typically.
+//
+// Reported in review: the guard had equated "stdin is not interactive" with
+// "nobody can authenticate", so this was refused while the same environment with
+// no saved key at all succeeded.
+func TestLogin_rejectedKeyNoBrowserStillSignsIn(t *testing.T) {
+	configpkg.ResetAPIClientForTesting()
+	t.Cleanup(configpkg.ResetAPIClientForTesting)
+
+	oldStdinIsTerminal := stdinIsTerminal
+	stdinIsTerminal = func() bool { return false }
+	t.Cleanup(func() { stdinIsTerminal = oldStdinIsTerminal })
+
+	oldCan := canOpenBrowser
+	canOpenBrowser = func() bool { return false }
+	t.Cleanup(func() { canOpenBrowser = oldCan })
+
+	var sawCLIAuthPost bool
+	var serverURL string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/cli-auth/validate"):
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("Unauthorized"))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cli-auth"):
+			sawCLIAuthPost = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"browser_url": "https://example.test/auth",
+				"poll_url":    serverURL + hookdeck.APIPathPrefix + "/cli-auth/poll?key=k",
+			})
+		case strings.Contains(r.URL.Path, "/cli-auth/poll"):
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"claimed": true, "key": "hk_test_newkey_abcdefghij",
+				"team_id": "tm_x", "team_type": "event_gateway",
+				"team_name": "P", "user_name": "U", "user_email": "u@example.test",
+				"organization_name": "O", "organization_id": "org_x", "client_id": "cl_x",
+			})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	serverURL = ts.URL
+	t.Cleanup(ts.Close)
+
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`profile = "default"
+
+[default]
+api_key = "hk_test_stale_abcdefghij"
+`), 0o600))
+
+	cfg, err := configpkg.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	cfg.APIBaseURL = ts.URL
+	cfg.DeviceName = "test-device"
+	cfg.LogLevel = "error"
+	cfg.TelemetryDisabled = true
+
+	require.NoError(t, Login(cfg, strings.NewReader("")),
+		"a URL-only sign-in needs no terminal and must not be refused")
+	require.True(t, sawCLIAuthPost, "should have started the device flow")
+}

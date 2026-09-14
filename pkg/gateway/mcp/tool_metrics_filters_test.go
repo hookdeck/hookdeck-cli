@@ -12,9 +12,11 @@ import (
 
 // TestMetricsToolRejectsFiltersTheEndpointIgnores is the MCP counterpart of
 // TestMetricsFlagsMatchTheEndpointSchemas in pkg/cmd. Both consult the same
-// matrix in pkg/hookdeck, so a filter added API-side fails on both sides rather
-// than being fixed for the CLI and left wrong for MCP - which is exactly what
-// happened when the CLI-side fix landed and this layer was not touched.
+// matrix in pkg/hookdeck, so the two layers cannot drift apart - which is what
+// happened when the CLI-side fix landed and this one was not touched.
+//
+// Note what it does not do: the expectations are hardcoded, so an API-side
+// change will not fail it. Checking the matrix against the spec remains manual.
 //
 // The bug is silent: the API drops a filter its schema does not declare and
 // answers with unfiltered totals, so an agent reading these numbers has no way

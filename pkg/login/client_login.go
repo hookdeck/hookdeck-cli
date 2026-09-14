@@ -57,18 +57,22 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			if !hookdeck.IsUnauthorizedError(err) {
 				return err
 			}
-			// Rejected key. Browser sign-in can still work without a terminal:
-			// waitForLoginSession prints the URL and polls when isSSH(), which is
-			// a remote session with a human in it. What cannot work is the other
-			// branch, which asks the user to press Enter - with no terminal it
-			// walks straight past the prompt and polls for a confirmation nobody
-			// will give, which is how CI spent 248 seconds on a mistyped key.
+			// Rejected key. Refuse only when the flow would have to read stdin.
 			//
-			// So refuse only where no one can act. Note the asymmetry this avoids:
-			// with no saved key at all this block is skipped entirely and login
-			// proceeds, so refusing more broadly would leave a user with an
-			// expired key worse off than one with none.
-			if !stdinIsTerminal() && !isSSH() {
+			// waitForLoginSession has two branches. When isSSH() or the browser
+			// cannot be opened it prints the URL and polls, never touching stdin,
+			// and a human elsewhere completes it - that works with no terminal and
+			// must not be blocked. The other branch asks the user to press Enter;
+			// with no terminal it walks past the prompt and polls for a
+			// confirmation nobody will give, which is how CI spent 248 seconds on
+			// a mistyped key.
+			//
+			// So the condition mirrors that branch exactly. Getting it wrong in
+			// either direction is costly: too narrow and the hang comes back, too
+			// broad and a user with an expired key is worse off than one with no
+			// key at all, since an empty key skips this block entirely.
+			needsStdin := !isSSH() && canOpenBrowser()
+			if !stdinIsTerminal() && needsStdin {
 				return ErrRejectedKeyNoTerminal
 			}
 			// Must clear the key first or we would re-enter this branch only.

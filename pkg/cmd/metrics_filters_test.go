@@ -18,8 +18,12 @@ import (
 // days returned 120 with and without a bogus --source-id, while a bogus
 // --destination-id on the same call returned 0.
 //
-// The expectations below mirror the filter schemas. If the API adds a filter,
-// this test is the thing that should fail.
+// The expectations below mirror the filter schemas, but they are hardcoded:
+// nothing here fetches the spec, so an API-side change will NOT fail this test.
+// What it does catch is the two layers drifting apart, and any change to the
+// matrix made without updating the expectation. Keeping it honest against the
+// API is still a manual step - compare against
+// https://api.hookdeck.com/2026-09-01/openapi when the version moves.
 func TestMetricsFlagsMatchTheEndpointSchemas(t *testing.T) {
 	all := []string{"source-id", "destination-id", "connection-id", "status", "issue-id", "delivery-group"}
 

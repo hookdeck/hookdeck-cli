@@ -45,12 +45,15 @@ func (p *Profile) ResolveProjectType() string {
 // NormalizeProjectType turns it back into the API type on read, so nothing is
 // lost internally.
 func (p *Profile) persistedProjectType() string {
-	projectType := p.ResolveProjectType()
-	if label := TypeLabel(projectType); label != "" {
+	if label := TypeLabel(p.ResolveProjectType()); label != "" {
 		return label
 	}
-	// Unrecognized: write it through rather than dropping it.
-	return projectType
+	// Unrecognized: keep what we were given. This used to return the *resolved*
+	// value, which is "" precisely when the type is unrecognized - so the comment
+	// said "write it through" while the code erased it. A project type this CLI
+	// has not heard of must survive a load-and-save, or running an older CLI once
+	// silently destroys the newer one's config.
+	return p.ProjectType
 }
 
 func (p *Profile) SaveProfile() error {

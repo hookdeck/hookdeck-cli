@@ -28,9 +28,11 @@ func resolveType(projectType, legacyMode string) string {
 func storeProjectIdentity(p *Profile, rawType, rawMode string) {
 	resolved := resolveType(rawType, rawMode)
 
-	p.ProjectType = rawType
+	// Recognized values are held normalized, for the same reason as on load;
+	// an unrecognized one is kept verbatim so it survives to disk.
+	p.ProjectType = resolved
 	if p.ProjectType == "" {
-		p.ProjectType = resolved
+		p.ProjectType = rawType
 	}
 
 	p.ProjectMode = rawMode
