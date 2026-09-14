@@ -121,15 +121,15 @@ func TestRejectUnsupportedFiltersAllowsWhatTheEndpointHonours(t *testing.T) {
 		ConnectionID:  "web_1",
 		Status:        "SUCCESSFUL",
 		DeliveryGroup: "dg_1",
-	}, defaultEventRouteFilters, "event metrics")
+	}, hookdeck.DefaultEventRouteFilters, "event metrics")
 	assert.NoError(t, err)
 
 	err = rejectUnsupportedFilters(hookdeck.MetricsQueryParams{
 		DestinationID: "des_1",
 		DeliveryGroup: "dg_1",
-	}, queueDepthRouteFilters, "queue depth metrics")
+	}, hookdeck.QueueDepthRouteFilters, "queue depth metrics")
 	assert.NoError(t, err)
 
 	// Nothing set is always fine.
-	assert.NoError(t, rejectUnsupportedFilters(hookdeck.MetricsQueryParams{}, pendingTimeseriesRouteFilters, "pending"))
+	assert.NoError(t, rejectUnsupportedFilters(hookdeck.MetricsQueryParams{}, hookdeck.PendingTimeseriesRouteFilters, "pending"))
 }

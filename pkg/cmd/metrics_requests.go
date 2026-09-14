@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 
 	"github.com/spf13/cobra"
 )
@@ -23,7 +24,7 @@ func newMetricsRequestsCmd() *metricsRequestsCmd {
 		Long:  LongBeta(`Query metrics for requests (acceptance, rejection, etc.). Measures: ` + metricsRequestsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags, requestMetricsFilters)
+	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.RequestMetricsFilters)
 	return c
 }
 

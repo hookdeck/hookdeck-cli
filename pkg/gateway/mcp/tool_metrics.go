@@ -36,6 +36,28 @@ func handleMetrics(client *hookdeck.Client) mcpsdk.ToolHandler {
 	}
 }
 
+// rejectFilters names filters the way an MCP client passes them.
+func rejectFilters(params hookdeck.MetricsQueryParams, allowed hookdeck.MetricsFilters, route string) error {
+	return hookdeck.RejectUnsupportedFilters(params, allowed, route, hookdeck.MCPFilterNames)
+}
+
+// mapDimensions rewrites connection_id to the webhook_id the API expects. The
+// tool schema tells callers connection_id "maps to webhook_id", which was true
+// of the filter and not of the dimension.
+func mapDimensions(dimensions []string) []string {
+	if len(dimensions) == 0 {
+		return dimensions
+	}
+	out := make([]string, 0, len(dimensions))
+	for _, d := range dimensions {
+		if d == "connection_id" {
+			d = "webhook_id"
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 func buildMetricsParams(in input) (hookdeck.MetricsQueryParams, error) {
 	start := in.String("start")
 	end := in.String("end")
@@ -52,7 +74,7 @@ func buildMetricsParams(in input) (hookdeck.MetricsQueryParams, error) {
 		End:           end,
 		Granularity:   in.String("granularity"),
 		Measures:      measures,
-		Dimensions:    in.StringSlice("dimensions"),
+		Dimensions:    mapDimensions(in.StringSlice("dimensions")),
 		SourceID:      in.String("source_id"),
 		DestinationID: in.String("destination_id"),
 		DeliveryGroup: in.String("delivery_group"),
@@ -80,16 +102,38 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 		return ErrorResult(err.Error()), nil
 	}
 
-	// Route to the correct events metrics endpoint based on measures/dimensions
+	// Route to the correct events metrics endpoint based on measures/dimensions.
+	// Each route accepts a different set of filters, so the ones it would ignore
+	// are refused here rather than silently dropped by the API.
 	var result hookdeck.MetricsResponse
 	switch {
 	case containsAny(params.Measures, "queue_depth", "max_depth", "max_age"):
+		if err := rejectFilters(params, hookdeck.QueueDepthRouteFilters, "queue depth metrics"); err != nil {
+			return ErrorResult(err.Error()), nil
+		}
 		result, err = client.QueryQueueDepth(ctx, params)
 	case containsAny(params.Measures, "pending") && params.Granularity != "":
-		result, err = client.QueryEventsPendingTimeseries(ctx, params)
+		if err := rejectFilters(params, hookdeck.PendingTimeseriesRouteFilters, "pending event metrics (measures: pending)"); err != nil {
+			return ErrorResult(err.Error()), nil
+		}
+		// The API expects measures[]=count here; "pending" only selects the
+		// route. Without this the request carries a measure the endpoint does
+		// not define - the CLI has always rewritten it, MCP did not.
+		pendingParams := params
+		pendingParams.Measures = []string{"count"}
+		result, err = client.QueryEventsPendingTimeseries(ctx, pendingParams)
 	case containsAny(params.Dimensions, "issue_id") || params.IssueID != "":
+		if params.IssueID == "" {
+			return ErrorResult("per-issue metrics require issue_id (required when using dimensions: issue_id)"), nil
+		}
+		if err := rejectFilters(params, hookdeck.EventsByIssueRouteFilters, "per-issue event metrics"); err != nil {
+			return ErrorResult(err.Error()), nil
+		}
 		result, err = client.QueryEventsByIssue(ctx, params)
 	default:
+		if err := rejectFilters(params, hookdeck.DefaultEventRouteFilters, "event metrics"); err != nil {
+			return ErrorResult(err.Error()), nil
+		}
 		result, err = client.QueryEventMetrics(ctx, params)
 	}
 
@@ -104,6 +148,9 @@ func metricsRequests(ctx context.Context, client *hookdeck.Client, in input) (*m
 	if err != nil {
 		return ErrorResult(err.Error()), nil
 	}
+	if err := rejectFilters(params, hookdeck.RequestMetricsFilters, "request metrics"); err != nil {
+		return ErrorResult(err.Error()), nil
+	}
 	result, err := client.QueryRequestMetrics(ctx, params)
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
@@ -116,6 +163,9 @@ func metricsAttempts(ctx context.Context, client *hookdeck.Client, in input) (*m
 	if err != nil {
 		return ErrorResult(err.Error()), nil
 	}
+	if err := rejectFilters(params, hookdeck.AttemptMetricsFilters, "attempt metrics"); err != nil {
+		return ErrorResult(err.Error()), nil
+	}
 	result, err := client.QueryAttemptMetrics(ctx, params)
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
@@ -126,6 +176,9 @@ func metricsAttempts(ctx context.Context, client *hookdeck.Client, in input) (*m
 func metricsTransformations(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
 	params, err := buildMetricsParams(in)
 	if err != nil {
+		return ErrorResult(err.Error()), nil
+	}
+	if err := rejectFilters(params, hookdeck.TransformationMetricsFilters, "transformation metrics"); err != nil {
 		return ErrorResult(err.Error()), nil
 	}
 	result, err := client.QueryTransformationMetrics(ctx, params)

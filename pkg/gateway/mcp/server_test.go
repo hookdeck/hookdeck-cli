@@ -1282,8 +1282,33 @@ func TestMetricsEvents_ByIssueRoute(t *testing.T) {
 		"end":        "2025-01-02T00:00:00Z",
 		"measures":   []any{"count"},
 		"dimensions": []any{"issue_id"},
+		// The endpoint filters on issue_id, so the route is meaningless without
+		// one. This argument used to be absent here and the call still counted
+		// as a success, which is the behaviour the CLI has always rejected.
+		"issue_id": "iss_123",
 	})
 	assert.False(t, result.IsError)
+}
+
+// TestMetricsEvents_ByIssueRequiresIssueID pins the other half: routing to
+// events-by-issue without an issue_id is a caller mistake, not a query. The CLI
+// has always said so; MCP used to send the request anyway.
+func TestMetricsEvents_ByIssueRequiresIssueID(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/metrics/events-by-issue": func(w http.ResponseWriter, r *http.Request) {
+			t.Fatal("must not reach the API without an issue_id")
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":     "events",
+		"start":      "2025-01-01T00:00:00Z",
+		"end":        "2025-01-02T00:00:00Z",
+		"measures":   []any{"count"},
+		"dimensions": []any{"issue_id"},
+	})
+	assert.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "issue_id")
 }
 
 func TestMetricsRequests_Success(t *testing.T) {

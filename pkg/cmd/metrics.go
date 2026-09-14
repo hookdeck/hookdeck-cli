@@ -68,65 +68,30 @@ type metricsCommonFlags struct {
 	output        string
 }
 
-// metricsFilters names the filter flags a metrics endpoint actually honours.
-//
-// The API does not reject a filter its schema does not declare - it drops the
-// key and answers with unfiltered totals. Verified against production: attempts
-// over 14 days returned 120 with and without a bogus --source-id (not in the
-// attempts schema), while a bogus --destination-id (which is) returned 0. So a
-// flag offered where it has no effect is worse than a missing one: the caller
-// reads numbers that look filtered and cannot tell they are not.
-//
-// The sets below mirror the filter schemas of each endpoint. Keep them in step
-// with the API.
-type metricsFilters struct {
-	sourceID      bool
-	destinationID bool
-	connectionID  bool
-	status        bool
-	issueID       bool
-	deliveryGroup bool
-}
-
-var (
-	// /metrics/requests
-	requestMetricsFilters = metricsFilters{sourceID: true, status: true}
-	// /metrics/attempts
-	attemptMetricsFilters = metricsFilters{destinationID: true, status: true, deliveryGroup: true}
-	// /metrics/transformations
-	transformationMetricsFilters = metricsFilters{connectionID: true, issueID: true}
-	// `metrics events` fans out over four endpoints, so it offers the union and
-	// validates per route at run time - see queryEventMetricsConsolidated.
-	eventMetricsFilters = metricsFilters{
-		sourceID: true, destinationID: true, connectionID: true,
-		status: true, issueID: true, deliveryGroup: true,
-	}
-)
-
 // addMetricsCommonFlags adds the time-range flags every metrics subcommand
 // takes, plus only those filter flags the endpoint honours.
-func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters metricsFilters) {
+func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters hookdeck.MetricsFilters) {
 	cmd.Flags().StringVar(&f.start, "start", "", "Start of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.end, "end", "", "End of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.granularity, "granularity", "", granularityHelp)
 	cmd.Flags().StringVar(&f.measures, "measures", "", "Comma-separated list of measures to return")
 	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (e.g. connection_id, source_id, destination_id, delivery_group, status)")
-	if filters.sourceID {
+	if filters.SourceID {
 		cmd.Flags().StringVar(&f.sourceID, "source-id", "", "Filter by source ID")
 	}
-	if filters.destinationID {
+	if filters.DestinationID {
 		cmd.Flags().StringVar(&f.destinationID, "destination-id", "", "Filter by destination ID")
 	}
-	if filters.deliveryGroup {
+	if filters.DeliveryGroup {
 		cmd.Flags().StringVar(&f.deliveryGroup, "delivery-group", "", "Filter by delivery group")
 	}
-	if filters.connectionID {
+	if filters.ConnectionID {
 		cmd.Flags().StringVar(&f.connectionID, "connection-id", "", "Filter by connection ID")
 	}
-	if filters.status {
+	if filters.Status {
 		cmd.Flags().StringVar(&f.status, "status", "", "Filter by status (e.g. SUCCESSFUL, FAILED)")
 	}
-	if filters.issueID {
+	if filters.IssueID {
 		cmd.Flags().StringVar(&f.issueID, "issue-id", "", "Filter by issue ID (required for per-issue metrics, e.g. when using --dimensions issue_id)")
 	}
 	cmd.Flags().StringVar(&f.output, "output", "", "Output format (json)")
@@ -134,29 +99,9 @@ func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters me
 	_ = cmd.MarkFlagRequired("end")
 }
 
-// rejectUnsupportedFilters reports the first filter that was set but is not
-// honoured by the endpoint the call routes to. Only `metrics events` needs this:
-// its route depends on the measures and dimensions asked for, so the flag set
-// cannot be decided when the command is built.
-func rejectUnsupportedFilters(params hookdeck.MetricsQueryParams, allowed metricsFilters, route string) error {
-	checks := []struct {
-		set  bool
-		ok   bool
-		flag string
-	}{
-		{params.SourceID != "", allowed.sourceID, "--source-id"},
-		{params.DestinationID != "", allowed.destinationID, "--destination-id"},
-		{params.ConnectionID != "", allowed.connectionID, "--connection-id"},
-		{params.Status != "", allowed.status, "--status"},
-		{params.IssueID != "", allowed.issueID, "--issue-id"},
-		{params.DeliveryGroup != "", allowed.deliveryGroup, "--delivery-group"},
-	}
-	for _, c := range checks {
-		if c.set && !c.ok {
-			return fmt.Errorf("%s is not supported by %s; the API would ignore it and return unfiltered results", c.flag, route)
-		}
-	}
-	return nil
+// rejectUnsupportedFilters names the flags the way the user typed them.
+func rejectUnsupportedFilters(params hookdeck.MetricsQueryParams, allowed hookdeck.MetricsFilters, route string) error {
+	return hookdeck.RejectUnsupportedFilters(params, allowed, route, hookdeck.CLIFilterNames)
 }
 
 // metricsParamsFromFlags builds hookdeck.MetricsQueryParams from common flags.
