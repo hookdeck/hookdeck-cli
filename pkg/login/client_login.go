@@ -27,11 +27,10 @@ var stdinIsTerminal = func() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
-// ErrRejectedKeyNoTerminal is returned when the key the CLI was given is
-// rejected and there is no terminal to complete browser sign-in with. The key
-// being wrong is the useful part: "invalid or expired" is not necessarily true -
-// a project API key is valid but not accepted by the CLI auth endpoints, and an
-// org API key is not accepted at all.
+// ErrRejectedKeyNoTerminal is returned when the key was rejected and there is no
+// terminal to complete browser sign-in with. It names the likely cause because
+// "invalid or expired" is often untrue: a project API key is valid but not
+// accepted by the CLI auth endpoints, and an org key is not accepted at all.
 var ErrRejectedKeyNoTerminal = errors.New(
 	"the API key was rejected, and browser sign-in needs an interactive terminal; " +
 		"check the key is a CLI key from hookdeck login rather than a project or organization API key, " +
@@ -57,20 +56,9 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			if !hookdeck.IsUnauthorizedError(err) {
 				return err
 			}
-			// Rejected key. Refuse only when the flow would have to read stdin.
-			//
-			// waitForLoginSession has two branches. When isSSH() or the browser
-			// cannot be opened it prints the URL and polls, never touching stdin,
-			// and a human elsewhere completes it - that works with no terminal and
-			// must not be blocked. The other branch asks the user to press Enter;
-			// with no terminal it walks past the prompt and polls for a
-			// confirmation nobody will give, which is how CI spent 248 seconds on
-			// a mistyped key.
-			//
-			// So the condition mirrors that branch exactly. Getting it wrong in
-			// either direction is costly: too narrow and the hang comes back, too
-			// broad and a user with an expired key is worse off than one with no
-			// key at all, since an empty key skips this block entirely.
+			// Refuse only where the flow would have to read stdin, mirroring the
+			// branch in waitForLoginSession. Its other branch prints the URL and
+			// polls without stdin, which works headlessly and must not be blocked.
 			needsStdin := !isSSH() && canOpenBrowser()
 			if !stdinIsTerminal() && needsStdin {
 				return ErrRejectedKeyNoTerminal

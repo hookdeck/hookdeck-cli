@@ -53,10 +53,8 @@ func TestLogin_unauthorizedValidateStartsBrowserFlow(t *testing.T) {
 	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)
 
-	// Browser sign-in is only reachable with a terminal, so say so explicitly.
-	// This test used to pass without stubbing it, because a rejected key fell
-	// into the browser flow whether or not anyone could complete it - see
-	// TestLogin_rejectedKeyHeadlessFailsFast, which covers the other side.
+	// Stated explicitly: this test used to pass without stubbing it, because a
+	// rejected key fell into the browser flow regardless of who could finish it.
 	oldStdinIsTerminal := stdinIsTerminal
 	stdinIsTerminal = func() bool { return true }
 	t.Cleanup(func() { stdinIsTerminal = oldStdinIsTerminal })
@@ -344,14 +342,10 @@ api_key = "hk_test_cikey_abcdefghij"
 	require.Equal(t, "hk_test_userkey_abcdefghij", cfg.Profile.APIKey)
 }
 
-// TestLogin_rejectedKeyHeadlessFailsFast covers the other way into browser
-// sign-in. TestLogin_ciKeyHeadlessFailsFast covers a key that is valid but
-// project-scoped; this covers one the API rejects outright.
-//
-// Without the guard, login announced "Starting browser sign-in...", walked past
-// the Enter prompt because there is no terminal to read from, and then polled
-// for a confirmation that could never arrive. CI spent 248 seconds on a mistyped
-// key before giving up. The failure is instant and says what to check.
+// TestLogin_rejectedKeyHeadlessFailsFast: a key the API rejects, with no
+// terminal and no other way to complete sign-in. Without the guard this walked
+// past the Enter prompt and polled for a confirmation nobody could give - 248
+// seconds in CI.
 func TestLogin_rejectedKeyHeadlessFailsFast(t *testing.T) {
 	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)
@@ -399,14 +393,10 @@ api_key = "hk_test_rejected_abcdefghij"
 	require.Contains(t, err.Error(), "CLI key", "the error should say what kind of key is expected")
 }
 
-// TestLogin_rejectedKeyNoBrowserStillSignsIn covers the third environment in the
-// matrix: no terminal, no browser, stale key. waitForLoginSession prints the URL
-// and polls in that case without reading stdin, so a human opening it elsewhere
-// completes the flow - a Linux container invoked without a TTY, typically.
-//
-// Reported in review: the guard had equated "stdin is not interactive" with
-// "nobody can authenticate", so this was refused while the same environment with
-// no saved key at all succeeded.
+// TestLogin_rejectedKeyNoBrowserStillSignsIn: no terminal, no browser, stale key.
+// waitForLoginSession prints the URL and polls without reading stdin, so this
+// completes. The guard once refused it while the same environment with no saved
+// key succeeded.
 func TestLogin_rejectedKeyNoBrowserStillSignsIn(t *testing.T) {
 	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)

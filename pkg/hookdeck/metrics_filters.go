@@ -4,16 +4,9 @@ import "fmt"
 
 // MetricsFilters names the filters a metrics endpoint actually honours.
 //
-// The API does not reject a filter its schema does not declare - it drops the
-// key and answers with unfiltered totals. Verified against production: attempts
-// over 14 days returned 120 with and without a bogus source_id (not in the
-// attempts schema), while a bogus destination_id (which is) returned 0. So a
-// filter offered where it has no effect is worse than a missing one: the caller
-// reads numbers that look filtered and cannot tell they are not.
-//
-// This lives beside the client rather than in either caller because both the
-// CLI commands and the MCP tools reach these endpoints, and a matrix that only
-// one of them consults is a matrix the other drifts away from.
+// The API drops a filter its schema does not declare and returns unfiltered
+// totals, so offering one where it has no effect is worse than omitting it.
+// Shared by the CLI and MCP layers so they cannot drift apart.
 type MetricsFilters struct {
 	SourceID      bool
 	DestinationID bool

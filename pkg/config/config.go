@@ -396,15 +396,12 @@ func (c *Config) constructConfig() {
 	// normalized on the way in - and must not be, or an unrecognized type is
 	// discarded at load and written back empty.
 	c.Profile.ProjectType = stringCoalesce(c.Profile.ProjectType, c.viper.GetString(c.Profile.getConfigField("project_type")), c.viper.GetString("project_type"), "")
+	// Recognized values are held as the API type, because consumers compare
+	// against it directly (pkg/listen tests ProjectType == ProjectTypeConsole).
+	// An unrecognized one is left alone so it survives back to disk.
 	if resolved := c.Profile.ResolveProjectType(); resolved != "" {
-		// Recognized: hold the API value in memory. Consumers compare against it
-		// directly - pkg/listen tests ProjectType == ProjectTypeConsole to pick
-		// console links - so a stored display label has to become the API value
-		// here rather than at each call site.
 		c.Profile.ProjectType = resolved
 	}
-	// Unrecognized: leave the raw value alone. It cannot match anything, which is
-	// the correct outcome, and it survives to be written back unchanged.
 
 	c.Profile.GuestURL = stringCoalesce(c.Profile.GuestURL, c.viper.GetString(c.Profile.getConfigField("guest_url")), c.viper.GetString("guest_url"), "")
 

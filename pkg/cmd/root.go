@@ -208,12 +208,8 @@ func Execute() {
 
 		default:
 			if hookdeck.IsUnauthorizedError(err) {
-				// Lead with whatever the API said, when it said anything. The
-				// generic text below is a guess: we cannot tell an expired CLI
-				// key from a project API key from a typo, because the only
-				// signal is a bare 401 and nothing validates key shape beyond
-				// a length check. Asserting "invalid or expired" over a message
-				// the server actually sent replaces fact with inference.
+				// Lead with whatever the API said. The generic text is a guess:
+				// a bare 401 cannot tell an expired key from a wrong-type one.
 				msg := "Authentication failed: your API key is invalid or expired.\n\n"
 				if serverMsg := unauthorizedServerMessage(err); serverMsg != "" {
 					msg = "Authentication failed: " + serverMsg + "\n\n"
@@ -365,23 +361,18 @@ func init() {
 	addConnectionCmdTo(rootCmd)
 }
 
-// unauthorizedServerMessage returns the API's own explanation for a 401, when it
-// gave one. Today these endpoints answer with a bare "Unauthorized" body, which
-// says nothing the status code did not, so this usually returns empty and the
-// caller falls back to generic guidance. It exists so that a message the server
-// does send reaches the user instead of being replaced by our guess about what
-// went wrong.
+// unauthorizedServerMessage returns the API's own explanation for a 401, if it
+// gave one. These endpoints currently answer with a bare "Unauthorized", so it
+// usually returns empty and the caller falls back to generic guidance.
 func unauthorizedServerMessage(err error) string {
 	var apiErr *hookdeck.APIError
 	if !errors.As(err, &apiErr) {
 		return ""
 	}
 	msg := strings.TrimSpace(apiErr.Message)
-	// APIError.Message is not always the server's words. When the body is not
-	// JSON, checkAndPrintError synthesizes "unexpected http status code: N, raw
-	// response body: ..." and stores that here. These endpoints answer 401 with
-	// a text/plain "Unauthorized", so that is exactly what lands - and printing
-	// it back is strictly worse than the generic guidance it would replace.
+	// APIError.Message is not always the server's words: for a non-JSON body
+	// checkAndPrintError synthesizes "unexpected http status code: ..." and
+	// stores it here. Printing that back is worse than the generic guidance.
 	if msg == "" || strings.HasPrefix(msg, "unexpected http status code:") {
 		return ""
 	}

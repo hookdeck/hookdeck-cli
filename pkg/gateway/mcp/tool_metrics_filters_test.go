@@ -11,16 +11,9 @@ import (
 )
 
 // TestMetricsToolRejectsFiltersTheEndpointIgnores is the MCP counterpart of
-// TestMetricsFlagsMatchTheEndpointSchemas in pkg/cmd. Both consult the same
-// matrix in pkg/hookdeck, so the two layers cannot drift apart - which is what
-// happened when the CLI-side fix landed and this one was not touched.
-//
-// Note what it does not do: the expectations are hardcoded, so an API-side
-// change will not fail it. Checking the matrix against the spec remains manual.
-//
-// The bug is silent: the API drops a filter its schema does not declare and
-// answers with unfiltered totals, so an agent reading these numbers has no way
-// to know the filter did nothing.
+// TestMetricsFlagsMatchTheEndpointSchemas. Both read the same matrix, so the
+// layers cannot drift - which is what happened when the CLI fix landed and this
+// one was not touched. Expectations are hardcoded; see the pkg/cmd note.
 func TestMetricsToolRejectsFiltersTheEndpointIgnores(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -11,18 +11,11 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-// TestMetricsFlagsMatchTheEndpointSchemas is the guard against offering a filter
-// the endpoint ignores. The API drops filter keys its schema does not declare
-// rather than rejecting them, so an unsupported flag returns unfiltered totals
-// that look filtered. Verified against production: `metrics attempts` over 14
-// days returned 120 with and without a bogus --source-id, while a bogus
-// --destination-id on the same call returned 0.
+// TestMetricsFlagsMatchTheEndpointSchemas guards against offering a filter the
+// endpoint ignores, which returns unfiltered totals that look filtered.
 //
-// The expectations below mirror the filter schemas, but they are hardcoded:
-// nothing here fetches the spec, so an API-side change will NOT fail this test.
-// What it does catch is the two layers drifting apart, and any change to the
-// matrix made without updating the expectation. Keeping it honest against the
-// API is still a manual step - compare against
+// Expectations are hardcoded, so an API-side change will NOT fail this test; it
+// catches the CLI and MCP layers drifting apart. Re-check the matrix against
 // https://api.hookdeck.com/2026-09-01/openapi when the version moves.
 func TestMetricsFlagsMatchTheEndpointSchemas(t *testing.T) {
 	all := []string{"source-id", "destination-id", "connection-id", "status", "issue-id", "delivery-group"}

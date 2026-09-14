@@ -64,18 +64,9 @@ func TestActionableErrorDoesNotCaptureOrdinaryErrors(t *testing.T) {
 		"an unmarked error must still get Execute's generic recovery message")
 }
 
-// TestUnauthorizedServerMessage covers the middle path chosen for #283: when a
-// 401 carries an explanation from the API, show that rather than our own guess
-// about what went wrong.
-//
-// The guess is not reliable. A bare 401 cannot distinguish an expired CLI key
-// from a project API key from a typo - validators.APIKey only checks length, so
-// there is no key shape to inspect - and "invalid or expired" is often untrue:
-// a project API key is valid, just not accepted by the CLI auth endpoints.
-//
-// Today these endpoints answer with a bare "Unauthorized" body, so the fallback
-// is what users see. The point of the helper is that it stops being a guess the
-// moment the server says anything.
+// TestUnauthorizedServerMessage: a 401 carrying an explanation should show it
+// rather than the CLI's guess, which is often wrong - a project API key is valid,
+// just not accepted here. See #283.
 func TestUnauthorizedServerMessage(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -93,12 +84,9 @@ func TestUnauthorizedServerMessage(t *testing.T) {
 			expected: "",
 		},
 		{
-			// The shape checkAndPrintError actually produces for a non-JSON body,
-			// which is what these endpoints send. Asserting on a hand-built
-			// APIError missed this: the first version of this helper let the
-			// boilerplate through, so every user with an expired key saw
-			// "Authentication failed: unexpected http status code: 401, raw
-			// response body: Unauthorized" instead of the guidance.
+			// What checkAndPrintError produces for a non-JSON body, which is what
+			// these endpoints send. The first version of the helper let this
+			// through and printed it as the explanation.
 			name:     "our own synthesized boilerplate is not a server message",
 			err:      &hookdeck.APIError{StatusCode: 401, Message: "unexpected http status code: 401, raw response body: Unauthorized"},
 			expected: "",
@@ -128,13 +116,9 @@ func TestUnauthorizedServerMessage(t *testing.T) {
 }
 
 // TestUnauthorizedServerMessageThroughTheRealClient drives the helper with an
-// error the client genuinely produced, rather than one built by hand.
-//
-// That distinction is the whole point: the hand-built cases above all passed
+// error the client genuinely produced. The hand-built cases above all passed
 // while the helper was broken, because they supplied a Message the real client
-// never generates for these endpoints. /cli-auth/validate answers 401 with a
-// text/plain "Unauthorized" body, so json.Unmarshal fails and checkAndPrintError
-// stores its own synthesized string instead.
+// never generates for these endpoints.
 func TestUnauthorizedServerMessageThroughTheRealClient(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")

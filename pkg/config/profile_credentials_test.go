@@ -43,10 +43,8 @@ func TestProfile_ApplyValidateAPIKeyResponse(t *testing.T) {
 	})
 }
 
-// TestProfile_LegacyModeFallback covers a response that predates team_type,
-// or one where the field is absent for any other reason. Without the fallback
-// the profile is blanked: ProjectType becomes "", IsGatewayProject("") is false,
-// and every `hookdeck gateway ...` command fails with an empty project type.
+// TestProfile_LegacyModeFallback covers a response without team_type. Without
+// the fallback the profile is blanked and every gateway command fails.
 func TestProfile_LegacyModeFallback(t *testing.T) {
 	t.Run("validate response falls back to team_mode", func(t *testing.T) {
 		p := &Profile{}
@@ -182,13 +180,8 @@ team_mode = "inbound"
 }
 
 // TestProfile_UnrecognizedTypeIsNotDiscarded covers a project type this CLI does
-// not know about - the API adding a fourth, say.
-//
-// Deriving the legacy mode from an unresolved type wrote an empty string over
-// whatever the API sent, so the profile ended up with no type and no mode: every
-// gateway command then failed with "current project type is ." and the value
-// another CLI version could have used was gone. Config.setProjectIdentity
-// already keeps unknown values for the same reason.
+// not know about. Deriving from an unresolved type wrote empty values over what
+// the API sent, leaving "current project type is ." on every gateway command.
 func TestProfile_UnrecognizedTypeIsNotDiscarded(t *testing.T) {
 	p := &Profile{}
 	p.ApplyValidateAPIKeyResponse(&hookdeck.ValidateAPIKeyResponse{
@@ -196,24 +189,18 @@ func TestProfile_UnrecognizedTypeIsNotDiscarded(t *testing.T) {
 		ProjectType: "some_future_product",
 	}, false)
 
-	// The raw value survives, so a CLI that understands it can read the config
-	// and this one reports something meaningful instead of an empty string.
+	// The raw value survives for a CLI that understands it.
 	require.Equal(t, "some_future_product", p.ProjectType)
 
-	// It still does not resolve here, which is what keeps gateway commands from
-	// acting on a project type this CLI does not understand.
+	// It still does not resolve, which keeps gateway commands from acting on it.
 	require.Empty(t, p.ResolveProjectType())
 	require.False(t, IsGatewayProject(p.ProjectType))
 }
 
 // TestUnknownProjectTypeSurvivesDisk covers both routes an unrecognized project
-// type can take to config.toml. Reported in review with two failing cases; both
-// wrote project_type = ” before this.
-//
-// It matters for forward compatibility rather than for the three types that
-// exist today. If the API adds a fourth and this CLI writes an empty value for
-// it, then a user running this CLI once destroys the setting for the newer CLI
-// they were using, and every gateway command here reports an empty type.
+// type takes to config.toml; both wrote an empty project_type before this.
+// Matters for forward compatibility: if the API adds a fourth type, running this
+// CLI once would erase the setting a newer CLI depends on.
 func TestUnknownProjectTypeSurvivesDisk(t *testing.T) {
 	writeAndReload := func(t *testing.T, c *Config) string {
 		t.Helper()

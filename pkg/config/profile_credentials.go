@@ -2,10 +2,9 @@ package config
 
 import "github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 
-// resolveType returns the project type to store: the current team_type field,
-// falling back to the pre-2026-09-01 team_mode. Without a fallback a response
-// missing the newer field leaves the profile blank, and an empty type makes
-// IsGatewayProject false and fails every gateway command.
+// resolveType prefers team_type and falls back to the pre-2026-09-01 team_mode.
+// Without the fallback a response missing team_type blanks the profile, which
+// fails every gateway command.
 func resolveType(projectType, legacyMode string) string {
 	if t := NormalizeProjectType(projectType); t != "" {
 		return t
@@ -13,18 +12,10 @@ func resolveType(projectType, legacyMode string) string {
 	return ModeToType(legacyMode)
 }
 
-// storeProjectIdentity records what the API said rather than only what this CLI
-// could resolve.
-//
-// Deriving both fields from a resolved type blanked them whenever the type was
-// unrecognized - a project type this CLI has not heard of - leaving a profile
-// with no type and no mode. Every gateway command then failed with "current
-// project type is ." and the value another CLI version could have used was gone.
-//
-// So each field keeps its raw value when one arrived, and is derived only to
-// fill a gap. Reads already normalize, so an unknown value is inert here and
-// meaningful to a CLI that understands it. Config.setProjectIdentity takes the
-// same position for values supplied on the command line.
+// storeProjectIdentity records what the API said, not only what this CLI could
+// resolve. Deriving both fields from a resolved type blanked them for an
+// unrecognized type, leaving "current project type is ." on every gateway
+// command. Recognized values are normalized; unrecognized ones kept verbatim.
 func storeProjectIdentity(p *Profile, rawType, rawMode string) {
 	resolved := resolveType(rawType, rawMode)
 

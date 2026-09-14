@@ -8,10 +8,8 @@ type Profile struct {
 	Name      string // profile name
 	APIKey    string
 	ProjectId string
-	// ProjectMode is the pre-2026-09-01 vocabulary (inbound, outbound, console,
-	// outpost). It is kept only so a CLI older than this one, reading the same
-	// config file, still resolves a project. Nothing in this codebase should
-	// reason about a project in terms of mode - use ProjectType.
+	// ProjectMode is the pre-2026-09-01 vocabulary, kept only so older CLIs
+	// reading the same config still resolve a project. Use ProjectType.
 	ProjectMode string
 	ProjectType string // display type: Gateway, Outpost, Console
 	GuestURL    string // URL to create permanent account for guest users
@@ -37,22 +35,15 @@ func (p *Profile) ResolveProjectType() string {
 
 // persistedProjectType is the value written to the project_type config key.
 //
-// The config file is shared with other CLI versions - a repo-local
-// .hookdeck/config.toml especially - and versions before 2026-09-01 only
-// understand the display label. Writing the API type there breaks every
-// `hookdeck gateway ...` command for them, and because both versions rewrite
-// the file, the two would ping-pong it. The label is understood by both, and
-// NormalizeProjectType turns it back into the API type on read, so nothing is
-// lost internally.
+// The label, not the API type: the file is shared with older CLIs that only
+// understand the label, and both versions rewrite it. Reads normalize, so
+// nothing is lost.
 func (p *Profile) persistedProjectType() string {
 	if label := TypeLabel(p.ResolveProjectType()); label != "" {
 		return label
 	}
-	// Unrecognized: keep what we were given. This used to return the *resolved*
-	// value, which is "" precisely when the type is unrecognized - so the comment
-	// said "write it through" while the code erased it. A project type this CLI
-	// has not heard of must survive a load-and-save, or running an older CLI once
-	// silently destroys the newer one's config.
+	// Unrecognized: keep the raw value. It must survive a load-and-save, or this
+	// CLI erases a setting a newer one relies on.
 	return p.ProjectType
 }
 
