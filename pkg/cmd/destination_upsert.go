@@ -96,51 +96,9 @@ func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	dc.destinationConfigFlags.URL = dc.url
-	dc.destinationConfigFlags.CliPath = dc.cliPath
-
-	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
+	req, err := dc.buildUpsertRequest(ctx, client)
 	if err != nil {
 		return err
-	}
-
-	t := strings.ToUpper(dc.destType)
-	if config == nil {
-		config = make(map[string]interface{})
-	}
-	if t == "HTTP" && dc.url != "" {
-		config["url"] = dc.url
-	}
-	if t == "CLI" && dc.cliPath != "" {
-		config["path"] = dc.cliPath
-	}
-
-	req := &hookdeck.DestinationCreateRequest{
-		Name: dc.name,
-	}
-	if dc.description != "" {
-		req.Description = &dc.description
-	}
-	if t != "" {
-		req.Type = t
-	}
-	if len(config) > 0 {
-		req.Config = config
-	}
-
-	// API requires config on PUT. When doing partial update (e.g. only --description), fetch existing and merge.
-	if req.Config == nil || len(req.Config) == 0 {
-		params := map[string]string{"name": dc.name}
-		listResp, err := client.ListDestinations(ctx, params)
-		if err == nil && listResp.Models != nil && len(listResp.Models) > 0 {
-			existing, err := client.GetDestination(ctx, listResp.Models[0].ID, nil)
-			if err == nil && existing.Config != nil {
-				req.Config = existing.Config
-				if req.Type == "" {
-					req.Type = existing.Type
-				}
-			}
-		}
 	}
 
 	if dc.dryRun {
@@ -178,4 +136,95 @@ func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args
 		fmt.Printf("URL: %s\n", *u)
 	}
 	return nil
+}
+
+// buildUpsertRequest assembles the PUT body, consulting the stored destination
+// where a flag alone cannot answer the question. Separated from the command so
+// the guards it applies are reachable from a test with a real HTTP client.
+func (dc *destinationUpsertCmd) buildUpsertRequest(ctx context.Context, client *hookdeck.Client) (*hookdeck.DestinationCreateRequest, error) {
+	dc.destinationConfigFlags.URL = dc.url
+	dc.destinationConfigFlags.CliPath = dc.cliPath
+
+	// The stored destination answers two questions below: what type it is, which
+	// decides how every type-dependent flag is read when --type is omitted — the
+	// delivery-policy guard and the --url/--cli-path config fields alike — and
+	// what delivery-group overrides it holds, so a bare groups object does not
+	// destroy them. Fetch it at most once, and only when it is needed.
+	var (
+		existingDest    *hookdeck.Destination
+		fetchedExisting bool
+	)
+	lookupExisting := func() (*hookdeck.Destination, error) {
+		if fetchedExisting {
+			return existingDest, nil
+		}
+		found, err := fetchDestinationByName(ctx, client, dc.name)
+		if err != nil {
+			return nil, err
+		}
+		existingDest, fetchedExisting = found, true
+		return found, nil
+	}
+
+	// --type is normally omitted on upsert, so the stored type has to be
+	// resolved before the config is built or nothing that depends on it works:
+	// the delivery-policy guard never fires, and --url and --cli-path are left
+	// out of the request body entirely (#406).
+	resolvedType, err := resolveDestinationType(
+		dc.destType,
+		dc.config != "" || dc.configFile != "",
+		&dc.destinationConfigFlags,
+		lookupExisting,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, resolvedType, &dc.destinationConfigFlags)
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectDeliveryPolicyInConfigForCLI(resolvedType, config, ""); err != nil {
+		return nil, err
+	}
+
+	// Overlay for the --config path, where the config JSON was returned verbatim
+	// and the individual flag still has to win.
+	rt := strings.ToUpper(resolvedType)
+	if config == nil {
+		config = make(map[string]interface{})
+	}
+	if rt == "HTTP" && dc.url != "" {
+		config["url"] = dc.url
+	}
+	if rt == "CLI" {
+		applyCLIPath(config, dc.cliPath, false)
+	}
+
+	req := &hookdeck.DestinationCreateRequest{
+		Name: dc.name,
+	}
+	if dc.description != "" {
+		req.Description = &dc.description
+	}
+	// Only send a type the user actually asked for. The resolved type is used to
+	// decide which config fields are valid, but asserting it back on the request
+	// would make this a read-modify-write: if the destination's type changed
+	// between the lookup and this PUT, we would silently revert it. The API keeps
+	// the stored type when the field is absent, verified against the live API.
+	if dc.destType != "" {
+		req.Type = rt
+	}
+	if len(config) > 0 {
+		req.Config = config
+	}
+
+	// API requires config on PUT. When doing partial update (e.g. only --description), fetch existing and merge.
+	// A groups object sent without overrides also needs the stored config, because
+	// the API replaces groups wholesale and would drop the overrides with it.
+	if err := applyStoredDestinationConfig(dc.name, req, lookupExisting); err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }

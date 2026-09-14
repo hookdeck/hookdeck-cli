@@ -1,6 +1,9 @@
 package hookdeck
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // MetricsFilters names the filters a metrics endpoint actually honours.
 //
@@ -84,4 +87,340 @@ var MCPFilterNames = MetricsFilterNames{
 	Status:        "status",
 	IssueID:       "issue_id",
 	DeliveryGroup: "delivery_group",
+}
+
+// Dimensions honoured by each metrics endpoint, taken from the API's OpenAPI
+// document (the `dimensions` enum of each GET /metrics/* operation).
+//
+// These differ sharply between endpoints, so neither --help nor the MCP tool
+// schema may advertise one generic list: naming a dimension the route does not
+// accept sends the caller into an API 422. Filters have been gated against a
+// shared matrix for a while; dimensions were not gated at all, which is how
+// `dimensions: ["delivery_group"]` and `dimensions: ["status"]` on pending
+// event metrics reached the API as raw 422s.
+//
+// Spelled as the API spells them: the connection dimension is webhook_id here,
+// and both callers map their own connection_id onto it before validating.
+var (
+	RequestMetricsDimensionValues        = []string{"source_id", "rejection_cause", "status", "bulk_retry_ids", "events_count", "ignored_count"}
+	AttemptMetricsDimensionValues        = []string{"destination_id", "delivery_group", "event_id", "status", "error_code", "bulk_retry_id", "trigger"}
+	TransformationMetricsDimensionValues = []string{"transformation_id", "webhook_id", "log_level", "issue_id"}
+
+	// The four endpoints `events` can route to. As with filters, the caller
+	// advertises the union and narrows per route.
+	DefaultEventRouteDimensions      = []string{"source_id", "destination_id", "webhook_id", "delivery_group", "status", "error_code", "event_data_id", "cli_id", "cli_user_id", "attempts", "response_status"}
+	QueueDepthRouteDimensions        = []string{"destination_id", "delivery_group"}
+	PendingTimeseriesRouteDimensions = []string{"destination_id"}
+	EventsByIssueRouteDimensions     = []string{"issue_id", "source_id", "destination_id", "webhook_id"}
+
+	EventMetricsDimensionValues = unionValues(
+		DefaultEventRouteDimensions,
+		QueueDepthRouteDimensions,
+		PendingTimeseriesRouteDimensions,
+		EventsByIssueRouteDimensions,
+	)
+)
+
+// Dimension vocabularies rendered for a caller, in the caller's spelling.
+var (
+	RequestMetricsDimensions        = DimensionList(RequestMetricsDimensionValues)
+	AttemptMetricsDimensions        = DimensionList(AttemptMetricsDimensionValues)
+	TransformationMetricsDimensions = DimensionList(TransformationMetricsDimensionValues)
+	EventMetricsDimensions          = DimensionList(EventMetricsDimensionValues)
+)
+
+// Measures honoured by each metrics action, from the same OpenAPI document.
+//
+// `events` additionally carries the route-selecting spellings the CLI and MCP
+// invented - "pending" and "queue_depth" - which are translated before the
+// request is sent. Advertised, not enforced: the API owns the enum, so a new
+// measure it gains still reaches it rather than being refused here.
+var (
+	EventMetricsMeasureValues          = []string{"count", "successful_count", "failed_count", "scheduled_count", "paused_count", "error_rate", "avg_attempts", "scheduled_retry_count", "max_count_per_second", "pending", "queue_depth", "max_depth", "max_age"}
+	RequestMetricsMeasureValues        = []string{"count", "accepted_count", "rejected_count", "discarded_count", "avg_events_per_request", "avg_ignored_per_request"}
+	AttemptMetricsMeasureValues        = []string{"count", "successful_count", "failed_count", "delivered_count", "error_rate", "response_latency_avg", "response_latency_max", "response_latency_p95", "response_latency_p99", "delivery_latency_avg"}
+	TransformationMetricsMeasureValues = []string{"count", "successful_count", "failed_count", "error_rate", "error_count", "warn_count", "info_count", "debug_count"}
+)
+
+// Measure vocabularies rendered for a caller.
+var (
+	EventMetricsMeasures          = ValueList(EventMetricsMeasureValues)
+	RequestMetricsMeasures        = ValueList(RequestMetricsMeasureValues)
+	AttemptMetricsMeasures        = ValueList(AttemptMetricsMeasureValues)
+	TransformationMetricsMeasures = ValueList(TransformationMetricsMeasureValues)
+)
+
+// Status vocabularies. Requests are accepted or rejected at the edge; events
+// and attempts carry a delivery status. Transformation metrics have no status
+// filter at all.
+//
+// EventStatusValues is rendered from EventStatusValueList (status.go), the list
+// the log routes validate a caller's value against, so what is advertised and
+// what is accepted cannot drift. The metrics route spells the request statuses
+// upper case; the request log spells them lower case, as RequestLogStatusValues.
+var (
+	RequestStatusValues        = "ACCEPTED, REJECTED"
+	EventStatusValues          = ValueList(EventStatusValueList)
+	AttemptStatusValues        = "SUCCESSFUL, FAILED"
+	TransformationStatusValues = ""
+)
+
+// ValueList renders a vocabulary for display in --help or a tool schema.
+func ValueList(values []string) string {
+	return strings.Join(values, ", ")
+}
+
+// DimensionList renders a dimension vocabulary in the caller's spelling: the
+// API's webhook_id is connection_id to both the CLI and MCP, which map it on
+// the way in.
+func DimensionList(values []string) string {
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = DimensionName(v)
+	}
+	return strings.Join(out, ", ")
+}
+
+// DimensionName renders one dimension in the caller's spelling, the inverse of
+// the connection_id -> webhook_id mapping both callers apply on the way in.
+//
+// Anything reported back to the caller has to go through this, or a refusal
+// names a token the caller never typed: params.Dimensions holds webhook_id by
+// the time it is validated, while the allowed list in the same sentence is
+// rendered by DimensionList and says connection_id.
+func DimensionName(value string) string {
+	if value == "webhook_id" {
+		return "connection_id"
+	}
+	return value
+}
+
+// unionValues concatenates vocabularies, keeping first-seen order and dropping
+// duplicates, so a union list cannot drift from the routes it is built from.
+func unionValues(lists ...[]string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, list := range lists {
+		for _, v := range list {
+			if seen[v] {
+				continue
+			}
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func containsValue(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
+// RejectUnsupportedDimensions reports the first dimension the endpoint does not
+// define, plus the API's one cross-field rule: grouping by delivery_group needs
+// a destination_id filter.
+//
+// That rule is not events-only. The API enforces it on every route that offers
+// the dimension, and this function is called from all of them. Checked live on
+// 2026-09-14 against the attempts route, which is not an events route at all:
+// `metrics attempts --measures count --dimensions delivery_group` answers 422
+// "The delivery_group dimension requires a filters.destination_id filter", and
+// the same call with --destination-id answers 200.
+//
+// Without this the caller sees a raw 422 for something the tool appeared to
+// offer - and on `dimensions: ["delivery_group"]` that is the release's
+// headline feature looking broken. dimensionsName is the caller's own spelling
+// of the argument, so a CLI user reads "--dimensions" and an MCP client reads
+// "dimensions".
+func RejectUnsupportedDimensions(params MetricsQueryParams, allowed []string, route string, names MetricsFilterNames, dimensionsName string) error {
+	for _, d := range params.Dimensions {
+		if d == "connection_id" {
+			d = "webhook_id"
+		}
+		if !containsValue(allowed, d) {
+			// Reported in the caller's spelling, not the API's: both callers
+			// rewrite connection_id to webhook_id before validating, so naming
+			// d raw refused "webhook_id" at someone who typed connection_id.
+			return fmt.Errorf("%s %q is not supported by %s; that route groups by: %s",
+				dimensionsName, DimensionName(d), route, DimensionList(allowed))
+		}
+	}
+	if containsValue(params.Dimensions, "delivery_group") && params.DestinationID == "" {
+		return fmt.Errorf("%s delivery_group requires %s; the API rejects grouping by delivery group without a destination filter",
+			dimensionsName, names.DestinationID)
+	}
+	return nil
+}
+
+// TranslateQueueDepthMeasures maps the CLI's and MCP's "queue_depth" spelling
+// onto the API's "max_depth", dropping a duplicate if both were requested. The
+// queue-depth endpoint accepts max_depth and max_age only.
+func TranslateQueueDepthMeasures(measures []string) []string {
+	out := make([]string, 0, len(measures))
+	seen := make(map[string]bool, len(measures))
+	for _, m := range measures {
+		if m == "queue_depth" {
+			m = "max_depth"
+		}
+		if seen[m] {
+			continue
+		}
+		seen[m] = true
+		out = append(out, m)
+	}
+	return out
+}
+
+// Names of the events-metrics routes, as they appear to the caller in errors.
+const (
+	EventRouteDefault    = "event metrics"
+	EventRouteQueueDepth = "queue depth metrics"
+	EventRoutePending    = "pending event metrics"
+	EventRouteByIssue    = "per-issue event metrics"
+)
+
+// eventMeasureRoutes maps every measure `metrics events` advertises onto the API
+// endpoint that measure selects. The by-issue route is chosen by dimension
+// rather than by measure, so it has no entry here.
+//
+// A measure that is absent from this map does not influence routing: the
+// request goes to the default endpoint and the API rejects the measure itself,
+// which is a better error than one this package could invent.
+var eventMeasureRoutes = map[string]string{
+	"count":                 EventRouteDefault,
+	"successful_count":      EventRouteDefault,
+	"failed_count":          EventRouteDefault,
+	"scheduled_count":       EventRouteDefault,
+	"paused_count":          EventRouteDefault,
+	"error_rate":            EventRouteDefault,
+	"avg_attempts":          EventRouteDefault,
+	"scheduled_retry_count": EventRouteDefault,
+	"max_count_per_second":  EventRouteDefault,
+
+	"queue_depth": EventRouteQueueDepth,
+	"max_depth":   EventRouteQueueDepth,
+	"max_age":     EventRouteQueueDepth,
+
+	"pending": EventRoutePending,
+}
+
+// eventDimensionRoutes maps a dimension onto the endpoint it selects. Only
+// issue_id selects a route of its own; every other dimension is grouped by
+// whichever endpoint the measures choose.
+var eventDimensionRoutes = map[string]string{
+	"issue_id": EventRouteByIssue,
+}
+
+// RouteForMeasures returns the events-metrics route this measure list selects,
+// or "" when none of the measures decides the route and the request falls
+// through to whatever the dimensions select.
+//
+// It is the one place that knows which measures belong to which endpoint. Both
+// callers used to hold their own copy of the queue-depth membership - a map in
+// the CLI, a containsAny list in MCP - beside this table, and a divergence
+// between any two of the three would refuse a mix here while still dispatching
+// it to the wrong endpoint there.
+//
+// Call RejectMixedMeasureRoutes (or RejectCrossRouteEventQuery, which subsumes
+// it) first: a list spanning two routes has no single answer, and this reports
+// whichever route its first routed measure names.
+func RouteForMeasures(measures []string) string {
+	_, route := firstRoutedMeasure(measures)
+	return route
+}
+
+// firstRoutedMeasure returns the first measure that selects an endpoint, and the
+// endpoint it selects. ("", "") means the measures do not decide the route — the
+// request falls through to whatever the dimensions select, or to the default.
+func firstRoutedMeasure(measures []string) (string, string) {
+	for _, m := range measures {
+		if route, ok := eventMeasureRoutes[m]; ok {
+			return m, route
+		}
+	}
+	return "", ""
+}
+
+// RejectMixedMeasureRoutes refuses a measure list that spans more than one
+// events-metrics endpoint.
+//
+// Routing picks a single endpoint from the measures, so a mixed list is not a
+// combined query: the extra measures are either silently dropped (the pending
+// route replaces the whole list with "count") or rewritten into something the
+// endpoint rejects with a 422. Neither is what the caller asked for, so say so
+// here instead. measuresName is the caller's own spelling of the argument, so a
+// CLI user reads "--measures" and an MCP client reads "measures".
+func RejectMixedMeasureRoutes(measures []string, measuresName string) error {
+	firstMeasure := ""
+	firstRoute := ""
+	for _, m := range measures {
+		route, known := eventMeasureRoutes[m]
+		if !known {
+			continue
+		}
+		if firstRoute == "" {
+			firstMeasure, firstRoute = m, route
+			continue
+		}
+		if route != firstRoute {
+			return fmt.Errorf("%s cannot mix %q (%s) with %q (%s): these are separate API endpoints, so ask for one route's measures at a time",
+				measuresName, firstMeasure, firstRoute, m, route)
+		}
+	}
+	return nil
+}
+
+// RejectCrossRouteEventQuery refuses an events query whose parts select more
+// than one API endpoint.
+//
+// `metrics events` fans out over four endpoints and calls exactly one of them,
+// choosing it from the measures, then the issue_id dimension, then the issue
+// filter. First match wins, so a request naming parts of two routes is answered
+// from one of them and the rest of the question is dropped without a word: a
+// queue-depth measure shadowed the issue_id dimension entirely (#407), and
+// "pending" shadows it the same way. One route's numbers returned under another
+// route's question are worse than no answer, so name both routes and refuse.
+//
+// It subsumes RejectMixedMeasureRoutes, which is the same rule applied within
+// the measure list. Callers should use this and not both.
+//
+// measuresName and dimensionsName are the caller's own spellings of the
+// arguments, and names supplies the same for the filters, so a CLI user reads
+// "--measures" and an MCP client reads "measures".
+func RejectCrossRouteEventQuery(params MetricsQueryParams, measuresName, dimensionsName string, names MetricsFilterNames) error {
+	if err := RejectMixedMeasureRoutes(params.Measures, measuresName); err != nil {
+		return err
+	}
+
+	measure, measureRoute := firstRoutedMeasure(params.Measures)
+	// The default route is the one every dimension refines rather than
+	// contradicts: `--measures count --dimensions issue_id` is a per-issue count,
+	// which is exactly what the by-issue endpoint answers.
+	if measureRoute == "" || measureRoute == EventRouteDefault {
+		return nil
+	}
+
+	conflict := func(selector, route string) error {
+		return fmt.Errorf("%s %q (%s) cannot be combined with %s (%s): these are separate API endpoints, so ask for one route at a time",
+			measuresName, measure, measureRoute, selector, route)
+	}
+
+	for _, d := range params.Dimensions {
+		route, selects := eventDimensionRoutes[d]
+		if selects && route != measureRoute {
+			return conflict(fmt.Sprintf("%s %q", dimensionsName, d), route)
+		}
+	}
+	// The filter selects the by-issue route on its own, so it conflicts on its
+	// own too — and saying which two routes were asked for is more use than
+	// reporting it as a filter the endpoint happens to ignore.
+	if params.IssueID != "" && measureRoute != EventRouteByIssue {
+		return conflict(names.IssueID, EventRouteByIssue)
+	}
+	return nil
 }

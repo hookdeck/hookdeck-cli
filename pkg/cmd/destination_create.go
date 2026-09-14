@@ -99,17 +99,23 @@ func (dc *destinationCreateCmd) validateFlags(cmd *cobra.Command, args []string)
 	return dc.destinationConfigFlags.validateDeliveryPolicyFlags("")
 }
 
-func (dc *destinationCreateCmd) runDestinationCreateCmd(cmd *cobra.Command, args []string) error {
-	client := Config.GetAPIClient()
-	ctx := context.Background()
-
-	// Sync url/cliPath into flags for buildDestinationConfigFromIndividualFlags when not using --config
+// buildCreateRequest assembles the POST body, in the style of
+// buildUpdateRequest and buildUpsertRequest. It is split out of the command so
+// the flag handling can be tested through the wiring the command actually uses:
+// --cli-path's "/" default has to reach both call sites through
+// cliPathFromFlags, and testing that helper on its own could not tell whether
+// the command still called it.
+func (dc *destinationCreateCmd) buildCreateRequest(cmd *cobra.Command) (*hookdeck.DestinationCreateRequest, error) {
+	// Sync url/cliPath into flags for buildDestinationConfigFromIndividualFlags
+	// when not using --config. --cli-path carries a "/" default on create, so it
+	// goes through cliPathFromFlags: an unset flag must not read as a path the
+	// user asked for, or every HTTP create would look like it named one.
 	dc.destinationConfigFlags.URL = dc.url
-	dc.destinationConfigFlags.CliPath = dc.cliPath
+	dc.destinationConfigFlags.CliPath = cliPathFromFlags(cmd, dc.cliPath)
 
 	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// For HTTP/CLI, ensure url/path in config when using individual flags
@@ -121,11 +127,7 @@ func (dc *destinationCreateCmd) runDestinationCreateCmd(cmd *cobra.Command, args
 		config["url"] = dc.url
 	}
 	if t == "CLI" {
-		path := dc.cliPath
-		if path == "" {
-			path = "/"
-		}
-		config["path"] = path
+		applyCLIPath(config, cliPathFromFlags(cmd, dc.cliPath), true)
 	}
 
 	req := &hookdeck.DestinationCreateRequest{
@@ -137,6 +139,17 @@ func (dc *destinationCreateCmd) runDestinationCreateCmd(cmd *cobra.Command, args
 	}
 	if len(config) > 0 {
 		req.Config = config
+	}
+	return req, nil
+}
+
+func (dc *destinationCreateCmd) runDestinationCreateCmd(cmd *cobra.Command, args []string) error {
+	client := Config.GetAPIClient()
+	ctx := context.Background()
+
+	req, err := dc.buildCreateRequest(cmd)
+	if err != nil {
+		return err
 	}
 
 	dst, err := client.CreateDestination(ctx, req)

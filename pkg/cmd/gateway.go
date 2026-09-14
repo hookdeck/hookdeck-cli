@@ -88,7 +88,7 @@ The gateway command group provides full access to all Event Gateway resources.`,
   hookdeck gateway source create --name my-source --type WEBHOOK
 
   # Query event metrics
-  hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z
+  hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z --measures count
 
   # Start the MCP server for AI agent access
   hookdeck gateway mcp`,

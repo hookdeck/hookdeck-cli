@@ -8,8 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const metricsTransformationsMeasures = "count, successful_count, failed_count, error_rate, error_count, warn_count, info_count, debug_count"
-
 type metricsTransformationsCmd struct {
 	cmd   *cobra.Command
 	flags metricsCommonFlags
@@ -21,10 +19,10 @@ func newMetricsTransformationsCmd() *metricsTransformationsCmd {
 		Use:   "transformations",
 		Args:  cobra.NoArgs,
 		Short: ShortBeta("Query transformation metrics"),
-		Long:  LongBeta(`Query metrics for transformations. Measures: ` + metricsTransformationsMeasures + `.`),
+		Long:  LongBeta(`Query metrics for transformations. Measures: ` + hookdeck.TransformationMetricsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.TransformationMetricsFilters)
+	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.TransformationMetricsFilters, hookdeck.TransformationMetricsDimensions, hookdeck.TransformationStatusValues)
 	return c
 }
 
@@ -33,6 +31,9 @@ func (c *metricsTransformationsCmd) runE(cmd *cobra.Command, args []string) erro
 		return err
 	}
 	params := metricsParamsFromFlags(&c.flags)
+	if err := rejectUnsupportedDimensions(params, hookdeck.TransformationMetricsDimensionValues, "transformation metrics"); err != nil {
+		return err
+	}
 	data, err := Config.GetAPIClient().QueryTransformationMetrics(context.Background(), params)
 	if err != nil {
 		return fmt.Errorf("query transformation metrics: %w", err)

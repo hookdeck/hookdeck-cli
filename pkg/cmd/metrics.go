@@ -70,12 +70,12 @@ type metricsCommonFlags struct {
 
 // addMetricsCommonFlags adds the time-range flags every metrics subcommand
 // takes, plus only those filter flags the endpoint honours.
-func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters hookdeck.MetricsFilters) {
+func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters hookdeck.MetricsFilters, dimensions, statusValues string) {
 	cmd.Flags().StringVar(&f.start, "start", "", "Start of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.end, "end", "", "End of time range (ISO 8601 date-time, required)")
 	cmd.Flags().StringVar(&f.granularity, "granularity", "", granularityHelp)
 	cmd.Flags().StringVar(&f.measures, "measures", "", "Comma-separated list of measures to return")
-	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (e.g. connection_id, source_id, destination_id, delivery_group, status)")
+	cmd.Flags().StringVar(&f.dimensions, "dimensions", "", "Comma-separated dimensions to group by (one of: "+dimensions+")")
 	if filters.SourceID {
 		cmd.Flags().StringVar(&f.sourceID, "source-id", "", "Filter by source ID")
 	}
@@ -89,7 +89,7 @@ func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters ho
 		cmd.Flags().StringVar(&f.connectionID, "connection-id", "", "Filter by connection ID")
 	}
 	if filters.Status {
-		cmd.Flags().StringVar(&f.status, "status", "", "Filter by status (e.g. SUCCESSFUL, FAILED)")
+		cmd.Flags().StringVar(&f.status, "status", "", "Filter by status (one of: "+statusValues+")")
 	}
 	if filters.IssueID {
 		cmd.Flags().StringVar(&f.issueID, "issue-id", "", "Filter by issue ID (required for per-issue metrics, e.g. when using --dimensions issue_id)")
@@ -97,11 +97,20 @@ func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters ho
 	cmd.Flags().StringVar(&f.output, "output", "", "Output format (json)")
 	_ = cmd.MarkFlagRequired("start")
 	_ = cmd.MarkFlagRequired("end")
+	// Every metrics endpoint rejects a request without measures, so catch it
+	// here rather than letting it become an API 422. MCP already enforces this.
+	_ = cmd.MarkFlagRequired("measures")
 }
 
 // rejectUnsupportedFilters names the flags the way the user typed them.
 func rejectUnsupportedFilters(params hookdeck.MetricsQueryParams, allowed hookdeck.MetricsFilters, route string) error {
 	return hookdeck.RejectUnsupportedFilters(params, allowed, route, hookdeck.CLIFilterNames)
+}
+
+// rejectUnsupportedDimensions is the dimension counterpart, reading the same
+// shared matrix as the MCP layer so the two cannot drift.
+func rejectUnsupportedDimensions(params hookdeck.MetricsQueryParams, allowed []string, route string) error {
+	return hookdeck.RejectUnsupportedDimensions(params, allowed, route, hookdeck.CLIFilterNames, "--dimensions")
 }
 
 // metricsParamsFromFlags builds hookdeck.MetricsQueryParams from common flags.
