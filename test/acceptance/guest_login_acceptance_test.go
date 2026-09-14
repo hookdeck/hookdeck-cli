@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -69,7 +70,7 @@ func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), br
 			var payload map[string]interface{}
 			require.NoError(t, json.Unmarshal(raw, &payload))
 			assertBody(payload)
-			pollURL := serverURL + "/2026-09-01/cli-auth/poll?key=pollkey"
+			pollURL := serverURL + hookdeck.APIPathPrefix + "/cli-auth/poll?key=pollkey"
 			respBody, encErr := json.Marshal(map[string]string{
 				"browser_url": browserURL,
 				"poll_url":    pollURL,

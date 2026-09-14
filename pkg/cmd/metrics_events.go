@@ -33,9 +33,20 @@ Measures: ` + metricsEventsMeasures + `.
 Dimensions: ` + metricsEventsDimensions + `.`),
 		RunE: c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags)
+	addMetricsCommonFlags(c.cmd, &c.flags, eventMetricsFilters)
 	return c
 }
+
+// Filters honoured by each endpoint `metrics events` can route to. The command
+// offers the union, because the route is only known once measures and dimensions
+// are read; these narrow it per route so an ignored filter becomes an error
+// instead of a silently unfiltered answer.
+var (
+	defaultEventRouteFilters      = metricsFilters{sourceID: true, destinationID: true, connectionID: true, status: true, deliveryGroup: true}
+	queueDepthRouteFilters        = metricsFilters{destinationID: true, deliveryGroup: true}
+	pendingTimeseriesRouteFilters = metricsFilters{destinationID: true}
+	eventsByIssueRouteFilters     = metricsFilters{sourceID: true, destinationID: true, connectionID: true, issueID: true}
+)
 
 // queueDepthMeasures are measures that route to the queue-depth API endpoint.
 var queueDepthMeasures = map[string]bool{
@@ -70,13 +81,16 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 	// Route based on measures/dimensions:
 	// 1. If measures include queue_depth, max_depth, or max_age → QueryQueueDepth
 	if hasMeasure(params, queueDepthMeasures) {
+		if err := rejectUnsupportedFilters(params, queueDepthRouteFilters, "queue depth metrics"); err != nil {
+			return nil, err
+		}
 		return client.QueryQueueDepth(ctx, params)
 	}
 	// 2. If measures include "pending" with granularity → QueryEventsPendingTimeseries
 	// API expects measures[]=count; "pending" is only used for routing.
 	if hasMeasure(params, map[string]bool{"pending": true}) && params.Granularity != "" {
-		if params.DeliveryGroup != "" {
-			return nil, errors.New("--delivery-group cannot be used with --measures pending; the pending timeseries endpoint filters on destination only")
+		if err := rejectUnsupportedFilters(params, pendingTimeseriesRouteFilters, "pending event metrics (--measures pending)"); err != nil {
+			return nil, err
 		}
 		pendingParams := params
 		pendingParams.Measures = []string{"count"}
@@ -88,12 +102,15 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		if params.IssueID == "" {
 			return nil, errors.New("per-issue metrics require --issue-id (required when using --dimensions issue_id)")
 		}
-		if params.DeliveryGroup != "" {
-			return nil, errors.New("--delivery-group cannot be used with per-issue metrics; the events-by-issue endpoint does not filter on delivery group")
+		if err := rejectUnsupportedFilters(params, eventsByIssueRouteFilters, "per-issue event metrics"); err != nil {
+			return nil, err
 		}
 		return client.QueryEventsByIssue(ctx, params)
 	}
 	// 4. Default → QueryEventMetrics
+	if err := rejectUnsupportedFilters(params, defaultEventRouteFilters, "event metrics"); err != nil {
+		return nil, err
+	}
 	return client.QueryEventMetrics(ctx, params)
 }
 

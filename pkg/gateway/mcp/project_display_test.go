@@ -13,7 +13,7 @@ import (
 
 func TestFillProjectDisplayNameIfNeeded_SetsNameFromAPI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/2026-09-01/projects" {
+		if r.URL.Path != hookdeck.APIPathPrefix+"/projects" {
 			http.NotFound(w, r)
 			return
 		}

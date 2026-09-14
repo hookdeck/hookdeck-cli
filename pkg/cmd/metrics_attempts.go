@@ -10,7 +10,7 @@ import (
 const metricsAttemptsMeasures = "count, successful_count, failed_count, delivered_count, error_rate, response_latency_avg, response_latency_max, response_latency_p95, response_latency_p99, delivery_latency_avg"
 
 type metricsAttemptsCmd struct {
-	cmd  *cobra.Command
+	cmd   *cobra.Command
 	flags metricsCommonFlags
 }
 
@@ -23,7 +23,7 @@ func newMetricsAttemptsCmd() *metricsAttemptsCmd {
 		Long:  LongBeta(`Query metrics for delivery attempts (latency, success/failure). Measures: ` + metricsAttemptsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags)
+	addMetricsCommonFlags(c.cmd, &c.flags, attemptMetricsFilters)
 	return c
 }
 

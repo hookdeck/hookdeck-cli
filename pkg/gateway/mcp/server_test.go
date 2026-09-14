@@ -98,8 +98,8 @@ func mockAPI(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Serve
 	if handlers == nil {
 		handlers = map[string]http.HandlerFunc{}
 	}
-	if _, ok := handlers["/2026-09-01/cli-auth/validate"]; !ok {
-		handlers["/2026-09-01/cli-auth/validate"] = func(w http.ResponseWriter, r *http.Request) {
+	if _, ok := handlers[hookdeck.APIPathPrefix+"/cli-auth/validate"]; !ok {
+		handlers[hookdeck.APIPathPrefix+"/cli-auth/validate"] = func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"user_id":           "usr_test",
 				"user_name":         "Test User",
@@ -316,7 +316,7 @@ func TestTranslateAPIError(t *testing.T) {
 
 func TestSourcesList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/sources": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/sources": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "src_123", "name": "my-source"}))
 		},
 	})
@@ -330,7 +330,7 @@ func TestSourcesList_Success(t *testing.T) {
 
 func TestSourcesGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/sources/src_123": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/sources/src_123": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "src_123", "name": "github-webhooks"})
 		},
 	})
@@ -362,7 +362,7 @@ func TestSourcesTool_UnknownAction(t *testing.T) {
 
 func TestDestinationsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/destinations": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/destinations": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "des_456", "name": "my-backend"}))
 		},
 	})
@@ -374,7 +374,7 @@ func TestDestinationsList_Success(t *testing.T) {
 
 func TestDestinationsGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/destinations/des_456": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/destinations/des_456": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "des_456", "name": "my-backend"})
 		},
 	})
@@ -406,7 +406,7 @@ func TestDestinationsTool_UnknownAction(t *testing.T) {
 
 func TestConnectionsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
 		},
 	})
@@ -418,7 +418,7 @@ func TestConnectionsList_Success(t *testing.T) {
 
 func TestConnectionsGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
 		},
 	})
@@ -434,12 +434,12 @@ func TestConnectionsGet_Success(t *testing.T) {
 
 func TestConnectionsGet_ByName(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "GET", r.Method)
 			assert.Equal(t, "stripe-to-backend", r.URL.Query().Get("name"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
 		},
-		"/2026-09-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "GET", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
 		},
@@ -460,11 +460,11 @@ func TestConnectionsGet_MissingID(t *testing.T) {
 
 func TestConnectionsPause_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "GET", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
 		},
-		"/2026-09-01/connections/web_conn1/pause": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1/pause": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "PUT", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "paused_at": "2025-01-01T00:00:00Z"})
 		},
@@ -477,12 +477,12 @@ func TestConnectionsPause_Success(t *testing.T) {
 
 func TestConnectionsPause_ByName(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "GET", r.Method)
 			assert.Equal(t, "stripe-to-backend", r.URL.Query().Get("name"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
 		},
-		"/2026-09-01/connections/web_conn1/pause": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1/pause": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "PUT", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "paused_at": "2025-01-01T00:00:00Z"})
 		},
@@ -503,11 +503,11 @@ func TestConnectionsPause_MissingID(t *testing.T) {
 
 func TestConnectionsUnpause_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "GET", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"})
 		},
-		"/2026-09-01/connections/web_conn1/unpause": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1/unpause": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "PUT", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1"})
 		},
@@ -520,12 +520,12 @@ func TestConnectionsUnpause_Success(t *testing.T) {
 
 func TestConnectionsUnpause_ByName(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "GET", r.Method)
 			assert.Equal(t, "stripe-to-backend", r.URL.Query().Get("name"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_conn1", "name": "stripe-to-backend"}))
 		},
-		"/2026-09-01/connections/web_conn1/unpause": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_conn1/unpause": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "PUT", r.Method)
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_conn1"})
 		},
@@ -554,7 +554,7 @@ func TestConnectionsTool_UnknownAction(t *testing.T) {
 
 func TestConnectionsList_DisabledFilter(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections": func(w http.ResponseWriter, r *http.Request) {
 			// Verify disabled_at[any]=true is sent when disabled=true
 			assert.Equal(t, "true", r.URL.Query().Get("disabled_at[any]"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "web_1"}))
@@ -571,7 +571,7 @@ func TestConnectionsList_DisabledFilter(t *testing.T) {
 
 func TestTransformationsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/transformations": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/transformations": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "trn_789", "name": "enrich-payload"}))
 		},
 	})
@@ -583,7 +583,7 @@ func TestTransformationsList_Success(t *testing.T) {
 
 func TestTransformationsGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/transformations/trn_789": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/transformations/trn_789": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "trn_789", "name": "enrich-payload", "code": "module.exports = (req) => req"})
 		},
 	})
@@ -615,7 +615,7 @@ func TestTransformationsTool_UnknownAction(t *testing.T) {
 
 func TestAttemptsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/attempts": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/attempts": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "atm_001", "status": "SUCCESSFUL", "response_status": 200}))
 		},
 	})
@@ -627,7 +627,7 @@ func TestAttemptsList_Success(t *testing.T) {
 
 func TestAttemptsGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/attempts/atm_001": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/attempts/atm_001": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "atm_001", "response_status": 200})
 		},
 	})
@@ -659,7 +659,7 @@ func TestAttemptsTool_UnknownAction(t *testing.T) {
 
 func TestEventsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_abc", "status": "SUCCESSFUL"}))
 		},
 	})
@@ -671,7 +671,7 @@ func TestEventsList_Success(t *testing.T) {
 
 func TestEventsGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events/evt_abc": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events/evt_abc": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "evt_abc", "status": "SUCCESSFUL"})
 		},
 	})
@@ -691,7 +691,7 @@ func TestEventsGet_MissingID(t *testing.T) {
 
 func TestEventsRawBody_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events/evt_abc/raw_body": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events/evt_abc/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"key":"value"}`))
 		},
 	})
@@ -713,7 +713,7 @@ func TestEventsRawBody_Truncation(t *testing.T) {
 	// Generate a body larger than 100KB
 	largeBody := strings.Repeat("x", 150*1024)
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events/evt_big/raw_body": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events/evt_big/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(largeBody))
 		},
 	})
@@ -733,7 +733,7 @@ func TestEventsTool_UnknownAction(t *testing.T) {
 
 func TestEventsList_ConnectionIDMapsToWebhookID(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			// Verify connection_id is mapped to webhook_id
 			assert.Equal(t, "web_123", r.URL.Query().Get("webhook_id"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
@@ -746,7 +746,7 @@ func TestEventsList_ConnectionIDMapsToWebhookID(t *testing.T) {
 
 func TestEventsList_BodyFilter(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.JSONEq(t, `{"type":"payment"}`, r.URL.Query().Get("body"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
 		},
@@ -761,7 +761,7 @@ func TestEventsList_BodyFilter(t *testing.T) {
 
 func TestEventsList_PayloadFilters(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, `{"x-test":"1"}`, r.URL.Query().Get("headers"))
 			assert.JSONEq(t, `{"q":"search"}`, r.URL.Query().Get("parsed_query"))
 			assert.Equal(t, "/webhooks", r.URL.Query().Get("path"))
@@ -780,7 +780,7 @@ func TestEventsList_PayloadFilters(t *testing.T) {
 
 func TestEventsList_MetadataFilters(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "evt_1,evt_2", r.URL.Query().Get("id"))
 			assert.Equal(t, "3", r.URL.Query().Get("attempts"))
 			assert.Equal(t, "cli_abc", r.URL.Query().Get("cli_id"))
@@ -809,7 +809,7 @@ func TestEventsList_InvalidBodyFilter(t *testing.T) {
 
 func TestEventsList_CreatedAtDateRange(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("created_at[gte]"))
 			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("created_at[lte]"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
@@ -826,7 +826,7 @@ func TestEventsList_CreatedAtDateRange(t *testing.T) {
 
 func TestEventsList_SuccessfulAtDateRange(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("successful_at[gte]"))
 			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("successful_at[lte]"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
@@ -843,7 +843,7 @@ func TestEventsList_SuccessfulAtDateRange(t *testing.T) {
 
 func TestEventsList_LastAttemptAtDateRange(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("last_attempt_at[gte]"))
 			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("last_attempt_at[lte]"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_1"}))
@@ -864,7 +864,7 @@ func TestEventsList_LastAttemptAtDateRange(t *testing.T) {
 
 func TestRequestsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_001", "source_id": "src_123"}))
 		},
 	})
@@ -876,7 +876,7 @@ func TestRequestsList_Success(t *testing.T) {
 
 func TestRequestsGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests/req_001": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests/req_001": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "req_001"})
 		},
 	})
@@ -896,7 +896,7 @@ func TestRequestsGet_MissingID(t *testing.T) {
 
 func TestRequestsRawBody_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests/req_001/raw_body": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests/req_001/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"payload":"data"}`))
 		},
 	})
@@ -917,7 +917,7 @@ func TestRequestsRawBody_MissingID(t *testing.T) {
 func TestRequestsRawBody_Truncation(t *testing.T) {
 	largeBody := strings.Repeat("y", 150*1024)
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests/req_big/raw_body": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests/req_big/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(largeBody))
 		},
 	})
@@ -929,7 +929,7 @@ func TestRequestsRawBody_Truncation(t *testing.T) {
 
 func TestRequestsEvents_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests/req_001/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests/req_001/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "cus_123", r.URL.Query().Get("delivery_group"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "evt_from_req"}))
 		},
@@ -954,7 +954,7 @@ func TestRequestsEvents_MissingID(t *testing.T) {
 
 func TestRequestsIgnoredEvents_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests/req_001/ignored_events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests/req_001/ignored_events": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "ign_evt_001"}))
 		},
 	})
@@ -982,7 +982,7 @@ func TestRequestsTool_UnknownAction(t *testing.T) {
 
 func TestRequestsList_VerifiedFilter(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "true", r.URL.Query().Get("verified"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_v"}))
 		},
@@ -994,7 +994,7 @@ func TestRequestsList_VerifiedFilter(t *testing.T) {
 
 func TestRequestsList_BodyFilter(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
 			assert.JSONEq(t, `{"event":"test"}`, r.URL.Query().Get("body"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
 		},
@@ -1009,7 +1009,7 @@ func TestRequestsList_BodyFilter(t *testing.T) {
 
 func TestRequestsList_CreatedAtDateRange(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("created_at[gte]"))
 			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("created_at[lte]"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
@@ -1026,7 +1026,7 @@ func TestRequestsList_CreatedAtDateRange(t *testing.T) {
 
 func TestRequestsList_IngestedAtDateRange(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "2026-06-01T00:00:00Z", r.URL.Query().Get("ingested_at[gte]"))
 			assert.Equal(t, "2026-06-09T23:59:59Z", r.URL.Query().Get("ingested_at[lte]"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
@@ -1043,7 +1043,7 @@ func TestRequestsList_IngestedAtDateRange(t *testing.T) {
 
 func TestRequestsList_OrderByAndDir(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/requests": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "created_at", r.URL.Query().Get("order_by"))
 			assert.Equal(t, "desc", r.URL.Query().Get("dir"))
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "req_1"}))
@@ -1064,7 +1064,7 @@ func TestRequestsList_OrderByAndDir(t *testing.T) {
 
 func TestIssuesList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/issues": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/issues": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(map[string]any{"id": "iss_001", "type": "delivery", "status": "OPENED"}))
 		},
 	})
@@ -1076,7 +1076,7 @@ func TestIssuesList_Success(t *testing.T) {
 
 func TestIssuesGet_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/issues/iss_001": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/issues/iss_001": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "iss_001", "type": "delivery"})
 		},
 	})
@@ -1108,7 +1108,7 @@ func TestIssuesTool_UnknownAction(t *testing.T) {
 
 func TestProjectsList_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/projects": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]map[string]any{
 				{"id": "proj_test123", "name": "Production", "type": "console"},
 				{"id": "proj_other", "name": "Staging", "type": "console"},
@@ -1132,7 +1132,7 @@ func TestProjectsList_Success(t *testing.T) {
 
 func TestProjectsList_ForbiddenIncludesReauthHint(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/projects": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
 			json.NewEncoder(w).Encode(map[string]any{"message": "not allowed"})
 		},
@@ -1147,7 +1147,7 @@ func TestProjectsList_ForbiddenIncludesReauthHint(t *testing.T) {
 
 func TestProjectsUse_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/projects": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]map[string]any{
 				{"id": "proj_test123", "name": "Production", "type": "console"},
 				{"id": "proj_new", "name": "Staging", "type": "console"},
@@ -1174,7 +1174,7 @@ func TestProjectsUse_MissingProjectID(t *testing.T) {
 
 func TestProjectsUse_ProjectNotFound(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/projects": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]map[string]any{
 				{"id": "proj_test123", "name": "Production", "type": "console"},
 			})
@@ -1220,7 +1220,7 @@ func TestMetricsTool_MissingMeasures(t *testing.T) {
 
 func TestMetricsEvents_DefaultRoute(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/metrics/events": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/metrics/events": func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "cus_123", r.URL.Query().Get("filters[delivery_group]"))
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{}, "granularity": "1h"})
 		},
@@ -1238,7 +1238,7 @@ func TestMetricsEvents_DefaultRoute(t *testing.T) {
 
 func TestMetricsEvents_QueueDepthRoute(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/metrics/queue-depth": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/metrics/queue-depth": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		},
 	})
@@ -1254,7 +1254,7 @@ func TestMetricsEvents_QueueDepthRoute(t *testing.T) {
 
 func TestMetricsEvents_PendingTimeseriesRoute(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/metrics/events-pending-timeseries": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/metrics/events-pending-timeseries": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		},
 	})
@@ -1271,7 +1271,7 @@ func TestMetricsEvents_PendingTimeseriesRoute(t *testing.T) {
 
 func TestMetricsEvents_ByIssueRoute(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/metrics/events-by-issue": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/metrics/events-by-issue": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		},
 	})
@@ -1288,7 +1288,7 @@ func TestMetricsEvents_ByIssueRoute(t *testing.T) {
 
 func TestMetricsRequests_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/metrics/requests": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/metrics/requests": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		},
 	})
@@ -1304,7 +1304,7 @@ func TestMetricsRequests_Success(t *testing.T) {
 
 func TestMetricsAttempts_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/metrics/attempts": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/metrics/attempts": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		},
 	})
@@ -1320,7 +1320,7 @@ func TestMetricsAttempts_Success(t *testing.T) {
 
 func TestMetricsTransformations_Success(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/metrics/transformations": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/metrics/transformations": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		},
 	})
@@ -1353,7 +1353,7 @@ func TestMetricsTool_UnknownAction(t *testing.T) {
 
 func TestLoginTool_AlreadyAuthenticated(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2026-09-01/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"user_id":           "usr_1",
 				"user_name":         "Test User",
@@ -1376,7 +1376,7 @@ func TestLoginTool_AlreadyAuthenticated(t *testing.T) {
 
 func TestLoginTool_CIScopedKeyStartsLogin(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2026-09-01/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"organization_name": "Org",
 				"organization_id":   "org_1",
@@ -1385,13 +1385,13 @@ func TestLoginTool_CIScopedKeyStartsLogin(t *testing.T) {
 				"team_type":         "event_gateway",
 			})
 		},
-		"/2026-09-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"browser_url": "https://hookdeck.com/auth?code=ci-upgrade",
-				"poll_url":    "http://" + r.Host + "/2026-09-01/cli-auth/poll?key=ci-upgrade",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=ci-upgrade",
 			})
 		},
-		"/2026-09-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
 		},
 	})
@@ -1408,17 +1408,17 @@ func TestLoginTool_CIScopedKeyStartsLogin(t *testing.T) {
 
 func TestLoginTool_UnauthorizedKeyNoScopedPrefix(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2026-09-01/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/validate": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte("Unauthorized"))
 		},
-		"/2026-09-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"browser_url": "https://hookdeck.com/auth?code=revoked",
-				"poll_url":    "http://" + r.Host + "/2026-09-01/cli-auth/poll?key=revoked",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=revoked",
 			})
 		},
-		"/2026-09-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
 		},
 	})
@@ -1434,13 +1434,13 @@ func TestLoginTool_UnauthorizedKeyNoScopedPrefix(t *testing.T) {
 
 func TestLoginTool_ReauthStartsFreshLogin(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2026-09-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"browser_url": "https://hookdeck.com/auth?code=reauth",
-				"poll_url":    "http://" + r.Host + "/2026-09-01/cli-auth/poll?key=reauth",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=reauth",
 			})
 		},
-		"/2026-09-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
 		},
 	})
@@ -1471,14 +1471,14 @@ func TestLoginTool_ReturnsURLImmediately(t *testing.T) {
 	// that never completes (simulates user not yet opening browser).
 	authCalled := false
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2026-09-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
 			authCalled = true
 			json.NewEncoder(w).Encode(map[string]any{
 				"browser_url": "https://hookdeck.com/auth?code=abc123",
-				"poll_url":    "http://" + r.Host + "/2026-09-01/cli-auth/poll?key=abc123",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=abc123",
 			})
 		},
-		"/2026-09-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
 			// Never claimed — user hasn't opened the browser yet.
 			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
 		},
@@ -1509,13 +1509,13 @@ func TestLoginTool_ReturnsURLImmediately(t *testing.T) {
 
 func TestLoginTool_InProgressShowsURL(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2026-09-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"browser_url": "https://hookdeck.com/auth?code=xyz",
-				"poll_url":    "http://" + r.Host + "/2026-09-01/cli-auth/poll?key=xyz",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=xyz",
 			})
 		},
-		"/2026-09-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
 		},
 	})
@@ -1553,13 +1553,13 @@ func TestLoginTool_PollSurvivesAcrossToolCalls(t *testing.T) {
 	// "login cancelled" error instead of "Already authenticated".
 	pollCount := 0
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2026-09-01/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"browser_url": "https://hookdeck.com/auth?code=survive",
-				"poll_url":    "http://" + r.Host + "/2026-09-01/cli-auth/poll?key=survive",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=survive",
 			})
 		},
-		"/2026-09-01/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
 			pollCount++
 			if pollCount >= 2 {
 				// Simulate user completing browser auth on 2nd poll.
@@ -1615,7 +1615,7 @@ func TestLoginTool_PollSurvivesAcrossToolCalls(t *testing.T) {
 
 func TestSourcesList_404Error(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/sources": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/sources": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]any{"message": "workspace not found"})
 		},
@@ -1628,7 +1628,7 @@ func TestSourcesList_404Error(t *testing.T) {
 
 func TestSourcesList_422ValidationError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/sources": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/sources": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			json.NewEncoder(w).Encode(map[string]any{"message": "invalid parameter: limit must be positive"})
 		},
@@ -1641,7 +1641,7 @@ func TestSourcesList_422ValidationError(t *testing.T) {
 
 func TestSourcesList_429RateLimitError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/sources": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/sources": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(w).Encode(map[string]any{"message": "rate limited"})
 		},
@@ -1654,7 +1654,7 @@ func TestSourcesList_429RateLimitError(t *testing.T) {
 
 func TestEventsGet_APIError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/events/evt_nope": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/events/evt_nope": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]any{"message": "event not found"})
 		},
@@ -1822,7 +1822,7 @@ func TestHelpTool_UnknownTopicListsAvailable(t *testing.T) {
 
 func TestDestinationsGet_500ServerError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/destinations/des_fail": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/destinations/des_fail": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]any{"message": "internal server error"})
 		},
@@ -1835,7 +1835,7 @@ func TestDestinationsGet_500ServerError(t *testing.T) {
 
 func TestConnectionsGet_401UnauthorizedError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/connections/web_bad": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/connections/web_bad": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]any{"message": "invalid api key"})
 		},
@@ -1848,7 +1848,7 @@ func TestConnectionsGet_401UnauthorizedError(t *testing.T) {
 
 func TestIssuesList_422ValidationError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/issues": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/issues": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			json.NewEncoder(w).Encode(map[string]any{"message": "invalid filter: bad_field"})
 		},
@@ -1861,7 +1861,7 @@ func TestIssuesList_422ValidationError(t *testing.T) {
 
 func TestAttemptsList_429RateLimitError(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"/2026-09-01/attempts": func(w http.ResponseWriter, r *http.Request) {
+		hookdeck.APIPathPrefix + "/attempts": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(w).Encode(map[string]any{"message": "too many requests"})
 		},
