@@ -29,6 +29,10 @@ Requires --start and --end.
 
 When querying per-issue (e.g. --dimensions issue_id), --issue-id is required.
 
+Each query is answered by a single endpoint, so a request cannot span two of
+them: queue_depth, max_depth, max_age and pending each select their own, and
+none of them can be combined with per-issue (--dimensions issue_id, --issue-id).
+
 Measures: ` + metricsEventsMeasures + `.
 Dimensions: ` + metricsEventsDimensions + `.`),
 		RunE: c.runE,
@@ -67,11 +71,13 @@ func hasDimension(params hookdeck.MetricsQueryParams, name string) bool {
 // queryEventMetricsConsolidated routes to the correct underlying API endpoint
 // based on the requested measures and dimensions.
 func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client, params hookdeck.MetricsQueryParams) (hookdeck.MetricsResponse, error) {
-	// Only one endpoint is called, so measures belonging to different ones
-	// cannot all be answered: the surplus would be dropped or rewritten into a
-	// 422. Refuse the combination by name rather than exit 0 with less data
-	// than was asked for.
-	if err := hookdeck.RejectMixedMeasureRoutes(params.Measures, "--measures"); err != nil {
+	// Only one endpoint is called, so a query that names parts of two routes
+	// cannot be answered in full: the surplus measures would be dropped or
+	// rewritten into a 422, and the conditions below are ordered, so a
+	// queue-depth or pending measure silently shadowed the issue_id dimension
+	// and the --issue-id filter (#407). Refuse the combination by name rather
+	// than exit 0 having answered a different question.
+	if err := hookdeck.RejectCrossRouteEventQuery(params, "--measures", "--dimensions", hookdeck.CLIFilterNames); err != nil {
 		return nil, err
 	}
 	// Route based on measures/dimensions:

@@ -103,9 +103,12 @@ func (dc *destinationCreateCmd) runDestinationCreateCmd(cmd *cobra.Command, args
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	// Sync url/cliPath into flags for buildDestinationConfigFromIndividualFlags when not using --config
+	// Sync url/cliPath into flags for buildDestinationConfigFromIndividualFlags
+	// when not using --config. --cli-path carries a "/" default on create, so it
+	// goes through cliPathFromFlags: an unset flag must not read as a path the
+	// user asked for, or every HTTP create would look like it named one.
 	dc.destinationConfigFlags.URL = dc.url
-	dc.destinationConfigFlags.CliPath = dc.cliPath
+	dc.destinationConfigFlags.CliPath = cliPathFromFlags(cmd, dc.cliPath)
 
 	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
 	if err != nil {

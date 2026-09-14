@@ -1951,6 +1951,8 @@ Passing one where it does not apply is an `unknown flag` error rather than a sil
 
 `metrics events` routes to a different endpoint depending on `--measures` and `--dimensions`, so some of its filters are rejected for a given query — `--delivery-group` and `--status` cannot be combined with `--measures pending`, for example. The error names the flag and the route.
 
+Only one endpoint answers a query, so a request cannot ask for two of them at once. `queue_depth`, `max_depth` and `max_age` select queue-depth metrics and `pending` selects pending metrics; neither can be combined with per-issue metrics (`--dimensions issue_id` or `--issue-id`), and measures belonging to two routes cannot be mixed in one `--measures`. Each combination is refused by name rather than answered from whichever route happened to match first.
+
 ## Utilities
 
 <!-- GENERATE:completion|ci:START -->

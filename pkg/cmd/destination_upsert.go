@@ -145,8 +145,9 @@ func (dc *destinationUpsertCmd) buildUpsertRequest(ctx context.Context, client *
 	dc.destinationConfigFlags.URL = dc.url
 	dc.destinationConfigFlags.CliPath = dc.cliPath
 
-	// The stored destination answers two separate questions below: what type it
-	// is, so the CLI delivery-policy guard can run when --type is omitted, and
+	// The stored destination answers two questions below: what type it is, which
+	// decides how every type-dependent flag is read when --type is omitted — the
+	// delivery-policy guard and the --url/--cli-path config fields alike — and
 	// what delivery-group overrides it holds, so a bare groups object does not
 	// destroy them. Fetch it at most once, and only when it is needed.
 	var (
@@ -165,14 +166,11 @@ func (dc *destinationUpsertCmd) buildUpsertRequest(ctx context.Context, client *
 		return found, nil
 	}
 
-	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
-	if err != nil {
-		return nil, err
-	}
-
-	// --type is normally omitted on upsert, so the delivery-policy guard has to
-	// resolve the stored type or it never fires for the common invocation.
-	policyType, err := destinationTypeForPolicyCheck(
+	// --type is normally omitted on upsert, so the stored type has to be
+	// resolved before the config is built or nothing that depends on it works:
+	// the delivery-policy guard never fires, and --url and --cli-path are left
+	// out of the request body entirely (#406).
+	resolvedType, err := resolveDestinationType(
 		dc.destType,
 		dc.config != "" || dc.configFile != "",
 		&dc.destinationConfigFlags,
@@ -181,18 +179,25 @@ func (dc *destinationUpsertCmd) buildUpsertRequest(ctx context.Context, client *
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectDeliveryPolicyInConfigForCLI(policyType, config, ""); err != nil {
+
+	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, resolvedType, &dc.destinationConfigFlags)
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectDeliveryPolicyInConfigForCLI(resolvedType, config, ""); err != nil {
 		return nil, err
 	}
 
-	t := strings.ToUpper(dc.destType)
+	// Overlay for the --config path, where the config JSON was returned verbatim
+	// and the individual flag still has to win.
+	rt := strings.ToUpper(resolvedType)
 	if config == nil {
 		config = make(map[string]interface{})
 	}
-	if t == "HTTP" && dc.url != "" {
+	if rt == "HTTP" && dc.url != "" {
 		config["url"] = dc.url
 	}
-	if t == "CLI" {
+	if rt == "CLI" {
 		applyCLIPath(config, dc.cliPath, false)
 	}
 
@@ -202,8 +207,14 @@ func (dc *destinationUpsertCmd) buildUpsertRequest(ctx context.Context, client *
 	if dc.description != "" {
 		req.Description = &dc.description
 	}
-	if t != "" {
-		req.Type = t
+	// The resolved type goes on the request as well. This is a PUT against the
+	// collection, so a body carrying a config needs to say what kind of
+	// destination it is — and applyStoredDestinationConfig already adopts the
+	// stored type on the path where no config is sent at all. Resolving it never
+	// changes the type: it is either the one the user passed or the one the
+	// destination already has.
+	if rt != "" {
+		req.Type = rt
 	}
 	if len(config) > 0 {
 		req.Config = config

@@ -281,26 +281,112 @@ func (f *destinationConfigFlags) hasAnyDeliveryPolicyFlag() bool {
 		f.DeliveryGroupRate != 0 || f.DeliveryGroupRatePeriod != "" || f.DeliveryGroupOverrides != ""
 }
 
-// destinationTypeForPolicyCheck resolves the type that rejectDeliveryPolicyForCLI
-// has to be applied to.
+// typeSpecificDestinationFlags are the flags whose meaning depends on the
+// destination type: buildDestinationConfigFromIndividualFlags reads each one
+// only under the type whose config actually has that field. A value given for
+// any other type is dropped from the request and the command still reports
+// success, which is how --url went missing on a typeless update (#406).
+var typeSpecificDestinationFlags = []struct {
+	name      string
+	appliesTo string
+	given     func(*destinationConfigFlags) bool
+}{
+	{"url", "HTTP", func(f *destinationConfigFlags) bool { return f.URL != "" }},
+	{"http-method", "HTTP", func(f *destinationConfigFlags) bool { return f.HTTPMethod != "" }},
+	{"path-forwarding-disabled", "HTTP", func(f *destinationConfigFlags) bool { return f.PathForwardingDisabled != nil }},
+	{"cli-path", "CLI", func(f *destinationConfigFlags) bool { return f.CliPath != "" }},
+}
+
+// hasAnyTypeSpecificFlag reports whether a flag was given that only one
+// destination type has a field for.
+func (f *destinationConfigFlags) hasAnyTypeSpecificFlag() bool {
+	if f == nil {
+		return false
+	}
+	for _, flag := range typeSpecificDestinationFlags {
+		if flag.given(f) {
+			return true
+		}
+	}
+	return false
+}
+
+// needsResolvedType reports whether any given flag is one whose handling depends
+// on the destination type, and so whether resolving the stored type is worth an
+// API call. Both kinds count: the delivery-policy flags, which are refused on a
+// CLI destination, and the type-specific flags, which are only read under their
+// own type.
+func (f *destinationConfigFlags) needsResolvedType() bool {
+	return f.hasAnyDeliveryPolicyFlag() || f.hasAnyTypeSpecificFlag()
+}
+
+// destinationTypeIsKnown reports whether this is a type the CLI builds config
+// for. An unknown non-empty type is reported by the config builder itself,
+// which names the supported set.
+func destinationTypeIsKnown(destType string) bool {
+	switch strings.ToUpper(destType) {
+	case "HTTP", "CLI", "MOCK_API":
+		return true
+	}
+	return false
+}
+
+// rejectTypeSpecificFlagsForOtherTypes refuses a type-specific flag that the
+// type in hand has no field for, including the case where the type is not known
+// at all. Silence was the old behaviour in both directions: the value was left
+// out of the request body and the command exited 0 (#406).
+func rejectTypeSpecificFlagsForOtherTypes(destType string, f *destinationConfigFlags) error {
+	if f == nil {
+		return nil
+	}
+	t := strings.ToUpper(destType)
+	if t != "" && !destinationTypeIsKnown(t) {
+		return nil
+	}
+	for _, flag := range typeSpecificDestinationFlags {
+		if !flag.given(f) {
+			continue
+		}
+		if t == "" {
+			// Only reachable when there is no stored destination to resolve the
+			// type from — an upsert that is really a create.
+			return fmt.Errorf("--%s cannot be applied without a destination type: pass --type (HTTP, CLI, MOCK_API)", flag.name)
+		}
+		if t != flag.appliesTo {
+			return fmt.Errorf("--%s applies to %s destinations, and this destination is %s; the API would drop it", flag.name, flag.appliesTo, t)
+		}
+	}
+	return nil
+}
+
+// resolveDestinationType resolves the destination type that the config flags
+// have to be interpreted against.
 //
-// `destination update` and `destination upsert` normally omit --type, so the
-// flag alone is "" and the guard passed: rate-limit and delivery-group flags
-// then reached a stored CLI destination, where the API accepts the request and
-// discards the policy. Resolving the stored type is preferred over refusing the
-// command, because the type the user omitted is already knowable and every one
-// of these commands is addressing a destination the API can name.
+// `destination update` and `destination upsert` normally omit --type, and two
+// separate things went wrong because of it. The delivery-policy guard compared
+// against "" and passed, so rate-limit and delivery-group flags reached a stored
+// CLI destination where the API accepts the request and discards the policy
+// (#392). And config building switches on the type, so --url and --cli-path
+// were never copied into the request body at all, and the command still exited
+// 0 (#406).
+//
+// Resolving the stored type is preferred over refusing the command, because the
+// type the user omitted is already knowable and every one of these commands is
+// addressing a destination the API can name. It is deliberately not conditioned
+// on which kind of flag was given: resolving only for the policy flags would
+// have made --url start working when a rate-limit flag happened to be present
+// too, which is a worse contract than failing uniformly.
 //
 // lookup returns the stored destination, or (nil, nil) when there is none —
 // an upsert that is really a create, where a typeless request is the API's to
 // reject. It is only called when the answer can change the outcome.
-func destinationTypeForPolicyCheck(declaredType string, usesConfigJSON bool, flags *destinationConfigFlags, lookup func() (*hookdeck.Destination, error)) (string, error) {
-	if declaredType != "" || usesConfigJSON || !flags.hasAnyDeliveryPolicyFlag() {
+func resolveDestinationType(declaredType string, usesConfigJSON bool, flags *destinationConfigFlags, lookup func() (*hookdeck.Destination, error)) (string, error) {
+	if declaredType != "" || usesConfigJSON || !flags.needsResolvedType() {
 		return declaredType, nil
 	}
 	existing, err := lookup()
 	if err != nil {
-		return "", fmt.Errorf("failed to look up the destination to check whether --rate-limit and --delivery-group-* apply to it: %w", err)
+		return "", fmt.Errorf("failed to look up the destination to resolve the type its config flags apply to: %w", err)
 	}
 	if existing == nil {
 		return declaredType, nil
@@ -326,7 +412,7 @@ func fetchDestinationByName(ctx context.Context, client *hookdeck.Client, name s
 // CLI destinations carry no delivery_policy in the API schema: the request is
 // accepted and the policy discarded, so without this the flags look applied and
 // never take effect. destType must be the resolved type, not the raw --type flag
-// — see destinationTypeForPolicyCheck.
+// — see resolveDestinationType.
 func rejectDeliveryPolicyForCLI(destType string, policy map[string]interface{}, flagPrefix string) error {
 	if len(policy) == 0 || strings.ToUpper(destType) != "CLI" {
 		return nil
@@ -451,6 +537,12 @@ func buildDestinationConfigFromIndividualFlags(destType string, f *destinationCo
 	}
 	mergeDeliveryPolicy(config, policy)
 
+	// A flag belonging to another type would otherwise be dropped by the switch
+	// below without a word.
+	if err := rejectTypeSpecificFlagsForOtherTypes(destType, f); err != nil {
+		return nil, err
+	}
+
 	switch strings.ToUpper(destType) {
 	case "HTTP":
 		if f.URL != "" {
@@ -474,6 +566,10 @@ func buildDestinationConfigFromIndividualFlags(destType string, f *destinationCo
 	case "MOCK_API":
 		// no extra fields
 	default:
+		// An empty type stays tolerated here, because auth and delivery-policy
+		// flags mean the same thing whatever the type and a typeless build is a
+		// legitimate request for them. What cannot be tolerated is a type-
+		// specific flag with no type to apply it to, and that is refused above.
 		if destType != "" {
 			return nil, fmt.Errorf("unsupported destination type: %s (supported: HTTP, CLI, MOCK_API)", destType)
 		}

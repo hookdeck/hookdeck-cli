@@ -128,6 +128,7 @@ const (
 	EventRouteDefault    = "event metrics"
 	EventRouteQueueDepth = "queue depth metrics"
 	EventRoutePending    = "pending event metrics"
+	EventRouteByIssue    = "per-issue event metrics"
 )
 
 // eventMeasureRoutes maps every measure `metrics events` advertises onto the API
@@ -152,6 +153,25 @@ var eventMeasureRoutes = map[string]string{
 	"max_age":     EventRouteQueueDepth,
 
 	"pending": EventRoutePending,
+}
+
+// eventDimensionRoutes maps a dimension onto the endpoint it selects. Only
+// issue_id selects a route of its own; every other dimension is grouped by
+// whichever endpoint the measures choose.
+var eventDimensionRoutes = map[string]string{
+	"issue_id": EventRouteByIssue,
+}
+
+// firstRoutedMeasure returns the first measure that selects an endpoint, and the
+// endpoint it selects. ("", "") means the measures do not decide the route — the
+// request falls through to whatever the dimensions select, or to the default.
+func firstRoutedMeasure(measures []string) (string, string) {
+	for _, m := range measures {
+		if route, ok := eventMeasureRoutes[m]; ok {
+			return m, route
+		}
+	}
+	return "", ""
 }
 
 // RejectMixedMeasureRoutes refuses a measure list that spans more than one
@@ -179,6 +199,56 @@ func RejectMixedMeasureRoutes(measures []string, measuresName string) error {
 			return fmt.Errorf("%s cannot mix %q (%s) with %q (%s): these are separate API endpoints, so ask for one route's measures at a time",
 				measuresName, firstMeasure, firstRoute, m, route)
 		}
+	}
+	return nil
+}
+
+// RejectCrossRouteEventQuery refuses an events query whose parts select more
+// than one API endpoint.
+//
+// `metrics events` fans out over four endpoints and calls exactly one of them,
+// choosing it from the measures, then the issue_id dimension, then the issue
+// filter. First match wins, so a request naming parts of two routes is answered
+// from one of them and the rest of the question is dropped without a word: a
+// queue-depth measure shadowed the issue_id dimension entirely (#407), and
+// "pending" shadows it the same way. One route's numbers returned under another
+// route's question are worse than no answer, so name both routes and refuse.
+//
+// It subsumes RejectMixedMeasureRoutes, which is the same rule applied within
+// the measure list. Callers should use this and not both.
+//
+// measuresName and dimensionsName are the caller's own spellings of the
+// arguments, and names supplies the same for the filters, so a CLI user reads
+// "--measures" and an MCP client reads "measures".
+func RejectCrossRouteEventQuery(params MetricsQueryParams, measuresName, dimensionsName string, names MetricsFilterNames) error {
+	if err := RejectMixedMeasureRoutes(params.Measures, measuresName); err != nil {
+		return err
+	}
+
+	measure, measureRoute := firstRoutedMeasure(params.Measures)
+	// The default route is the one every dimension refines rather than
+	// contradicts: `--measures count --dimensions issue_id` is a per-issue count,
+	// which is exactly what the by-issue endpoint answers.
+	if measureRoute == "" || measureRoute == EventRouteDefault {
+		return nil
+	}
+
+	conflict := func(selector, route string) error {
+		return fmt.Errorf("%s %q (%s) cannot be combined with %s (%s): these are separate API endpoints, so ask for one route at a time",
+			measuresName, measure, measureRoute, selector, route)
+	}
+
+	for _, d := range params.Dimensions {
+		route, selects := eventDimensionRoutes[d]
+		if selects && route != measureRoute {
+			return conflict(fmt.Sprintf("%s %q", dimensionsName, d), route)
+		}
+	}
+	// The filter selects the by-issue route on its own, so it conflicts on its
+	// own too — and saying which two routes were asked for is more use than
+	// reporting it as a filter the endpoint happens to ignore.
+	if params.IssueID != "" && measureRoute != EventRouteByIssue {
+		return conflict(names.IssueID, EventRouteByIssue)
 	}
 	return nil
 }
