@@ -37,6 +37,25 @@ var ErrRejectedKeyNoTerminal = errors.New(
 		"or use hookdeck ci --api-key with a project API key",
 )
 
+// ErrNoCredentialsNoTerminal is returned when nothing is saved to sign in with
+// and there is no terminal to complete browser sign-in with. It names the ways
+// in that need no terminal, because the only other advice - "run it in a
+// terminal" - is no help to the CI job, container or agent that hit this.
+var ErrNoCredentialsNoTerminal = errors.New(
+	"no saved credentials, and browser sign-in needs an interactive terminal; " +
+		"use hookdeck ci --api-key with a project API key, " +
+		"hookdeck login --cli-key with a CLI key, " +
+		"or set HOOKDECK_API_KEY to a project API key",
+)
+
+// browserSignInNeedsStdin reports whether waitForLoginSession would take the
+// branch that prompts for Enter and opens a browser. Its other branch prints
+// the URL and polls without reading stdin, which works headlessly and must not
+// be blocked.
+func browserSignInNeedsStdin() bool {
+	return !isSSH() && canOpenBrowser()
+}
+
 const guestUpgradePollInterval = 2 * time.Second
 const guestUpgradeMaxAttempts = 2 * 60
 
@@ -57,10 +76,8 @@ func Login(config *configpkg.Config, input io.Reader) error {
 				return err
 			}
 			// Refuse only where the flow would have to read stdin, mirroring the
-			// branch in waitForLoginSession. Its other branch prints the URL and
-			// polls without stdin, which works headlessly and must not be blocked.
-			needsStdin := !isSSH() && canOpenBrowser()
-			if !stdinIsTerminal() && needsStdin {
+			// branch in waitForLoginSession.
+			if !stdinIsTerminal() && browserSignInNeedsStdin() {
 				return ErrRejectedKeyNoTerminal
 			}
 			// Must clear the key first or we would re-enter this branch only.
@@ -96,6 +113,15 @@ func Login(config *configpkg.Config, input io.Reader) error {
 		}
 	}
 
+	// Same guard, for the path that never had a key to reject. An empty config
+	// skipped the block above entirely and arrived here, where waitForLoginSession
+	// prompted for Enter, read EOF from /dev/null instantly, opened a browser
+	// window on somebody's desktop and then polled forever. Refuse before
+	// StartLogin so no session is created for a sign-in nobody can complete.
+	if !stdinIsTerminal() && browserSignInNeedsStdin() {
+		return ErrNoCredentialsNoTerminal
+	}
+
 	parsedBaseURL, err := url.Parse(config.APIBaseURL)
 	if err != nil {
 		return err
@@ -122,7 +148,9 @@ func waitForLoginSession(config *configpkg.Config, input io.Reader, session *hoo
 
 		s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 	} else {
-		fmt.Printf("Press Enter to open the browser (^C to quit)")
+		// Reached only with a terminal on stdin (Login refuses otherwise), so
+		// there is someone to press Enter and a terminal to deliver ^C to.
+		fmt.Println("Press Enter to open the browser (^C to quit)")
 		fmt.Fscanln(input)
 
 		s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
