@@ -349,64 +349,38 @@ func TestProjectListFailsWithCIKeyAcceptance(t *testing.T) {
 	assert.Contains(t, combined, "single project")
 }
 
-// TestProjectListAgainstRealAPI covers GET /projects with the credential the CLI
-// actually carries. Everything else on this path is an httptest mock this repo
-// also writes, so nothing verified that the endpoint exists, that it authorizes
-// a CLI key, or that its response still parses.
+// TestProjectListRequiresAccountWideCLIKey pins the credential restriction on
+// GET /projects, which is the thing about this endpoint most likely to surprise
+// someone.
 //
-// It is worth being explicit about the credential: the acceptance runner
-// bootstraps with a project API key, but `hookdeck ci` exchanges that at
-// /cli-auth/ci for a CLI client key, and that is what ends up in the config and
-// on the wire. So this exercises the CLI-key path a real user has, not the
-// project-API-key path. ListProjects also drops the project scoping header
-// (clientForCLIAuthValidate), which is only observable against the real API.
+// There are two kinds of CLI key. `hookdeck login` issues an account-wide key
+// bound to a user, and that can list projects. `hookdeck ci --api-key` issues a
+// project-scoped key with no user, and core rejects it:
 //
-// The endpoint moved from /teams to /projects in 2026-09-01 and the type field
-// was renamed twice during that release, so this is the regression guard for
-// both.
-func TestProjectListAgainstRealAPI(t *testing.T) {
+//	if (!req.context.user?.id) { throw new APICLIProjectScopedError() }   // 403
+//
+// The acceptance runner authenticates with `ci`, so it holds the project-scoped
+// kind - which is the real reason the project-listing tests live behind
+// //go:build manual, rather than the browser login flow.
+//
+// This is not new in 2026-09-01: the guard landed for GET /teams in core
+// 90e38ee395 and the /projects rename inherited it. Asserting it here means a
+// change in that rule surfaces as a test failure rather than as a support
+// ticket, and it checks the guidance actually reaches the user rather than
+// being swallowed.
+func TestProjectListRequiresAccountWideCLIKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 
 	cli := NewCLIRunner(t)
 
-	t.Run("lists projects with a CLI key", func(t *testing.T) {
-		stdout := cli.RunExpectSuccess("project", "list")
-		require.NotEmpty(t, stdout, "the CLI key must be authorized for GET /projects")
-		// Each line is "Org / Project | Type"; the type is the display label.
-		assert.Regexp(t, `\| (Gateway|Outpost|Console)`, stdout,
-			"projects should carry a recognized type label")
-	})
+	stdout, stderr, err := cli.Run("project", "list")
+	require.Error(t, err, "a project-scoped ci credential must not be able to list projects")
 
-	t.Run("json output keeps the documented type values", func(t *testing.T) {
-		stdout := cli.RunExpectSuccess("project", "list", "--output", "json")
-
-		var items []struct {
-			Id   string `json:"id"`
-			Type string `json:"type"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(stdout), &items))
-		require.NotEmpty(t, items)
-
-		for _, it := range items {
-			assert.NotEmpty(t, it.Id)
-			// gateway, not event_gateway: this is the user-facing vocabulary and
-			// predates the API rename, so it must not follow it.
-			assert.Contains(t, []string{"gateway", "outpost", "console"}, it.Type,
-				"project %s reported type %q", it.Id, it.Type)
-		}
-	})
-
-	t.Run("type filter matches the json vocabulary", func(t *testing.T) {
-		stdout := cli.RunExpectSuccess("project", "list", "--type", "gateway", "--output", "json")
-
-		var items []struct {
-			Type string `json:"type"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(stdout), &items))
-		for _, it := range items {
-			assert.Equal(t, "gateway", it.Type)
-		}
-	})
+	combined := stdout + stderr
+	assert.Contains(t, combined, "scoped to a single project",
+		"the user needs to be told why, not just that it failed")
+	assert.Contains(t, combined, "hookdeck login",
+		"the message should name the command that fixes it")
 }
