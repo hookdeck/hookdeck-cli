@@ -91,7 +91,7 @@ type Config struct {
 	APIBaseURL       string
 	DashboardBaseURL string
 	ConsoleBaseURL   string
-	ProjectMode      string
+	ProjectType      string
 	ProjectID        string
 	GuestURL         string
 	TargetURL        *url.URL

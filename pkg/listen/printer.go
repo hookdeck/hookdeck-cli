@@ -81,8 +81,8 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 	if guestURL != "" {
 		fmt.Printf("💡 Sign up to make your webhook URL permanent: %s\n", guestURL)
 	} else {
-		url := links.DashboardHome(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectMode, projectID)
-		displayURL := links.DashboardHomeDisplay(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectMode)
+		url := links.DashboardHome(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType, projectID)
+		displayURL := links.DashboardHomeDisplay(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType)
 		// Create clickable link with OSC 8 hyperlink sequence
 		// Format: \033]8;;URL\033\\DISPLAY_TEXT\033]8;;\033\\
 		fmt.Printf("💡 Open dashboard to inspect, retry & bookmark events: \033]8;;%s\033\\%s\033]8;;\033\\\n", url, displayURL)

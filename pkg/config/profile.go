@@ -5,9 +5,13 @@ import (
 )
 
 type Profile struct {
-	Name        string // profile name
-	APIKey      string
-	ProjectId   string
+	Name      string // profile name
+	APIKey    string
+	ProjectId string
+	// ProjectMode is the pre-2026-09-01 vocabulary (inbound, outbound, console,
+	// outpost). It is kept only so a CLI older than this one, reading the same
+	// config file, still resolves a project. Nothing in this codebase should
+	// reason about a project in terms of mode - use ProjectType.
 	ProjectMode string
 	ProjectType string // display type: Gateway, Outpost, Console
 	GuestURL    string // URL to create permanent account for guest users

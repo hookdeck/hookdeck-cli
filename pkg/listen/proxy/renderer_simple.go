@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
@@ -136,7 +137,7 @@ func (r *SimpleRenderer) OnEventComplete(eventID string, attempt *websocket.Atte
 
 	// Build display URL
 	var displayURL string
-	if r.cfg.ProjectMode == "console" {
+	if r.cfg.ProjectType == config.ProjectTypeConsole {
 		displayURL = r.cfg.ConsoleBaseURL + "/?event_id=" + eventID
 	} else {
 		displayURL = r.cfg.DashboardBaseURL + "/events/" + eventID

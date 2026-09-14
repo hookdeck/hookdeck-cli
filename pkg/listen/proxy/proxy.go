@@ -38,7 +38,7 @@ type Config struct {
 	// Key is the API key used to authenticate with Hookdeck
 	Key              string
 	ProjectID        string
-	ProjectMode      string
+	ProjectType      string
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string

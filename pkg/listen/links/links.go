@@ -6,8 +6,8 @@ package links
 // DashboardHome returns the dashboard (or console) events link for the
 // session, omitting the team_id parameter when the project id is unknown so
 // links never render with an empty value.
-func DashboardHome(dashboardBaseURL, consoleBaseURL, projectMode, projectID string) string {
-	if projectMode == "console" {
+func DashboardHome(dashboardBaseURL, consoleBaseURL, projectType, projectID string) string {
+	if projectType == "console" {
 		if projectID == "" {
 			return consoleBaseURL
 		}
@@ -21,8 +21,8 @@ func DashboardHome(dashboardBaseURL, consoleBaseURL, projectMode, projectID stri
 
 // DashboardHomeDisplay returns the display text for the DashboardHome link:
 // the same destination without the team_id query parameter.
-func DashboardHomeDisplay(dashboardBaseURL, consoleBaseURL, projectMode string) string {
-	if projectMode == "console" {
+func DashboardHomeDisplay(dashboardBaseURL, consoleBaseURL, projectType string) string {
+	if projectType == "console" {
 		return consoleBaseURL
 	}
 	return dashboardBaseURL + "/events/cli"
@@ -30,8 +30,8 @@ func DashboardHomeDisplay(dashboardBaseURL, consoleBaseURL, projectMode string) 
 
 // Event returns the dashboard (or console) deep-link for a single event,
 // omitting the team_id parameter when the project id is unknown.
-func Event(dashboardBaseURL, consoleBaseURL, projectMode, projectID, eventID string) string {
-	if projectMode == "console" {
+func Event(dashboardBaseURL, consoleBaseURL, projectType, projectID, eventID string) string {
+	if projectType == "console" {
 		url := consoleBaseURL + "/?event_id=" + eventID
 		if projectID != "" {
 			url += "&team_id=" + projectID
