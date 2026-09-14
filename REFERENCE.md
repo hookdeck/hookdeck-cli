@@ -1934,9 +1934,22 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 | Events grouped by issue (debugging) | `hookdeck gateway metrics events-by-issue iss_xxx --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count` |
 | Transformation errors | `hookdeck gateway metrics transformations --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,failed_count,error_rate` |
 
-**Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--source-id`, `--destination-id`, `--connection-id`, `--status`, `--output` (json).
+**Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--output` (json).
 
-`--delivery-group` filters by delivery group on `metrics events` and `metrics attempts` only. The requests and transformations endpoints do not accept it, so the flag is not offered there, and it cannot be combined with `--measures pending` or per-issue metrics.
+**Filter flags differ per subcommand**, because each metrics endpoint accepts a different set. A filter is only offered where the endpoint honours it:
+
+| Filter | events | requests | attempts | transformations |
+| --- | --- | --- | --- | --- |
+| `--source-id` | yes | yes | — | — |
+| `--destination-id` | yes | — | yes | — |
+| `--connection-id` | yes | — | — | yes |
+| `--status` | yes | yes | yes | — |
+| `--issue-id` | yes | — | — | yes |
+| `--delivery-group` | yes | — | yes | — |
+
+Passing one where it does not apply is an `unknown flag` error rather than a silently ignored filter: the API drops filters it does not recognise and answers with unfiltered totals, which would otherwise look like a filtered result.
+
+`metrics events` routes to a different endpoint depending on `--measures` and `--dimensions`, so some of its filters are rejected for a given query — `--delivery-group` and `--status` cannot be combined with `--measures pending`, for example. The error names the flag and the route.
 
 ## Utilities
 
