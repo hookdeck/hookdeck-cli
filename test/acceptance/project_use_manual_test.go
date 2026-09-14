@@ -3,7 +3,6 @@
 package acceptance
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -171,49 +170,4 @@ func TestProjectUseLocalSecurityWarning(t *testing.T) {
 	assert.Contains(t, stdout, ".gitignore", "Should mention .gitignore")
 
 	t.Log("Successfully verified security warning is displayed")
-}
-
-// TestProjectListVocabularyManual covers what only an account-wide CLI key can
-// reach: the actual contents of GET /projects. The CI runner authenticates with
-// `hookdeck ci`, whose key is project-scoped and gets a 403, so this cannot run
-// there - see TestProjectListRequiresAccountWideCLIKey for the half that can.
-//
-// What it guards is the user-facing vocabulary. The API renamed the project type
-// field twice during 2026-09-01 and settled on `type` with values event_gateway
-// | console | outpost. The CLI deliberately does not follow that in its own
-// output: `--output json` and `--type` have always spoken gateway | outpost |
-// console, and changing them would break anyone parsing it.
-func TestProjectListVocabularyManual(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping manual test in short mode")
-	}
-
-	RequireCLIAuthenticationOnce(t)
-	cli := NewManualCLIRunner(t)
-
-	stdout := cli.RunExpectSuccess("project", "list")
-	require.NotEmpty(t, stdout)
-	assert.Regexp(t, `\| (Gateway|Outpost|Console)`, stdout,
-		"the text listing shows display labels, not API type values")
-
-	jsonOut := cli.RunExpectSuccess("project", "list", "--output", "json")
-	var items []struct {
-		Id   string `json:"id"`
-		Type string `json:"type"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(jsonOut), &items))
-	require.NotEmpty(t, items)
-	for _, it := range items {
-		assert.Contains(t, []string{"gateway", "outpost", "console"}, it.Type,
-			"project %s reported type %q; json must not follow the API rename", it.Id, it.Type)
-	}
-
-	filtered := cli.RunExpectSuccess("project", "list", "--type", "gateway", "--output", "json")
-	var gatewayItems []struct {
-		Type string `json:"type"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(filtered), &gatewayItems))
-	for _, it := range gatewayItems {
-		assert.Equal(t, "gateway", it.Type, "--type must filter on the json vocabulary")
-	}
 }

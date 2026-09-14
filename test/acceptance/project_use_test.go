@@ -347,40 +347,11 @@ func TestProjectListFailsWithCIKeyAcceptance(t *testing.T) {
 	assert.NotContains(t, combined, "Fatal Error")
 	assert.NotContains(t, combined, "status=500")
 	assert.Contains(t, combined, "single project")
-}
-
-// TestProjectListRequiresAccountWideCLIKey pins the credential restriction on
-// GET /projects, which is the thing about this endpoint most likely to surprise
-// someone.
-//
-// There are two kinds of CLI key. `hookdeck login` issues an account-wide key
-// bound to a user, and that can list projects. `hookdeck ci --api-key` issues a
-// project-scoped key with no user, and core rejects it:
-//
-//	if (!req.context.user?.id) { throw new APICLIProjectScopedError() }   // 403
-//
-// The acceptance runner authenticates with `ci`, so it holds the project-scoped
-// kind - which is the real reason the project-listing tests live behind
-// //go:build manual, rather than the browser login flow.
-//
-// This is not new in 2026-09-01: the guard landed for GET /teams in core
-// 90e38ee395 and the /projects rename inherited it. Asserting it here means a
-// change in that rule surfaces as a test failure rather than as a support
-// ticket, and it checks the guidance actually reaches the user rather than
-// being swallowed.
-func TestProjectListRequiresAccountWideCLIKey(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-
-	cli := NewCLIRunner(t)
-
-	stdout, stderr, err := cli.Run("project", "list")
-	require.Error(t, err, "a project-scoped ci credential must not be able to list projects")
-
-	combined := stdout + stderr
-	assert.Contains(t, combined, "scoped to a single project",
-		"the user needs to be told why, not just that it failed")
+	// The reason alone is not actionable: the message has to name the command
+	// that fixes it, because the two kinds of CLI key are not visible to the
+	// user otherwise. `hookdeck ci` issues a project-scoped key with no user and
+	// core rejects it for this endpoint; `hookdeck login` issues an account-wide
+	// one that works.
 	assert.Contains(t, combined, "hookdeck login",
-		"the message should name the command that fixes it")
+		"the error should tell the user how to get an account-wide key")
 }
