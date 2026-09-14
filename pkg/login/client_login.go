@@ -1,6 +1,7 @@
 package login
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -26,6 +27,17 @@ var stdinIsTerminal = func() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
+// ErrRejectedKeyNoTerminal is returned when the key the CLI was given is
+// rejected and there is no terminal to complete browser sign-in with. The key
+// being wrong is the useful part: "invalid or expired" is not necessarily true -
+// a project API key is valid but not accepted by the CLI auth endpoints, and an
+// org API key is not accepted at all.
+var ErrRejectedKeyNoTerminal = errors.New(
+	"the API key was rejected, and browser sign-in needs an interactive terminal; " +
+		"check the key is a CLI key from hookdeck login rather than a project or organization API key, " +
+		"or use hookdeck ci --api-key with a project API key",
+)
+
 const guestUpgradePollInterval = 2 * time.Second
 const guestUpgradeMaxAttempts = 2 * 60
 
@@ -45,8 +57,16 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			if !hookdeck.IsUnauthorizedError(err) {
 				return err
 			}
-			// Rejected key: continue into browser login below (must clear key first
-			// or we would re-enter this branch only).
+			// Rejected key. Browser sign-in needs someone to press Enter and then
+			// complete a flow in a browser, so without a terminal it cannot
+			// succeed - it walks past the prompt, polls for a confirmation that
+			// can never arrive, and gives up minutes later. Fail now and say why.
+			// The project-scoped branch below already does this; this one did not,
+			// which is how CI spent 248 seconds on a mistyped key.
+			if !stdinIsTerminal() {
+				return ErrRejectedKeyNoTerminal
+			}
+			// Must clear the key first or we would re-enter this branch only.
 			fmt.Fprintln(os.Stdout, "Your saved API key is no longer valid. Starting browser sign-in...")
 			config.Profile.APIKey = ""
 		} else if response.UserID != "" {

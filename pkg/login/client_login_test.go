@@ -53,6 +53,14 @@ func TestLogin_unauthorizedValidateStartsBrowserFlow(t *testing.T) {
 	configpkg.ResetAPIClientForTesting()
 	t.Cleanup(configpkg.ResetAPIClientForTesting)
 
+	// Browser sign-in is only reachable with a terminal, so say so explicitly.
+	// This test used to pass without stubbing it, because a rejected key fell
+	// into the browser flow whether or not anyone could complete it - see
+	// TestLogin_rejectedKeyHeadlessFailsFast, which covers the other side.
+	oldStdinIsTerminal := stdinIsTerminal
+	stdinIsTerminal = func() bool { return true }
+	t.Cleanup(func() { stdinIsTerminal = oldStdinIsTerminal })
+
 	oldCan := canOpenBrowser
 	oldOpen := openBrowser
 	canOpenBrowser = func() bool { return false }
@@ -334,4 +342,59 @@ api_key = "hk_test_cikey_abcdefghij"
 	require.True(t, sawCLIAuthPost)
 	require.Equal(t, 1, pollHits)
 	require.Equal(t, "hk_test_userkey_abcdefghij", cfg.Profile.APIKey)
+}
+
+// TestLogin_rejectedKeyHeadlessFailsFast covers the other way into browser
+// sign-in. TestLogin_ciKeyHeadlessFailsFast covers a key that is valid but
+// project-scoped; this covers one the API rejects outright.
+//
+// Without the guard, login announced "Starting browser sign-in...", walked past
+// the Enter prompt because there is no terminal to read from, and then polled
+// for a confirmation that could never arrive. CI spent 248 seconds on a mistyped
+// key before giving up. The failure is instant and says what to check.
+func TestLogin_rejectedKeyHeadlessFailsFast(t *testing.T) {
+	configpkg.ResetAPIClientForTesting()
+	t.Cleanup(configpkg.ResetAPIClientForTesting)
+
+	oldStdinIsTerminal := stdinIsTerminal
+	stdinIsTerminal = func() bool { return false }
+	t.Cleanup(func() { stdinIsTerminal = oldStdinIsTerminal })
+
+	var sawCLIAuthPost bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/cli-auth/validate") {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("Unauthorized"))
+			return
+		}
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cli-auth") {
+			// Reaching here means we started the browser flow anyway, which is
+			// the bug: there is nobody to complete it.
+			sawCLIAuthPost = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{"browser_url": "https://example.test", "poll_url": "https://example.test/poll"})
+			return
+		}
+		t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+	}))
+	t.Cleanup(ts.Close)
+
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`profile = "default"
+
+[default]
+api_key = "hk_test_rejected_abcdefghij"
+`), 0o600))
+
+	cfg, err := configpkg.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	cfg.APIBaseURL = ts.URL
+	cfg.DeviceName = "test-device"
+	cfg.LogLevel = "error"
+	cfg.TelemetryDisabled = true
+
+	err = Login(cfg, strings.NewReader("\n"))
+	require.ErrorIs(t, err, ErrRejectedKeyNoTerminal)
+	require.False(t, sawCLIAuthPost, "browser sign-in must not be started without a terminal")
+	require.Contains(t, err.Error(), "CLI key", "the error should say what kind of key is expected")
 }
