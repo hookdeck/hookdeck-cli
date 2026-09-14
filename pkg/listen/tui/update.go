@@ -50,14 +50,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ConnectingMsg:
 		m.isConnected = false
+		m.connState = connConnecting
 		return m, nil
 
 	case ConnectedMsg:
 		m.isConnected = true
+		m.connState = connConnected
+		m.connErr = nil
+		m.connAttempts = 0
 		return m, nil
 
 	case DisconnectedMsg:
 		m.isConnected = false
+		// A drop after a successful connect is a reconnect; a drop before one is
+		// a failed attempt at the initial connection. Reporting the second as
+		// "Reconnecting" would claim a connection the CLI never had.
+		if m.connState == connConnected || m.connState == connReconnecting {
+			m.connState = connReconnecting
+		} else {
+			m.connState = connConnecting
+			m.connAttempts++
+		}
+		return m, nil
+
+	case ConnectionFailedMsg:
+		m.isConnected = false
+		m.connState = connFailed
+		m.connErr = msg.Err
 		return m, nil
 
 	case ServerHealthMsg:

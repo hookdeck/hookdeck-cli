@@ -50,6 +50,11 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		AppConfig:        cfg.AppConfig,
 	}
 
+	// --color off (and NO_COLOR) has to reach the TUI too. It draws with lipgloss,
+	// which never consulted pkg/ansi, so the flag only ever applied to the compact
+	// renderer and a --color off TUI run still emitted SGR sequences (#404).
+	tui.SetColorEnabled(ansi.ShouldUseColors(os.Stdout))
+
 	model := tui.NewModel(tuiCfg)
 	program := tea.NewProgram(&model, tea.WithAltScreen())
 
@@ -102,7 +107,23 @@ func (r *InteractiveRenderer) OnDisconnected() {
 
 // OnError is called when an error occurs
 func (r *InteractiveRenderer) OnError(err error) {
-	// Errors are handled through OnEventError
+	// Per-event errors are handled through OnEventError. A session-level error
+	// means there is no connection, which the status bar has to say out loud.
+	r.OnConnectionFailed(err)
+}
+
+// failedStateLinger is how long the failure frame is held before the TUI is torn
+// down, so the user sees why the CLI stopped inside the alt-screen rather than
+// only in the error printed after it.
+const failedStateLinger = 500 * time.Millisecond
+
+// OnConnectionFailed shows the failure state in the status bar.
+func (r *InteractiveRenderer) OnConnectionFailed(err error) {
+	if r.teaProgram == nil {
+		return
+	}
+	r.teaProgram.Send(tui.ConnectionFailedMsg{Err: err})
+	time.Sleep(failedStateLinger)
 }
 
 // OnEventPending is called when an event starts (after 100ms delay)
