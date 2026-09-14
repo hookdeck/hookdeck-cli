@@ -317,9 +317,9 @@ func TestWriteConfig(t *testing.T) {
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
 		assert.Contains(t, string(contentBytes), `project_id = 'new_team_id'`)
-		assert.Contains(t, string(contentBytes), `project_type = 'event_gateway'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'Gateway'`)
 		// A legacy mode in, the API project type written back out.
-		assert.Contains(t, string(contentBytes), `project_type = 'event_gateway'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'Gateway'`)
 		assert.Contains(t, string(contentBytes), `project_mode = 'inbound'`)
 	})
 
@@ -334,8 +334,8 @@ func TestWriteConfig(t *testing.T) {
 
 		assert.NoError(t, err)
 		contentBytes, _ := ioutil.ReadFile(c.viper.ConfigFileUsed())
-		assert.Contains(t, string(contentBytes), `project_type = 'outpost'`)
-		assert.Contains(t, string(contentBytes), `project_type = 'outpost'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'Outpost'`)
+		assert.Contains(t, string(contentBytes), `project_type = 'Outpost'`)
 		assert.Contains(t, string(contentBytes), `project_mode = 'outpost'`)
 	})
 

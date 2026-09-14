@@ -35,11 +35,29 @@ func (p *Profile) ResolveProjectType() string {
 	return ModeToType(p.ProjectMode)
 }
 
+// persistedProjectType is the value written to the project_type config key.
+//
+// The config file is shared with other CLI versions - a repo-local
+// .hookdeck/config.toml especially - and versions before 2026-09-01 only
+// understand the display label. Writing the API type there breaks every
+// `hookdeck gateway ...` command for them, and because both versions rewrite
+// the file, the two would ping-pong it. The label is understood by both, and
+// NormalizeProjectType turns it back into the API type on read, so nothing is
+// lost internally.
+func (p *Profile) persistedProjectType() string {
+	projectType := p.ResolveProjectType()
+	if label := TypeLabel(projectType); label != "" {
+		return label
+	}
+	// Unrecognized: write it through rather than dropping it.
+	return projectType
+}
+
 func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
 	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
 	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
-	p.Config.viper.Set(p.getConfigField("project_type"), p.ResolveProjectType())
+	p.Config.viper.Set(p.getConfigField("project_type"), p.persistedProjectType())
 	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
 
 	if err := p.removeLegacyConfigKeys(); err != nil {

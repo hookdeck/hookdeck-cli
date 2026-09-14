@@ -178,5 +178,5 @@ team_mode = "inbound"
 	assert.NotContains(t, tomlText, "team_id")
 	assert.NotContains(t, tomlText, "team_mode")
 	assert.Contains(t, tomlText, "project_id")
-	assert.Contains(t, tomlText, `project_type = 'event_gateway'`)
+	assert.Contains(t, tomlText, `project_type = 'Gateway'`)
 }

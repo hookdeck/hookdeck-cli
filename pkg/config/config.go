@@ -274,7 +274,7 @@ func (c *Config) setProfileFieldsInViper(v *viper.Viper) {
 	v.Set("profile", c.Profile.Name)
 	v.Set(c.Profile.getConfigField("project_id"), c.Profile.ProjectId)
 	v.Set(c.Profile.getConfigField("project_mode"), c.Profile.ProjectMode)
-	v.Set(c.Profile.getConfigField("project_type"), c.Profile.ResolveProjectType())
+	v.Set(c.Profile.getConfigField("project_type"), c.Profile.persistedProjectType())
 	if c.Profile.GuestURL != "" {
 		v.Set(c.Profile.getConfigField("guest_url"), c.Profile.GuestURL)
 	}

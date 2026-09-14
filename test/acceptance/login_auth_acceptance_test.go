@@ -107,7 +107,8 @@ api_key = "hk_test_stale_accept01"
 	// the only place the persisted field is verified against a real CLI run.
 	written, readErr := os.ReadFile(configPath)
 	require.NoError(t, readErr)
-	assert.Contains(t, string(written), "project_type = 'event_gateway'")
+	assert.Contains(t, string(written), "project_type = 'Gateway'",
+		"the config is shared with older CLIs, which only understand the label")
 	assert.Contains(t, string(written), "project_mode = 'inbound'", "the legacy mode is still written for older CLIs")
 	assert.NotContains(t, string(written), "project_product", "the short-lived product key must not be written")
 	assert.Contains(t, string(written), "project_id = 'tm_accept'")
