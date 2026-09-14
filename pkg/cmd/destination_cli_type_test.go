@@ -3,6 +3,10 @@ package cmd
 import (
 	"testing"
 
+	"github.com/spf13/cobra"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,4 +83,94 @@ func TestBuildDestinationConfigRejectsDeliveryPolicyForCLI(t *testing.T) {
 	policy, ok := config["delivery_policy"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, 100, policy["rate"])
+}
+
+// TestCLIPathFromFlags pins the fix for --cli-path's "/" default overwriting a
+// path supplied via --config. Comparing the value against "" is not enough,
+// because on create the flag is never empty.
+func TestCLIPathFromFlags(t *testing.T) {
+	newCmd := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "create"}
+		var cliPath string
+		cmd.Flags().StringVar(&cliPath, "cli-path", "/", "Path for CLI destinations")
+		return cmd
+	}
+
+	t.Run("unset flag yields no path even though it defaults to /", func(t *testing.T) {
+		cmd := newCmd()
+		require.NoError(t, cmd.ParseFlags([]string{}))
+		assert.Equal(t, "", cliPathFromFlags(cmd, "/"))
+	})
+
+	t.Run("explicitly passed flag is returned", func(t *testing.T) {
+		cmd := newCmd()
+		require.NoError(t, cmd.ParseFlags([]string{"--cli-path", "/hooks"}))
+		assert.Equal(t, "/hooks", cliPathFromFlags(cmd, "/hooks"))
+	})
+
+	t.Run("explicitly passing the default value still counts as set", func(t *testing.T) {
+		cmd := newCmd()
+		require.NoError(t, cmd.ParseFlags([]string{"--cli-path", "/"}))
+		assert.Equal(t, "/", cliPathFromFlags(cmd, "/"))
+	})
+}
+
+// TestCLIPathFromFlagsEndToEnd covers the combination that regressed: --config
+// supplies a path, --cli-path is not passed, and the config value must survive.
+func TestCLIPathFromFlagsEndToEnd(t *testing.T) {
+	// --cli-path is left unset, exactly as when the user passes only --config.
+	cmd := &cobra.Command{Use: "create"}
+	var cliPath string
+	cmd.Flags().StringVar(&cliPath, "cli-path", "/", "Path for CLI destinations")
+	require.NoError(t, cmd.ParseFlags([]string{}))
+
+	config, err := buildDestinationConfigFromFlags(`{"path":"/from-config"}`, "", "CLI", nil)
+	require.NoError(t, err)
+	applyCLIPath(config, cliPathFromFlags(cmd, cliPath), true)
+
+	assert.Equal(t, "/from-config", config["path"],
+		"an unset --cli-path must not overwrite the path from --config")
+}
+
+// TestConnectionDestinationRejectsDeliveryPolicyForCLI covers the two
+// connection paths, which build a delivery policy separately from the
+// destination commands and so need their own guard.
+func TestConnectionDestinationRejectsDeliveryPolicyForCLI(t *testing.T) {
+	t.Run("connection create", func(t *testing.T) {
+		cc := &connectionCreateCmd{}
+		cc.destinationType = "CLI"
+		cc.DestinationRateLimit = 100
+		cc.DestinationRateLimitPeriod = "minute"
+
+		_, err := cc.buildDestinationConfig()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--destination-rate-limit")
+		assert.Contains(t, err.Error(), "CLI destinations")
+	})
+
+	t.Run("connection upsert against an existing CLI destination", func(t *testing.T) {
+		cu := &connectionUpsertCmd{connectionCreateCmd: &connectionCreateCmd{}}
+		cu.DestinationRateLimit = 100
+		cu.DestinationRateLimitPeriod = "minute"
+
+		_, err := cu.buildDestinationInputForUpdate(&hookdeck.Destination{
+			ID: "des_1", Name: "local", Type: "CLI",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CLI destinations")
+	})
+
+	t.Run("connection upsert against an HTTP destination still applies", func(t *testing.T) {
+		cu := &connectionUpsertCmd{connectionCreateCmd: &connectionCreateCmd{}}
+		cu.DestinationRateLimit = 100
+		cu.DestinationRateLimitPeriod = "minute"
+
+		input, err := cu.buildDestinationInputForUpdate(&hookdeck.Destination{
+			ID: "des_2", Name: "web", Type: "HTTP",
+		})
+		require.NoError(t, err)
+		policy, ok := input.Config["delivery_policy"].(map[string]interface{})
+		require.True(t, ok, "HTTP destinations must still receive the policy")
+		assert.Equal(t, 100, policy["rate"])
+	})
 }

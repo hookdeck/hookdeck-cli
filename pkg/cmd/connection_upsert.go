@@ -468,8 +468,13 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		if cu.destinationType == "" && isUpdate && existing != nil && existing.Destination != nil {
 			cu.destinationType = existing.Destination.Type
 		}
-		// Default CLI path to "/" for new CLI destinations when not explicitly set
-		if strings.ToUpper(cu.destinationType) == "CLI" && cu.destinationCliPath == "" {
+		// Default CLI path to "/" for new CLI destinations when not explicitly
+		// set. An existing CLI destination keeps its stored path: destinationType
+		// was just filled in from it above, so without the isUpdate check this
+		// rewrites /webhooks to / on every upsert that omits the flag.
+		existingCLIDest := isUpdate && existing != nil && existing.Destination != nil &&
+			strings.ToUpper(existing.Destination.Type) == "CLI"
+		if strings.ToUpper(cu.destinationType) == "CLI" && cu.destinationCliPath == "" && !existingCLIDest {
 			cu.destinationCliPath = "/"
 		}
 		destinationInput, err := cu.buildDestinationInput()
@@ -609,6 +614,9 @@ func (cu *connectionUpsertCmd) buildDestinationInputForUpdate(existingDest *hook
 		"destination-",
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := rejectDeliveryPolicyForCLI(existingDest.Type, policy, "destination-"); err != nil {
 		return nil, err
 	}
 	mergeDeliveryPolicy(destConfig, policy)

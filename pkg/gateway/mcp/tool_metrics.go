@@ -111,8 +111,12 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 		if err := rejectFilters(params, hookdeck.QueueDepthRouteFilters, "queue depth metrics"); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
-		result, err = client.QueryQueueDepth(ctx, params)
-	case containsAny(params.Measures, "pending") && params.Granularity != "":
+		// The endpoint accepts max_depth and max_age only; "queue_depth" is our
+		// own spelling for the route, so translate it as the CLI does.
+		queueParams := params
+		queueParams.Measures = hookdeck.TranslateQueueDepthMeasures(params.Measures)
+		result, err = client.QueryQueueDepth(ctx, queueParams)
+	case containsAny(params.Measures, "pending"):
 		if err := rejectFilters(params, hookdeck.PendingTimeseriesRouteFilters, "pending event metrics (measures: pending)"); err != nil {
 			return ErrorResult(err.Error()), nil
 		}

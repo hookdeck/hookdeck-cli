@@ -134,6 +134,16 @@ func buildDeliveryPolicy(rate int, period, groupKey string, groupRate int, group
 	return policy, nil
 }
 
+// cliPathFromFlags returns the --cli-path value only when the user actually
+// supplied it. The flag carries a "/" default on create, so comparing against ""
+// would let an unset flag overwrite a path given via --config.
+func cliPathFromFlags(cmd *cobra.Command, cliPath string) string {
+	if cmd != nil && !cmd.Flags().Changed("cli-path") {
+		return ""
+	}
+	return cliPath
+}
+
 // applyCLIPath sets the path for a CLI destination. An explicit --cli-path wins;
 // otherwise a path already supplied via --config is left alone. withDefault adds
 // the "/" default, which only create does — upsert leaves the field absent so the

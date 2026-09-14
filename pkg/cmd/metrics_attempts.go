@@ -24,7 +24,7 @@ func newMetricsAttemptsCmd() *metricsAttemptsCmd {
 		Long:  LongBeta(`Query metrics for delivery attempts (latency, success/failure). Measures: ` + metricsAttemptsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.AttemptMetricsFilters, hookdeck.AttemptMetricsDimensions, hookdeck.EventStatusValues)
+	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.AttemptMetricsFilters, hookdeck.AttemptMetricsDimensions, hookdeck.AttemptStatusValues)
 	return c
 }
 

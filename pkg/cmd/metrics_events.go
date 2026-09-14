@@ -10,7 +10,7 @@ import (
 )
 
 const metricsEventsMeasures = "count, successful_count, failed_count, scheduled_count, paused_count, error_rate, avg_attempts, scheduled_retry_count, pending, queue_depth, max_depth, max_age"
-const metricsEventsDimensions = "connection_id, source_id, destination_id, delivery_group, issue_id"
+const metricsEventsDimensions = hookdeck.EventMetricsDimensions
 
 type metricsEventsCmd struct {
 	cmd   *cobra.Command
@@ -64,24 +64,6 @@ func hasDimension(params hookdeck.MetricsQueryParams, name string) bool {
 	return false
 }
 
-// translateQueueDepthMeasures maps the CLI's "queue_depth" onto the API's
-// "max_depth", dropping a duplicate if both were requested.
-func translateQueueDepthMeasures(measures []string) []string {
-	out := make([]string, 0, len(measures))
-	seen := make(map[string]bool, len(measures))
-	for _, m := range measures {
-		if m == "queue_depth" {
-			m = "max_depth"
-		}
-		if seen[m] {
-			continue
-		}
-		seen[m] = true
-		out = append(out, m)
-	}
-	return out
-}
-
 // queryEventMetricsConsolidated routes to the correct underlying API endpoint
 // based on the requested measures and dimensions.
 func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client, params hookdeck.MetricsQueryParams) (hookdeck.MetricsResponse, error) {
@@ -95,7 +77,7 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		// spelling for the route, advertised in --help, so translate it rather than
 		// letting the API reject a measure we told the user to pass.
 		queueParams := params
-		queueParams.Measures = translateQueueDepthMeasures(params.Measures)
+		queueParams.Measures = hookdeck.TranslateQueueDepthMeasures(params.Measures)
 		return client.QueryQueueDepth(ctx, queueParams)
 	}
 	// 2. If measures include "pending" → QueryEventsPendingTimeseries.

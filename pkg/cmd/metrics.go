@@ -97,6 +97,9 @@ func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters ho
 	cmd.Flags().StringVar(&f.output, "output", "", "Output format (json)")
 	_ = cmd.MarkFlagRequired("start")
 	_ = cmd.MarkFlagRequired("end")
+	// Every metrics endpoint rejects a request without measures, so catch it
+	// here rather than letting it become an API 422. MCP already enforces this.
+	_ = cmd.MarkFlagRequired("measures")
 }
 
 // rejectUnsupportedFilters names the flags the way the user typed them.

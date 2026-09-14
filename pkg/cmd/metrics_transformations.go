@@ -24,7 +24,7 @@ func newMetricsTransformationsCmd() *metricsTransformationsCmd {
 		Long:  LongBeta(`Query metrics for transformations. Measures: ` + metricsTransformationsMeasures + `.`),
 		RunE:  c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.TransformationMetricsFilters, hookdeck.TransformationMetricsDimensions, hookdeck.EventStatusValues)
+	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.TransformationMetricsFilters, hookdeck.TransformationMetricsDimensions, "")
 	return c
 }
 

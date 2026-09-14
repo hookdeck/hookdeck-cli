@@ -100,5 +100,25 @@ const (
 // events and attempts carry a delivery status.
 const (
 	RequestStatusValues = "ACCEPTED, REJECTED"
-	EventStatusValues   = "SUCCESSFUL, FAILED, QUEUED, PAUSED"
+	EventStatusValues   = "SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED"
+	AttemptStatusValues = "SUCCESSFUL, FAILED"
 )
+
+// TranslateQueueDepthMeasures maps the CLI's and MCP's "queue_depth" spelling
+// onto the API's "max_depth", dropping a duplicate if both were requested. The
+// queue-depth endpoint accepts max_depth and max_age only.
+func TranslateQueueDepthMeasures(measures []string) []string {
+	out := make([]string, 0, len(measures))
+	seen := make(map[string]bool, len(measures))
+	for _, m := range measures {
+		if m == "queue_depth" {
+			m = "max_depth"
+		}
+		if seen[m] {
+			continue
+		}
+		seen[m] = true
+		out = append(out, m)
+	}
+	return out
+}
