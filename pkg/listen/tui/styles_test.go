@@ -107,5 +107,9 @@ func TestSetColorEnabledKeepsTheWords(t *testing.T) {
 	view := m.View()
 
 	assert.Contains(t, view, "Listening on 1 source • 1 connection")
-	assert.Contains(t, lastLine(view), connectingLabel)
+	// Anywhere in the frame, not specifically the status bar: where the
+	// connection state is drawn belongs to TestStatusBarAlwaysReportsConnection-
+	// State. Asserting on lastLine here meant a #399 status-bar regression
+	// failed as a #404 colour bug and pointed at the wrong fix.
+	assert.Contains(t, view, connectingLabel)
 }

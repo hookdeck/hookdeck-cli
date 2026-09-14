@@ -174,3 +174,51 @@ func TestConnectionDestinationRejectsDeliveryPolicyForCLI(t *testing.T) {
 		assert.Equal(t, 100, policy["rate"])
 	})
 }
+
+// runCreateFlags parses args through the real `destination create` flag set and
+// returns the request body the command would POST.
+func runCreateFlags(t *testing.T, args ...string) (*hookdeck.DestinationCreateRequest, error) {
+	t.Helper()
+	dc := newDestinationCreateCmd()
+	require.NoError(t, dc.cmd.ParseFlags(args))
+	return dc.buildCreateRequest(dc.cmd)
+}
+
+// TestCreateRequestHonoursTheCLIPathFlagState covers the two call sites in
+// `destination create` rather than cliPathFromFlags on its own. The helper was
+// pinned by TestCLIPathFromFlags, but nothing checked that the command still
+// called it: replacing either call with the raw flag value reinstates the
+// original bug with the suite green.
+func TestCreateRequestHonoursTheCLIPathFlagState(t *testing.T) {
+	t.Run("--config path survives an unset --cli-path", func(t *testing.T) {
+		req, err := runCreateFlags(t,
+			"--name", "local-cli", "--type", "CLI", "--config", `{"path":"/webhooks"}`)
+		require.NoError(t, err)
+		assert.Equal(t, "/webhooks", req.Config["path"],
+			"the \"/\" default of an unset --cli-path must not overwrite --config")
+	})
+
+	t.Run("an unset --cli-path is not a CLI flag on an HTTP create", func(t *testing.T) {
+		req, err := runCreateFlags(t,
+			"--name", "my-api", "--type", "HTTP", "--url", "https://api.example.com/webhooks")
+		require.NoError(t, err,
+			"an unset --cli-path must not read as a CLI flag given for an HTTP destination")
+		assert.Equal(t, "https://api.example.com/webhooks", req.Config["url"])
+		assert.NotContains(t, req.Config, "path")
+	})
+
+	t.Run("an explicit --cli-path still wins over --config", func(t *testing.T) {
+		req, err := runCreateFlags(t,
+			"--name", "local-cli", "--type", "CLI",
+			"--cli-path", "/from-flag", "--config", `{"path":"/from-config"}`)
+		require.NoError(t, err)
+		assert.Equal(t, "/from-flag", req.Config["path"])
+	})
+
+	t.Run("a CLI create with no path at all keeps the default", func(t *testing.T) {
+		req, err := runCreateFlags(t, "--name", "local-cli", "--type", "CLI")
+		require.NoError(t, err)
+		assert.Equal(t, "/", req.Config["path"],
+			"create still supplies the \"/\" default when nothing named a path")
+	})
+}

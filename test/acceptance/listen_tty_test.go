@@ -121,8 +121,16 @@ func TestListenInteractiveShowsPendingStateBeforeItIsConnected(t *testing.T) {
 	require.Contains(t, out, "Listening on",
 		"the TUI should have rendered; without that this test proves nothing")
 
-	assert.Contains(t, out, "Connecting…",
-		"an unconnected session must say so, not render a live-looking layout (#399)")
+	// Assert on the status bar specifically. renderConnectingStatus writes the
+	// same words into the viewport body, so a plain substring check passed even
+	// with the status bar removed entirely - the weaker surface satisfied the
+	// acceptance assertion for #399, which is about the bar always being drawn.
+	// With no events selected the bar is "● Connecting… • [q] Quit", and only
+	// the bar carries that tail.
+	plain := ttySGRPattern.ReplaceAllString(out, "")
+	assert.Regexp(t, regexp.MustCompile("Connecting…[^\\r\\n]*\\[q\\] Quit"), plain,
+		"the status bar itself must report the pending state (#399); "+
+			"the same words in the viewport body are not the line this test is about")
 	assert.NotContains(t, out, "Connected.",
 		"the CLI never connected, so it must never claim it did")
 }

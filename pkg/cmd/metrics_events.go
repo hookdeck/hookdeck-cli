@@ -125,9 +125,11 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		return client.QueryEventsByIssue(ctx, params)
 	}
 	// 4. Default → QueryEventMetrics
-	if err := rejectUnsupportedFilters(params, hookdeck.DefaultEventRouteFilters, "event metrics"); err != nil {
-		return nil, err
-	}
+	// No filter gate here: the default route honours every filter --help offers
+	// except --issue-id, and a set --issue-id selects the by-issue route above,
+	// so nothing reaches this fallback for a gate to catch. The invariant is
+	// pinned by hookdeck.TestDefaultEventRouteHonoursEveryFilterExceptIssueID,
+	// which fails if a filter the route drops is ever added.
 	if err := rejectUnsupportedDimensions(params, hookdeck.DefaultEventRouteDimensions, "event metrics"); err != nil {
 		return nil, err
 	}

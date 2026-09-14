@@ -23,7 +23,10 @@ func TestMetricsToolRejectsDimensionsTheRouteIgnores(t *testing.T) {
 		action    string
 		measures  []any
 		dimension string
-		contains  []string
+		// extra carries the arguments a route needs to be selected at all -
+		// the by-issue route is chosen by issue_id, not by a measure.
+		extra    map[string]any
+		contains []string
 	}{
 		// 422 dimensions[0] must be [destination_id]
 		{
@@ -40,6 +43,12 @@ func TestMetricsToolRejectsDimensionsTheRouteIgnores(t *testing.T) {
 			name: "default event route has no issue_id dimension", action: "events",
 			measures: []any{"count"}, dimension: "rejection_cause",
 			contains: []string{"rejection_cause", "event metrics"},
+		},
+		{
+			name: "per-issue route has a narrower set", action: "events",
+			measures: []any{"count"}, dimension: "status",
+			extra:    map[string]any{"issue_id": "iss_1"},
+			contains: []string{"status", "per-issue event metrics", "issue_id, source_id, destination_id, connection_id"},
 		},
 		{
 			name: "requests do not group by destination", action: "requests",
@@ -73,13 +82,18 @@ func TestMetricsToolRejectsDimensionsTheRouteIgnores(t *testing.T) {
 				hookdeck.APIPathPrefix + "/metrics/transformations":           fail,
 			})
 
-			result := callTool(t, session, "hookdeck_metrics", map[string]any{
+			args := map[string]any{
 				"action":     tt.action,
 				"start":      "2025-01-01T00:00:00Z",
 				"end":        "2025-01-02T00:00:00Z",
 				"measures":   tt.measures,
 				"dimensions": []any{tt.dimension},
-			})
+			}
+			for k, v := range tt.extra {
+				args[k] = v
+			}
+
+			result := callTool(t, session, "hookdeck_metrics", args)
 
 			assert.True(t, result.IsError, "%s grouped by %s must be refused", tt.action, tt.dimension)
 			body := textContent(t, result)

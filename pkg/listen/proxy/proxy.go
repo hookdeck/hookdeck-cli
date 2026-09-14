@@ -31,6 +31,15 @@ const (
 	unhealthyCheckInterval = 5 * time.Second  // Check every 5s when server is unhealthy
 )
 
+// The retry budget for a session that has never connected, and the fixed delay
+// between those first attempts. Vars rather than consts only so a test can
+// drive Run to its give-up path in milliseconds instead of twenty seconds;
+// nothing in the CLI changes them.
+var (
+	maxConnectAttempts    = 10
+	fixedConnectBackoffMS = 2000
+)
+
 // Config provides the configuration of a Proxy
 type Config struct {
 	// DeviceName is the name of the device sent to Hookdeck to help identify the device
@@ -121,7 +130,6 @@ func (p *Proxy) setWebSocketClient(client *websocket.Client) {
 //   - Create a new CLI session
 //   - Create a new websocket connection
 func (p *Proxy) Run(parentCtx context.Context) error {
-	const maxConnectAttempts = 10
 	nAttempts := 0
 
 	// Track whether or not we have connected successfully.
@@ -299,7 +307,7 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 
 			if nAttempts <= maxConnectAttempts {
 				// First 10 attempts: use a fixed 2 second delay
-				sleepDurationMS = 2000
+				sleepDurationMS = fixedConnectBackoffMS
 			} else {
 				// After max attempts: exponential backoff, maximum of 10 second intervals
 				attemptsOverMax := float64(nAttempts - maxConnectAttempts)

@@ -162,9 +162,12 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 		}
 		result, err = client.QueryEventsByIssue(ctx, params)
 	default:
-		if err := rejectFilters(params, hookdeck.DefaultEventRouteFilters, "event metrics"); err != nil {
-			return ErrorResult(err.Error()), nil
-		}
+		// No filter gate here: the default route honours every filter the tool
+		// advertises except issue_id, and a set issue_id selects the by-issue
+		// route above, so nothing reaches this branch for a gate to catch. The
+		// invariant is pinned by
+		// hookdeck.TestDefaultEventRouteHonoursEveryFilterExceptIssueID, which
+		// fails if a filter the route drops is ever added.
 		if err := rejectDimensions(params, hookdeck.DefaultEventRouteDimensions, "event metrics"); err != nil {
 			return ErrorResult(err.Error()), nil
 		}

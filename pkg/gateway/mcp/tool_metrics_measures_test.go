@@ -180,3 +180,31 @@ func TestMetricsToolStillAnswersSingleRouteEventQueries(t *testing.T) {
 	assert.False(t, result.IsError, textContent(t, result))
 	assert.True(t, called, "a per-issue count must still reach the by-issue endpoint")
 }
+
+// TestMetricsToolTranslatesQueueDepthMeasureOnTheWire is the MCP mirror of
+// TestQueueDepthMeasureIsTranslatedOnTheWire.
+//
+// "queue_depth" is our own spelling for the route and the tool schema
+// advertises it, but /metrics/queue-depth accepts max_depth and max_age only.
+// Without the translation the tool sends a 422 for a value it told the caller
+// to pass, so this pins the rewrite at the request, not in the helper.
+func TestMetricsToolTranslatesQueueDepthMeasureOnTheWire(t *testing.T) {
+	var sawMeasures []string
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/metrics/queue-depth": func(w http.ResponseWriter, r *http.Request) {
+			sawMeasures = r.URL.Query()["measures[]"]
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":   "events",
+		"start":    "2025-01-01T00:00:00Z",
+		"end":      "2025-01-02T00:00:00Z",
+		"measures": []any{"queue_depth"},
+	})
+
+	assert.False(t, result.IsError, textContent(t, result))
+	assert.Equal(t, []string{"max_depth"}, sawMeasures,
+		"queue_depth must reach the API as max_depth")
+}
