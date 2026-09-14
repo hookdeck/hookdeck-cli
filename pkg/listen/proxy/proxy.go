@@ -274,15 +274,22 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 				nAttempts = 0
 			}
 			if !canConnect() {
-				p.renderer.Cleanup()
 				// Report the reason, not just the count. Without this the user is
 				// told the CLI gave up but not whether it was DNS, a refused
 				// connection, a proxy, or a rejected session — and the reason is
 				// only logged at debug level.
+				var giveUpErr error
 				if connectErr := wsClient.LastConnectErr(); connectErr != nil {
-					return fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection. Last error: %v", nAttempts, connectErr)
+					giveUpErr = fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection. Last error: %v", nAttempts, connectErr)
+				} else {
+					giveUpErr = fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection.", nAttempts)
 				}
-				return fmt.Errorf("Could not connect. Terminating after %d failed attempts to establish a connection.", nAttempts)
+				// Say so in the renderer before tearing it down. The interactive
+				// renderer otherwise spends the whole attempt budget looking live
+				// and then vanishes (#399).
+				p.renderer.OnConnectionFailed(giveUpErr)
+				p.renderer.Cleanup()
+				return giveUpErr
 			}
 		}
 

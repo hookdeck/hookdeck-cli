@@ -17,6 +17,11 @@ type Renderer interface {
 	OnConnected()
 	OnDisconnected()
 	OnError(err error)
+	// OnConnectionFailed reports that the CLI has given up connecting. It exists
+	// so the interactive renderer can show an affirmative failure state before it
+	// tears the alt-screen down (#399); the non-interactive renderers leave it to
+	// the error the command already prints, so their output is unchanged.
+	OnConnectionFailed(err error)
 
 	// Event handling
 	OnEventPending(eventID string, attempt *websocket.Attempt, startTime time.Time) // For interactive mode (100ms delay)
