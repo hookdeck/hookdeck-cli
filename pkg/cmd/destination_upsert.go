@@ -207,13 +207,12 @@ func (dc *destinationUpsertCmd) buildUpsertRequest(ctx context.Context, client *
 	if dc.description != "" {
 		req.Description = &dc.description
 	}
-	// The resolved type goes on the request as well. This is a PUT against the
-	// collection, so a body carrying a config needs to say what kind of
-	// destination it is — and applyStoredDestinationConfig already adopts the
-	// stored type on the path where no config is sent at all. Resolving it never
-	// changes the type: it is either the one the user passed or the one the
-	// destination already has.
-	if rt != "" {
+	// Only send a type the user actually asked for. The resolved type is used to
+	// decide which config fields are valid, but asserting it back on the request
+	// would make this a read-modify-write: if the destination's type changed
+	// between the lookup and this PUT, we would silently revert it. The API keeps
+	// the stored type when the field is absent, verified against the live API.
+	if dc.destType != "" {
 		req.Type = rt
 	}
 	if len(config) > 0 {

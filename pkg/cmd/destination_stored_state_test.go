@@ -676,7 +676,9 @@ func TestDestinationUpsertAppliesTypeSpecificFlagsWithoutType(t *testing.T) {
 		req, err := dc.buildUpsertRequest(context.Background(), client)
 		require.NoError(t, err)
 		assert.Equal(t, "https://new.example.com/hook", req.Config["url"])
-		assert.Equal(t, "HTTP", req.Type, "a PUT carrying a config has to say which kind of destination it is")
+		assert.Equal(t, "", req.Type,
+			"resolving the stored type must not start sending a type the user did not pass: "+
+				"asserting it back would revert a type changed between the lookup and this PUT")
 	})
 
 	t.Run("--cli-path alone reaches the request", func(t *testing.T) {
@@ -686,7 +688,16 @@ func TestDestinationUpsertAppliesTypeSpecificFlagsWithoutType(t *testing.T) {
 		req, err := dc.buildUpsertRequest(context.Background(), client)
 		require.NoError(t, err)
 		assert.Equal(t, "/webhooks", req.Config["path"])
-		assert.Equal(t, "CLI", req.Type)
+		assert.Equal(t, "", req.Type)
+	})
+
+	t.Run("an explicit --type is still sent", func(t *testing.T) {
+		client, _ := storedDestServer(t, storedHTTPDestWithOverrides(), 0)
+		dc := &destinationUpsertCmd{name: "web", destType: "HTTP", url: "https://new.example.com/hook"}
+
+		req, err := dc.buildUpsertRequest(context.Background(), client)
+		require.NoError(t, err)
+		assert.Equal(t, "HTTP", req.Type, "what the user asked for is still honoured")
 	})
 
 	t.Run("a create with no stored type to resolve says so", func(t *testing.T) {
