@@ -133,30 +133,59 @@ func TestCIFailsFastWithInvalidAPIKeyAcceptance(t *testing.T) {
 [default]
 `), 0o600))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// Generous enough for every retry below, including `go run` compiling each
+	// time: a deadline sized for one attempt would cut the retries short and
+	// reintroduce the flake it is there to absorb.
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 	defer cancel()
 
 	invalidKey := "hk_test_ci_invalid_accept01" // valid shape, not a real key
-	cmd := exec.CommandContext(ctx, "go", []string{"run", mainGo,
+	args := []string{"run", mainGo,
 		"--hookdeck-config", configPath,
 		"--log-level", "error",
 		"ci", "--api-key", invalidKey,
-	}...)
-	cmd.Dir = projectRoot
+	}
 	env := appendEnvOverride(os.Environ(), "HOOKDECK_CONFIG_FILE", configPath)
 	env = appendEnvOverride(env, "HOOKDECK_CLI_TELEMETRY_DISABLED", "1")
-	cmd.Env = env
 
-	start := time.Now()
+	// This test asserts on the shape of an authentication failure, so a
+	// transport failure is not a result it can read. POST /cli-auth/ci answers
+	// 502 often enough to have reddened this build three times in one day, and
+	// a gateway error is not an auth outcome at all. Retry it the way
+	// CLIRunner.Run does - this test builds its own exec.Cmd, so it does not go
+	// through that path and inherited no retry.
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err = cmd.Run()
+	var elapsed time.Duration
+	for attempt := 1; attempt <= acceptance502MaxAttempts; attempt++ {
+		stdout.Reset()
+		stderr.Reset()
+
+		run := exec.CommandContext(ctx, "go", args...)
+		run.Dir = projectRoot
+		run.Env = env
+		run.Stdout = &stdout
+		run.Stderr = &stderr
+
+		start := time.Now()
+		err = run.Run()
+		elapsed = time.Since(start)
+
+		if !combinedOutputLooksLikeHTTP502(stdout.String(), stderr.String()) {
+			break
+		}
+		if attempt < acceptance502MaxAttempts {
+			t.Logf("acceptance: Hookdeck API transient HTTP 502 on cli-auth/ci; retrying (attempt %d/%d)", attempt, acceptance502MaxAttempts)
+			time.Sleep(acceptance502RetryDelay)
+		}
+	}
+
 	require.Error(t, err, "ci with bogus API key must fail")
-	elapsed := time.Since(start)
 	require.Less(t, elapsed, 30*time.Second, "ci should fail quickly without waiting for interactive login; took %v", elapsed)
 
 	combined := stdout.String() + "\n" + stderr.String()
+	if combinedOutputLooksLikeHTTP502(stdout.String(), stderr.String()) {
+		t.Skipf("Hookdeck API returned HTTP 502 on every attempt; this test cannot observe an auth failure through a gateway error")
+	}
 	require.Contains(t, combined, "Authentication failed",
 		"expected friendly auth message; stdout=%q stderr=%q", stdout.String(), stderr.String())
 
