@@ -208,8 +208,17 @@ func Execute() {
 
 		default:
 			if hookdeck.IsUnauthorizedError(err) {
-				msg := "Authentication failed: your API key is invalid or expired.\n\n" +
-					"Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`.\n\n" +
+				// Lead with whatever the API said, when it said anything. The
+				// generic text below is a guess: we cannot tell an expired CLI
+				// key from a project API key from a typo, because the only
+				// signal is a bare 401 and nothing validates key shape beyond
+				// a length check. Asserting "invalid or expired" over a message
+				// the server actually sent replaces fact with inference.
+				msg := "Authentication failed: your API key is invalid or expired.\n\n"
+				if serverMsg := unauthorizedServerMessage(err); serverMsg != "" {
+					msg = "Authentication failed: " + serverMsg + "\n\n"
+				}
+				msg += "Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`.\n\n" +
 					"MCP: use hookdeck_login with reauth: true."
 				if gatewayMCP {
 					fmt.Fprintln(os.Stderr, msg)
@@ -354,4 +363,23 @@ func init() {
 	rootCmd.AddCommand(newTelemetryCmd().cmd)
 	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
 	addConnectionCmdTo(rootCmd)
+}
+
+// unauthorizedServerMessage returns the API's own explanation for a 401, when it
+// gave one. Today these endpoints answer with a bare "Unauthorized" body, which
+// says nothing the status code did not, so this usually returns empty and the
+// caller falls back to generic guidance. It exists so that a message the server
+// does send reaches the user instead of being replaced by our guess about what
+// went wrong.
+func unauthorizedServerMessage(err error) string {
+	var apiErr *hookdeck.APIError
+	if !errors.As(err, &apiErr) {
+		return ""
+	}
+	msg := strings.TrimSpace(apiErr.Message)
+	// Not a message, just the status word. Nothing to add.
+	if msg == "" || strings.EqualFold(msg, "unauthorized") {
+		return ""
+	}
+	return msg
 }
