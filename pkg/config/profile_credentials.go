@@ -2,16 +2,12 @@ package config
 
 import "github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 
-// resolveType returns the project type to store. It prefers the current
-// team_type field, then team_product (served briefly before the rename), then
-// the pre-2026-09-01 team_mode. Without the fallbacks a response missing the
-// newest field leaves the profile blank: an empty type makes IsGatewayProject
-// false and fails every gateway command.
-func resolveType(projectType, legacyProduct, legacyMode string) string {
+// resolveType returns the project type to store: the current team_type field,
+// falling back to the pre-2026-09-01 team_mode. Without a fallback a response
+// missing the newer field leaves the profile blank, and an empty type makes
+// IsGatewayProject false and fails every gateway command.
+func resolveType(projectType, legacyMode string) string {
 	if t := NormalizeProjectType(projectType); t != "" {
-		return t
-	}
-	if t := NormalizeProjectType(legacyProduct); t != "" {
 		return t
 	}
 	return ModeToType(legacyMode)
@@ -25,7 +21,7 @@ func (p *Profile) ApplyValidateAPIKeyResponse(resp *hookdeck.ValidateAPIKeyRespo
 		return
 	}
 	p.ProjectId = resp.ProjectID
-	projectType := resolveType(resp.ProjectType, resp.ProjectProduct, resp.ProjectMode)
+	projectType := resolveType(resp.ProjectType, resp.ProjectMode)
 	p.ProjectType = projectType
 	p.ProjectMode = TypeToLegacyMode(projectType)
 	if clearGuestURL {
@@ -41,7 +37,7 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 	}
 	p.APIKey = resp.APIKey
 	p.ProjectId = resp.ProjectID
-	projectType := resolveType(resp.ProjectType, resp.ProjectProduct, resp.ProjectMode)
+	projectType := resolveType(resp.ProjectType, resp.ProjectMode)
 	p.ProjectType = projectType
 	p.ProjectMode = TypeToLegacyMode(projectType)
 	p.GuestURL = guestURL
@@ -51,7 +47,7 @@ func (p *Profile) ApplyPollAPIKeyResponse(resp *hookdeck.PollAPIKeyResponse, gue
 func (p *Profile) ApplyCIClient(ci hookdeck.CIClient) {
 	p.APIKey = ci.APIKey
 	p.ProjectId = ci.ProjectID
-	projectType := resolveType(ci.ProjectType, ci.ProjectProduct, ci.ProjectMode)
+	projectType := resolveType(ci.ProjectType, ci.ProjectMode)
 	p.ProjectType = projectType
 	p.ProjectMode = TypeToLegacyMode(projectType)
 	p.GuestURL = ""

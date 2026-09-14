@@ -89,7 +89,7 @@ func resolveActiveProject(response *hookdeck.ValidateAPIKeyResponse, activeProje
 	projectName = response.ProjectName
 	orgName = response.OrganizationName
 	// Newest field first: team_type, then the short-lived team_product, then team_mode.
-	apiProjectType = firstKnownProjectType(response.ProjectType, response.ProjectProduct, response.ProjectMode)
+	apiProjectType = firstKnownProjectType(response.ProjectType, response.ProjectMode)
 
 	if activeProjectID == "" || activeProjectID == response.ProjectID {
 		return projectName, orgName, apiProjectType, ""

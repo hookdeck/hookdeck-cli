@@ -66,7 +66,7 @@ func InteractiveLogin(config *configpkg.Config) error {
 		return err
 	}
 
-	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectProduct, response.ProjectMode))
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectMode))
 
 	ansi.StopSpinner(s, message, os.Stdout)
 

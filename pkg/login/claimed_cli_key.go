@@ -36,7 +36,7 @@ func ConfigureFromClaimedCliKey(config *configpkg.Config, cli_key string) error 
 		response.UserEmail,
 		response.OrganizationName,
 		response.ProjectName,
-		configpkg.IsConsoleProject(response.ProjectType, response.ProjectProduct, response.ProjectMode),
+		configpkg.IsConsoleProject(response.ProjectType, response.ProjectMode),
 	)
 	ansi.StopSpinner(spinner, message, os.Stdout)
 

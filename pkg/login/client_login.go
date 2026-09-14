@@ -71,7 +71,7 @@ func Login(config *configpkg.Config, input io.Reader) error {
 			config.Profile.APIKey = ""
 		} else if response.UserID != "" {
 			if config.Profile.GuestURL == "" || !response.UserIsGuest {
-				message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectProduct, response.ProjectMode))
+				message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectMode))
 				ansi.StopSpinner(s, message, os.Stdout)
 
 				config.Profile.ApplyValidateAPIKeyResponse(response, true)
@@ -159,7 +159,7 @@ func waitForLoginSession(config *configpkg.Config, input io.Reader, session *hoo
 
 	config.RefreshCachedAPIClient()
 
-	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectProduct, response.ProjectMode))
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectMode))
 	ansi.StopSpinner(s, message, os.Stdout)
 
 	return nil
@@ -299,7 +299,7 @@ func waitForGuestUpgrade(config *configpkg.Config, input io.Reader) error {
 
 	config.RefreshCachedAPIClient()
 
-	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectProduct, response.ProjectMode))
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectMode))
 	ansi.StopSpinner(s, message, os.Stdout)
 
 	return nil
