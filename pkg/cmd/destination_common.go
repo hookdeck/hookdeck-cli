@@ -161,6 +161,56 @@ func applyCLIPath(config map[string]interface{}, cliPath string, withDefault boo
 	}
 }
 
+// nestedMap walks a chain of map keys, returning false if any level is missing
+// or is not itself a map.
+func nestedMap(m map[string]interface{}, keys ...string) (map[string]interface{}, bool) {
+	cur := m
+	for _, k := range keys {
+		if cur == nil {
+			return nil, false
+		}
+		next, ok := cur[k].(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		cur = next
+	}
+	return cur, true
+}
+
+// deliveryGroupsNeedOverrides reports whether config sets delivery_policy.groups
+// without supplying overrides, which is the case that would destroy stored ones.
+func deliveryGroupsNeedOverrides(config map[string]interface{}) bool {
+	groups, ok := nestedMap(config, "delivery_policy", "groups")
+	if !ok {
+		return false
+	}
+	_, given := groups["overrides"]
+	return !given
+}
+
+// preserveDeliveryGroupOverrides carries delivery_policy.groups.overrides
+// forward from the stored config when the caller did not supply its own.
+//
+// The API merges delivery_policy one level deep but replaces groups wholesale,
+// so sending a groups object without overrides silently destroys them. Since
+// the CLI requires --delivery-group-key and --delivery-group-rate-period
+// whenever --delivery-group-rate is given, "just bump the rate" always sends a
+// full groups object, and was always the command that lost the overrides.
+func preserveDeliveryGroupOverrides(config, existingConfig map[string]interface{}) {
+	if !deliveryGroupsNeedOverrides(config) {
+		return
+	}
+	existing, ok := nestedMap(existingConfig, "delivery_policy", "groups")
+	if !ok {
+		return
+	}
+	if overrides, ok := existing["overrides"]; ok {
+		groups, _ := nestedMap(config, "delivery_policy", "groups")
+		groups["overrides"] = overrides
+	}
+}
+
 // rejectDeliveryPolicyForCLI refuses delivery-policy flags on a CLI destination.
 // CLI destinations carry no delivery_policy in the API schema: the request is
 // accepted and the policy discarded, so without this the flags look applied and

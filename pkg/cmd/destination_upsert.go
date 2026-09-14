@@ -129,15 +129,22 @@ func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args
 	}
 
 	// API requires config on PUT. When doing partial update (e.g. only --description), fetch existing and merge.
-	if req.Config == nil || len(req.Config) == 0 {
+	// A groups object sent without overrides also needs the stored config, because
+	// the API replaces groups wholesale and would drop the overrides with it.
+	needsOverrides := deliveryGroupsNeedOverrides(req.Config)
+	if req.Config == nil || len(req.Config) == 0 || needsOverrides {
 		params := map[string]string{"name": dc.name}
 		listResp, err := client.ListDestinations(ctx, params)
 		if err == nil && listResp.Models != nil && len(listResp.Models) > 0 {
 			existing, err := client.GetDestination(ctx, listResp.Models[0].ID, nil)
 			if err == nil && existing.Config != nil {
-				req.Config = existing.Config
-				if req.Type == "" {
-					req.Type = existing.Type
+				if len(req.Config) == 0 {
+					req.Config = existing.Config
+					if req.Type == "" {
+						req.Type = existing.Type
+					}
+				} else {
+					preserveDeliveryGroupOverrides(req.Config, existing.Config)
 				}
 			}
 		}

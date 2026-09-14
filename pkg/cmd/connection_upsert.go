@@ -481,6 +481,12 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 		if err != nil {
 			return nil, err
 		}
+		// This builder is the create-shaped one, but --destination-name against an
+		// existing connection updates that destination, so the stored overrides
+		// have to survive here too.
+		if isUpdate && existing != nil && existing.Destination != nil {
+			preserveDeliveryGroupOverrides(destinationInput.Config, existing.Destination.Config)
+		}
 		req.Destination = destinationInput
 	} else if isUpdate && existing != nil && existing.Destination != nil {
 		// Check if any destination config fields are being updated
@@ -620,6 +626,7 @@ func (cu *connectionUpsertCmd) buildDestinationInputForUpdate(existingDest *hook
 		return nil, err
 	}
 	mergeDeliveryPolicy(destConfig, policy)
+	preserveDeliveryGroupOverrides(destConfig, existingDest.Config)
 
 	// Apply authentication config if provided
 	if cu.DestinationAuthMethod != "" {
