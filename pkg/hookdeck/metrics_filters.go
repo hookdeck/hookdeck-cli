@@ -150,12 +150,17 @@ var (
 	TransformationMetricsMeasures = ValueList(TransformationMetricsMeasureValues)
 )
 
-// Status vocabularies. Request events are accepted or rejected at the edge;
-// events and attempts carry a delivery status. Transformation metrics have no
-// status filter at all.
-const (
+// Status vocabularies. Requests are accepted or rejected at the edge; events
+// and attempts carry a delivery status. Transformation metrics have no status
+// filter at all.
+//
+// EventStatusValues is rendered from EventStatusValueList (status.go), the list
+// the log routes validate a caller's value against, so what is advertised and
+// what is accepted cannot drift. The metrics route spells the request statuses
+// upper case; the request log spells them lower case, as RequestLogStatusValues.
+var (
 	RequestStatusValues        = "ACCEPTED, REJECTED"
-	EventStatusValues          = "SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED"
+	EventStatusValues          = ValueList(EventStatusValueList)
 	AttemptStatusValues        = "SUCCESSFUL, FAILED"
 	TransformationStatusValues = ""
 )

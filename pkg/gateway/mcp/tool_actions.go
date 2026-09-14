@@ -4,25 +4,34 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 // Per-action argument matrices for the multi-action tools.
 //
 // The CLI keeps one flag set per subcommand, so `gateway request list` simply
-// has no --delivery-group and `gateway request events` has no --source-id. The
-// MCP layer flattens those subcommands into one tool with one flat schema, and
-// that precision is lost: a filter meant for a sibling action is accepted,
-// never forwarded, and the caller reads an unfiltered result as a filtered one.
-// Every other filter narrows to zero rows on a bogus value, so nothing in the
-// response reveals the drop.
+// has no --delivery-group. The MCP layer flattens those subcommands into one
+// tool with one flat schema, and that precision is lost: a filter meant for a
+// sibling action is accepted, never forwarded, and the caller reads an
+// unfiltered result as a filtered one. Every other filter narrows to zero rows
+// on a bogus value, so nothing in the response reveals the drop.
 //
 // These maps re-impose the per-subcommand precision, naming the arguments each
-// action actually forwards to the API. The refusal wording matches the metrics
-// tool's, which has guarded the same hazard for a while.
+// action actually forwards to the API. Membership is decided by what the route
+// declares in https://api.hookdeck.com/2026-09-01/openapi, not by what the
+// handler happens to send today: an argument the route honours belongs here and
+// must be forwarded, and only one it does not is refused. The refusal wording
+// matches the metrics tool's, which has guarded the same hazard for a while.
 var (
 	// requestsActionArgs mirrors the flags of `hookdeck gateway request <sub>`.
-	// delivery_group is on events only - the /requests collection has no such
+	//
+	// GET /requests/{id}/events declares the same filter set as GET /events, so
+	// events carries nearly everything list does plus the delivery filters.
+	// delivery_group stays events-only: the /requests collection has no such
 	// query parameter, so on list the API answers with unfiltered rows.
+	// rejection_cause, verified and ingested_* are the reverse - they describe
+	// the edge decision, which the events sub-resource knows nothing about.
 	requestsActionArgs = map[string][]string{
 		"list": {
 			"id", "source_id", "status", "rejection_cause", "verified",
@@ -30,9 +39,16 @@ var (
 			"body", "headers", "parsed_query", "path",
 			"order_by", "dir", "limit", "next", "prev",
 		},
-		"get":            {"id"},
-		"raw_body":       {"id"},
-		"events":         {"id", "delivery_group", "limit", "next", "prev"},
+		"get":      {"id"},
+		"raw_body": {"id"},
+		"events": {
+			"id", "connection_id", "source_id", "destination_id", "delivery_group",
+			"status", "attempts", "issue_id", "error_code", "response_status", "cli_id",
+			"created_after", "created_before", "successful_after", "successful_before",
+			"last_attempt_after", "last_attempt_before",
+			"body", "headers", "parsed_query", "path",
+			"order_by", "dir", "limit", "next", "prev",
+		},
 		"ignored_events": {"id", "limit", "next", "prev"},
 	}
 
@@ -130,4 +146,52 @@ func otherActionsFor(name string, byAction map[string][]string, except string) s
 	}
 	sort.Strings(actions)
 	return ". It applies to: " + strings.Join(actions, ", ")
+}
+
+// requestsStatusVocabulary is the status enum of the collection each
+// hookdeck_requests action queries.
+//
+// The tool has one flat `status` property and the two actions mean different
+// things by it, so the value has to be checked against the action's own
+// vocabulary. The API does reject an out-of-enum status - "SUCCESSFUL" on list
+// comes back as 422 "status must be one of [accepted, rejected]" - but that
+// message names only the route it was sent to, so a caller who reached for the
+// wrong action is told the value is wrong rather than that the sibling action
+// takes it. Checking here also lets either case through, which the API does
+// not: it 422s "successful" against the upper-case enum.
+var requestsStatusVocabulary = map[string][]string{
+	"list":   hookdeck.RequestLogStatusValueList,
+	"events": hookdeck.EventStatusValueList,
+}
+
+// canonicalRequestsStatus returns the status to send for this action, in the
+// API's own spelling, or an error naming the vocabulary the action does take.
+func canonicalRequestsStatus(action, value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	vocabulary, ok := requestsStatusVocabulary[action]
+	if !ok {
+		return value, nil
+	}
+	if canonical, ok := hookdeck.CanonicalStatusValue(vocabulary, value); ok {
+		return canonical, nil
+	}
+	return "", fmt.Errorf("status %q is not supported by the %s action of hookdeck_requests; it filters by %s%s",
+		value, action, hookdeck.ValueList(vocabulary), otherStatusVocabularyFor(value, action))
+}
+
+// otherStatusVocabularyFor points at the action the value does belong to, so a
+// caller who reached for the wrong one is told where it works.
+func otherStatusVocabularyFor(value, except string) string {
+	for _, action := range []string{"list", "events"} {
+		if action == except {
+			continue
+		}
+		if _, ok := hookdeck.CanonicalStatusValue(requestsStatusVocabulary[action], value); ok {
+			return fmt.Sprintf(". It belongs to the %s action, which filters by %s",
+				action, hookdeck.ValueList(requestsStatusVocabulary[action]))
+		}
+	}
+	return ""
 }

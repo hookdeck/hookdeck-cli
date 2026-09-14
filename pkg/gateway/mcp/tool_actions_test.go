@@ -32,11 +32,16 @@ func TestRequestsToolRejectsArgsTheActionDrops(t *testing.T) {
 		// The reported bug: delivery_group on list. The API has no such query
 		// parameter on /requests, so it answered with unfiltered totals.
 		{"list drops delivery_group", "list", "delivery_group", "dg_bogus", "events"},
-		// The same shape one action over.
-		{"events drops source_id", "events", "source_id", "src_bogus", "list"},
-		{"events drops status", "events", "status", "SUCCESSFUL", "list"},
-		{"events drops created_after", "events", "created_after", "2025-01-01T00:00:00Z", "list"},
+		// source_id, status and created_after used to be here. They are not
+		// dropped: GET /requests/{id}/events declares the /events filter set and
+		// honours all three, so they are forwarded now and covered by
+		// TestRequestsEventsForwardsEveryFilterTheRouteDeclares. What stays
+		// refused on events is what the sub-resource genuinely has no parameter
+		// for - the three fields describing the edge decision on the request
+		// itself, which only /requests carries.
 		{"events drops verified", "events", "verified", true, "list"},
+		{"events drops rejection_cause", "events", "rejection_cause", "NO_CONNECTION", "list"},
+		{"events drops ingested_after", "events", "ingested_after", "2025-01-01T00:00:00Z", "list"},
 		{"ignored_events drops delivery_group", "ignored_events", "delivery_group", "dg_bogus", "events"},
 		{"get drops source_id", "get", "source_id", "src_bogus", "list"},
 		{"raw_body drops limit", "raw_body", "limit", float64(10), "list"},

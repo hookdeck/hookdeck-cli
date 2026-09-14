@@ -1802,6 +1802,9 @@ hookdeck gateway request retry req_abc123 --connection-ids web_1,web_2
 
 List events (deliveries) created from a request.
 
+Filters match `hookdeck gateway event list`: this command queries the same event
+collection, narrowed to one request.
+
 **Usage:**
 
 ```bash
@@ -1812,16 +1815,39 @@ hookdeck gateway request events <request-id> [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--attempts` | `string` | Filter by number of attempts (integer or operators) |
+| `--body` | `string` | Filter by body (JSON string) |
+| `--cli-id` | `string` | Filter by CLI ID |
+| `--connection-id` | `string` | Filter by connection ID |
+| `--created-after` | `string` | Filter events created after (ISO date-time) |
+| `--created-before` | `string` | Filter events created before (ISO date-time) |
 | `--delivery-group` | `string` | Filter by delivery group |
+| `--destination-id` | `string` | Filter by destination ID |
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--error-code` | `string` | Filter by error code |
+| `--headers` | `string` | Filter by headers (JSON string) |
+| `--issue-id` | `string` | Filter by issue ID |
+| `--last-attempt-at-after` | `string` | Filter by last_attempt_at after (ISO date-time) |
+| `--last-attempt-at-before` | `string` | Filter by last_attempt_at before (ISO date-time) |
 | `--limit` | `int` | Limit number of results (default "100") |
 | `--next` | `string` | Pagination cursor for next page |
+| `--order-by` | `string` | Sort key (e.g. created_at) |
 | `--output` | `string` | Output format (json) |
+| `--parsed-query` | `string` | Filter by parsed query (JSON string) |
+| `--path` | `string` | Filter by path |
 | `--prev` | `string` | Pagination cursor for previous page |
+| `--response-status` | `string` | Filter by HTTP response status (e.g. 200, 500) |
+| `--source-id` | `string` | Filter by source ID |
+| `--status` | `string` | Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED) |
+| `--successful-at-after` | `string` | Filter by successful_at after (ISO date-time) |
+| `--successful-at-before` | `string` | Filter by successful_at before (ISO date-time) |
 
 **Examples:**
 
 ```bash
 hookdeck gateway request events req_abc123
+hookdeck gateway request events req_abc123 --status FAILED
+hookdeck gateway request events req_abc123 --destination-id des_abc123
 ```
 ### hookdeck gateway request ignored-events
 
