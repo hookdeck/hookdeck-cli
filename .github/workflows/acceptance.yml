@@ -25,6 +25,11 @@ jobs:
     env:
       ACCEPTANCE_SLICE: ${{ matrix.slice }}
       HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets[matrix.api_key_secret] }}
+      # Account-wide CLI key from `hookdeck login`. The project-scoped key that
+      # `hookdeck ci` issues cannot list or switch projects - core returns 403
+      # for a CLI credential with no user - so the project list/use tests skip
+      # without this. They were written but had never executed.
+      HOOKDECK_CLI_TESTING_CLI_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_CLI_KEY }}
       HOOKDECK_CLI_TELEMETRY_DISABLED: "1"
     steps:
       - name: Check out code
