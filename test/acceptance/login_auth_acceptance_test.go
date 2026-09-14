@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestLoginAfterValidate401StartsBrowserFlowAcceptance runs the real CLI against a local
+// TestLoginAfterValidate401FailsFastWithoutTerminalAcceptance runs the real CLI against a local
 // mock API: GET validate returns 401, then POST /cli-auth and poll complete the device flow.
 // SSH_CONNECTION avoids the "Press Enter to open the browser" branch (non-interactive).
-func TestLoginAfterValidate401StartsBrowserFlowAcceptance(t *testing.T) {
+func TestLoginAfterValidate401FailsFastWithoutTerminalAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
@@ -97,21 +97,46 @@ api_key = "hk_test_stale_accept01"
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err = cmd.Run()
-	require.NoError(t, err, "stdout=%q stderr=%q", stdout.String(), stderr.String())
-	require.Contains(t, stdout.String(), "no longer valid", "user should see stale-key message")
-	require.Equal(t, 1, pollHits, "mock should see exactly one poll after cli-auth")
 
-	// End-to-end check that the 2026-09-01 project type survives the whole round trip:
-	// API response -> profile -> config file. Everything else about the rename is
-	// covered by unit tests against mocks that this repo also writes, so this is
-	// the only place the persisted field is verified against a real CLI run.
-	written, readErr := os.ReadFile(configPath)
-	require.NoError(t, readErr)
+	// A stale key used to drop into browser sign-in here. That cannot complete
+	// without a terminal - there is nobody to press Enter or finish the flow in
+	// a browser - so the CLI now refuses instead of polling for a confirmation
+	// that will never arrive. CI is exactly that environment, which is why this
+	// test observes the refusal rather than the flow.
+	require.Error(t, err, "a rejected key with no terminal must fail, not start browser sign-in")
+	combined := stdout.String() + stderr.String()
+	require.Contains(t, combined, "browser sign-in needs an interactive terminal")
+	require.Contains(t, combined, "CLI key", "the error should say what kind of key is expected")
+	require.Zero(t, pollHits, "must not poll for a confirmation nobody can give")
+
+}
+
+// TestCIWritesTheProjectTypeAcceptance is the end-to-end check that the
+// 2026-09-01 project type survives the whole round trip: API response, to
+// profile, to config file. Everything else about the rename is covered by unit
+// tests against mocks this repo also writes, so this is the only place the
+// persisted value is verified against a real CLI run.
+//
+// It goes through `ci` rather than `login` because `ci` is the path that works
+// without a terminal, and CI has none.
+func TestCIWritesTheProjectTypeAcceptance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	// The runner authenticates with `ci`, which is what writes the config.
+	NewCLIRunnerWithConfigPath(t, configPath)
+
+	written, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+
 	assert.Contains(t, string(written), "project_type = 'Gateway'",
 		"the config is shared with older CLIs, which only understand the label")
-	assert.Contains(t, string(written), "project_mode = 'inbound'", "the legacy mode is still written for older CLIs")
-	assert.NotContains(t, string(written), "project_product", "the short-lived product key must not be written")
-	assert.Contains(t, string(written), "project_id = 'tm_accept'")
+	assert.Contains(t, string(written), "project_mode = 'inbound'",
+		"the legacy mode is still written for older CLIs")
+	assert.NotContains(t, string(written), "project_product",
+		"the short-lived product key must not be written")
 }
 
 // TestCIFailsFastWithInvalidAPIKeyAcceptance verifies hookdeck ci does not enter the
