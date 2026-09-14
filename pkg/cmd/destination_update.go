@@ -142,9 +142,10 @@ func (dc *destinationUpdateCmd) buildUpdateRequest(ctx context.Context, client *
 	if dc.destType != "" {
 		req.Type = strings.ToUpper(dc.destType)
 	}
-	// The stored destination answers two questions below: what type it is, so
-	// the CLI delivery-policy guard can run when --type is omitted, and what
-	// delivery-group overrides it holds, so a bare groups object does not
+	// The stored destination answers two questions below: what type it is, which
+	// decides how every type-dependent flag is read when --type is omitted — the
+	// delivery-policy guard and the --url/--cli-path config fields alike — and
+	// what delivery-group overrides it holds, so a bare groups object does not
 	// destroy them. Fetch it at most once, and only when it is needed.
 	var (
 		existingDest    *hookdeck.Destination
@@ -162,9 +163,13 @@ func (dc *destinationUpdateCmd) buildUpdateRequest(ctx context.Context, client *
 		return found, nil
 	}
 
-	// --type is normally omitted on update, so the delivery-policy guard has to
-	// resolve the stored type or it never fires for the common invocation.
-	policyType, err := destinationTypeForPolicyCheck(
+	// --type is normally omitted on update, so the stored type has to be
+	// resolved or nothing that depends on it works for the common invocation:
+	// the delivery-policy guard never fires, and config building drops --url and
+	// --cli-path on the floor (#406). The resolved type is what config building
+	// gets, not just what the guard gets — anything narrower would make --url
+	// work only in the company of other flags.
+	resolvedType, err := resolveDestinationType(
 		dc.destType,
 		dc.config != "" || dc.configFile != "",
 		&dc.destinationConfigFlags,
@@ -174,11 +179,11 @@ func (dc *destinationUpdateCmd) buildUpdateRequest(ctx context.Context, client *
 		return nil, err
 	}
 
-	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, dc.destType, &dc.destinationConfigFlags)
+	config, err := buildDestinationConfigFromFlags(dc.config, dc.configFile, resolvedType, &dc.destinationConfigFlags)
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectDeliveryPolicyInConfigForCLI(policyType, config, ""); err != nil {
+	if err := rejectDeliveryPolicyInConfigForCLI(resolvedType, config, ""); err != nil {
 		return nil, err
 	}
 	// update is a PUT and the API replaces delivery_policy.groups wholesale, so

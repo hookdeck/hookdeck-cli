@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,23 +46,23 @@ func destinationAPI(t *testing.T, stored *hookdeck.Destination, status int) *hoo
 	return &hookdeck.Client{BaseURL: baseURL, APIKey: "k"}
 }
 
-// TestDestinationTypeForPolicyCheck pins the guard that `destination update` and
-// `destination upsert` were missing: both normally omit --type, so comparing
-// rate-limit and delivery-group flags against the flag alone always passed and
-// the flags reached a stored CLI destination, where the API discards them.
-func TestDestinationTypeForPolicyCheck(t *testing.T) {
+// TestResolveDestinationType pins the resolution both `destination update` and
+// `destination upsert` depend on: both normally omit --type, so every flag whose
+// handling turns on the type was being read against "" — the delivery-policy
+// guard always passed, and --url and --cli-path were dropped from the request.
+func TestResolveDestinationType(t *testing.T) {
 	cli := &hookdeck.Destination{ID: "des_1", Name: "local", Type: "CLI"}
 	policyFlags := &destinationConfigFlags{RateLimit: 100, RateLimitPeriod: "minute"}
 	lookup := func() (*hookdeck.Destination, error) { return cli, nil }
 
 	t.Run("omitted --type resolves to the stored type", func(t *testing.T) {
-		got, err := destinationTypeForPolicyCheck("", false, policyFlags, lookup)
+		got, err := resolveDestinationType("", false, policyFlags, lookup)
 		require.NoError(t, err)
 		assert.Equal(t, "CLI", got)
 	})
 
 	t.Run("an explicit --type is trusted and no lookup happens", func(t *testing.T) {
-		got, err := destinationTypeForPolicyCheck("HTTP", false, policyFlags, func() (*hookdeck.Destination, error) {
+		got, err := resolveDestinationType("HTTP", false, policyFlags, func() (*hookdeck.Destination, error) {
 			t.Fatal("must not spend an API call when --type was given")
 			return nil, nil
 		})
@@ -68,9 +70,23 @@ func TestDestinationTypeForPolicyCheck(t *testing.T) {
 		assert.Equal(t, "HTTP", got)
 	})
 
-	t.Run("no policy flags means no lookup", func(t *testing.T) {
-		got, err := destinationTypeForPolicyCheck("", false, &destinationConfigFlags{URL: "https://x"}, func() (*hookdeck.Destination, error) {
-			t.Fatal("must not spend an API call when no policy flag is set")
+	t.Run("a type-specific flag resolves the type too, not just a policy flag", func(t *testing.T) {
+		// #406: this is the lookup that did not happen, so --url was built
+		// against "" and never reached the request.
+		got, err := resolveDestinationType("", false, &destinationConfigFlags{URL: "https://x"}, lookup)
+		require.NoError(t, err)
+		assert.Equal(t, "CLI", got)
+	})
+
+	t.Run("--cli-path resolves the type as well", func(t *testing.T) {
+		got, err := resolveDestinationType("", false, &destinationConfigFlags{CliPath: "/hooks"}, lookup)
+		require.NoError(t, err)
+		assert.Equal(t, "CLI", got)
+	})
+
+	t.Run("no type-dependent flag means no lookup", func(t *testing.T) {
+		got, err := resolveDestinationType("", false, &destinationConfigFlags{AuthMethod: "bearer", BearerToken: "t"}, func() (*hookdeck.Destination, error) {
+			t.Fatal("auth means the same thing whatever the type; do not spend an API call on it")
 			return nil, nil
 		})
 		require.NoError(t, err)
@@ -78,7 +94,7 @@ func TestDestinationTypeForPolicyCheck(t *testing.T) {
 	})
 
 	t.Run("--config takes precedence so the individual flags are ignored", func(t *testing.T) {
-		got, err := destinationTypeForPolicyCheck("", true, policyFlags, func() (*hookdeck.Destination, error) {
+		got, err := resolveDestinationType("", true, policyFlags, func() (*hookdeck.Destination, error) {
 			t.Fatal("must not spend an API call when --config wins anyway")
 			return nil, nil
 		})
@@ -87,7 +103,7 @@ func TestDestinationTypeForPolicyCheck(t *testing.T) {
 	})
 
 	t.Run("no stored destination leaves the type to the API", func(t *testing.T) {
-		got, err := destinationTypeForPolicyCheck("", false, policyFlags, func() (*hookdeck.Destination, error) {
+		got, err := resolveDestinationType("", false, policyFlags, func() (*hookdeck.Destination, error) {
 			return nil, nil
 		})
 		require.NoError(t, err)
@@ -95,7 +111,7 @@ func TestDestinationTypeForPolicyCheck(t *testing.T) {
 	})
 
 	t.Run("a failed lookup is an error, not a pass", func(t *testing.T) {
-		_, err := destinationTypeForPolicyCheck("", false, policyFlags, func() (*hookdeck.Destination, error) {
+		_, err := resolveDestinationType("", false, policyFlags, func() (*hookdeck.Destination, error) {
 			return nil, errors.New("network down")
 		})
 		require.Error(t, err)
@@ -115,7 +131,7 @@ func TestUpsertRejectsDeliveryPolicyOnStoredCLIDestination(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, config, "delivery_policy", "the flags do build a policy; the type is what makes it useless")
 
-	policyType, err := destinationTypeForPolicyCheck("", false, flags, func() (*hookdeck.Destination, error) {
+	policyType, err := resolveDestinationType("", false, flags, func() (*hookdeck.Destination, error) {
 		return fetchDestinationByName(context.Background(), client, "local")
 	})
 	require.NoError(t, err)
@@ -133,7 +149,7 @@ func TestUpsertAcceptsDeliveryPolicyOnStoredHTTPDestination(t *testing.T) {
 	config, err := buildDestinationConfigFromFlags("", "", "", flags)
 	require.NoError(t, err)
 
-	policyType, err := destinationTypeForPolicyCheck("", false, flags, func() (*hookdeck.Destination, error) {
+	policyType, err := resolveDestinationType("", false, flags, func() (*hookdeck.Destination, error) {
 		return fetchDestinationByName(context.Background(), client, "web")
 	})
 	require.NoError(t, err)
@@ -384,7 +400,7 @@ func TestDestinationUpdateSharesOneLookup(t *testing.T) {
 	config, err := buildDestinationConfigFromFlags("", "", "", flags)
 	require.NoError(t, err)
 
-	policyType, err := destinationTypeForPolicyCheck("", false, flags, memoised)
+	policyType, err := resolveDestinationType("", false, flags, memoised)
 	require.NoError(t, err)
 	require.NoError(t, rejectDeliveryPolicyInConfigForCLI(policyType, config, ""))
 	require.NoError(t, preserveStoredDeliveryGroupOverrides("des_1", config, memoised))
@@ -562,4 +578,185 @@ func TestDestinationUpsertBuildsRequestPreservingOverrides(t *testing.T) {
 		assert.Equal(t, "HTTP", req.Type)
 		assert.Equal(t, "https://api.example.com", req.Config["url"])
 	})
+}
+
+// storedCLIDest is a stored CLI destination, the counterpart to
+// storedHTTPDestWithOverrides for the type-specific flag cases.
+func storedCLIDest() *hookdeck.Destination {
+	return &hookdeck.Destination{
+		ID: "des_2", Name: "local", Type: "CLI",
+		Config: map[string]interface{}{"path": "/old"},
+	}
+}
+
+// TestDestinationUpdateAppliesTypeSpecificFlagsWithoutType pins #406. Config
+// building switches on the destination type, so with --type omitted the switch
+// fell through to the empty-type default and --url was never copied into the
+// request at all: the PUT went out without it and the command exited 0.
+func TestDestinationUpdateAppliesTypeSpecificFlagsWithoutType(t *testing.T) {
+	t.Run("--url alone reaches the request", func(t *testing.T) {
+		client, calls := storedDestServer(t, storedHTTPDestWithOverrides(), 0)
+		dc := &destinationUpdateCmd{url: "https://new.example.com/hook"}
+
+		req, err := dc.buildUpdateRequest(context.Background(), client, "des_1")
+		require.NoError(t, err)
+
+		assert.Equal(t, "https://new.example.com/hook", req.Config["url"],
+			"the URL the user asked for must be in the request body")
+		assert.Equal(t, "", req.Type, "resolving the stored type must not start sending a type the user did not pass")
+		assert.Equal(t, 1, *calls, "one GET, shared with every other guard that needs the stored record")
+	})
+
+	t.Run("--cli-path alone reaches the request", func(t *testing.T) {
+		client, _ := storedDestServer(t, storedCLIDest(), 0)
+		dc := &destinationUpdateCmd{cliPath: "/webhooks"}
+
+		req, err := dc.buildUpdateRequest(context.Background(), client, "des_2")
+		require.NoError(t, err)
+		assert.Equal(t, "/webhooks", req.Config["path"])
+	})
+
+	t.Run("resolution does not depend on a policy flag being present too", func(t *testing.T) {
+		// The point of #406: --url must not work only in the company of a flag
+		// that happens to trigger the lookup for its own reasons.
+		client, _ := storedDestServer(t, storedHTTPDestWithOverrides(), 0)
+		withPolicy := &destinationUpdateCmd{
+			url:                    "https://new.example.com/hook",
+			destinationConfigFlags: destinationConfigFlags{RateLimit: 10, RateLimitPeriod: "minute"},
+		}
+		reqWith, err := withPolicy.buildUpdateRequest(context.Background(), client, "des_1")
+		require.NoError(t, err)
+
+		clientAlone, _ := storedDestServer(t, storedHTTPDestWithOverrides(), 0)
+		alone := &destinationUpdateCmd{url: "https://new.example.com/hook"}
+		reqAlone, err := alone.buildUpdateRequest(context.Background(), clientAlone, "des_1")
+		require.NoError(t, err)
+
+		assert.Equal(t, reqWith.Config["url"], reqAlone.Config["url"],
+			"the URL must be applied the same way with and without a rate-limit flag")
+	})
+
+	t.Run("an explicit --type still spends no lookup", func(t *testing.T) {
+		client, calls := storedDestServer(t, storedHTTPDestWithOverrides(), 0)
+		dc := &destinationUpdateCmd{destType: "HTTP", url: "https://new.example.com/hook"}
+
+		req, err := dc.buildUpdateRequest(context.Background(), client, "des_1")
+		require.NoError(t, err)
+		assert.Equal(t, "https://new.example.com/hook", req.Config["url"])
+		assert.Equal(t, 0, *calls)
+	})
+
+	t.Run("a failed lookup refuses rather than dropping the URL", func(t *testing.T) {
+		client, _ := storedDestServer(t, storedHTTPDestWithOverrides(), 1)
+		dc := &destinationUpdateCmd{url: "https://new.example.com/hook"}
+
+		_, err := dc.buildUpdateRequest(context.Background(), client, "des_1")
+		require.Error(t, err, "sending the PUT without the URL would report success for an update that did not happen")
+	})
+
+	t.Run("--url on a stored CLI destination is refused, not dropped", func(t *testing.T) {
+		client, _ := storedDestServer(t, storedCLIDest(), 0)
+		dc := &destinationUpdateCmd{url: "https://new.example.com/hook"}
+
+		_, err := dc.buildUpdateRequest(context.Background(), client, "des_2")
+		require.Error(t, err, "a CLI destination has no url field, so the value would vanish")
+		assert.Contains(t, err.Error(), "--url")
+		assert.Contains(t, err.Error(), "CLI")
+	})
+}
+
+// TestDestinationUpsertAppliesTypeSpecificFlagsWithoutType is the upsert half.
+// It was worse there: the empty config was replaced by the stored one, so the
+// PUT re-sent the destination exactly as it already was.
+func TestDestinationUpsertAppliesTypeSpecificFlagsWithoutType(t *testing.T) {
+	t.Run("--url alone reaches the request", func(t *testing.T) {
+		client, _ := storedDestServer(t, storedHTTPDestWithOverrides(), 0)
+		dc := &destinationUpsertCmd{name: "web", url: "https://new.example.com/hook"}
+
+		req, err := dc.buildUpsertRequest(context.Background(), client)
+		require.NoError(t, err)
+		assert.Equal(t, "https://new.example.com/hook", req.Config["url"])
+		assert.Equal(t, "", req.Type,
+			"resolving the stored type must not start sending a type the user did not pass: "+
+				"asserting it back would revert a type changed between the lookup and this PUT")
+	})
+
+	t.Run("--cli-path alone reaches the request", func(t *testing.T) {
+		client, _ := storedDestServer(t, storedCLIDest(), 0)
+		dc := &destinationUpsertCmd{name: "local", cliPath: "/webhooks"}
+
+		req, err := dc.buildUpsertRequest(context.Background(), client)
+		require.NoError(t, err)
+		assert.Equal(t, "/webhooks", req.Config["path"])
+		assert.Equal(t, "", req.Type)
+	})
+
+	t.Run("an explicit --type is still sent", func(t *testing.T) {
+		client, _ := storedDestServer(t, storedHTTPDestWithOverrides(), 0)
+		dc := &destinationUpsertCmd{name: "web", destType: "HTTP", url: "https://new.example.com/hook"}
+
+		req, err := dc.buildUpsertRequest(context.Background(), client)
+		require.NoError(t, err)
+		assert.Equal(t, "HTTP", req.Type, "what the user asked for is still honoured")
+	})
+
+	t.Run("a create with no stored type to resolve says so", func(t *testing.T) {
+		client, _ := storedDestServer(t, nil, 0)
+		dc := &destinationUpsertCmd{name: "brand-new", url: "https://new.example.com/hook"}
+
+		_, err := dc.buildUpsertRequest(context.Background(), client)
+		require.Error(t, err, "there is no stored destination to read the type from, and the flag cannot be applied blind")
+		assert.Contains(t, err.Error(), "--type")
+	})
+}
+
+// TestRejectTypeSpecificFlagsForOtherTypes covers the guard directly, including
+// the types it must leave alone.
+func TestRejectTypeSpecificFlagsForOtherTypes(t *testing.T) {
+	t.Run("--cli-path on an HTTP destination", func(t *testing.T) {
+		err := rejectTypeSpecificFlagsForOtherTypes("HTTP", &destinationConfigFlags{CliPath: "/hooks"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--cli-path")
+	})
+
+	t.Run("--http-method on a MOCK_API destination", func(t *testing.T) {
+		err := rejectTypeSpecificFlagsForOtherTypes("MOCK_API", &destinationConfigFlags{HTTPMethod: "POST"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--http-method")
+	})
+
+	t.Run("flags that match the type pass", func(t *testing.T) {
+		assert.NoError(t, rejectTypeSpecificFlagsForOtherTypes("HTTP", &destinationConfigFlags{
+			URL: "https://x", HTTPMethod: "POST",
+		}))
+		assert.NoError(t, rejectTypeSpecificFlagsForOtherTypes("CLI", &destinationConfigFlags{CliPath: "/hooks"}))
+	})
+
+	t.Run("type-independent flags are never type-checked", func(t *testing.T) {
+		assert.NoError(t, rejectTypeSpecificFlagsForOtherTypes("", &destinationConfigFlags{
+			AuthMethod: "bearer", BearerToken: "t", RateLimit: 5, RateLimitPeriod: "minute",
+		}))
+	})
+
+	t.Run("an unknown type is left to the config builder to name", func(t *testing.T) {
+		assert.NoError(t, rejectTypeSpecificFlagsForOtherTypes("FOO", &destinationConfigFlags{URL: "https://x"}))
+		_, err := buildDestinationConfigFromIndividualFlags("FOO", &destinationConfigFlags{URL: "https://x"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported destination type")
+	})
+}
+
+// TestCreateStillAcceptsAnUnsetCLIPath guards the interaction with --cli-path's
+// "/" default on create: an unset flag must not read as a path the user asked
+// for, or every HTTP create would look like it named one.
+func TestCreateStillAcceptsAnUnsetCLIPath(t *testing.T) {
+	cmd := &cobra.Command{Use: "create"}
+	var cliPath string
+	cmd.Flags().StringVar(&cliPath, "cli-path", "/", "Path for CLI destinations")
+	require.NoError(t, cmd.ParseFlags([]string{}))
+
+	flags := &destinationConfigFlags{URL: "https://api.example.com", CliPath: cliPathFromFlags(cmd, cliPath)}
+	config, err := buildDestinationConfigFromIndividualFlags("HTTP", flags)
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.example.com", config["url"])
 }

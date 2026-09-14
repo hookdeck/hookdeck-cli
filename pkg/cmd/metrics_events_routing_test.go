@@ -156,3 +156,102 @@ func TestSingleRouteMeasureCombinationsStillWork(t *testing.T) {
 		assert.Contains(t, *path, "metrics/events")
 	})
 }
+
+// TestCrossRouteMeasureAndDimensionIsRejected pins #407. The routing conditions
+// are ordered and the first match wins, so a queue-depth measure decided the
+// endpoint and the issue_id dimension went to /metrics/queue-depth, which does
+// not group by issue: the command exited 0 having answered a different
+// question. "pending" shadowed it in exactly the same way.
+func TestCrossRouteMeasureAndDimensionIsRejected(t *testing.T) {
+	tests := []struct {
+		name     string
+		params   hookdeck.MetricsQueryParams
+		contains []string
+	}{
+		{
+			name: "queue depth measure with the issue_id dimension",
+			params: hookdeck.MetricsQueryParams{
+				Measures:   []string{"queue_depth"},
+				Dimensions: []string{"issue_id"},
+				IssueID:    "iss_1",
+			},
+			contains: []string{"--measures", `"queue_depth"`, "queue depth metrics", "--dimensions", `"issue_id"`, "per-issue event metrics"},
+		},
+		{
+			name: "the dimension conflicts even without the filter",
+			params: hookdeck.MetricsQueryParams{
+				Measures:   []string{"max_age"},
+				Dimensions: []string{"issue_id"},
+			},
+			contains: []string{`"max_age"`, "queue depth metrics", "per-issue event metrics"},
+		},
+		{
+			name: "the --issue-id filter selects the route on its own",
+			params: hookdeck.MetricsQueryParams{
+				Measures: []string{"queue_depth"},
+				IssueID:  "iss_1",
+			},
+			contains: []string{`"queue_depth"`, "queue depth metrics", "--issue-id", "per-issue event metrics"},
+		},
+		{
+			name: "pending shadows the issue route the same way",
+			params: hookdeck.MetricsQueryParams{
+				Measures:   []string{"pending"},
+				Dimensions: []string{"issue_id"},
+				IssueID:    "iss_1",
+			},
+			contains: []string{`"pending"`, "pending event metrics", "per-issue event metrics"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, path, _ := routeCapture(t)
+
+			_, err := queryEventMetricsConsolidated(context.Background(), client, tt.params)
+			require.Error(t, err, "one route's numbers must not be returned under another route's question")
+			for _, want := range tt.contains {
+				assert.Contains(t, err.Error(), want)
+			}
+			assert.Empty(t, *path, "the API must not be called at all")
+		})
+	}
+}
+
+// TestCompatibleMeasureAndDimensionStillRoute is the other half: the default
+// route is what the by-issue endpoint refines, not what it contradicts, and a
+// dimension that selects no route of its own must not trip the guard.
+func TestCompatibleMeasureAndDimensionStillRoute(t *testing.T) {
+	t.Run("a default-route measure grouped by issue goes to the issue endpoint", func(t *testing.T) {
+		client, path, query := routeCapture(t)
+		_, err := queryEventMetricsConsolidated(context.Background(), client, hookdeck.MetricsQueryParams{
+			Measures:   []string{"count"},
+			Dimensions: []string{"issue_id"},
+			IssueID:    "iss_1",
+		})
+		require.NoError(t, err)
+		assert.Contains(t, *path, "events-by-issue")
+		assert.Equal(t, []string{"count"}, (*query)["measures[]"])
+	})
+
+	t.Run("queue depth grouped by a dimension that selects no route still routes", func(t *testing.T) {
+		client, path, _ := routeCapture(t)
+		_, err := queryEventMetricsConsolidated(context.Background(), client, hookdeck.MetricsQueryParams{
+			Measures:   []string{"queue_depth"},
+			Dimensions: []string{"destination_id"},
+		})
+		require.NoError(t, err)
+		assert.Contains(t, *path, "queue-depth")
+	})
+
+	t.Run("an unknown measure leaves the issue route to the dimension", func(t *testing.T) {
+		client, path, _ := routeCapture(t)
+		_, err := queryEventMetricsConsolidated(context.Background(), client, hookdeck.MetricsQueryParams{
+			Measures:   []string{"not_a_measure"},
+			Dimensions: []string{"issue_id"},
+			IssueID:    "iss_1",
+		})
+		require.NoError(t, err, "a measure this package does not know must not decide the route")
+		assert.Contains(t, *path, "events-by-issue")
+	})
+}
