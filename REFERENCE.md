@@ -1089,8 +1089,8 @@ hookdeck gateway destination create [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations (default "/") |
-| `--config` | `string` | JSON object for the whole destination config; cannot be combined with the individual config flags |
-| `--config-file` | `string` | Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags |
+| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
+| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
 | `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
@@ -1160,8 +1160,8 @@ hookdeck gateway destination update <destination-id> [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
-| `--config` | `string` | JSON object for the whole destination config; cannot be combined with the individual config flags |
-| `--config-file` | `string` | Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags |
+| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
+| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
 | `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
@@ -1228,8 +1228,8 @@ hookdeck gateway destination upsert <name> [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
-| `--config` | `string` | JSON object for the whole destination config; cannot be combined with the individual config flags |
-| `--config-file` | `string` | Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags |
+| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
+| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
 | `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
