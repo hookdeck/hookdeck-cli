@@ -348,3 +348,65 @@ func TestProjectListFailsWithCIKeyAcceptance(t *testing.T) {
 	assert.NotContains(t, combined, "status=500")
 	assert.Contains(t, combined, "single project")
 }
+
+// TestProjectListAgainstRealAPI covers GET /projects with the credential the CLI
+// actually carries. Everything else on this path is an httptest mock this repo
+// also writes, so nothing verified that the endpoint exists, that it authorizes
+// a CLI key, or that its response still parses.
+//
+// It is worth being explicit about the credential: the acceptance runner
+// bootstraps with a project API key, but `hookdeck ci` exchanges that at
+// /cli-auth/ci for a CLI client key, and that is what ends up in the config and
+// on the wire. So this exercises the CLI-key path a real user has, not the
+// project-API-key path. ListProjects also drops the project scoping header
+// (clientForCLIAuthValidate), which is only observable against the real API.
+//
+// The endpoint moved from /teams to /projects in 2026-09-01 and the type field
+// was renamed twice during that release, so this is the regression guard for
+// both.
+func TestProjectListAgainstRealAPI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	t.Run("lists projects with a CLI key", func(t *testing.T) {
+		stdout := cli.RunExpectSuccess("project", "list")
+		require.NotEmpty(t, stdout, "the CLI key must be authorized for GET /projects")
+		// Each line is "Org / Project | Type"; the type is the display label.
+		assert.Regexp(t, `\| (Gateway|Outpost|Console)`, stdout,
+			"projects should carry a recognized type label")
+	})
+
+	t.Run("json output keeps the documented type values", func(t *testing.T) {
+		stdout := cli.RunExpectSuccess("project", "list", "--output", "json")
+
+		var items []struct {
+			Id   string `json:"id"`
+			Type string `json:"type"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &items))
+		require.NotEmpty(t, items)
+
+		for _, it := range items {
+			assert.NotEmpty(t, it.Id)
+			// gateway, not event_gateway: this is the user-facing vocabulary and
+			// predates the API rename, so it must not follow it.
+			assert.Contains(t, []string{"gateway", "outpost", "console"}, it.Type,
+				"project %s reported type %q", it.Id, it.Type)
+		}
+	})
+
+	t.Run("type filter matches the json vocabulary", func(t *testing.T) {
+		stdout := cli.RunExpectSuccess("project", "list", "--type", "gateway", "--output", "json")
+
+		var items []struct {
+			Type string `json:"type"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &items))
+		for _, it := range items {
+			assert.Equal(t, "gateway", it.Type)
+		}
+	})
+}
