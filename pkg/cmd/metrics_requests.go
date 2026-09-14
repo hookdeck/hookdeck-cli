@@ -8,8 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const metricsRequestsMeasures = "count, accepted_count, rejected_count, discarded_count, avg_events_per_request, avg_ignored_per_request"
-
 type metricsRequestsCmd struct {
 	cmd   *cobra.Command
 	flags metricsCommonFlags
@@ -21,7 +19,7 @@ func newMetricsRequestsCmd() *metricsRequestsCmd {
 		Use:   "requests",
 		Args:  cobra.NoArgs,
 		Short: ShortBeta("Query request metrics"),
-		Long:  LongBeta(`Query metrics for requests (acceptance, rejection, etc.). Measures: ` + metricsRequestsMeasures + `.`),
+		Long:  LongBeta(`Query metrics for requests (acceptance, rejection, etc.). Measures: ` + hookdeck.RequestMetricsMeasures + `.`),
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.RequestMetricsFilters, hookdeck.RequestMetricsDimensions, hookdeck.RequestStatusValues)
@@ -33,6 +31,9 @@ func (c *metricsRequestsCmd) runE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	params := metricsParamsFromFlags(&c.flags)
+	if err := rejectUnsupportedDimensions(params, hookdeck.RequestMetricsDimensionValues, "request metrics"); err != nil {
+		return err
+	}
 	data, err := Config.GetAPIClient().QueryRequestMetrics(context.Background(), params)
 	if err != nil {
 		return fmt.Errorf("query request metrics: %w", err)

@@ -310,6 +310,46 @@ func (c *Client) Put(ctx context.Context, path string, data []byte, configure fu
 	return c.PerformRequest(ctx, req)
 }
 
+// apiErrorMessage extracts the human-readable part of a Hookdeck error body.
+//
+// Validation failures (422) carry no top-level "message": the one useful line
+// sits in data[], so the whole body was being pasted into the error text -
+// internal fields and all ({"level":"info","handled":true,...}) - with the
+// message the caller needs buried in the middle of it.
+//
+// data[] entries are seen both as plain strings and as objects with a message
+// field, so both are read. Returns "" when nothing readable is found, leaving
+// the caller to fall back to the raw body.
+func apiErrorMessage(body []byte) string {
+	var payload struct {
+		Message string            `json:"message"`
+		Data    []json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return ""
+	}
+	if payload.Message != "" {
+		return payload.Message
+	}
+	messages := make([]string, 0, len(payload.Data))
+	for _, item := range payload.Data {
+		var text string
+		if err := json.Unmarshal(item, &text); err == nil {
+			if text != "" {
+				messages = append(messages, text)
+			}
+			continue
+		}
+		var obj struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(item, &obj); err == nil && obj.Message != "" {
+			messages = append(messages, obj.Message)
+		}
+	}
+	return strings.Join(messages, "; ")
+}
+
 func checkAndPrintError(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
 		if res.Body != nil {
@@ -328,10 +368,10 @@ func checkAndPrintError(res *http.Response) error {
 				Message:    fmt.Sprintf("unexpected http status code: %d, raw response body: %s", res.StatusCode, body),
 			}
 		}
-		if response.Message != "" {
+		if msg := apiErrorMessage(body); msg != "" {
 			return &APIError{
 				StatusCode: res.StatusCode,
-				Message:    response.Message,
+				Message:    msg,
 			}
 		}
 		return &APIError{

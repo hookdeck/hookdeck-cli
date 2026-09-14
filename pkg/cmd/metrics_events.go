@@ -9,8 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const metricsEventsMeasures = "count, successful_count, failed_count, scheduled_count, paused_count, error_rate, avg_attempts, scheduled_retry_count, pending, queue_depth, max_depth, max_age"
-const metricsEventsDimensions = hookdeck.EventMetricsDimensions
+var metricsEventsDimensions = hookdeck.EventMetricsDimensions
 
 type metricsEventsCmd struct {
 	cmd   *cobra.Command
@@ -29,7 +28,7 @@ Requires --start and --end.
 
 When querying per-issue (e.g. --dimensions issue_id), --issue-id is required.
 
-Measures: ` + metricsEventsMeasures + `.
+Measures: ` + hookdeck.EventMetricsMeasures + `.
 Dimensions: ` + metricsEventsDimensions + `.`),
 		RunE: c.runE,
 	}
@@ -80,6 +79,9 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		if err := rejectUnsupportedFilters(params, hookdeck.QueueDepthRouteFilters, "queue depth metrics"); err != nil {
 			return nil, err
 		}
+		if err := rejectUnsupportedDimensions(params, hookdeck.QueueDepthRouteDimensions, "queue depth metrics"); err != nil {
+			return nil, err
+		}
 		// The endpoint accepts max_depth and max_age only. "queue_depth" is our own
 		// spelling for the route, advertised in --help, so translate it rather than
 		// letting the API reject a measure we told the user to pass.
@@ -95,6 +97,9 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		if err := rejectUnsupportedFilters(params, hookdeck.PendingTimeseriesRouteFilters, "pending event metrics (--measures pending)"); err != nil {
 			return nil, err
 		}
+		if err := rejectUnsupportedDimensions(params, hookdeck.PendingTimeseriesRouteDimensions, "pending event metrics (--measures pending)"); err != nil {
+			return nil, err
+		}
 		pendingParams := params
 		pendingParams.Measures = []string{"count"}
 		return client.QueryEventsPendingTimeseries(ctx, pendingParams)
@@ -108,10 +113,16 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		if err := rejectUnsupportedFilters(params, hookdeck.EventsByIssueRouteFilters, "per-issue event metrics"); err != nil {
 			return nil, err
 		}
+		if err := rejectUnsupportedDimensions(params, hookdeck.EventsByIssueRouteDimensions, "per-issue event metrics"); err != nil {
+			return nil, err
+		}
 		return client.QueryEventsByIssue(ctx, params)
 	}
 	// 4. Default → QueryEventMetrics
 	if err := rejectUnsupportedFilters(params, hookdeck.DefaultEventRouteFilters, "event metrics"); err != nil {
+		return nil, err
+	}
+	if err := rejectUnsupportedDimensions(params, hookdeck.DefaultEventRouteDimensions, "event metrics"); err != nil {
 		return nil, err
 	}
 	return client.QueryEventMetrics(ctx, params)

@@ -23,8 +23,17 @@ func handleRequests(client *hookdeck.Client) mcpsdk.ToolHandler {
 		}
 
 		action := in.String("action")
+		if action == "" {
+			action = "list"
+		}
+		// The CLI has one flag set per subcommand; this tool flattens five of
+		// them into one schema, so a filter meant for a sibling action would be
+		// accepted and then dropped without ever reaching the API.
+		if err := rejectArgsUnsupportedByAction(in, "hookdeck_requests", action, requestsActionArgs, requestsToolProperties); err != nil {
+			return ErrorResult(err.Error()), nil
+		}
 		switch action {
-		case "list", "":
+		case "list":
 			return requestsList(ctx, client, in)
 		case "get":
 			return requestsGet(ctx, client, in)
@@ -124,10 +133,16 @@ func requestsIgnoredEvents(ctx context.Context, client *hookdeck.Client, in inpu
 	if id == "" {
 		return ErrorResult("id is required for the ignored_events action"), nil
 	}
-	result, err := client.GetRequestIgnoredEvents(ctx, id, nil)
+	// The route takes limit/next/prev (and the CLI passes them); sending nil
+	// dropped all three, so a caller asking for 5 rows silently got the default
+	// page and had no cursor to move off it.
+	params := make(map[string]string)
+	setInt(params, "limit", in.Int("limit", 0))
+	setIfNonEmpty(params, "next", in.String("next"))
+	setIfNonEmpty(params, "prev", in.String("prev"))
+	result, err := client.GetRequestIgnoredEvents(ctx, id, params)
 	if err != nil {
 		return ErrorResult(TranslateAPIError(err)), nil
 	}
 	return JSONResultEnvelopeForClient(result, client)
 }
-

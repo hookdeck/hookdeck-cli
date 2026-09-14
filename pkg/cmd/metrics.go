@@ -107,6 +107,12 @@ func rejectUnsupportedFilters(params hookdeck.MetricsQueryParams, allowed hookde
 	return hookdeck.RejectUnsupportedFilters(params, allowed, route, hookdeck.CLIFilterNames)
 }
 
+// rejectUnsupportedDimensions is the dimension counterpart, reading the same
+// shared matrix as the MCP layer so the two cannot drift.
+func rejectUnsupportedDimensions(params hookdeck.MetricsQueryParams, allowed []string, route string) error {
+	return hookdeck.RejectUnsupportedDimensions(params, allowed, route, hookdeck.CLIFilterNames, "--dimensions")
+}
+
 // metricsParamsFromFlags builds hookdeck.MetricsQueryParams from common flags.
 // Measures and dimensions are split from comma-separated strings.
 func metricsParamsFromFlags(f *metricsCommonFlags) hookdeck.MetricsQueryParams {

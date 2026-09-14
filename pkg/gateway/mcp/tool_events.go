@@ -21,8 +21,16 @@ func handleEvents(client *hookdeck.Client) mcpsdk.ToolHandler {
 		}
 
 		action := in.String("action")
+		if action == "" {
+			action = "list"
+		}
+		// get and raw_body address one event by id: every list filter passed
+		// alongside them used to be dropped in silence.
+		if err := rejectArgsUnsupportedByAction(in, "hookdeck_events", action, eventsActionArgs, eventsToolProperties); err != nil {
+			return ErrorResult(err.Error()), nil
+		}
 		switch action {
-		case "list", "":
+		case "list":
 			return eventsList(ctx, client, in)
 		case "get":
 			return eventsGet(ctx, client, in)
@@ -97,4 +105,3 @@ func eventsRawBody(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 	}
 	return JSONResultEnvelopeForClient(map[string]string{"raw_body": text}, client)
 }
-

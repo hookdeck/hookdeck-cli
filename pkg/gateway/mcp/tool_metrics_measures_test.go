@@ -81,3 +81,102 @@ func TestMetricsToolAcceptsSingleRouteMeasures(t *testing.T) {
 	assert.False(t, result.IsError)
 	assert.Equal(t, []string{"count", "failed_count"}, sawMeasures)
 }
+
+// TestMetricsToolRejectsCrossRouteEventQuery covers #407 on the MCP surface.
+//
+// `events` routing is ordered - measures, then the issue_id dimension, then the
+// issue filter - and first match wins. A queue-depth or pending measure
+// therefore shadowed a per-issue question entirely: the call returned queue
+// depth, reported success, and never mentioned that the issue_id half of the
+// question had been dropped. The CLI fix landed in shared code (#407); this is
+// the same guard on the tool, which has the identical ordered routing.
+func TestMetricsToolRejectsCrossRouteEventQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     map[string]any
+		contains []string
+	}{
+		{
+			name: "queue depth measure shadows the issue_id dimension",
+			args: map[string]any{
+				"measures":   []any{"queue_depth"},
+				"dimensions": []any{"issue_id"},
+				"issue_id":   "iss_1",
+			},
+			contains: []string{`"queue_depth"`, "queue depth metrics", "per-issue event metrics", "dimensions"},
+		},
+		{
+			name: "pending measure shadows the issue_id dimension",
+			args: map[string]any{
+				"measures":   []any{"pending"},
+				"dimensions": []any{"issue_id"},
+				"issue_id":   "iss_1",
+			},
+			contains: []string{`"pending"`, "pending event metrics", "per-issue event metrics"},
+		},
+		{
+			name: "queue depth measure shadows the issue filter on its own",
+			args: map[string]any{
+				"measures": []any{"max_depth"},
+				"issue_id": "iss_1",
+			},
+			contains: []string{`"max_depth"`, "queue depth metrics", "issue_id", "per-issue event metrics"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fail := func(w http.ResponseWriter, r *http.Request) {
+				t.Fatalf("must not call %s: the query names two routes", r.URL.Path)
+			}
+			session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+				hookdeck.APIPathPrefix + "/metrics/events":                    fail,
+				hookdeck.APIPathPrefix + "/metrics/events-by-issue":           fail,
+				hookdeck.APIPathPrefix + "/metrics/events-pending-timeseries": fail,
+				hookdeck.APIPathPrefix + "/metrics/queue-depth":               fail,
+			})
+
+			args := map[string]any{
+				"action": "events",
+				"start":  "2025-01-01T00:00:00Z",
+				"end":    "2025-01-02T00:00:00Z",
+			}
+			for k, v := range tt.args {
+				args[k] = v
+			}
+
+			result := callTool(t, session, "hookdeck_metrics", args)
+
+			assert.True(t, result.IsError, "a query naming two routes must be refused")
+			body := textContent(t, result)
+			for _, want := range tt.contains {
+				assert.Contains(t, body, want, "the error must name both routes")
+			}
+		})
+	}
+}
+
+// TestMetricsToolStillAnswersSingleRouteEventQueries is the other half: a
+// per-issue question with a default-route measure is a per-issue count, not a
+// conflict, and must still reach the by-issue endpoint.
+func TestMetricsToolStillAnswersSingleRouteEventQueries(t *testing.T) {
+	var called bool
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/metrics/events-by-issue": func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		},
+	})
+
+	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+		"action":     "events",
+		"start":      "2025-01-01T00:00:00Z",
+		"end":        "2025-01-02T00:00:00Z",
+		"measures":   []any{"count"},
+		"dimensions": []any{"issue_id"},
+		"issue_id":   "iss_1",
+	})
+
+	assert.False(t, result.IsError, textContent(t, result))
+	assert.True(t, called, "a per-issue count must still reach the by-issue endpoint")
+}

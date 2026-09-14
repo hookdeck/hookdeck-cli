@@ -311,14 +311,38 @@ Parameters:
   start          (string, required)   — ISO 8601 datetime
   end            (string, required)   — ISO 8601 datetime
   granularity    (string)             — e.g. "1h", "5m", "1d"
-  measures       (string[], required)  — Metrics to retrieve. Common: count, successful_count, failed_count, error_count
-  dimensions     (string[])           — Grouping dimensions (varies by action)
-  source_id      (string)             — Filter by source
-  destination_id (string)             — Filter by destination
-  delivery_group (string)             — Filter by delivery group (events and attempts)
-  connection_id  (string)             — Filter by connection (maps to webhook_id)
-  status         (string)             — Filter by status
-  issue_id       (string)             — Filter by issue (events only)`,
+  measures       (string[], required) — Metrics to retrieve (see Measures below)
+  dimensions     (string[])           — Grouping dimensions (see Dimensions below)
+  source_id      (string)             — Filter by source (events, requests)
+  destination_id (string)             — Filter by destination (events, attempts)
+  delivery_group (string)             — Filter by delivery group (events, attempts)
+  connection_id  (string)             — Filter by connection, maps to webhook_id (events, transformations)
+  status         (string)             — Filter by status (events, requests, attempts)
+  issue_id       (string)             — Filter by issue (transformations; events when grouping by issue_id)
+
+Measures per action (only count is valid on all four):
+  events          — ` + hookdeck.EventMetricsMeasures + `
+  requests        — ` + hookdeck.RequestMetricsMeasures + `
+  attempts        — ` + hookdeck.AttemptMetricsMeasures + `
+  transformations — ` + hookdeck.TransformationMetricsMeasures + `
+
+Dimensions per action:
+  events          — ` + hookdeck.EventMetricsDimensions + `
+  requests        — ` + hookdeck.RequestMetricsDimensions + `
+  attempts        — ` + hookdeck.AttemptMetricsDimensions + `
+  transformations — ` + hookdeck.TransformationMetricsDimensions + `
+
+  On events the accepted set narrows with the route the measures select:
+    queue_depth / max_depth / max_age — ` + hookdeck.DimensionList(hookdeck.QueueDepthRouteDimensions) + `
+    pending                           — ` + hookdeck.DimensionList(hookdeck.PendingTimeseriesRouteDimensions) + `
+    issue_id (per-issue)              — ` + hookdeck.DimensionList(hookdeck.EventsByIssueRouteDimensions) + `
+  Grouping by delivery_group also requires destination_id; the API rejects it otherwise.
+
+Status values per action:
+  events          — ` + hookdeck.EventStatusValues + `
+  requests        — ` + hookdeck.RequestStatusValues + `
+  attempts        — ` + hookdeck.AttemptStatusValues + `
+  transformations — not supported`,
 
 	"hookdeck_help": `hookdeck_help — Get an overview of available tools or detailed help for a specific tool
 
