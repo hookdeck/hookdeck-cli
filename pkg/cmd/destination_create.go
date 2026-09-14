@@ -121,11 +121,13 @@ func (dc *destinationCreateCmd) runDestinationCreateCmd(cmd *cobra.Command, args
 		config["url"] = dc.url
 	}
 	if t == "CLI" {
-		path := dc.cliPath
-		if path == "" {
-			path = "/"
+		// --cli-path defaults to "/", so compare against Changed rather than "":
+		// an unset flag must not overwrite a path supplied via --config.
+		cliPath := dc.cliPath
+		if !cmd.Flags().Changed("cli-path") {
+			cliPath = ""
 		}
-		config["path"] = path
+		applyCLIPath(config, cliPath, true)
 	}
 
 	req := &hookdeck.DestinationCreateRequest{

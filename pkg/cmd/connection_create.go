@@ -620,6 +620,9 @@ func (cc *connectionCreateCmd) buildDestinationConfig() (map[string]interface{},
 	if err != nil {
 		return nil, err
 	}
+	if err := rejectDeliveryPolicyForCLI(cc.destinationType, policy, "destination-"); err != nil {
+		return nil, err
+	}
 	mergeDeliveryPolicy(config, policy)
 
 	if len(config) == 0 {

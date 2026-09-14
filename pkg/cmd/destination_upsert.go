@@ -111,8 +111,8 @@ func (dc *destinationUpsertCmd) runDestinationUpsertCmd(cmd *cobra.Command, args
 	if t == "HTTP" && dc.url != "" {
 		config["url"] = dc.url
 	}
-	if t == "CLI" && dc.cliPath != "" {
-		config["path"] = dc.cliPath
+	if t == "CLI" {
+		applyCLIPath(config, dc.cliPath, false)
 	}
 
 	req := &hookdeck.DestinationCreateRequest{

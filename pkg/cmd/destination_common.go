@@ -134,6 +134,34 @@ func buildDeliveryPolicy(rate int, period, groupKey string, groupRate int, group
 	return policy, nil
 }
 
+// applyCLIPath sets the path for a CLI destination. An explicit --cli-path wins;
+// otherwise a path already supplied via --config is left alone. withDefault adds
+// the "/" default, which only create does — upsert leaves the field absent so the
+// stored value survives a partial update.
+func applyCLIPath(config map[string]interface{}, cliPath string, withDefault bool) {
+	if cliPath != "" {
+		config["path"] = cliPath
+		return
+	}
+	if _, ok := config["path"]; ok {
+		return
+	}
+	if withDefault {
+		config["path"] = "/"
+	}
+}
+
+// rejectDeliveryPolicyForCLI refuses delivery-policy flags on a CLI destination.
+// CLI destinations carry no delivery_policy in the API schema: the request is
+// accepted and the policy discarded, so without this the flags look applied and
+// never take effect.
+func rejectDeliveryPolicyForCLI(destType string, policy map[string]interface{}, flagPrefix string) error {
+	if len(policy) == 0 || strings.ToUpper(destType) != "CLI" {
+		return nil
+	}
+	return fmt.Errorf("--%srate-limit and --%sdelivery-group-* are not supported for CLI destinations", flagPrefix, flagPrefix)
+}
+
 func mergeDeliveryPolicy(config map[string]interface{}, policy map[string]interface{}) {
 	if len(policy) == 0 {
 		return
@@ -233,6 +261,9 @@ func buildDestinationConfigFromIndividualFlags(destType string, f *destinationCo
 		"",
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := rejectDeliveryPolicyForCLI(destType, policy, ""); err != nil {
 		return nil, err
 	}
 	mergeDeliveryPolicy(config, policy)
