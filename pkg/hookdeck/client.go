@@ -320,10 +320,15 @@ func (c *Client) Put(ctx context.Context, path string, data []byte, configure fu
 // data[] entries are seen both as plain strings and as objects with a message
 // field, so both are read. Returns "" when nothing readable is found, leaving
 // the caller to fall back to the raw body.
+//
+// "data" is held as a raw value rather than decoded straight into a slice, so
+// a body whose data is an object or a scalar cannot fail the whole unmarshal
+// and throw the top-level "message" away with it - which would dump the entire
+// raw body at the caller, the exact outcome this function exists to prevent.
 func apiErrorMessage(body []byte) string {
 	var payload struct {
-		Message string            `json:"message"`
-		Data    []json.RawMessage `json:"data"`
+		Message string          `json:"message"`
+		Data    json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return ""
@@ -331,23 +336,37 @@ func apiErrorMessage(body []byte) string {
 	if payload.Message != "" {
 		return payload.Message
 	}
-	messages := make([]string, 0, len(payload.Data))
-	for _, item := range payload.Data {
-		var text string
-		if err := json.Unmarshal(item, &text); err == nil {
-			if text != "" {
-				messages = append(messages, text)
-			}
-			continue
-		}
-		var obj struct {
-			Message string `json:"message"`
-		}
-		if err := json.Unmarshal(item, &obj); err == nil && obj.Message != "" {
-			messages = append(messages, obj.Message)
+	if len(payload.Data) == 0 {
+		return ""
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(payload.Data, &items); err != nil {
+		// Not a list: read the value itself the way a single entry is read.
+		return errorDataMessage(payload.Data)
+	}
+	messages := make([]string, 0, len(items))
+	for _, item := range items {
+		if msg := errorDataMessage(item); msg != "" {
+			messages = append(messages, msg)
 		}
 	}
 	return strings.Join(messages, "; ")
+}
+
+// errorDataMessage reads one error-data value, which is seen both as a plain
+// string and as an object with a message field.
+func errorDataMessage(raw json.RawMessage) string {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text
+	}
+	var obj struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		return obj.Message
+	}
+	return ""
 }
 
 func checkAndPrintError(res *http.Response) error {

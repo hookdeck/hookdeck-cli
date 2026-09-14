@@ -173,3 +173,52 @@ func TestRequestsStatusDescriptionNamesBothVocabularies(t *testing.T) {
 	assert.Contains(t, desc, "list")
 	assert.Contains(t, desc, "events")
 }
+
+// TestEventsStatusIsCanonicalisedLikeTheRequestsTool covers the other half of
+// the same vocabulary. hookdeck_events action "list" and hookdeck_requests
+// action "events" query the same collection through the same status enum, and
+// only the latter canonicalised: `status: "failed"` worked on one tool and came
+// back as an API 422 on the other.
+func TestEventsStatusIsCanonicalisedLikeTheRequestsTool(t *testing.T) {
+	forwards := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"canonical spelling is forwarded", "SUCCESSFUL", "SUCCESSFUL"},
+		{"lower case is canonicalised", "failed", "FAILED"},
+		{"mixed case is canonicalised", "Cancelled", "CANCELLED"},
+	}
+	for _, tt := range forwards {
+		t.Run(tt.name, func(t *testing.T) {
+			var saw string
+			session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+				hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
+					saw = r.URL.Query().Get("status")
+					_ = json.NewEncoder(w).Encode(listResponse())
+				},
+			})
+			result := callTool(t, session, "hookdeck_events", map[string]any{
+				"action": "list", "status": tt.value,
+			})
+			assert.False(t, result.IsError, textContent(t, result))
+			assert.Equal(t, tt.want, saw, "status must reach the API in the spelling the enum uses")
+		})
+	}
+
+	t.Run("a request-log status is refused and points at the tool that takes it", func(t *testing.T) {
+		session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+			hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
+				t.Fatalf("must not call %s with a status from the request-log vocabulary", r.URL.Path)
+			},
+		})
+		result := callTool(t, session, "hookdeck_events", map[string]any{
+			"action": "list", "status": "accepted",
+		})
+		require.True(t, result.IsError, "a request status must be refused on hookdeck_events")
+		body := textContent(t, result)
+		assert.Contains(t, body, "accepted")
+		assert.Contains(t, body, hookdeck.EventStatusValues, "the error must name the vocabulary this tool does take")
+		assert.Contains(t, body, "hookdeck_requests", "the error should name the tool that takes it")
+	})
+}

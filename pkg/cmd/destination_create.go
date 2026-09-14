@@ -51,8 +51,8 @@ Examples:
 	dc.cmd.Flags().StringVar(&dc.destType, "type", "", "Destination type (HTTP, CLI, MOCK_API) (required)")
 	dc.cmd.Flags().StringVar(&dc.url, "url", "", "URL for HTTP destinations (required for type HTTP)")
 	dc.cmd.Flags().StringVar(&dc.cliPath, "cli-path", "/", "Path for CLI destinations")
-	dc.cmd.Flags().StringVar(&dc.config, "config", "", "JSON object for destination config (overrides individual flags if set)")
-	dc.cmd.Flags().StringVar(&dc.configFile, "config-file", "", "Path to JSON file for destination config (overrides individual flags if set)")
+	dc.cmd.Flags().StringVar(&dc.config, "config", "", "JSON object for the whole destination config; cannot be combined with the individual config flags")
+	dc.cmd.Flags().StringVar(&dc.configFile, "config-file", "", "Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags")
 	dc.cmd.Flags().StringVar(&dc.AuthMethod, "auth-method", "", "Auth method (hookdeck, bearer, basic, api_key, custom_signature)")
 	dc.cmd.Flags().StringVar(&dc.BearerToken, "bearer-token", "", "Bearer token for destination auth")
 	dc.cmd.Flags().StringVar(&dc.BasicAuthUser, "basic-auth-user", "", "Username for Basic auth")
@@ -85,14 +85,19 @@ func (dc *destinationCreateCmd) validateFlags(cmd *cobra.Command, args []string)
 	if dc.config != "" && dc.configFile != "" {
 		return fmt.Errorf("cannot use both --config and --config-file")
 	}
+	// --config / --config-file supply the whole config, so an individual config
+	// flag alongside one of them is a conflict, not an override. Refused rather
+	// than silently resolved: the three commands resolved it three different
+	// ways and one of them dropped --url without a word.
+	if err := rejectConfigJSONWithIndividualFlags(cmd, dc.config, dc.configFile); err != nil {
+		return err
+	}
 	t := strings.ToUpper(dc.destType)
 	if t == "HTTP" && dc.url == "" && dc.config == "" && dc.configFile == "" {
 		return fmt.Errorf("--url is required for HTTP destinations")
 	}
-	// --config / --config-file take precedence: buildDestinationConfigFromFlags
-	// returns their JSON and never looks at the individual flags. Validating
-	// those flags here anyway rejected commands over a value that would have
-	// been ignored.
+	// Nothing below applies on the config-JSON path: the individual flags are
+	// refused above, so there is nothing left for them to validate.
 	if dc.config != "" || dc.configFile != "" {
 		return nil
 	}
@@ -118,13 +123,13 @@ func (dc *destinationCreateCmd) buildCreateRequest(cmd *cobra.Command) (*hookdec
 		return nil, err
 	}
 
-	// For HTTP/CLI, ensure url/path in config when using individual flags
+	// --url needs no overlay: the builder above copies it in under type HTTP,
+	// and an individual flag can no longer arrive beside --config. --cli-path
+	// still does, for the "/" default that only create supplies - including on
+	// the --config path, where the JSON may simply not name a path.
 	t := strings.ToUpper(dc.destType)
 	if config == nil {
 		config = make(map[string]interface{})
-	}
-	if t == "HTTP" && dc.url != "" {
-		config["url"] = dc.url
 	}
 	if t == "CLI" {
 		applyCLIPath(config, cliPathFromFlags(cmd, dc.cliPath), true)

@@ -49,8 +49,8 @@ Examples:
 	dc.cmd.Flags().StringVar(&dc.destType, "type", "", "Destination type (HTTP, CLI, MOCK_API)")
 	dc.cmd.Flags().StringVar(&dc.url, "url", "", "URL for HTTP destinations")
 	dc.cmd.Flags().StringVar(&dc.cliPath, "cli-path", "", "Path for CLI destinations")
-	dc.cmd.Flags().StringVar(&dc.config, "config", "", "JSON object for destination config (overrides individual flags if set)")
-	dc.cmd.Flags().StringVar(&dc.configFile, "config-file", "", "Path to JSON file for destination config (overrides individual flags if set)")
+	dc.cmd.Flags().StringVar(&dc.config, "config", "", "JSON object for the whole destination config; cannot be combined with the individual config flags")
+	dc.cmd.Flags().StringVar(&dc.configFile, "config-file", "", "Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags")
 	dc.cmd.Flags().StringVar(&dc.AuthMethod, "auth-method", "", "Auth method (hookdeck, bearer, basic, api_key, custom_signature)")
 	dc.cmd.Flags().StringVar(&dc.BearerToken, "bearer-token", "", "Bearer token for destination auth")
 	dc.cmd.Flags().StringVar(&dc.BasicAuthUser, "basic-auth-user", "", "Username for Basic auth")
@@ -84,10 +84,15 @@ func (dc *destinationUpdateCmd) validateFlags(cmd *cobra.Command, args []string)
 	if dc.config != "" && dc.configFile != "" {
 		return fmt.Errorf("cannot use both --config and --config-file")
 	}
-	// --config / --config-file take precedence: buildDestinationConfigFromFlags
-	// returns their JSON and never looks at the individual flags. Validating
-	// those flags here anyway rejected commands over a value that would have
-	// been ignored.
+	// --config / --config-file supply the whole config, so an individual config
+	// flag alongside one of them is a conflict, not an override. Refused rather
+	// than silently resolved: the three commands resolved it three different
+	// ways and one of them dropped --url without a word.
+	if err := rejectConfigJSONWithIndividualFlags(cmd, dc.config, dc.configFile); err != nil {
+		return err
+	}
+	// Nothing below applies on the config-JSON path: the individual flags are
+	// refused above, so there is nothing left for them to validate.
 	if dc.config != "" || dc.configFile != "" {
 		return nil
 	}

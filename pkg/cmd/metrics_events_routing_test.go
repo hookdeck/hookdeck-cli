@@ -255,3 +255,38 @@ func TestCompatibleMeasureAndDimensionStillRoute(t *testing.T) {
 		assert.Contains(t, *path, "events-by-issue")
 	})
 }
+
+// TestEveryRoutedMeasureDispatchesWhereTheSharedTableSays is the dispatch half
+// of hookdeck.TestRouteForMeasuresIsTheOneRoutingTable.
+//
+// Which measures are queue-depth measures used to be written down three times:
+// a map here, a containsAny list in the MCP tool, and the table in pkg/hookdeck
+// that the cross-route refusal reads. They agreed, but a divergence would
+// refuse a mix on the table's reading while dispatching it on this one, so the
+// error and the request would disagree about what was asked for. Each measure
+// is checked on its own, because a copy that is merely incomplete still routes
+// the measures it does list correctly.
+func TestEveryRoutedMeasureDispatchesWhereTheSharedTableSays(t *testing.T) {
+	tests := []struct {
+		measure string
+		path    string
+	}{
+		{"queue_depth", "queue-depth"},
+		{"max_depth", "queue-depth"},
+		{"max_age", "queue-depth"},
+		{"pending", "pending"},
+		{"count", "metrics/events"},
+		{"failed_count", "metrics/events"},
+		{"error_rate", "metrics/events"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.measure, func(t *testing.T) {
+			client, path, _ := routeCapture(t)
+			_, err := queryEventMetricsConsolidated(context.Background(), client,
+				hookdeck.MetricsQueryParams{Measures: []string{tt.measure}})
+			require.NoError(t, err)
+			assert.Contains(t, *path, tt.path,
+				"--measures %s must reach the endpoint the shared routing table names", tt.measure)
+		})
+	}
+}

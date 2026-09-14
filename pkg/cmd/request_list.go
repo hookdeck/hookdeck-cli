@@ -15,25 +15,25 @@ import (
 type requestListCmd struct {
 	cmd *cobra.Command
 
-	id              string
-	sourceID        string
-	status          string
-	verified        string
-	rejectionCause  string
-	createdAfter    string
-	createdBefore   string
-	ingestedAfter   string
-	ingestedBefore  string
-	headers         string
-	body            string
-	path            string
-	parsedQuery     string
-	orderBy         string
-	dir             string
-	limit           int
-	next            string
-	prev            string
-	output          string
+	id             string
+	sourceID       string
+	status         string
+	verified       string
+	rejectionCause string
+	createdAfter   string
+	createdBefore  string
+	ingestedAfter  string
+	ingestedBefore string
+	headers        string
+	body           string
+	path           string
+	parsedQuery    string
+	orderBy        string
+	dir            string
+	limit          int
+	next           string
+	prev           string
+	output         string
 }
 
 func newRequestListCmd() *requestListCmd {
@@ -53,7 +53,7 @@ Examples:
 
 	rc.cmd.Flags().StringVar(&rc.id, "id", "", "Filter by request ID(s) (comma-separated)")
 	rc.cmd.Flags().StringVar(&rc.sourceID, "source-id", "", "Filter by source ID")
-	rc.cmd.Flags().StringVar(&rc.status, "status", "", "Filter by status")
+	rc.cmd.Flags().StringVar(&rc.status, "status", "", requestStatusFlag.usage())
 	rc.cmd.Flags().StringVar(&rc.verified, "verified", "", "Filter by verified (true/false)")
 	rc.cmd.Flags().StringVar(&rc.rejectionCause, "rejection-cause", "", "Filter by rejection cause")
 	rc.cmd.Flags().StringVar(&rc.createdAfter, "created-after", "", "Filter requests created after (ISO date-time)")
@@ -79,6 +79,14 @@ func (rc *requestListCmd) runRequestListCmd(cmd *cobra.Command, args []string) e
 		return err
 	}
 
+	// The request log's enum is lower case and the event log's is upper case,
+	// and the API refuses either in the other's case. Canonicalise so both
+	// spellings work here, as they already do through MCP.
+	status, err := requestStatusFlag.canonical(rc.status)
+	if err != nil {
+		return err
+	}
+
 	client := Config.GetAPIClient()
 	params := make(map[string]string)
 	if rc.id != "" {
@@ -87,8 +95,8 @@ func (rc *requestListCmd) runRequestListCmd(cmd *cobra.Command, args []string) e
 	if rc.sourceID != "" {
 		params["source_id"] = rc.sourceID
 	}
-	if rc.status != "" {
-		params["status"] = rc.status
+	if status != "" {
+		params["status"] = status
 	}
 	if rc.verified != "" {
 		params["verified"] = rc.verified

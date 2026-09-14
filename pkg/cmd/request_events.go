@@ -75,7 +75,7 @@ Examples:
 	rc.cmd.Flags().StringVar(&rc.sourceID, "source-id", "", "Filter by source ID")
 	rc.cmd.Flags().StringVar(&rc.destinationID, "destination-id", "", "Filter by destination ID")
 	rc.cmd.Flags().StringVar(&rc.deliveryGroup, "delivery-group", "", "Filter by delivery group")
-	rc.cmd.Flags().StringVar(&rc.status, "status", "", "Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED)")
+	rc.cmd.Flags().StringVar(&rc.status, "status", "", eventStatusFlag.usage())
 	rc.cmd.Flags().StringVar(&rc.attempts, "attempts", "", "Filter by number of attempts (integer or operators)")
 	rc.cmd.Flags().StringVar(&rc.responseStatus, "response-status", "", "Filter by HTTP response status (e.g. 200, 500)")
 	rc.cmd.Flags().StringVar(&rc.errorCode, "error-code", "", "Filter by error code")
@@ -106,6 +106,13 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 		return err
 	}
 
+	// This route shares the /events filter set, so it shares its enum and its
+	// case sensitivity too.
+	status, err := eventStatusFlag.canonical(rc.status)
+	if err != nil {
+		return err
+	}
+
 	requestID := args[0]
 	client := Config.GetAPIClient()
 	ctx := context.Background()
@@ -129,8 +136,8 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 	if rc.deliveryGroup != "" {
 		params["delivery_group"] = rc.deliveryGroup
 	}
-	if rc.status != "" {
-		params["status"] = rc.status
+	if status != "" {
+		params["status"] = status
 	}
 	if rc.attempts != "" {
 		params["attempts"] = rc.attempts

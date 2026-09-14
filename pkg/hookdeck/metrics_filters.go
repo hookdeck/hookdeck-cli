@@ -176,12 +176,23 @@ func ValueList(values []string) string {
 func DimensionList(values []string) string {
 	out := make([]string, len(values))
 	for i, v := range values {
-		if v == "webhook_id" {
-			v = "connection_id"
-		}
-		out[i] = v
+		out[i] = DimensionName(v)
 	}
 	return strings.Join(out, ", ")
+}
+
+// DimensionName renders one dimension in the caller's spelling, the inverse of
+// the connection_id -> webhook_id mapping both callers apply on the way in.
+//
+// Anything reported back to the caller has to go through this, or a refusal
+// names a token the caller never typed: params.Dimensions holds webhook_id by
+// the time it is validated, while the allowed list in the same sentence is
+// rendered by DimensionList and says connection_id.
+func DimensionName(value string) string {
+	if value == "webhook_id" {
+		return "connection_id"
+	}
+	return value
 }
 
 // unionValues concatenates vocabularies, keeping first-seen order and dropping
@@ -214,6 +225,13 @@ func containsValue(values []string, want string) bool {
 // define, plus the API's one cross-field rule: grouping by delivery_group needs
 // a destination_id filter.
 //
+// That rule is not events-only. The API enforces it on every route that offers
+// the dimension, and this function is called from all of them. Checked live on
+// 2026-09-14 against the attempts route, which is not an events route at all:
+// `metrics attempts --measures count --dimensions delivery_group` answers 422
+// "The delivery_group dimension requires a filters.destination_id filter", and
+// the same call with --destination-id answers 200.
+//
 // Without this the caller sees a raw 422 for something the tool appeared to
 // offer - and on `dimensions: ["delivery_group"]` that is the release's
 // headline feature looking broken. dimensionsName is the caller's own spelling
@@ -225,8 +243,11 @@ func RejectUnsupportedDimensions(params MetricsQueryParams, allowed []string, ro
 			d = "webhook_id"
 		}
 		if !containsValue(allowed, d) {
+			// Reported in the caller's spelling, not the API's: both callers
+			// rewrite connection_id to webhook_id before validating, so naming
+			// d raw refused "webhook_id" at someone who typed connection_id.
 			return fmt.Errorf("%s %q is not supported by %s; that route groups by: %s",
-				dimensionsName, d, route, DimensionList(allowed))
+				dimensionsName, DimensionName(d), route, DimensionList(allowed))
 		}
 	}
 	if containsValue(params.Dimensions, "delivery_group") && params.DestinationID == "" {
@@ -293,6 +314,24 @@ var eventMeasureRoutes = map[string]string{
 // whichever endpoint the measures choose.
 var eventDimensionRoutes = map[string]string{
 	"issue_id": EventRouteByIssue,
+}
+
+// RouteForMeasures returns the events-metrics route this measure list selects,
+// or "" when none of the measures decides the route and the request falls
+// through to whatever the dimensions select.
+//
+// It is the one place that knows which measures belong to which endpoint. Both
+// callers used to hold their own copy of the queue-depth membership - a map in
+// the CLI, a containsAny list in MCP - beside this table, and a divergence
+// between any two of the three would refuse a mix here while still dispatching
+// it to the wrong endpoint there.
+//
+// Call RejectMixedMeasureRoutes (or RejectCrossRouteEventQuery, which subsumes
+// it) first: a list spanning two routes has no single answer, and this reports
+// whichever route its first routed measure names.
+func RouteForMeasures(measures []string) string {
+	_, route := firstRoutedMeasure(measures)
+	return route
 }
 
 // firstRoutedMeasure returns the first measure that selects an endpoint, and the

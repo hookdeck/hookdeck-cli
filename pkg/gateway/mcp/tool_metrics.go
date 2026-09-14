@@ -123,13 +123,18 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 	// Route to the correct events metrics endpoint based on measures/dimensions.
 	// Each route accepts a different set of filters, so the ones it would ignore
 	// are refused here rather than silently dropped by the API.
+	// Which measures belong to which endpoint is the shared table's to know, and
+	// the route names are its constants, so this cannot drift from the refusal
+	// above or from the CLI's copy of the same switch.
+	measureRoute := hookdeck.RouteForMeasures(params.Measures)
+
 	var result hookdeck.MetricsResponse
 	switch {
-	case containsAny(params.Measures, "queue_depth", "max_depth", "max_age"):
-		if err := rejectFilters(params, hookdeck.QueueDepthRouteFilters, "queue depth metrics"); err != nil {
+	case measureRoute == hookdeck.EventRouteQueueDepth:
+		if err := rejectFilters(params, hookdeck.QueueDepthRouteFilters, hookdeck.EventRouteQueueDepth); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
-		if err := rejectDimensions(params, hookdeck.QueueDepthRouteDimensions, "queue depth metrics"); err != nil {
+		if err := rejectDimensions(params, hookdeck.QueueDepthRouteDimensions, hookdeck.EventRouteQueueDepth); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
 		// The endpoint accepts max_depth and max_age only; "queue_depth" is our
@@ -137,11 +142,11 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 		queueParams := params
 		queueParams.Measures = hookdeck.TranslateQueueDepthMeasures(params.Measures)
 		result, err = client.QueryQueueDepth(ctx, queueParams)
-	case containsAny(params.Measures, "pending"):
-		if err := rejectFilters(params, hookdeck.PendingTimeseriesRouteFilters, "pending event metrics (measures: pending)"); err != nil {
+	case measureRoute == hookdeck.EventRoutePending:
+		if err := rejectFilters(params, hookdeck.PendingTimeseriesRouteFilters, hookdeck.EventRoutePending); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
-		if err := rejectDimensions(params, hookdeck.PendingTimeseriesRouteDimensions, "pending event metrics (measures: pending)"); err != nil {
+		if err := rejectDimensions(params, hookdeck.PendingTimeseriesRouteDimensions, hookdeck.EventRoutePending); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
 		// The API expects measures[]=count here; "pending" only selects the
@@ -154,10 +159,10 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 		if params.IssueID == "" {
 			return ErrorResult("per-issue metrics require issue_id (required when using dimensions: issue_id)"), nil
 		}
-		if err := rejectFilters(params, hookdeck.EventsByIssueRouteFilters, "per-issue event metrics"); err != nil {
+		if err := rejectFilters(params, hookdeck.EventsByIssueRouteFilters, hookdeck.EventRouteByIssue); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
-		if err := rejectDimensions(params, hookdeck.EventsByIssueRouteDimensions, "per-issue event metrics"); err != nil {
+		if err := rejectDimensions(params, hookdeck.EventsByIssueRouteDimensions, hookdeck.EventRouteByIssue); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
 		result, err = client.QueryEventsByIssue(ctx, params)
@@ -168,7 +173,7 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 		// invariant is pinned by
 		// hookdeck.TestDefaultEventRouteHonoursEveryFilterExceptIssueID, which
 		// fails if a filter the route drops is ever added.
-		if err := rejectDimensions(params, hookdeck.DefaultEventRouteDimensions, "event metrics"); err != nil {
+		if err := rejectDimensions(params, hookdeck.DefaultEventRouteDimensions, hookdeck.EventRouteDefault); err != nil {
 			return ErrorResult(err.Error()), nil
 		}
 		result, err = client.QueryEventMetrics(ctx, params)

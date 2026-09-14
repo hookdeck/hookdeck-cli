@@ -46,6 +46,35 @@ func TestAPIErrorMessageSurfacesTheUsefulLine(t *testing.T) {
 			want: "Not found",
 		},
 		{
+			// The regression this shape caused: decoding data straight into a
+			// []json.RawMessage failed the whole unmarshal on a non-array data,
+			// so the message beside it was lost and the caller pasted the raw
+			// body instead.
+			name: "a message survives an object data",
+			body: `{"message":"Invalid API key","data":{"field":"api_key"},"status":401}`,
+			want: "Invalid API key",
+		},
+		{
+			name: "a message survives a string data",
+			body: `{"message":"Not found","data":"nothing here"}`,
+			want: "Not found",
+		},
+		{
+			name: "an object data with a message of its own is still read",
+			body: `{"data":{"message":"nested problem"},"status":422}`,
+			want: "nested problem",
+		},
+		{
+			name: "a bare string data is read",
+			body: `{"data":"just this","status":422}`,
+			want: "just this",
+		},
+		{
+			name: "a data carrying nothing readable falls back to the caller",
+			body: `{"data":{"field":"api_key"},"status":422}`,
+			want: "",
+		},
+		{
 			name: "nothing readable falls back to the caller",
 			body: `{"status":500}`,
 			want: "",

@@ -75,6 +75,7 @@ func TestRejectUnsupportedDimensions(t *testing.T) {
 		allowed  []string
 		wantErr  bool
 		contains []string
+		excludes []string
 	}{
 		{
 			name:    "no dimensions is always fine",
@@ -110,6 +111,27 @@ func TestRejectUnsupportedDimensions(t *testing.T) {
 			params:  MetricsQueryParams{Dimensions: []string{"connection_id"}},
 			allowed: DefaultEventRouteDimensions,
 		},
+		{
+			// Both callers rewrite connection_id to webhook_id before
+			// validating, so this is what actually arrives here. Naming the
+			// wire spelling back refused "webhook_id" at a caller who typed
+			// connection_id, in the same sentence as an allowed list that
+			// spells it connection_id.
+			name:     "a refused connection dimension is named as the caller spells it",
+			params:   MetricsQueryParams{Dimensions: []string{"webhook_id"}},
+			allowed:  PendingTimeseriesRouteDimensions,
+			wantErr:  true,
+			contains: []string{"--dimensions", `"connection_id"`, "destination_id"},
+			excludes: []string{"webhook_id"},
+		},
+		{
+			name:     "and the same when the caller's own spelling arrives unmapped",
+			params:   MetricsQueryParams{Dimensions: []string{"connection_id"}},
+			allowed:  PendingTimeseriesRouteDimensions,
+			wantErr:  true,
+			contains: []string{`"connection_id"`},
+			excludes: []string{"webhook_id"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -122,6 +144,10 @@ func TestRejectUnsupportedDimensions(t *testing.T) {
 			require.Error(t, err)
 			for _, want := range tt.contains {
 				assert.Contains(t, err.Error(), want)
+			}
+			for _, unwanted := range tt.excludes {
+				assert.NotContains(t, err.Error(), unwanted,
+					"the error must not name a token the caller never typed")
 			}
 		})
 	}
@@ -172,5 +198,57 @@ func TestEveryEventMeasureRoutes(t *testing.T) {
 	for _, m := range EventMetricsMeasureValues {
 		_, known := eventMeasureRoutes[m]
 		assert.True(t, known, "advertised measure %q has no route", m)
+	}
+}
+
+// TestRouteForMeasuresIsTheOneRoutingTable pins the membership both callers now
+// read instead of keeping a copy.
+//
+// `metrics events` had three encodings of "which measures are queue depth": a
+// map in the CLI, a containsAny list in MCP, and this table. They agreed, but a
+// divergence between any two would refuse a mix against one and dispatch it to
+// the wrong endpoint against the other - the failure mode being that the
+// refusal and the dispatch disagree about what was asked for.
+func TestRouteForMeasuresIsTheOneRoutingTable(t *testing.T) {
+	tests := []struct {
+		measures []string
+		want     string
+	}{
+		{[]string{"queue_depth"}, EventRouteQueueDepth},
+		{[]string{"max_depth"}, EventRouteQueueDepth},
+		{[]string{"max_age"}, EventRouteQueueDepth},
+		{[]string{"max_depth", "max_age"}, EventRouteQueueDepth},
+		{[]string{"pending"}, EventRoutePending},
+		{[]string{"count"}, EventRouteDefault},
+		{[]string{"error_rate", "failed_count"}, EventRouteDefault},
+		// A measure this package does not route on leaves the decision to the
+		// dimensions, and the API to reject the measure itself.
+		{[]string{"not_a_measure"}, ""},
+		{[]string{"not_a_measure", "max_age"}, EventRouteQueueDepth},
+		{nil, ""},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, RouteForMeasures(tt.measures), "measures %v", tt.measures)
+	}
+
+	// Every advertised measure has to land on a route the caller can name, or
+	// the guards that print the route name print an empty string.
+	for _, m := range EventMetricsMeasureValues {
+		route := RouteForMeasures([]string{m})
+		assert.NotEmpty(t, route, "advertised measure %q routes nowhere", m)
+	}
+}
+
+// TestEventRouteNamesAreUnique is the other half of the tidy-up: every guard
+// used to hand-write the route name, which produced two names for one route in
+// adjacent errors ("pending event metrics" from the cross-route refusal,
+// "pending event metrics (--measures pending)" from the filter guard beside
+// it). One constant per route means one name per route.
+func TestEventRouteNamesAreUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for _, name := range []string{EventRouteDefault, EventRouteQueueDepth, EventRoutePending, EventRouteByIssue} {
+		assert.NotEmpty(t, name)
+		assert.False(t, seen[name], "%q names two routes", name)
+		seen[name] = true
 	}
 }

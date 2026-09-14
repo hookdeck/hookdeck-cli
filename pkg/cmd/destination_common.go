@@ -13,8 +13,9 @@ import (
 )
 
 // destinationConfigFlags holds destination config flags for create/upsert/update.
-// Used by destination create, upsert, update. When both --config/--config-file and
-// individual flags are set, --config/--config-file take precedence.
+// Used by destination create, upsert, update. They are an alternative to
+// --config/--config-file, not an overlay on it: each input describes the whole
+// config, so naming both is refused by rejectConfigJSONWithIndividualFlags.
 type destinationConfigFlags struct {
 	URL                     string
 	CliPath                 string
@@ -295,6 +296,59 @@ var typeSpecificDestinationFlags = []struct {
 	{"http-method", "HTTP", func(f *destinationConfigFlags) bool { return f.HTTPMethod != "" }},
 	{"path-forwarding-disabled", "HTTP", func(f *destinationConfigFlags) bool { return f.PathForwardingDisabled != nil }},
 	{"cli-path", "CLI", func(f *destinationConfigFlags) bool { return f.CliPath != "" }},
+}
+
+// destinationIndividualConfigFlags are the flags that set a field inside the
+// destination config, which is exactly what --config and --config-file supply
+// wholesale.
+var destinationIndividualConfigFlags = []string{
+	"url", "cli-path", "http-method", "path-forwarding-disabled",
+	"auth-method", "bearer-token", "basic-auth-user", "basic-auth-pass",
+	"api-key", "api-key-header", "api-key-to",
+	"custom-signature-secret", "custom-signature-key",
+	"rate-limit", "rate-limit-period",
+	"delivery-group-key", "delivery-group-rate", "delivery-group-rate-period",
+	"delivery-group-overrides",
+}
+
+// rejectConfigJSONWithIndividualFlags refuses --config or --config-file next to
+// a flag that sets one of the same fields.
+//
+// The two ways of describing a config disagreed with each other and the three
+// commands disagreed about how. --config was documented as winning, and did on
+// `update`; `create` and `upsert` then overlaid --url and --cli-path back on
+// top of it, but `upsert` only reached that overlay when --type was passed,
+// because resolveDestinationType returns early on the --config path. So
+// `upsert --config '{"url":"https://old"}' --url https://new` exited 0 having
+// sent the old URL, while the same flags with --type HTTP sent the new one, and
+// `update` sent the old one either way (the #406 shape, in a corner).
+//
+// Refusing the combination is what fixes all of that at once. The alternative -
+// making the individual flag win everywhere - only reaches the two fields the
+// overlays happen to cover: --auth-method, --http-method, --rate-limit and the
+// delivery-group flags would still be dropped in silence under --config, and
+// merging them in raises questions (what happens to delivery_policy.groups?)
+// that nobody has asked for. Either input describes the whole config, so asking
+// for one is unambiguous and asking for both never was.
+func rejectConfigJSONWithIndividualFlags(cmd *cobra.Command, configStr, configFile string) error {
+	if configStr == "" && configFile == "" {
+		return nil
+	}
+	jsonFlag := "--config"
+	if configStr == "" {
+		jsonFlag = "--config-file"
+	}
+	for _, name := range destinationIndividualConfigFlags {
+		flag := cmd.Flags().Lookup(name)
+		// Changed, not the value: --api-key-to and --cli-path carry defaults,
+		// and a default the user never typed is not a conflict.
+		if flag == nil || !flag.Changed {
+			continue
+		}
+		return fmt.Errorf("--%s cannot be combined with %s: %s supplies the whole config, so put the field in the JSON or drop %s",
+			name, jsonFlag, jsonFlag, jsonFlag)
+	}
+	return nil
 }
 
 // hasAnyTypeSpecificFlag reports whether a flag was given that only one

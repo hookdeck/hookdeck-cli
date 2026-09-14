@@ -40,23 +40,6 @@ Dimensions: ` + metricsEventsDimensions + `.`),
 	return c
 }
 
-// queueDepthMeasures are measures that route to the queue-depth API endpoint.
-var queueDepthMeasures = map[string]bool{
-	"queue_depth": true,
-	"max_depth":   true,
-	"max_age":     true,
-}
-
-// hasMeasure checks whether any of the requested measures match the given set.
-func hasMeasure(params hookdeck.MetricsQueryParams, set map[string]bool) bool {
-	for _, m := range params.Measures {
-		if set[m] {
-			return true
-		}
-	}
-	return false
-}
-
 // hasDimension checks whether any of the requested dimensions match the given name.
 func hasDimension(params hookdeck.MetricsQueryParams, name string) bool {
 	for _, d := range params.Dimensions {
@@ -79,13 +62,19 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 	if err := hookdeck.RejectCrossRouteEventQuery(params, "--measures", "--dimensions", hookdeck.CLIFilterNames); err != nil {
 		return nil, err
 	}
+	// Which measures belong to which endpoint is the shared table's to know, and
+	// the route names are its constants: a second copy here could disagree with
+	// the refusal above and dispatch a query it had just accepted to the wrong
+	// endpoint.
+	measureRoute := hookdeck.RouteForMeasures(params.Measures)
+
 	// Route based on measures/dimensions:
-	// 1. If measures include queue_depth, max_depth, or max_age → QueryQueueDepth
-	if hasMeasure(params, queueDepthMeasures) {
-		if err := rejectUnsupportedFilters(params, hookdeck.QueueDepthRouteFilters, "queue depth metrics"); err != nil {
+	// 1. Measures naming the queue-depth route → QueryQueueDepth
+	if measureRoute == hookdeck.EventRouteQueueDepth {
+		if err := rejectUnsupportedFilters(params, hookdeck.QueueDepthRouteFilters, hookdeck.EventRouteQueueDepth); err != nil {
 			return nil, err
 		}
-		if err := rejectUnsupportedDimensions(params, hookdeck.QueueDepthRouteDimensions, "queue depth metrics"); err != nil {
+		if err := rejectUnsupportedDimensions(params, hookdeck.QueueDepthRouteDimensions, hookdeck.EventRouteQueueDepth); err != nil {
 			return nil, err
 		}
 		// The endpoint accepts max_depth and max_age only. "queue_depth" is our own
@@ -95,15 +84,15 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		queueParams.Measures = hookdeck.TranslateQueueDepthMeasures(params.Measures)
 		return client.QueryQueueDepth(ctx, queueParams)
 	}
-	// 2. If measures include "pending" → QueryEventsPendingTimeseries.
+	// 2. Measures naming the pending route → QueryEventsPendingTimeseries.
 	// API expects measures[]=count; "pending" is only used for routing.
 	// Granularity is optional on this route, so it must not gate the routing:
 	// gating it sent "pending" to the default endpoint, which rejects the measure.
-	if hasMeasure(params, map[string]bool{"pending": true}) {
-		if err := rejectUnsupportedFilters(params, hookdeck.PendingTimeseriesRouteFilters, "pending event metrics (--measures pending)"); err != nil {
+	if measureRoute == hookdeck.EventRoutePending {
+		if err := rejectUnsupportedFilters(params, hookdeck.PendingTimeseriesRouteFilters, hookdeck.EventRoutePending); err != nil {
 			return nil, err
 		}
-		if err := rejectUnsupportedDimensions(params, hookdeck.PendingTimeseriesRouteDimensions, "pending event metrics (--measures pending)"); err != nil {
+		if err := rejectUnsupportedDimensions(params, hookdeck.PendingTimeseriesRouteDimensions, hookdeck.EventRoutePending); err != nil {
 			return nil, err
 		}
 		pendingParams := params
@@ -116,10 +105,10 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		if params.IssueID == "" {
 			return nil, errors.New("per-issue metrics require --issue-id (required when using --dimensions issue_id)")
 		}
-		if err := rejectUnsupportedFilters(params, hookdeck.EventsByIssueRouteFilters, "per-issue event metrics"); err != nil {
+		if err := rejectUnsupportedFilters(params, hookdeck.EventsByIssueRouteFilters, hookdeck.EventRouteByIssue); err != nil {
 			return nil, err
 		}
-		if err := rejectUnsupportedDimensions(params, hookdeck.EventsByIssueRouteDimensions, "per-issue event metrics"); err != nil {
+		if err := rejectUnsupportedDimensions(params, hookdeck.EventsByIssueRouteDimensions, hookdeck.EventRouteByIssue); err != nil {
 			return nil, err
 		}
 		return client.QueryEventsByIssue(ctx, params)
@@ -130,7 +119,7 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 	// so nothing reaches this fallback for a gate to catch. The invariant is
 	// pinned by hookdeck.TestDefaultEventRouteHonoursEveryFilterExceptIssueID,
 	// which fails if a filter the route drops is ever added.
-	if err := rejectUnsupportedDimensions(params, hookdeck.DefaultEventRouteDimensions, "event metrics"); err != nil {
+	if err := rejectUnsupportedDimensions(params, hookdeck.DefaultEventRouteDimensions, hookdeck.EventRouteDefault); err != nil {
 		return nil, err
 	}
 	return client.QueryEventMetrics(ctx, params)

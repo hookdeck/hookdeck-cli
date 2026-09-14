@@ -1089,8 +1089,8 @@ hookdeck gateway destination create [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations (default "/") |
-| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
-| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
+| `--config` | `string` | JSON object for the whole destination config; cannot be combined with the individual config flags |
+| `--config-file` | `string` | Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
 | `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
@@ -1160,8 +1160,8 @@ hookdeck gateway destination update <destination-id> [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
-| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
-| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
+| `--config` | `string` | JSON object for the whole destination config; cannot be combined with the individual config flags |
+| `--config-file` | `string` | Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
 | `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
@@ -1228,8 +1228,8 @@ hookdeck gateway destination upsert <name> [flags]
 | `--basic-auth-user` | `string` | Username for Basic auth |
 | `--bearer-token` | `string` | Bearer token for destination auth |
 | `--cli-path` | `string` | Path for CLI destinations |
-| `--config` | `string` | JSON object for destination config (overrides individual flags if set) |
-| `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
+| `--config` | `string` | JSON object for the whole destination config; cannot be combined with the individual config flags |
+| `--config-file` | `string` | Path to a JSON file holding the whole destination config; cannot be combined with the individual config flags |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
 | `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
@@ -1746,7 +1746,7 @@ hookdeck gateway request list [flags]
 | `--prev` | `string` | Pagination cursor for previous page |
 | `--rejection-cause` | `string` | Filter by rejection cause |
 | `--source-id` | `string` | Filter by source ID |
-| `--status` | `string` | Filter by status |
+| `--status` | `string` | Filter by status (accepted, rejected) |
 | `--verified` | `string` | Filter by verified (true/false) |
 
 **Examples:**
@@ -1946,7 +1946,9 @@ hookdeck gateway attempt get atm_abc123
 <!-- GENERATE_END -->
 ## Metrics
 
-Query Event Gateway metrics (events, requests, attempts, queue depth, pending events, events by issue, transformations). All metrics commands require `--start` and `--end` (ISO 8601 date-time).
+Query Event Gateway metrics. There are four subcommands — `events`, `requests`, `attempts` and `transformations` — and all of them require `--start` and `--end` (ISO 8601 date-time).
+
+Queue depth, pending events and per-issue breakdowns have no subcommand of their own: `metrics events` answers all three, choosing the endpoint from `--measures` and `--dimensions`.
 
 **Use cases and examples:**
 
@@ -1955,9 +1957,9 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 | Event volume and failure rate over time | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1d --measures count,failed_count,error_rate` |
 | Request acceptance vs rejection | `hookdeck gateway metrics requests --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,accepted_count,rejected_count` |
 | Delivery latency (attempts) | `hookdeck gateway metrics attempts --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures response_latency_avg,response_latency_p95` |
-| Queue backlog per destination | `hookdeck gateway metrics queue-depth --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures max_depth,max_age --destination-id dest_xxx` |
-| Pending events over time | `hookdeck gateway metrics pending --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1h --measures count` |
-| Events grouped by issue (debugging) | `hookdeck gateway metrics events-by-issue iss_xxx --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count` |
+| Queue backlog per destination | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures max_depth,max_age --destination-id dest_xxx` |
+| Pending events over time | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1h --measures pending` |
+| Events grouped by issue (debugging) | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count --dimensions issue_id --issue-id iss_xxx` |
 | Transformation errors | `hookdeck gateway metrics transformations --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,failed_count,error_rate` |
 
 **Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--output` (json).
@@ -1976,6 +1978,17 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 Passing one where it does not apply is an `unknown flag` error rather than a silently ignored filter: the API drops filters it does not recognise and answers with unfiltered totals, which would otherwise look like a filtered result.
 
 `metrics events` routes to a different endpoint depending on `--measures` and `--dimensions`, so some of its filters are rejected for a given query — `--delivery-group` and `--status` cannot be combined with `--measures pending`, for example. The error names the flag and the route.
+
+**`--dimensions` is gated the same way.** Each endpoint defines its own set, and `metrics events` advertises the union, so a dimension the chosen route does not group by is refused by name rather than sent to the API as a 422:
+
+| Route | Selected by | Groups by |
+| --- | --- | --- |
+| event metrics (default) | anything else | `source_id`, `destination_id`, `connection_id`, `delivery_group`, `status`, `error_code`, `event_data_id`, `cli_id`, `cli_user_id`, `attempts`, `response_status` |
+| queue depth metrics | `--measures queue_depth`, `max_depth` or `max_age` | `destination_id`, `delivery_group` |
+| pending event metrics | `--measures pending` | `destination_id` |
+| per-issue event metrics | `--dimensions issue_id` or `--issue-id` | `issue_id`, `source_id`, `destination_id`, `connection_id` |
+
+`metrics requests`, `metrics attempts` and `metrics transformations` each have a single set, listed in their own `--help`. One rule is the API's and applies wherever the dimension is offered, `metrics attempts` included: grouping by `delivery_group` requires a `--destination-id` filter.
 
 Only one endpoint answers a query, so a request cannot ask for two of them at once. `queue_depth`, `max_depth` and `max_age` select queue-depth metrics and `pending` selects pending metrics; neither can be combined with per-issue metrics (`--dimensions issue_id` or `--issue-id`), and measures belonging to two routes cannot be mixed in one `--measures`. Each combination is refused by name rather than answered from whichever route happened to match first.
 

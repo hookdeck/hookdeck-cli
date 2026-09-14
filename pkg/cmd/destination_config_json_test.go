@@ -5,8 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 )
 
 // TestBuildDestinationConfigFromJSONString verifies that --config (JSON string) parses
@@ -165,4 +168,154 @@ func TestBuildDestinationConfigFromJSONFile(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "config file")
 	})
+}
+
+// withTestAPIKey gives validateFlags a key to accept, so these cases reach the
+// flag checks that follow it.
+func withTestAPIKey(t *testing.T) {
+	t.Helper()
+	old := Config
+	t.Cleanup(func() { Config = old })
+	Config = config.Config{}
+	Config.Profile.APIKey = "sk_test_123456789012"
+}
+
+// destinationConfigCommand is one of the three commands that accept both a
+// config JSON and the individual config flags, reduced to what these cases
+// need: set some flags, run the validation the command runs.
+type destinationConfigCommand struct {
+	name     string
+	cmd      *cobra.Command
+	validate func(*cobra.Command, []string) error
+	args     []string
+}
+
+// destinationConfigCommands returns a fresh instance of each command. pflag
+// records "was this flag given" on the flag itself, so a command may only be
+// used for one case.
+func destinationConfigCommands() []destinationConfigCommand {
+	create := newDestinationCreateCmd()
+	update := newDestinationUpdateCmd()
+	upsert := newDestinationUpsertCmd()
+	return []destinationConfigCommand{
+		{"create", create.cmd, create.validateFlags, nil},
+		{"update", update.cmd, update.validateFlags, []string{"des_1"}},
+		{"upsert", upsert.cmd, upsert.validateFlags, []string{"my-http"}},
+	}
+}
+
+// TestDestinationConfigJSONRefusesIndividualFlags pins the contract the three
+// commands could not agree on.
+//
+// --config was documented as overriding the individual flags and did on
+// `update`; `create` and `upsert` overlaid --url back on top of it, and
+// `upsert` only reached that overlay when --type was passed, because
+// resolveDestinationType returns early on the --config path. So
+// `upsert my-http --config '{"url":"https://old"}' --url https://new` exited 0
+// having sent https://old with no mention of --url, and the same flags with
+// --type HTTP sent https://new while `update` still sent https://old. Either
+// input describes the whole config, so asking for both is now a conflict.
+func TestDestinationConfigJSONRefusesIndividualFlags(t *testing.T) {
+	conflicts := []struct {
+		flag  string
+		value string
+	}{
+		// The reported shape: silently dropped on the --config path.
+		{"url", "https://new.example.com/hook"},
+		{"cli-path", "/webhooks"},
+		{"http-method", "PUT"},
+		// Never covered by any overlay, so silently dropped on all three
+		// commands whatever the type.
+		{"auth-method", "bearer"},
+		{"bearer-token", "tok_123"},
+		{"rate-limit", "100"},
+		{"delivery-group-key", "body.customer_id"},
+	}
+
+	for i, cmdUnderTest := range destinationConfigCommands() {
+		for _, tt := range conflicts {
+			t.Run(cmdUnderTest.name+" --config with --"+tt.flag, func(t *testing.T) {
+				withTestAPIKey(t)
+				c := destinationConfigCommands()[i]
+				require.NoError(t, c.cmd.Flags().Set("config", `{"url":"https://old.example.com/hook"}`))
+				require.NoError(t, c.cmd.Flags().Set(tt.flag, tt.value))
+
+				err := c.validate(c.cmd, c.args)
+				require.Error(t, err, "--%s alongside --config was dropped without a word", tt.flag)
+				assert.Contains(t, err.Error(), "--"+tt.flag)
+				assert.Contains(t, err.Error(), "--config")
+			})
+		}
+	}
+}
+
+// TestDestinationConfigFileRefusesIndividualFlagsToo covers the other JSON
+// input. --config-file reaches exactly the same builder, so the two have to
+// answer the same way.
+func TestDestinationConfigFileRefusesIndividualFlagsToo(t *testing.T) {
+	for i, c := range destinationConfigCommands() {
+		t.Run(c.name, func(t *testing.T) {
+			withTestAPIKey(t)
+			c := destinationConfigCommands()[i]
+			require.NoError(t, c.cmd.Flags().Set("config-file", "/some/config.json"))
+			require.NoError(t, c.cmd.Flags().Set("url", "https://new.example.com/hook"))
+
+			err := c.validate(c.cmd, c.args)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "--url")
+			assert.Contains(t, err.Error(), "--config-file")
+		})
+	}
+}
+
+// TestDestinationConfigJSONAloneIsStillAccepted is the other half: the refusal
+// must key off flags the user actually typed, not off flags that carry a
+// default. --api-key-to defaults to "header" on all three commands and
+// --cli-path defaults to "/" on create, and neither is something the caller
+// asked for.
+func TestDestinationConfigJSONAloneIsStillAccepted(t *testing.T) {
+	for i, c := range destinationConfigCommands() {
+		t.Run(c.name, func(t *testing.T) {
+			withTestAPIKey(t)
+			c := destinationConfigCommands()[i]
+			require.NoError(t, c.cmd.Flags().Set("config", `{"url":"https://api.example.com/hooks"}`))
+
+			assert.NoError(t, c.validate(c.cmd, c.args),
+				"a config JSON on its own is the whole point of the flag")
+		})
+	}
+}
+
+// TestDestinationUpsertAndUpdateAgreeOnConfigJSON states the invariant
+// directly, because the two disagreeing is what made the corner hard to see:
+// the same flags have to produce the same answer on both commands, with and
+// without --type.
+func TestDestinationUpsertAndUpdateAgreeOnConfigJSON(t *testing.T) {
+	for _, declaredType := range []string{"", "HTTP"} {
+		name := "without --type"
+		if declaredType != "" {
+			name = "with --type " + declaredType
+		}
+		t.Run(name, func(t *testing.T) {
+			withTestAPIKey(t)
+
+			update := newDestinationUpdateCmd()
+			upsert := newDestinationUpsertCmd()
+			for _, c := range []*cobra.Command{update.cmd, upsert.cmd} {
+				require.NoError(t, c.Flags().Set("config", `{"url":"https://old.example.com/hook"}`))
+				require.NoError(t, c.Flags().Set("url", "https://new.example.com/hook"))
+				if declaredType != "" {
+					require.NoError(t, c.Flags().Set("type", declaredType))
+				}
+			}
+
+			updateErr := update.validateFlags(update.cmd, []string{"des_1"})
+			upsertErr := upsert.validateFlags(upsert.cmd, []string{"my-http"})
+
+			require.Error(t, updateErr)
+			require.Error(t, upsertErr)
+			assert.Equal(t, updateErr.Error(), upsertErr.Error(),
+				"update and upsert must not resolve the same flags differently")
+		})
+	}
 }
