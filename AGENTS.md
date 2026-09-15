@@ -409,6 +409,12 @@ if apiErr, ok := err.(*hookdeck.APIError); ok {
 - **Always run tests** when changing code. Run **`go test ./...`** from the repo root (see **§5 Running `go test` after code changes**). For CLI-facing changes, run acceptance tests with the correct **`-tags=...`** per `test/acceptance/README.md`. **Agents:** **prompt for out-of-sandbox / full permissions**, then run `go test` with **`required_permissions: ["all"]`** (and network if needed) so the module cache works—**do not** push the user to run tests manually unless elevation is refused.
 - **Create tests for new functionality.** Add unit tests for validation and business logic; add acceptance tests for flows that use the CLI as a user or agent would (success and failure paths). Acceptance tests must pass or fail—no skipping to avoid failures.
 
+- **A fix is not done until you have reverted it and watched the test fail.** Apply the test, confirm it passes, then undo the fix and confirm the *right* test fails, then restore. A test written alongside a fix frequently passes for an unrelated reason: an audit of one release found eight fixes that could be deleted with the suite still green, two tests that failed for the wrong reason, and one that had been rewritten to assert the regression it was meant to catch. Revert one fix at a time, restore immediately, and never leave the tree non-compiling between steps.
+
+- **Prove a filter with a negative control. "No error" is not evidence it worked.** The API silently ignores query parameters it does not support, so a dropped filter returns HTTP 200 and a full result set that looks filtered. Assert both directions: a real value returns the expected subset, and a deliberately bogus value returns zero. If both return the same rows, the filter is being discarded. The same applies to any flag whose effect you cannot see in the output — read the resource back (`get --output json`) rather than trusting a success message.
+
+- **When a fix has several call sites, test each one separately.** A single passing test does not pin the others. One release fixed the same defect in four code paths; the third was found only after the first two were considered done.
+
 ### Acceptance Test Setup
 Acceptance tests require a Hookdeck API key. See [`test/acceptance/README.md`](test/acceptance/README.md) for full details. Quick setup: create `test/acceptance/.env` with `HOOKDECK_CLI_TESTING_API_KEY=<key>`. The `.env` file is git-ignored and must never be committed.
 
@@ -578,6 +584,8 @@ Summary for code and docs work:
 - **Project API key** — Dashboard project settings key; passed to `hookdeck ci --api-key` / `HOOKDECK_API_KEY` only. Server returns a **CI CLI client key**; do not document root hidden `--api-key` / `--cli-key` as user-facing global flags.
 - **Guest** — `listen` without login may call `POST /cli/guest`; separate from `--cli-key` onboarding.
 - **`project list`** — Requires a user-associated CLI client key (`hookdeck login` or `hookdeck login --cli-key`). CI keys from `hookdeck ci` and raw Project API keys cannot list or switch projects (acceptance: `HOOKDECK_CLI_TESTING_CLI_KEY`).
+
+- **Redacting keys: the CLI writes single-quoted TOML.** A redaction pattern that only matches double-quoted values will print the key from `config.toml` verbatim. Match both quote styles, or avoid reading the file at all — compare by hash, and refer to variables by name. Never echo a key value, including into a log you expect only yourself to read.
 
 ---
 
