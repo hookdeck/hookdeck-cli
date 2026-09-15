@@ -2,14 +2,31 @@ package listen
 
 import (
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/links"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/summary"
 )
+
+// hyperlink renders url as an OSC 8 hyperlink labelled display when w can show
+// one, and as the full url — query parameters and all — when it cannot.
+//
+// Both halves matter for #403. Emitting the escape to a pipe wrote bytes nothing
+// downstream can render; and because the label deliberately omits team_id, the
+// plain-text fallback has to be the real url or the redirected output ends up
+// carrying *less* information than the terminal output it replaced.
+func hyperlink(url, display string, w io.Writer) string {
+	if !ansi.CanHyperlink(w) {
+		return url
+	}
+	return ansi.Linkify(display, url, w)
+}
 
 func printSourcesWithConnections(config *config.Config, projectID string, sources []*hookdeck.Source, connections []*hookdeck.Connection, targetURL *url.URL, guestURL string) {
 	// Group connections by source ID
@@ -19,8 +36,10 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 		sourceConnections[sourceID] = append(sourceConnections[sourceID], connection)
 	}
 
-	// Print the Sources title line
-	fmt.Printf("%s\n", ansi.Faint("Listening on"))
+	// Print the Sources title line. It carries the same counts as the
+	// interactive header: compact is the automatic no-TTY fallback, so this is
+	// the line most CI logs keep, and a bare "Listening on" told them nothing.
+	fmt.Printf("%s\n", ansi.Faint(summary.Listening(len(sources), len(connections))))
 	fmt.Println()
 
 	// Print each source with its connections
@@ -81,10 +100,8 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 	if guestURL != "" {
 		fmt.Printf("💡 Sign up to make your webhook URL permanent: %s\n", guestURL)
 	} else {
-		url := links.DashboardHome(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectMode, projectID)
-		displayURL := links.DashboardHomeDisplay(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectMode)
-		// Create clickable link with OSC 8 hyperlink sequence
-		// Format: \033]8;;URL\033\\DISPLAY_TEXT\033]8;;\033\\
-		fmt.Printf("💡 Open dashboard to inspect, retry & bookmark events: \033]8;;%s\033\\%s\033]8;;\033\\\n", url, displayURL)
+		url := links.DashboardHome(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType, projectID)
+		displayURL := links.DashboardHomeDisplay(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType)
+		fmt.Printf("💡 Open dashboard to inspect, retry & bookmark events: %s\n", hyperlink(url, displayURL, os.Stdout))
 	}
 }

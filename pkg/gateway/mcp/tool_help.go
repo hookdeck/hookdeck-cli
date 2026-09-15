@@ -105,7 +105,7 @@ scoped to the active project — if the wrong project is active, all results wil
 Also use this when unsure which project is currently active.
 
 Actions:
-  list  — List all projects. data.projects is the array (id, org, project, type gateway/outpost/console, current). meta includes active_project_id, active_project_name (short), and active_project_org when known. Outbound projects are excluded.
+  list  — List all projects. data.projects is the array (id, org, project, type gateway/outpost/console, current). meta includes active_project_id, active_project_name (short), and active_project_org when known.
   use   — Switch the active project for this session (in-memory only).
 
 If list or use fails with 401/403 (or similar), the error may mention hookdeck_login with reauth: true — the stored key may be a narrow dashboard API key.
@@ -120,7 +120,7 @@ Without arguments when already authenticated: confirms the session is active.
 When not authenticated: returns a URL the user opens in a browser; poll by calling this tool again.
 
 Parameters:
-  reauth  (boolean, optional) — If true, clears stored credentials and starts a new browser login. Use when hookdeck_projects list fails and the key may be a single-project or dashboard API key that cannot list teams.`,
+  reauth  (boolean, optional) — If true, clears stored credentials and starts a new browser login. Use when hookdeck_projects list fails and the key may be a single-project or dashboard API key that cannot list projects.`,
 
 	"hookdeck_connections": `hookdeck_connections — Inspect connections and control delivery flow
 
@@ -185,38 +185,58 @@ Parameters:
 
 Results are scoped to the active project — call hookdeck_projects first if the user has specified a project.
 
-List supports the same filters as hookdeck gateway request list.
+List supports the same filters as hookdeck gateway request list, and events the same
+filters as hookdeck gateway event list — the API route behind it, GET /requests/{id}/events,
+declares the whole /events filter set, narrowed to one request.
 
 Actions:
   list           — List requests with optional filters
   get            — Get a single request by ID
   raw_body       — Get the raw body of a request
-  events         — List events generated from a request
+  events         — List events generated from a request, with optional filters
   ignored_events — List ignored events for a request
 
 Parameters:
   action          (string, required) — list, get, raw_body, events, or ignored_events
   id              (string)           — List: filter by request ID(s), comma-separated. Get/raw_body/events/ignored_events: required.
-  source_id       (string)           — Filter by source (list)
-  status          (string)           — accepted or rejected (list)
+  source_id       (string)           — Filter by source (list, events)
   rejection_cause (string)           — Filter by rejection cause (list)
   verified        (boolean)          — Filter by verification status (list)
+  connection_id   (string)           — Filter by connection, maps to webhook_id (events)
+  destination_id  (string)           — Filter by destination (events)
+  delivery_group  (string)           — Filter by delivery group (events)
+  attempts        (string)           — Filter by attempt count (events)
+  issue_id        (string)           — Filter by issue (events)
+  error_code      (string)           — Filter by error code (events)
+  response_status (string)           — Filter by HTTP response status (events)
+  cli_id          (string)           — Filter by CLI listen session ID (events)
 
-Date range filters (list):
+status (string) — the vocabulary depends on the action, because the two query different
+collections. A value from the other action's vocabulary is refused, not sent: the API
+returns unfiltered rows for a status it does not recognise.
+  list   — ` + hookdeck.RequestLogStatusValues + ` (what happened to the request at the edge)
+  events — ` + hookdeck.EventStatusValues + ` (where each delivery is in its lifecycle)
+
+Date range filters:
   Use *_after / *_before with ISO 8601 datetimes (e.g. 2026-06-01T00:00:00Z). Do not pass API bracket keys like created_at[gte] in MCP args.
-  created_after   → created_at[gte]   (inclusive lower bound)
-  created_before  → created_at[lte]   (inclusive upper bound)
-  ingested_after  → ingested_at[gte]
-  ingested_before → ingested_at[lte]
+  created_after       → created_at[gte]        (list, events; inclusive lower bound)
+  created_before      → created_at[lte]        (list, events; inclusive upper bound)
+  ingested_after      → ingested_at[gte]       (list)
+  ingested_before     → ingested_at[lte]       (list)
+  successful_after    → successful_at[gte]     (events)
+  successful_before   → successful_at[lte]     (events)
+  last_attempt_after  → last_attempt_at[gte]   (events)
+  last_attempt_before → last_attempt_at[lte]   (events)
   Example: {"action":"list","ingested_after":"2026-06-09T12:00:00Z","source_id":"src_abc"}
 
-Payload search (list):
+Payload search (list, events):
   body, headers, parsed_query — Hookdeck JSON filter syntax (object or string). Same as hookdeck listen --filter-body.
   path — partial URL path match (string)
   Example: {"action":"list","body":{"type":"charge.succeeded"}}
 
-Pagination and sort (list):
-  order_by, dir (asc/desc), limit (default 100), next, prev`,
+Pagination and sort:
+  order_by, dir (asc/desc), limit (default 100), next, prev (list, events; ignored_events takes limit/next/prev)
+  Example: {"action":"events","id":"req_abc","source_id":"src_abc","status":"FAILED"}`,
 
 	"hookdeck_events": `hookdeck_events — Query events (processed deliveries)
 
@@ -235,6 +255,7 @@ Parameters:
   connection_id    (string)           — Filter by connection (list, maps to webhook_id)
   source_id        (string)           — Filter by source (list)
   destination_id   (string)           — Filter by destination (list)
+  delivery_group   (string)           — Filter by delivery group (list)
   status           (string)           — SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED
   attempts         (string)           — Filter by attempt count (list); integer or API operator syntax
   issue_id         (string)           — Filter by issue (list)
@@ -309,13 +330,38 @@ Parameters:
   start          (string, required)   — ISO 8601 datetime
   end            (string, required)   — ISO 8601 datetime
   granularity    (string)             — e.g. "1h", "5m", "1d"
-  measures       (string[], required)  — Metrics to retrieve. Common: count, successful_count, failed_count, error_count
-  dimensions     (string[])           — Grouping dimensions (varies by action)
-  source_id      (string)             — Filter by source
-  destination_id (string)             — Filter by destination
-  connection_id  (string)             — Filter by connection (maps to webhook_id)
-  status         (string)             — Filter by status
-  issue_id       (string)             — Filter by issue (events only)`,
+  measures       (string[], required) — Metrics to retrieve (see Measures below)
+  dimensions     (string[])           — Grouping dimensions (see Dimensions below)
+  source_id      (string)             — Filter by source (events, requests)
+  destination_id (string)             — Filter by destination (events, attempts)
+  delivery_group (string)             — Filter by delivery group (events, attempts)
+  connection_id  (string)             — Filter by connection, maps to webhook_id (events, transformations)
+  status         (string)             — Filter by status (events, requests, attempts)
+  issue_id       (string)             — Filter by issue (transformations; events when grouping by issue_id)
+
+Measures per action (only count is valid on all four):
+  events          — ` + hookdeck.EventMetricsMeasures + `
+  requests        — ` + hookdeck.RequestMetricsMeasures + `
+  attempts        — ` + hookdeck.AttemptMetricsMeasures + `
+  transformations — ` + hookdeck.TransformationMetricsMeasures + `
+
+Dimensions per action:
+  events          — ` + hookdeck.EventMetricsDimensions + `
+  requests        — ` + hookdeck.RequestMetricsDimensions + `
+  attempts        — ` + hookdeck.AttemptMetricsDimensions + `
+  transformations — ` + hookdeck.TransformationMetricsDimensions + `
+
+  On events the accepted set narrows with the route the measures select:
+    queue_depth / max_depth / max_age — ` + hookdeck.DimensionList(hookdeck.QueueDepthRouteDimensions) + `
+    pending                           — ` + hookdeck.DimensionList(hookdeck.PendingTimeseriesRouteDimensions) + `
+    issue_id (per-issue)              — ` + hookdeck.DimensionList(hookdeck.EventsByIssueRouteDimensions) + `
+  Grouping by delivery_group also requires destination_id; the API rejects it otherwise.
+
+Status values per action:
+  events          — ` + hookdeck.EventStatusValues + `
+  requests        — ` + hookdeck.RequestStatusValues + `
+  attempts        — ` + hookdeck.AttemptStatusValues + `
+  transformations — not supported`,
 
 	"hookdeck_help": `hookdeck_help — Get an overview of available tools or detailed help for a specific tool
 

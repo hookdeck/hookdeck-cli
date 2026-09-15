@@ -15,9 +15,13 @@ type CIClient struct {
 	OrganizationID   string `json:"organization_id"`
 	ProjectID        string `json:"team_id"`
 	ProjectName      string `json:"team_name"`
-	ProjectMode      string `json:"team_mode"`
-	APIKey           string `json:"key"`
-	ClientID         string `json:"client_id"`
+	ProjectType      string `json:"team_type"`
+	// ProjectMode is the pre-2026-09-01 name for the same field, read so a
+	// response from an API serving the older shape still resolves a project
+	// type rather than blanking it.
+	ProjectMode string `json:"team_mode"`
+	APIKey      string `json:"key"`
+	ClientID    string `json:"client_id"`
 }
 
 type CreateCIClientInput struct {

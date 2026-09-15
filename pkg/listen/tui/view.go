@@ -6,7 +6,23 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/summary"
 )
+
+// Connection-state labels. These are the words the status bar shows, and they
+// are the whole point of #399: every mode must say what state it is in, so
+// readiness is affirmative text rather than something a user has to infer from
+// a line that is missing.
+const (
+	connectingLabel   = "Connecting…"
+	connectedLabel    = "Connected."
+	reconnectingLabel = "Reconnecting…"
+	failedLabel       = "Connection failed"
+)
+
+// connStatusBudgetWithEvents caps the connection state once the event summary
+// shares the bar, so the two together still fit on one line.
+const connStatusBudgetWithEvents = 24
 
 // View renders the TUI with fixed header and scrollable event list
 func (m Model) View() string {
@@ -65,16 +81,11 @@ func (m Model) View() string {
 	// m.height is total LINES on screen
 	// We need: header lines + viewport lines + divider (1) + status (1) = m.height
 
-	var viewportHeight int
-	if m.isConnected {
-		// When connected, always show status bar (for server health indicator)
-		// Total lines: header + viewport + divider + status
-		viewportHeight = m.height - headerHeight - 2
-	} else {
-		// When not connected, no status bar
-		// Total lines: header + viewport
-		viewportHeight = m.height - headerHeight
-	}
+	// The status bar is drawn on every frame, connected or not. It used to appear
+	// only once connected, which is what made #399 so quiet: a session that never
+	// connected rendered the complete layout with the status line simply absent.
+	// Total lines: header + viewport + divider + status.
+	viewportHeight := m.height - headerHeight - 2
 
 	if viewportHeight < 1 {
 		viewportHeight = 1
@@ -93,35 +104,34 @@ func (m Model) View() string {
 	viewportOutput := m.viewport.View()
 	output += viewportOutput
 
-	if m.isConnected {
-		// When connected, always show status bar (includes server health indicator)
-		// Ensure we have a newline before divider if viewport doesn't end with one
-		if !strings.HasSuffix(viewportOutput, "\n") {
-			output += "\n"
-		}
-
-		// Divider line
-		divider := strings.Repeat("─", m.width)
-		output += dividerStyle.Render(divider) + "\n"
-
-		// Status bar - LAST line, no trailing newline
-		output += m.renderStatusBar()
-	} else {
-		// Remove any trailing newline if no status bar
-		output = strings.TrimSuffix(output, "\n")
+	// Ensure we have a newline before divider if viewport doesn't end with one
+	if !strings.HasSuffix(viewportOutput, "\n") {
+		output += "\n"
 	}
+
+	// Divider line
+	divider := strings.Repeat("─", m.width)
+	output += dividerStyle.Render(divider) + "\n"
+
+	// Status bar - LAST line, no trailing newline
+	output += m.renderStatusBar()
 
 	return output
 }
 
-// renderConnectingStatus shows the connecting animation
+// renderConnectingStatus shows the pending/failed connection state in the body
+// of the view, using the same words as the status bar.
 func (m Model) renderConnectingStatus() string {
 	dot := "●"
 	if m.waitingFrameToggle {
 		dot = "○"
 	}
 
-	return connectingDotStyle.Render(dot) + " Connecting..."
+	if m.connState == connFailed {
+		return redStyle.Render("●") + " " + m.connectionStateText()
+	}
+
+	return connectingDotStyle.Render(dot) + " " + m.connectionStateText()
 }
 
 // renderWaitingStatus shows the waiting animation before first event
@@ -131,7 +141,60 @@ func (m Model) renderWaitingStatus() string {
 		dot = "○"
 	}
 
-	return waitingDotStyle.Render(dot) + " Connected. Waiting for events..."
+	return waitingDotStyle.Render(dot) + " " + connectedLabel + " Waiting for events..."
+}
+
+// connectionStateText is the plain-text connection state, without decoration.
+// Every mode reports readiness with these words; nothing about the state is left
+// to be inferred from an absent line (#399).
+func (m Model) connectionStateText() string {
+	switch m.connState {
+	case connConnected:
+		return connectedLabel
+	case connReconnecting:
+		return reconnectingLabel
+	case connFailed:
+		if m.connErr != nil {
+			return failedLabel + ": " + m.connErr.Error()
+		}
+		return failedLabel
+	default:
+		if m.connAttempts > 0 {
+			return fmt.Sprintf("%s (attempt %d)", connectingLabel, m.connAttempts+1)
+		}
+		return connectingLabel
+	}
+}
+
+// renderConnectionStatus is connectionStateText with its state dot, for the
+// status bar. budget is how many characters the text may use before the bar
+// wraps onto a second line and pushes the frame past the terminal height; a
+// failure reason can easily be longer than the window is wide.
+func (m Model) renderConnectionStatus(budget int) string {
+	switch m.connState {
+	case connConnected:
+		return greenStyle.Render("●") + " " + connectedLabel
+	case connFailed:
+		return redStyle.Render("●") + " " + truncate(m.connectionStateText(), budget)
+	default:
+		return yellowStyle.Render("●") + " " + truncate(m.connectionStateText(), budget)
+	}
+}
+
+// truncate shortens text to at most limit characters, ending with an ellipsis.
+// It counts runes, not bytes, so a multi-byte character is never cut in half.
+func truncate(text string, limit int) string {
+	if limit < 1 {
+		return text
+	}
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	if limit == 1 {
+		return "…"
+	}
+	return string(runes[:limit-1]) + "…"
 }
 
 // renderEventHistory renders all events with selection indicator on selected
@@ -193,13 +256,21 @@ func (m Model) renderDetailsView() string {
 	return output.String()
 }
 
-// renderStatusBar renders the bottom status bar with keyboard shortcuts
+// renderStatusBar renders the bottom status bar: the connection state first,
+// then the selected-event summary and keyboard shortcuts.
+//
+// The connection state leads on every frame. Before #399 this bar existed only
+// once connected, so the pending and failed states had no words at all.
 func (m Model) renderStatusBar() string {
-	// If no events yet, just show quit instruction
+	// If no events yet, just show the connection state and quit instruction
 	selectedEvent := m.GetSelectedEvent()
 	if selectedEvent == nil {
-		return statusBarStyle.Width(m.width).Render("[q] Quit")
+		const tail = " • [q] Quit"
+		connStatus := m.renderConnectionStatus(m.width - len(tail) - 2)
+		return statusBarStyle.Width(m.width).Render(connStatus + tail)
 	}
+
+	connStatus := m.renderConnectionStatus(connStatusBudgetWithEvents)
 
 	// Determine width-based verbosity
 	// Threshold chosen to show full text only when it fits without wrapping
@@ -256,7 +327,7 @@ func (m Model) renderStatusBar() string {
 		}
 	}
 
-	return statusBarStyle.Width(m.width).Render(eventStatusMsg)
+	return statusBarStyle.Width(m.width).Render(connStatus + " " + eventStatusMsg)
 }
 
 // FormatEventLog formats an event into a log line matching the current style
@@ -319,16 +390,7 @@ func (m Model) renderConnectionInfo() string {
 		numConnections = len(m.cfg.Connections)
 	}
 
-	sourcesText := fmt.Sprintf("%d source", numSources)
-	if numSources != 1 {
-		sourcesText += "s"
-	}
-	connectionsText := fmt.Sprintf("%d connection", numConnections)
-	if numConnections != 1 {
-		connectionsText += "s"
-	}
-
-	listeningTitle := fmt.Sprintf("Listening on %s • %s • [i] Collapse", sourcesText, connectionsText)
+	listeningTitle := summary.Listening(numSources, numConnections) + " • [i] Collapse"
 	s.WriteString(faintStyle.Render(listeningTitle))
 	s.WriteString("\n\n")
 
@@ -493,19 +555,8 @@ func (m Model) renderCompactHeader() string {
 	}
 
 	// Compact summary with toggle hint
-	sourcesText := fmt.Sprintf("%d source", numSources)
-	if numSources != 1 {
-		sourcesText += "s"
-	}
-	connectionsText := fmt.Sprintf("%d connection", numConnections)
-	if numConnections != 1 {
-		connectionsText += "s"
-	}
-
-	summary := fmt.Sprintf("Listening on %s • %s • [i] Expand",
-		sourcesText,
-		connectionsText)
-	s.WriteString(faintStyle.Render(summary))
+	collapsedTitle := summary.Listening(numSources, numConnections) + " • [i] Expand"
+	s.WriteString(faintStyle.Render(collapsedTitle))
 	s.WriteString("\n")
 
 	// Show server health warning if unhealthy (ensure it's always visible even when collapsed)

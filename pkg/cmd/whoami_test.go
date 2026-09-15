@@ -11,14 +11,14 @@ func TestResolveActiveProject(t *testing.T) {
 	validateResponse := &hookdeck.ValidateAPIKeyResponse{
 		ProjectID:        "tm_bound",
 		ProjectName:      "Bound Project",
-		ProjectMode:      "inbound",
+		ProjectType:      "event_gateway",
 		OrganizationName: "Org A",
 	}
 
 	projects := []hookdeck.Project{
-		{Id: "tm_bound", Name: "[Org A] Bound Project", Mode: "inbound"},
-		{Id: "tm_active", Name: "[Org B] Active Project", Mode: "outbound"},
-		{Id: "tm_unparsable", Name: "No Org Format", Mode: "inbound"},
+		{Id: "tm_bound", Name: "[Org A] Bound Project", Type: "event_gateway"},
+		{Id: "tm_active", Name: "[Org B] Active Project", Type: "event_gateway"},
+		{Id: "tm_unparsable", Name: "No Org Format", Type: "event_gateway"},
 	}
 
 	t.Run("no active project id uses validate response", func(t *testing.T) {
@@ -30,7 +30,7 @@ func TestResolveActiveProject(t *testing.T) {
 		if called {
 			t.Error("listProjects should not be called when no active project id is set")
 		}
-		if name != "Bound Project" || org != "Org A" || mode != "inbound" || note != "" {
+		if name != "Bound Project" || org != "Org A" || mode != "event_gateway" || note != "" {
 			t.Errorf("got (%q, %q, %q, %q)", name, org, mode, note)
 		}
 	})
@@ -44,7 +44,7 @@ func TestResolveActiveProject(t *testing.T) {
 		if called {
 			t.Error("listProjects should not be called when active project matches the key-bound project")
 		}
-		if name != "Bound Project" || org != "Org A" || mode != "inbound" || note != "" {
+		if name != "Bound Project" || org != "Org A" || mode != "event_gateway" || note != "" {
 			t.Errorf("got (%q, %q, %q, %q)", name, org, mode, note)
 		}
 	})
@@ -53,7 +53,7 @@ func TestResolveActiveProject(t *testing.T) {
 		name, org, mode, note := resolveActiveProject(validateResponse, "tm_active", func() ([]hookdeck.Project, error) {
 			return projects, nil
 		})
-		if name != "Active Project" || org != "Org B" || mode != "outbound" || note != "" {
+		if name != "Active Project" || org != "Org B" || mode != "event_gateway" || note != "" {
 			t.Errorf("got (%q, %q, %q, %q)", name, org, mode, note)
 		}
 	})
@@ -62,7 +62,7 @@ func TestResolveActiveProject(t *testing.T) {
 		name, org, mode, note := resolveActiveProject(validateResponse, "tm_unparsable", func() ([]hookdeck.Project, error) {
 			return projects, nil
 		})
-		if name != "No Org Format" || org != "" || mode != "inbound" || note != "" {
+		if name != "No Org Format" || org != "" || mode != "event_gateway" || note != "" {
 			t.Errorf("got (%q, %q, %q, %q)", name, org, mode, note)
 		}
 	})
@@ -71,7 +71,7 @@ func TestResolveActiveProject(t *testing.T) {
 		name, org, mode, note := resolveActiveProject(validateResponse, "tm_active", func() ([]hookdeck.Project, error) {
 			return nil, errors.New("boom")
 		})
-		if name != "Bound Project" || org != "Org A" || mode != "inbound" {
+		if name != "Bound Project" || org != "Org A" || mode != "event_gateway" {
 			t.Errorf("got (%q, %q, %q)", name, org, mode)
 		}
 		if note == "" {
@@ -83,7 +83,7 @@ func TestResolveActiveProject(t *testing.T) {
 		name, org, mode, note := resolveActiveProject(validateResponse, "tm_deleted", func() ([]hookdeck.Project, error) {
 			return projects, nil
 		})
-		if name != "Bound Project" || org != "Org A" || mode != "inbound" {
+		if name != "Bound Project" || org != "Org A" || mode != "event_gateway" {
 			t.Errorf("got (%q, %q, %q)", name, org, mode)
 		}
 		if note == "" {

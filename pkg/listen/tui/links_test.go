@@ -17,7 +17,7 @@ func TestDashboardHomeURLUsesConfigFields(t *testing.T) {
 	}
 	assert.Equal(t, "https://dashboard.hookdeck.com/events/cli?team_id=tm_123", dashboardHomeURL(cfg))
 
-	cfg.ProjectMode = "console"
+	cfg.ProjectType = "console"
 	assert.Equal(t, "https://console.hookdeck.com?team_id=tm_123", dashboardHomeURL(cfg))
 }
 
@@ -29,6 +29,6 @@ func TestEventDashboardURLUsesConfigFields(t *testing.T) {
 	}
 	assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1?team_id=tm_123", eventDashboardURL(cfg, "evt_1"))
 
-	cfg.ProjectMode = "console"
+	cfg.ProjectType = "console"
 	assert.Equal(t, "https://console.hookdeck.com/?event_id=evt_1&team_id=tm_123", eventDashboardURL(cfg, "evt_1"))
 }

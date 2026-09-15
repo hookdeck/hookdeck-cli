@@ -101,10 +101,30 @@ func Italic(text string) string {
 	return color.Sprintf(color.Italic(text))
 }
 
+// ShouldUseColors reports whether ANSI decoration may be written to w, taking
+// --color, CLICOLOR/CLICOLOR_FORCE, NO_COLOR and whether w is a terminal into
+// account. Renderers that draw with something other than this package (the
+// interactive TUI draws with lipgloss) need the same answer, or --color off
+// silently applies to one output mode and not the other (#404).
+func ShouldUseColors(w io.Writer) bool {
+	return shouldUseColors(w)
+}
+
+// CanHyperlink reports whether OSC 8 hyperlinks can be written to w. It is the
+// same test colour uses, deliberately: a hyperlink is terminal decoration, so it
+// belongs wherever colour belongs and nowhere else.
+//
+// Before #403 the listen printer emitted OSC 8 unconditionally, which inverted
+// the rule — a piped run (a log file, a CI job) got the escape bytes while a
+// real terminal, the only thing that can render them, got a plain URL.
+func CanHyperlink(w io.Writer) bool {
+	return ShouldUseColors(w)
+}
+
 // Linkify returns an ANSI escape sequence with an hyperlink, if the writer
 // supports colors.
 func Linkify(text, url string, w io.Writer) string {
-	if !shouldUseColors(w) {
+	if !CanHyperlink(w) {
 		return text
 	}
 
@@ -216,6 +236,15 @@ func shouldUseColors(w io.Writer) bool {
 		case ok && force == "0":
 			useColors = false
 		case os.Getenv("CLICOLOR") == "0":
+			useColors = false
+		}
+	}
+
+	// https://no-color.org: any non-empty NO_COLOR turns decoration off. It is
+	// checked after CLICOLOR_FORCE and before DisableColors so an explicit
+	// --color on still wins, matching how the other overrides are layered.
+	if !ForceColors {
+		if noColor, ok := os.LookupEnv("NO_COLOR"); ok && noColor != "" {
 			useColors = false
 		}
 	}

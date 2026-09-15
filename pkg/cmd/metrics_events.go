@@ -9,8 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const metricsEventsMeasures = "count, successful_count, failed_count, scheduled_count, paused_count, error_rate, avg_attempts, scheduled_retry_count, pending, queue_depth, max_depth, max_age"
-const metricsEventsDimensions = "connection_id, source_id, destination_id, issue_id"
+var metricsEventsDimensions = hookdeck.EventMetricsDimensions
 
 type metricsEventsCmd struct {
 	cmd   *cobra.Command
@@ -29,29 +28,16 @@ Requires --start and --end.
 
 When querying per-issue (e.g. --dimensions issue_id), --issue-id is required.
 
-Measures: ` + metricsEventsMeasures + `.
+Each query is answered by a single endpoint, so a request cannot span two of
+them: queue_depth, max_depth, max_age and pending each select their own, and
+none of them can be combined with per-issue (--dimensions issue_id, --issue-id).
+
+Measures: ` + hookdeck.EventMetricsMeasures + `.
 Dimensions: ` + metricsEventsDimensions + `.`),
 		RunE: c.runE,
 	}
-	addMetricsCommonFlags(c.cmd, &c.flags)
+	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.EventMetricsFilters, hookdeck.EventMetricsDimensions, hookdeck.EventStatusValues)
 	return c
-}
-
-// queueDepthMeasures are measures that route to the queue-depth API endpoint.
-var queueDepthMeasures = map[string]bool{
-	"queue_depth": true,
-	"max_depth":   true,
-	"max_age":     true,
-}
-
-// hasMeasure checks whether any of the requested measures match the given set.
-func hasMeasure(params hookdeck.MetricsQueryParams, set map[string]bool) bool {
-	for _, m := range params.Measures {
-		if set[m] {
-			return true
-		}
-	}
-	return false
 }
 
 // hasDimension checks whether any of the requested dimensions match the given name.
@@ -67,14 +53,48 @@ func hasDimension(params hookdeck.MetricsQueryParams, name string) bool {
 // queryEventMetricsConsolidated routes to the correct underlying API endpoint
 // based on the requested measures and dimensions.
 func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client, params hookdeck.MetricsQueryParams) (hookdeck.MetricsResponse, error) {
-	// Route based on measures/dimensions:
-	// 1. If measures include queue_depth, max_depth, or max_age → QueryQueueDepth
-	if hasMeasure(params, queueDepthMeasures) {
-		return client.QueryQueueDepth(ctx, params)
+	// Only one endpoint is called, so a query that names parts of two routes
+	// cannot be answered in full: the surplus measures would be dropped or
+	// rewritten into a 422, and the conditions below are ordered, so a
+	// queue-depth or pending measure silently shadowed the issue_id dimension
+	// and the --issue-id filter (#407). Refuse the combination by name rather
+	// than exit 0 having answered a different question.
+	if err := hookdeck.RejectCrossRouteEventQuery(params, "--measures", "--dimensions", hookdeck.CLIFilterNames); err != nil {
+		return nil, err
 	}
-	// 2. If measures include "pending" with granularity → QueryEventsPendingTimeseries
+	// Which measures belong to which endpoint is the shared table's to know, and
+	// the route names are its constants: a second copy here could disagree with
+	// the refusal above and dispatch a query it had just accepted to the wrong
+	// endpoint.
+	measureRoute := hookdeck.RouteForMeasures(params.Measures)
+
+	// Route based on measures/dimensions:
+	// 1. Measures naming the queue-depth route → QueryQueueDepth
+	if measureRoute == hookdeck.EventRouteQueueDepth {
+		if err := rejectUnsupportedFilters(params, hookdeck.QueueDepthRouteFilters, hookdeck.EventRouteQueueDepth); err != nil {
+			return nil, err
+		}
+		if err := rejectUnsupportedDimensions(params, hookdeck.QueueDepthRouteDimensions, hookdeck.EventRouteQueueDepth); err != nil {
+			return nil, err
+		}
+		// The endpoint accepts max_depth and max_age only. "queue_depth" is our own
+		// spelling for the route, advertised in --help, so translate it rather than
+		// letting the API reject a measure we told the user to pass.
+		queueParams := params
+		queueParams.Measures = hookdeck.TranslateQueueDepthMeasures(params.Measures)
+		return client.QueryQueueDepth(ctx, queueParams)
+	}
+	// 2. Measures naming the pending route → QueryEventsPendingTimeseries.
 	// API expects measures[]=count; "pending" is only used for routing.
-	if hasMeasure(params, map[string]bool{"pending": true}) && params.Granularity != "" {
+	// Granularity is optional on this route, so it must not gate the routing:
+	// gating it sent "pending" to the default endpoint, which rejects the measure.
+	if measureRoute == hookdeck.EventRoutePending {
+		if err := rejectUnsupportedFilters(params, hookdeck.PendingTimeseriesRouteFilters, hookdeck.EventRoutePending); err != nil {
+			return nil, err
+		}
+		if err := rejectUnsupportedDimensions(params, hookdeck.PendingTimeseriesRouteDimensions, hookdeck.EventRoutePending); err != nil {
+			return nil, err
+		}
 		pendingParams := params
 		pendingParams.Measures = []string{"count"}
 		return client.QueryEventsPendingTimeseries(ctx, pendingParams)
@@ -85,9 +105,23 @@ func queryEventMetricsConsolidated(ctx context.Context, client *hookdeck.Client,
 		if params.IssueID == "" {
 			return nil, errors.New("per-issue metrics require --issue-id (required when using --dimensions issue_id)")
 		}
+		if err := rejectUnsupportedFilters(params, hookdeck.EventsByIssueRouteFilters, hookdeck.EventRouteByIssue); err != nil {
+			return nil, err
+		}
+		if err := rejectUnsupportedDimensions(params, hookdeck.EventsByIssueRouteDimensions, hookdeck.EventRouteByIssue); err != nil {
+			return nil, err
+		}
 		return client.QueryEventsByIssue(ctx, params)
 	}
 	// 4. Default → QueryEventMetrics
+	// No filter gate here: the default route honours every filter --help offers
+	// except --issue-id, and a set --issue-id selects the by-issue route above,
+	// so nothing reaches this fallback for a gate to catch. The invariant is
+	// pinned by hookdeck.TestDefaultEventRouteHonoursEveryFilterExceptIssueID,
+	// which fails if a filter the route drops is ever added.
+	if err := rejectUnsupportedDimensions(params, hookdeck.DefaultEventRouteDimensions, hookdeck.EventRouteDefault); err != nil {
+		return nil, err
+	}
 	return client.QueryEventMetrics(ctx, params)
 }
 

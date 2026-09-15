@@ -220,7 +220,19 @@ $ hookdeck listen 3000 stripe --cli-key <your-cli-key>
 $ hookdeck listen 3000 stripe --api-key <your-project-api-key>
 ```
 
-Both flags are global, so they work with any command. A **CLI key** is tied to your user account and can navigate across projects; a **project API key** is scoped to a single project. Within the CLI both are stored and used the same way (see [Credential Types](#security-config-files-and-source-control)).
+Which key you hold decides what the CLI can do. The supported ways to supply one are `hookdeck login` for a CLI key, `hookdeck login --cli-key` to paste an existing one, and `hookdeck ci --api-key` for a project API key:
+
+| Key | Where it comes from | Reach | `project list` / `project use` |
+| --- | --- | --- | --- |
+| **CLI key** | `hookdeck login`, or `hookdeck login --cli-key` | every project in every organization you belong to | yes |
+| **Project API key** | dashboard, or `hookdeck ci --api-key` | the one project it belongs to | no |
+| **Organization API key** | dashboard | its organization's projects, given the `projects.read` scope | no |
+
+Only a CLI key can list or switch projects. The others are scoped below the level that question is asked at, so `hookdeck project list` answers `this credential is scoped to a single project`, and you need `hookdeck login` for account-wide access.
+
+`hookdeck ci --api-key` takes a **project** API key specifically. It exchanges it for a project-scoped CLI key, which is why keys minted that way cannot list projects either. An organization API key is rejected by `hookdeck ci` and by every other CLI sign-in path, so it cannot be used to authenticate the CLI at all — use it against the REST API directly.
+
+See also [Credential Types](#security-config-files-and-source-control) for how each is stored.
 
 The Event Gateway routes events received for a given `source` (e.g. Shopify, GitHub) to a `destination` via a `connection`. `hookdeck listen` is a standalone command that works with whichever product you're authenticated with — Hookdeck Console or the Event Gateway — receiving events for a given connection and forwarding them to your localhost at the specified port or any valid URL.
 
@@ -511,7 +523,7 @@ To install completions permanently, redirect the output to your shell's completi
 
 ### Running in CI
 
-If you want to use Hookdeck in CI for tests or any other purposes, authenticate with a Project API key from the dashboard. The `ci` command exchanges it for a CLI client key stored in your config.
+If you want to use Hookdeck in CI for tests or any other purposes, authenticate with a Project API key from the dashboard. The `ci` command exchanges it for a CLI client key stored in your config. It must be a *project* key: organization API keys are rejected, and the resulting CLI key is project-scoped, so it cannot list or switch projects.
 
 ```sh
 $ hookdeck ci --api-key $HOOKDECK_API_KEY
@@ -1040,6 +1052,28 @@ $ hookdeck gateway connection create \
   --destination-rate-limit-period minute
 ```
 
+#### Configure delivery groups
+
+Isolate delivery queues by a payload field and optionally give selected groups a different maximum rate:
+
+```sh
+$ hookdeck gateway connection create \
+  --name "tenant-aware-delivery" \
+  --source-name "events" \
+  --source-type HTTP \
+  --destination-name "tenant-aware-api" \
+  --destination-type HTTP \
+  --destination-url "https://api.example.com/endpoint" \
+  --destination-rate-limit 100 \
+  --destination-rate-limit-period second \
+  --destination-delivery-group-key body.customer_id \
+  --destination-delivery-group-rate 5 \
+  --destination-delivery-group-rate-period second \
+  --destination-delivery-group-overrides '{"cus_priority":{"rate":50,"rate_period":"second"}}'
+```
+
+Use `--config` or `--config-file` when you need to set `delivery_policy.groups` directly, including setting `groups` to `null` to disable grouping.
+
 #### Upsert connections
 
 Create or update connections idempotently based on connection name - perfect for CI/CD and infrastructure-as-code workflows:
@@ -1190,7 +1224,7 @@ The Hookdeck CLI configuration file is stored in TOML format and typically inclu
 ```toml
 api_key = "api_key_xxxxxxxxxxxxxxxxxxxx"
 project_id = "tm_xxxxxxxxxxxxxxx"
-project_mode = "inbound" | "console"
+project_type = "Gateway" | "Outpost" | "Console"
 ```
 
 ### Local Configuration
@@ -1221,12 +1255,12 @@ profile = "dev"
 [dev]
   api_key = "api_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   project_id = "tm_5JxTelcYxOJy"
-  project_mode = "inbound"
+  project_type = "Gateway"
 
 [prod]
   api_key = "api_key_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
   project_id = "tm_U9Zod13qtsHp"
-  project_mode = "inbound"
+  project_type = "Gateway"
 ```
 
 This allows you to run commands against different projects. For example, to listen to the `webhooks` source in the `dev` profile, run:

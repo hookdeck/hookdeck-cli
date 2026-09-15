@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -69,7 +70,7 @@ func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), br
 			var payload map[string]interface{}
 			require.NoError(t, json.Unmarshal(raw, &payload))
 			assertBody(payload)
-			pollURL := serverURL + "/2025-07-01/cli-auth/poll?key=pollkey"
+			pollURL := serverURL + hookdeck.APIPathPrefix + "/cli-auth/poll?key=pollkey"
 			respBody, encErr := json.Marshal(map[string]string{
 				"browser_url": browserURL,
 				"poll_url":    pollURL,
@@ -81,7 +82,7 @@ func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), br
 				"claimed":           true,
 				"key":               "hk_test_guest_claimed",
 				"team_id":           "tm_guest",
-				"team_mode":         "console",
+				"team_type":         "console",
 				"team_name":         "Guest Sandbox",
 				"user_name":         "Guest",
 				"user_email":        "guest@example.com",
@@ -143,7 +144,7 @@ func TestGuestLoginDefaultClaimGuestAcceptance(t *testing.T) {
 				"organization_id":   "org_guest",
 				"team_id":           "tm_guest",
 				"team_name_no_org":  "Guest Sandbox",
-				"team_mode":         "console",
+				"team_type":         "console",
 				"client_id":         "cl_guest",
 			})
 			require.NoError(t, encErr)

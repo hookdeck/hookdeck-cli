@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
@@ -124,6 +125,13 @@ func (r *SimpleRenderer) OnError(err error) {
 	fmt.Printf("%s %v\n", color.Red("ERROR:"), err)
 }
 
+// OnConnectionFailed is a no-op for the simple renderer. Giving up connecting
+// already surfaces as the error `listen` prints on exit, and printing it twice
+// would change output that callers and CI now parse.
+func (r *SimpleRenderer) OnConnectionFailed(err error) {
+	r.stopStatus()
+}
+
 // OnEventPending is called when an event starts (not used in simple renderer)
 func (r *SimpleRenderer) OnEventPending(eventID string, attempt *websocket.Attempt, startTime time.Time) {
 	// Simple renderer doesn't show pending events
@@ -136,7 +144,7 @@ func (r *SimpleRenderer) OnEventComplete(eventID string, attempt *websocket.Atte
 
 	// Build display URL
 	var displayURL string
-	if r.cfg.ProjectMode == "console" {
+	if r.cfg.ProjectType == config.ProjectTypeConsole {
 		displayURL = r.cfg.ConsoleBaseURL + "/?event_id=" + eventID
 	} else {
 		displayURL = r.cfg.DashboardBaseURL + "/events/" + eventID

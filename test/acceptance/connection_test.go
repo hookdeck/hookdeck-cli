@@ -1601,12 +1601,14 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		require.NotNil(t, getConn.Destination, "Connection should have a destination")
 		if config, ok := getConn.Destination.Config.(map[string]interface{}); ok {
-			rateLimit, hasRateLimit := config["rate_limit"].(float64)
-			require.True(t, hasRateLimit, "Rate limit should be present in destination config")
+			deliveryPolicy, hasPolicy := config["delivery_policy"].(map[string]interface{})
+			require.True(t, hasPolicy, "Delivery policy should be present in destination config")
+			rateLimit, hasRateLimit := deliveryPolicy["rate"].(float64)
+			require.True(t, hasRateLimit, "Rate limit should be present in delivery policy")
 			assert.Equal(t, float64(100), rateLimit, "Rate limit should be 100")
 
-			period, hasPeriod := config["rate_limit_period"].(string)
-			require.True(t, hasPeriod, "Rate limit period should be present in destination config")
+			period, hasPeriod := deliveryPolicy["period"].(string)
+			require.True(t, hasPeriod, "Rate limit period should be present in delivery policy")
 			assert.Equal(t, "second", period, "Rate limit period should be second")
 		} else {
 			t.Fatal("Destination config should be present")
@@ -1647,12 +1649,14 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		require.NotNil(t, getConn.Destination, "Connection should have a destination")
 		if config, ok := getConn.Destination.Config.(map[string]interface{}); ok {
-			rateLimit, hasRateLimit := config["rate_limit"].(float64)
-			require.True(t, hasRateLimit, "Rate limit should be present in destination config")
+			deliveryPolicy, hasPolicy := config["delivery_policy"].(map[string]interface{})
+			require.True(t, hasPolicy, "Delivery policy should be present in destination config")
+			rateLimit, hasRateLimit := deliveryPolicy["rate"].(float64)
+			require.True(t, hasRateLimit, "Rate limit should be present in delivery policy")
 			assert.Equal(t, float64(1000), rateLimit, "Rate limit should be 1000")
 
-			period, hasPeriod := config["rate_limit_period"].(string)
-			require.True(t, hasPeriod, "Rate limit period should be present in destination config")
+			period, hasPeriod := deliveryPolicy["period"].(string)
+			require.True(t, hasPeriod, "Rate limit period should be present in delivery policy")
 			assert.Equal(t, "minute", period, "Rate limit period should be minute")
 		} else {
 			t.Fatal("Destination config should be present")
@@ -1692,12 +1696,14 @@ func TestConnectionWithRateLimiting(t *testing.T) {
 
 		require.NotNil(t, getConn.Destination, "Connection should have a destination")
 		if config, ok := getConn.Destination.Config.(map[string]interface{}); ok {
-			rateLimit, hasRateLimit := config["rate_limit"].(float64)
-			require.True(t, hasRateLimit, "Rate limit should be present in destination config")
+			deliveryPolicy, hasPolicy := config["delivery_policy"].(map[string]interface{})
+			require.True(t, hasPolicy, "Delivery policy should be present in destination config")
+			rateLimit, hasRateLimit := deliveryPolicy["rate"].(float64)
+			require.True(t, hasRateLimit, "Rate limit should be present in delivery policy")
 			assert.Equal(t, float64(10), rateLimit, "Rate limit should be 10")
 
-			period, hasPeriod := config["rate_limit_period"].(string)
-			require.True(t, hasPeriod, "Rate limit period should be present in destination config")
+			period, hasPeriod := deliveryPolicy["period"].(string)
+			require.True(t, hasPeriod, "Rate limit period should be present in delivery policy")
 			assert.Equal(t, "concurrent", period, "Rate limit period should be concurrent")
 		} else {
 			t.Fatal("Destination config should be present")

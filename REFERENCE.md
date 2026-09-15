@@ -262,7 +262,7 @@ hookdeck gateway connection list
 hookdeck gateway source create --name my-source --type WEBHOOK
 
 # Query event metrics
-hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z
+hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z --measures count
 
 # Start the MCP server for AI agent access
 hookdeck gateway mcp
@@ -355,6 +355,10 @@ hookdeck gateway connection create [flags]
 | `--destination-cli-path` | `string` | CLI path for CLI destinations (default: /) (default "/") |
 | `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
 | `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--destination-delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--destination-delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--destination-delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--destination-description` | `string` | Destination description |
 | `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
 | `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
@@ -610,6 +614,10 @@ hookdeck gateway connection upsert <name> [flags]
 | `--destination-cli-path` | `string` | CLI path for CLI destinations (default: / for new connections) |
 | `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
 | `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--destination-delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--destination-delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--destination-delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--destination-description` | `string` | Destination description |
 | `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
 | `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
@@ -1085,6 +1093,10 @@ hookdeck gateway destination create [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | Destination description |
 | `--http-method` | `string` | HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE) |
 | `--name` | `string` | Destination name (required) |
@@ -1152,6 +1164,10 @@ hookdeck gateway destination update <destination-id> [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | New destination description |
 | `--http-method` | `string` | HTTP method for HTTP destinations |
 | `--name` | `string` | New destination name |
@@ -1216,6 +1232,10 @@ hookdeck gateway destination upsert <name> [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | Destination description |
 | `--dry-run` | `bool` | Preview changes without applying |
 | `--http-method` | `string` | HTTP method for HTTP destinations |
@@ -1574,6 +1594,7 @@ hookdeck gateway event list [flags]
 | `--connection-id` | `string` | Filter by connection ID |
 | `--created-after` | `string` | Filter events created after (ISO date-time) |
 | `--created-before` | `string` | Filter events created before (ISO date-time) |
+| `--delivery-group` | `string` | Filter by delivery group |
 | `--destination-id` | `string` | Filter by destination ID |
 | `--dir` | `string` | Sort direction (asc, desc) |
 | `--error-code` | `string` | Filter by error code |
@@ -1725,7 +1746,7 @@ hookdeck gateway request list [flags]
 | `--prev` | `string` | Pagination cursor for previous page |
 | `--rejection-cause` | `string` | Filter by rejection cause |
 | `--source-id` | `string` | Filter by source ID |
-| `--status` | `string` | Filter by status |
+| `--status` | `string` | Filter by status (accepted, rejected) |
 | `--verified` | `string` | Filter by verified (true/false) |
 
 **Examples:**
@@ -1781,6 +1802,9 @@ hookdeck gateway request retry req_abc123 --connection-ids web_1,web_2
 
 List events (deliveries) created from a request.
 
+Filters match `hookdeck gateway event list`: this command queries the same event
+collection, narrowed to one request.
+
 **Usage:**
 
 ```bash
@@ -1791,15 +1815,39 @@ hookdeck gateway request events <request-id> [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--attempts` | `string` | Filter by number of attempts (integer or operators) |
+| `--body` | `string` | Filter by body (JSON string) |
+| `--cli-id` | `string` | Filter by CLI ID |
+| `--connection-id` | `string` | Filter by connection ID |
+| `--created-after` | `string` | Filter events created after (ISO date-time) |
+| `--created-before` | `string` | Filter events created before (ISO date-time) |
+| `--delivery-group` | `string` | Filter by delivery group |
+| `--destination-id` | `string` | Filter by destination ID |
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--error-code` | `string` | Filter by error code |
+| `--headers` | `string` | Filter by headers (JSON string) |
+| `--issue-id` | `string` | Filter by issue ID |
+| `--last-attempt-at-after` | `string` | Filter by last_attempt_at after (ISO date-time) |
+| `--last-attempt-at-before` | `string` | Filter by last_attempt_at before (ISO date-time) |
 | `--limit` | `int` | Limit number of results (default "100") |
 | `--next` | `string` | Pagination cursor for next page |
+| `--order-by` | `string` | Sort key (e.g. created_at) |
 | `--output` | `string` | Output format (json) |
+| `--parsed-query` | `string` | Filter by parsed query (JSON string) |
+| `--path` | `string` | Filter by path |
 | `--prev` | `string` | Pagination cursor for previous page |
+| `--response-status` | `string` | Filter by HTTP response status (e.g. 200, 500) |
+| `--source-id` | `string` | Filter by source ID |
+| `--status` | `string` | Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED) |
+| `--successful-at-after` | `string` | Filter by successful_at after (ISO date-time) |
+| `--successful-at-before` | `string` | Filter by successful_at before (ISO date-time) |
 
 **Examples:**
 
 ```bash
 hookdeck gateway request events req_abc123
+hookdeck gateway request events req_abc123 --status FAILED
+hookdeck gateway request events req_abc123 --destination-id des_abc123
 ```
 ### hookdeck gateway request ignored-events
 
@@ -1898,7 +1946,9 @@ hookdeck gateway attempt get atm_abc123
 <!-- GENERATE_END -->
 ## Metrics
 
-Query Event Gateway metrics (events, requests, attempts, queue depth, pending events, events by issue, transformations). All metrics commands require `--start` and `--end` (ISO 8601 date-time).
+Query Event Gateway metrics. There are four subcommands — `events`, `requests`, `attempts` and `transformations` — and all of them require `--start` and `--end` (ISO 8601 date-time).
+
+Queue depth, pending events and per-issue breakdowns have no subcommand of their own: `metrics events` answers all three, choosing the endpoint from `--measures` and `--dimensions`.
 
 **Use cases and examples:**
 
@@ -1907,12 +1957,40 @@ Query Event Gateway metrics (events, requests, attempts, queue depth, pending ev
 | Event volume and failure rate over time | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1d --measures count,failed_count,error_rate` |
 | Request acceptance vs rejection | `hookdeck gateway metrics requests --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,accepted_count,rejected_count` |
 | Delivery latency (attempts) | `hookdeck gateway metrics attempts --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures response_latency_avg,response_latency_p95` |
-| Queue backlog per destination | `hookdeck gateway metrics queue-depth --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures max_depth,max_age --destination-id dest_xxx` |
-| Pending events over time | `hookdeck gateway metrics pending --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1h --measures count` |
-| Events grouped by issue (debugging) | `hookdeck gateway metrics events-by-issue iss_xxx --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count` |
+| Queue backlog per destination | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures max_depth,max_age --destination-id dest_xxx` |
+| Pending events over time | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --granularity 1h --measures pending` |
+| Events grouped by issue (debugging) | `hookdeck gateway metrics events --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count --dimensions issue_id --issue-id iss_xxx` |
 | Transformation errors | `hookdeck gateway metrics transformations --start 2026-02-01T00:00:00Z --end 2026-02-25T00:00:00Z --measures count,failed_count,error_rate` |
 
-**Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--source-id`, `--destination-id`, `--connection-id`, `--status`, `--output` (json).
+**Common flags (all metrics subcommands):** `--start`, `--end` (required), `--granularity` (e.g. 1h, 5m, 1d), `--measures`, `--dimensions`, `--output` (json).
+
+**Filter flags differ per subcommand**, because each metrics endpoint accepts a different set. A filter is only offered where the endpoint honours it:
+
+| Filter | events | requests | attempts | transformations |
+| --- | --- | --- | --- | --- |
+| `--source-id` | yes | yes | — | — |
+| `--destination-id` | yes | — | yes | — |
+| `--connection-id` | yes | — | — | yes |
+| `--status` | yes | yes | yes | — |
+| `--issue-id` | yes | — | — | yes |
+| `--delivery-group` | yes | — | yes | — |
+
+Passing one where it does not apply is an `unknown flag` error rather than a silently ignored filter: the API drops filters it does not recognise and answers with unfiltered totals, which would otherwise look like a filtered result.
+
+`metrics events` routes to a different endpoint depending on `--measures` and `--dimensions`, so some of its filters are rejected for a given query — `--delivery-group` and `--status` cannot be combined with `--measures pending`, for example. The error names the flag and the route.
+
+**`--dimensions` is gated the same way.** Each endpoint defines its own set, and `metrics events` advertises the union, so a dimension the chosen route does not group by is refused by name rather than sent to the API as a 422:
+
+| Route | Selected by | Groups by |
+| --- | --- | --- |
+| event metrics (default) | anything else | `source_id`, `destination_id`, `connection_id`, `delivery_group`, `status`, `error_code`, `event_data_id`, `cli_id`, `cli_user_id`, `attempts`, `response_status` |
+| queue depth metrics | `--measures queue_depth`, `max_depth` or `max_age` | `destination_id`, `delivery_group` |
+| pending event metrics | `--measures pending` | `destination_id` |
+| per-issue event metrics | `--dimensions issue_id` or `--issue-id` | `issue_id`, `source_id`, `destination_id`, `connection_id` |
+
+`metrics requests`, `metrics attempts` and `metrics transformations` each have a single set, listed in their own `--help`. One rule is the API's and applies wherever the dimension is offered, `metrics attempts` included: grouping by `delivery_group` requires a `--destination-id` filter.
+
+Only one endpoint answers a query, so a request cannot ask for two of them at once. `queue_depth`, `max_depth` and `max_age` select queue-depth metrics and `pending` selects pending metrics; neither can be combined with per-issue metrics (`--dimensions issue_id` or `--issue-id`), and measures belonging to two routes cannot be mixed in one `--measures`. Each combination is refused by name rather than answered from whichever route happened to match first.
 
 ## Utilities
 

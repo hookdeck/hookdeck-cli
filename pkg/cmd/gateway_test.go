@@ -19,7 +19,7 @@ func TestRequireGatewayProject(t *testing.T) {
 	t.Run("no API key", func(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Profile.ProjectId = "proj_1"
-		cfg.Profile.ProjectType = config.ProjectTypeGateway
+		cfg.Profile.ProjectType = config.ProjectTypeEventGateway
 		err := requireGatewayProject(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "authenticated")
@@ -38,7 +38,7 @@ func TestRequireGatewayProject(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Profile.APIKey = "sk_xxx"
 		cfg.Profile.ProjectId = "proj_1"
-		cfg.Profile.ProjectType = config.ProjectTypeGateway
+		cfg.Profile.ProjectType = config.ProjectTypeEventGateway
 		err := requireGatewayProject(cfg)
 		assert.NoError(t, err)
 	})
@@ -105,7 +105,7 @@ func TestRequireGatewayProject_resolveFromValidate(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(hookdeck.ValidateAPIKeyResponse{
 			ProjectID:   "team_from_validate",
-			ProjectMode: "inbound",
+			ProjectType: "event_gateway",
 		})
 	}))
 	t.Cleanup(server.Close)
@@ -128,7 +128,7 @@ guest_url = "https://guest.example/keep-me"
 	err = requireGatewayProject(cfg)
 	require.NoError(t, err)
 	require.Equal(t, "team_from_validate", cfg.Profile.ProjectId)
-	require.Equal(t, config.ProjectTypeGateway, cfg.Profile.ProjectType)
+	require.Equal(t, config.ProjectTypeEventGateway, cfg.Profile.ProjectType)
 	require.Equal(t, "inbound", cfg.Profile.ProjectMode)
 	require.Equal(t, "https://guest.example/keep-me", cfg.Profile.GuestURL, "gateway validate path must not clear guest_url")
 }

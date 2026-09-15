@@ -5,9 +5,11 @@ import (
 )
 
 type Profile struct {
-	Name        string // profile name
-	APIKey      string
-	ProjectId   string
+	Name      string // profile name
+	APIKey    string
+	ProjectId string
+	// ProjectMode is the pre-2026-09-01 vocabulary, kept only so older CLIs
+	// reading the same config still resolve a project. Use ProjectType.
 	ProjectMode string
 	ProjectType string // display type: Gateway, Outpost, Console
 	GuestURL    string // URL to create permanent account for guest users
@@ -20,15 +22,36 @@ func (p *Profile) getConfigField(field string) string {
 	return p.Name + "." + field
 }
 
+// ResolveProjectType returns the API project type for this profile: the stored
+// type if there is one, otherwise derived from the legacy mode. Values written
+// by older CLIs held a display label, so everything goes through
+// NormalizeProjectType rather than being trusted as-is.
+func (p *Profile) ResolveProjectType() string {
+	if t := NormalizeProjectType(p.ProjectType); t != "" {
+		return t
+	}
+	return ModeToType(p.ProjectMode)
+}
+
+// persistedProjectType is the value written to the project_type config key.
+//
+// The label, not the API type: the file is shared with older CLIs that only
+// understand the label, and both versions rewrite it. Reads normalize, so
+// nothing is lost.
+func (p *Profile) persistedProjectType() string {
+	if label := TypeLabel(p.ResolveProjectType()); label != "" {
+		return label
+	}
+	// Unrecognized: keep the raw value. It must survive a load-and-save, or this
+	// CLI erases a setting a newer one relies on.
+	return p.ProjectType
+}
+
 func (p *Profile) SaveProfile() error {
 	p.Config.viper.Set(p.getConfigField("api_key"), p.APIKey)
 	p.Config.viper.Set(p.getConfigField("project_id"), p.ProjectId)
 	p.Config.viper.Set(p.getConfigField("project_mode"), p.ProjectMode)
-	projectType := p.ProjectType
-	if projectType == "" && p.ProjectMode != "" {
-		projectType = ModeToProjectType(p.ProjectMode)
-	}
-	p.Config.viper.Set(p.getConfigField("project_type"), projectType)
+	p.Config.viper.Set(p.getConfigField("project_type"), p.persistedProjectType())
 	p.Config.viper.Set(p.getConfigField("guest_url"), p.GuestURL)
 
 	if err := p.removeLegacyConfigKeys(); err != nil {

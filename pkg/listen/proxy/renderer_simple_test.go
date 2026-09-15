@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"io"
 	"net/url"
 	"os"
@@ -129,4 +130,26 @@ func TestSimpleRendererAnnouncesReadinessWithoutASpinner(t *testing.T) {
 		assert.Equal(t, 2, strings.Count(out, "Connected. Waiting for events..."),
 			"a recovered connection is a state change worth reporting")
 	})
+}
+
+// TestSimpleRendererStaysSilentOnConnectionFailure guards the #376 fix against
+// the #399 change. OnConnectionFailed was added so the interactive renderer can
+// show a failure state before tearing the alt-screen down; the simple renderer
+// must not use it to print anything, because `listen` already prints the same
+// error on exit and non-interactive output is now parsed by callers and CI.
+func TestSimpleRendererStaysSilentOnConnectionFailure(t *testing.T) {
+	target, err := url.Parse("http://localhost:3000")
+	require.NoError(t, err)
+
+	r := NewSimpleRenderer(&RendererConfig{TargetURL: target}, false)
+
+	out := captureStdout(t, func() {
+		r.OnConnecting()
+		r.OnConnectionFailed(errors.New("Could not connect. Terminating after 10 failed attempts"))
+	})
+
+	assert.NotContains(t, out, "Could not connect",
+		"the command prints this error itself; the renderer must not duplicate it")
+	assert.Contains(t, out, "Getting ready...",
+		"the pending line is still the state machine the caller reads")
 }

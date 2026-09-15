@@ -16,19 +16,19 @@ import (
 var validProjectTypes = []string{"gateway", "outpost", "console"}
 
 type projectListCmd struct {
-	cmd         *cobra.Command
-	output      string
-	typeFilter  string
+	cmd        *cobra.Command
+	output     string
+	typeFilter string
 }
 
 func newProjectListCmd() *projectListCmd {
 	lc := &projectListCmd{}
 
 	lc.cmd = &cobra.Command{
-		Use:     "list [<organization_substring>] [<project_substring>]",
-		Args:    validators.MaximumNArgs(2),
-		Short:   "List and filter projects by organization and project name substrings",
-		RunE:    lc.runProjectListCmd,
+		Use:   "list [<organization_substring>] [<project_substring>]",
+		Args:  validators.MaximumNArgs(2),
+		Short: "List and filter projects by organization and project name substrings",
+		RunE:  lc.runProjectListCmd,
 		Example: `$ hookdeck project list
 Acme / Ecommerce Production (current) | Gateway
 Acme / Ecommerce Staging | Gateway
@@ -119,7 +119,7 @@ func (lc *projectListCmd) runProjectListCmd(cmd *cobra.Command, args []string) e
 			if it.Org != "" {
 				namePart = it.Org + " / " + it.Project
 			}
-			fmt.Printf("%s%s | %s\n", namePart, color.Green(" (current)"), it.Type)
+			fmt.Printf("%s%s | %s\n", namePart, color.Green(" (current)"), config.TypeLabel(it.Type))
 		} else {
 			fmt.Println(it.DisplayLine())
 		}

@@ -9,7 +9,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 )
 
-const listProjectsReauthHint = `This may happen if the stored key is a dashboard or single-project API key that cannot list all teams/projects. Try hookdeck_login with reauth: true so the user can sign in via the browser and replace the credential with a full CLI session, then retry hookdeck_projects.`
+const listProjectsReauthHint = `This may happen if the stored key is a dashboard or single-project API key that cannot list all projects. Try hookdeck_login with reauth: true so the user can sign in via the browser and replace the credential with a full CLI session, then retry hookdeck_projects.`
 
 func listProjectsFailureMessage(err error) string {
 	base := TranslateAPIError(err)

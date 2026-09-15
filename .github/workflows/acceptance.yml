@@ -25,6 +25,16 @@ jobs:
     env:
       ACCEPTANCE_SLICE: ${{ matrix.slice }}
       HOOKDECK_CLI_TESTING_API_KEY: ${{ secrets[matrix.api_key_secret] }}
+      # Account-wide CLI key, used only by the project list/use tests in slice 0.
+      # It has to be account-wide: the project-scoped key `hookdeck ci` issues
+      # gets a 403 from GET /projects, so those tests skip themselves without it.
+      #
+      # It must also belong to the test-only account, not to a person. Such a key
+      # reaches every org its owner belongs to, and this repository is public, so
+      # anything a failing test prints is world-readable. The tests are written
+      # not to echo a project listing, but the account is the real control:
+      # scoped to its own org, a disclosure is worth nothing.
+      HOOKDECK_CLI_TESTING_CLI_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_CLI_KEY }}
       HOOKDECK_CLI_TELEMETRY_DISABLED: "1"
     steps:
       - name: Check out code

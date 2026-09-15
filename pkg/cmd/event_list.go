@@ -15,32 +15,34 @@ import (
 type eventListCmd struct {
 	cmd *cobra.Command
 
-	id              string
-	connectionID    string
-	sourceID        string
-	destinationID   string
-	status          string
-	attempts        string
-	responseStatus  string
-	errorCode       string
-	cliID           string
-	issueID         string
-	createdAfter    string
-	createdBefore   string
-	successfulAfter string
-	successfulBefore string
+	id                string
+	connectionID      string
+	sourceID          string
+	destinationID     string
+	status            string
+	attempts          string
+	responseStatus    string
+	errorCode         string
+	cliID             string
+	issueID           string
+	createdAfter      string
+	createdBefore     string
+	successfulAfter   string
+	successfulBefore  string
 	lastAttemptAfter  string
 	lastAttemptBefore string
-	headers         string
-	body            string
-	path            string
-	parsedQuery     string
-	orderBy         string
-	dir             string
-	limit           int
-	next            string
-	prev            string
-	output          string
+	headers           string
+	body              string
+	path              string
+	parsedQuery       string
+	orderBy           string
+	dir               string
+	limit             int
+	next              string
+	prev              string
+	output            string
+
+	deliveryGroup string
 }
 
 func newEventListCmd() *eventListCmd {
@@ -63,7 +65,8 @@ Examples:
 	ec.cmd.Flags().StringVar(&ec.connectionID, "connection-id", "", "Filter by connection ID")
 	ec.cmd.Flags().StringVar(&ec.sourceID, "source-id", "", "Filter by source ID")
 	ec.cmd.Flags().StringVar(&ec.destinationID, "destination-id", "", "Filter by destination ID")
-	ec.cmd.Flags().StringVar(&ec.status, "status", "", "Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED)")
+	ec.cmd.Flags().StringVar(&ec.deliveryGroup, "delivery-group", "", "Filter by delivery group")
+	ec.cmd.Flags().StringVar(&ec.status, "status", "", eventStatusFlag.usage())
 	ec.cmd.Flags().StringVar(&ec.attempts, "attempts", "", "Filter by number of attempts (integer or operators)")
 	ec.cmd.Flags().StringVar(&ec.responseStatus, "response-status", "", "Filter by HTTP response status (e.g. 200, 500)")
 	ec.cmd.Flags().StringVar(&ec.errorCode, "error-code", "", "Filter by error code")
@@ -94,6 +97,13 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 		return err
 	}
 
+	// The API is strict about the case of the event enum, so accept either and
+	// send its own spelling - the same canonicalisation MCP applies.
+	status, err := eventStatusFlag.canonical(ec.status)
+	if err != nil {
+		return err
+	}
+
 	client := Config.GetAPIClient()
 	params := make(map[string]string)
 	if ec.id != "" {
@@ -108,8 +118,11 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	if ec.destinationID != "" {
 		params["destination_id"] = ec.destinationID
 	}
-	if ec.status != "" {
-		params["status"] = ec.status
+	if ec.deliveryGroup != "" {
+		params["delivery_group"] = ec.deliveryGroup
+	}
+	if status != "" {
+		params["status"] = status
 	}
 	if ec.attempts != "" {
 		params["attempts"] = ec.attempts

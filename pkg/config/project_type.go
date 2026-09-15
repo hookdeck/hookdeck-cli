@@ -2,24 +2,62 @@ package config
 
 import "strings"
 
-// Project type display values (user-facing and config).
+// Project types as the API names them: `type` on GET /projects, and `team_type`
+// on the CLI auth endpoints. These are the values stored in config and passed
+// around internally, so the CLI speaks the same vocabulary as the API it calls.
 const (
-	ProjectTypeGateway = "Gateway"
-	ProjectTypeOutpost = "Outpost"
-	ProjectTypeConsole = "Console"
+	ProjectTypeEventGateway = "event_gateway"
+	ProjectTypeOutpost      = "outpost"
+	ProjectTypeConsole      = "console"
 )
 
-// OutboundMode is the API mode for outbound projects; treated as Gateway (same as inbound).
+// Labels shown to the user. Presentation only: derived at print time, never
+// stored, so there is one source of truth for what a project is.
+const (
+	ProjectLabelGateway = "Gateway"
+	ProjectLabelOutpost = "Outpost"
+	ProjectLabelConsole = "Console"
+)
+
+// OutboundMode is the legacy internal mode for outbound projects. The API folds
+// inbound and outbound into event_gateway.
 const OutboundMode = "outbound"
 
-// ModeToProjectType maps API mode to display project type.
-// Inbound and outbound both map to Gateway. Returns empty string only for unknown modes.
-func ModeToProjectType(mode string) string {
+// TypeLabel returns the label shown to the user for an API project type.
+func TypeLabel(projectType string) string {
+	switch strings.ToLower(projectType) {
+	case ProjectTypeEventGateway:
+		return ProjectLabelGateway
+	case ProjectTypeConsole:
+		return ProjectLabelConsole
+	case ProjectTypeOutpost:
+		return ProjectLabelOutpost
+	default:
+		return ""
+	}
+}
+
+// LabelToType maps a display label back to the API type. Needed for config files
+// written before project_type held the API value, and for anything that only has
+// the label a user was shown.
+func LabelToType(label string) string {
+	switch strings.ToLower(label) {
+	case strings.ToLower(ProjectLabelGateway):
+		return ProjectTypeEventGateway
+	case strings.ToLower(ProjectLabelConsole):
+		return ProjectTypeConsole
+	case strings.ToLower(ProjectLabelOutpost):
+		return ProjectTypeOutpost
+	default:
+		return ""
+	}
+}
+
+// ModeToType maps a legacy internal mode to the API project type.
+func ModeToType(mode string) string {
 	switch strings.ToLower(mode) {
-	case "inbound":
-		return ProjectTypeGateway
-	case OutboundMode:
-		return ProjectTypeGateway // same as inbound for gateway purposes
+	case "inbound", OutboundMode:
+		return ProjectTypeEventGateway
 	case "console":
 		return ProjectTypeConsole
 	case "outpost":
@@ -29,10 +67,13 @@ func ModeToProjectType(mode string) string {
 	}
 }
 
-// ProjectTypeToMode maps display type to API mode (for backward compat when only type is set).
-func ProjectTypeToMode(projectType string) string {
-	switch projectType {
-	case ProjectTypeGateway:
+// TypeToLegacyMode returns a representative legacy mode for a project type, kept
+// so older CLIs reading the same config still resolve a project. The API folds
+// inbound and outbound into event_gateway, so a round trip through the type
+// normalizes outbound to inbound.
+func TypeToLegacyMode(projectType string) string {
+	switch strings.ToLower(projectType) {
+	case ProjectTypeEventGateway:
 		return "inbound"
 	case ProjectTypeConsole:
 		return "console"
@@ -43,20 +84,42 @@ func ProjectTypeToMode(projectType string) string {
 	}
 }
 
-// IsGatewayProject returns true if the given type or mode represents a Gateway project (inbound, outbound, or console).
-func IsGatewayProject(typeOrMode string) bool {
-	switch typeOrMode {
-	case ProjectTypeGateway, ProjectTypeConsole, "inbound", "outbound", "console":
+// NormalizeProjectType accepts an API type, a display label, or a legacy mode and
+// returns the API type. Every value read from disk or handed in by a caller goes
+// through here, so the three vocabularies converge in one place rather than at
+// each call site.
+func NormalizeProjectType(value string) string {
+	lowered := strings.ToLower(strings.TrimSpace(value))
+	if lowered == "" {
+		return ""
+	}
+	if TypeLabel(lowered) != "" {
+		return lowered
+	}
+	if t := LabelToType(lowered); t != "" {
+		return t
+	}
+	return ModeToType(lowered)
+}
+
+// IsGatewayProject reports whether the value denotes a project the gateway
+// commands can act on. Console projects count: they are Event Gateway projects
+// with a different entry point.
+func IsGatewayProject(value string) bool {
+	switch NormalizeProjectType(value) {
+	case ProjectTypeEventGateway, ProjectTypeConsole:
 		return true
 	default:
 		return false
 	}
 }
 
-// ProjectTypeToJSON returns the lowercase type for JSON output (gateway, outpost, console).
+// ProjectTypeToJSON returns the value used in `--output json` and accepted by the
+// `--type` filter. Deliberately not the API type: `gateway` is what the CLI has
+// always emitted, and changing it would break anyone parsing that output.
 func ProjectTypeToJSON(projectType string) string {
-	switch projectType {
-	case ProjectTypeGateway:
+	switch NormalizeProjectType(projectType) {
+	case ProjectTypeEventGateway:
 		return "gateway"
 	case ProjectTypeOutpost:
 		return "outpost"
@@ -65,4 +128,16 @@ func ProjectTypeToJSON(projectType string) string {
 	default:
 		return strings.ToLower(projectType)
 	}
+}
+
+// IsConsoleProject reports whether the first recognized value identifies a
+// Console project. Values are given newest-field-first, matching the order the
+// CLI reads team_type, team_product and team_mode from an auth response.
+func IsConsoleProject(values ...string) bool {
+	for _, v := range values {
+		if t := NormalizeProjectType(v); t != "" {
+			return t == ProjectTypeConsole
+		}
+	}
+	return false
 }

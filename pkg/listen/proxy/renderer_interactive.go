@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -28,6 +29,19 @@ type InteractiveRenderer struct {
 	// before doneCh is closed.
 	mu     sync.Mutex
 	runErr error
+
+	// sendMsg delivers a message to the TUI. It is teaProgram.Send in the CLI;
+	// a test substitutes a recorder, which is the only way to observe what the
+	// renderer tells the model without a terminal to run Bubble Tea in.
+	sendMsg func(tea.Msg)
+}
+
+// send hands a message to the TUI, if there is one to hand it to.
+func (r *InteractiveRenderer) send(msg tea.Msg) {
+	if r.sendMsg == nil {
+		return
+	}
+	r.sendMsg(msg)
 }
 
 // NewInteractiveRenderer creates a new interactive renderer with Bubble Tea
@@ -38,7 +52,7 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		APIBaseURL:       cfg.APIBaseURL,
 		DashboardBaseURL: cfg.DashboardBaseURL,
 		ConsoleBaseURL:   cfg.ConsoleBaseURL,
-		ProjectMode:      cfg.ProjectMode,
+		ProjectType:      cfg.ProjectType,
 		ProjectID:        cfg.ProjectID,
 		GuestURL:         cfg.GuestURL,
 		TargetURL:        cfg.TargetURL,
@@ -49,6 +63,11 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		AppConfig:        cfg.AppConfig,
 	}
 
+	// --color off (and NO_COLOR) has to reach the TUI too. It draws with lipgloss,
+	// which never consulted pkg/ansi, so the flag only ever applied to the compact
+	// renderer and a --color off TUI run still emitted SGR sequences (#404).
+	tui.SetColorEnabled(ansi.ShouldUseColors(os.Stdout))
+
 	model := tui.NewModel(tuiCfg)
 	program := tea.NewProgram(&model, tea.WithAltScreen())
 
@@ -57,6 +76,7 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		teaProgram: program,
 		teaModel:   &model,
 		doneCh:     make(chan struct{}),
+		sendMsg:    program.Send,
 	}
 
 	// Start TUI in background
@@ -80,28 +100,38 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 
 // OnConnecting is called when starting to connect
 func (r *InteractiveRenderer) OnConnecting() {
-	if r.teaProgram != nil {
-		r.teaProgram.Send(tui.ConnectingMsg{})
-	}
+	r.send(tui.ConnectingMsg{})
 }
 
 // OnConnected is called when websocket connects
 func (r *InteractiveRenderer) OnConnected() {
-	if r.teaProgram != nil {
-		r.teaProgram.Send(tui.ConnectedMsg{})
-	}
+	r.send(tui.ConnectedMsg{})
 }
 
 // OnDisconnected is called when websocket disconnects
 func (r *InteractiveRenderer) OnDisconnected() {
-	if r.teaProgram != nil {
-		r.teaProgram.Send(tui.DisconnectedMsg{})
-	}
+	r.send(tui.DisconnectedMsg{})
 }
 
 // OnError is called when an error occurs
 func (r *InteractiveRenderer) OnError(err error) {
-	// Errors are handled through OnEventError
+	// Per-event errors are handled through OnEventError. A session-level error
+	// means there is no connection, which the status bar has to say out loud.
+	r.OnConnectionFailed(err)
+}
+
+// failedStateLinger is how long the failure frame is held before the TUI is torn
+// down, so the user sees why the CLI stopped inside the alt-screen rather than
+// only in the error printed after it.
+const failedStateLinger = 500 * time.Millisecond
+
+// OnConnectionFailed shows the failure state in the status bar.
+func (r *InteractiveRenderer) OnConnectionFailed(err error) {
+	if r.sendMsg == nil {
+		return
+	}
+	r.send(tui.ConnectionFailedMsg{Err: err})
+	time.Sleep(failedStateLinger)
 }
 
 // OnEventPending is called when an event starts (after 100ms delay)
@@ -116,7 +146,7 @@ func (r *InteractiveRenderer) OnEventComplete(eventID string, attempt *websocket
 	color := ansi.Color(os.Stdout)
 
 	var displayURL string
-	if r.cfg.ProjectMode == "console" {
+	if r.cfg.ProjectType == config.ProjectTypeConsole {
 		displayURL = r.cfg.ConsoleBaseURL + "/?event_id=" + eventID
 	} else {
 		displayURL = r.cfg.DashboardBaseURL + "/events/" + eventID
@@ -138,21 +168,19 @@ func (r *InteractiveRenderer) OnEventComplete(eventID string, attempt *websocket
 	eventSuccess := response.StatusCode >= 200 && response.StatusCode < 300
 
 	// Send update message to TUI (will update existing pending event or create new if not found)
-	if r.teaProgram != nil {
-		r.teaProgram.Send(tui.UpdateEventMsg{
-			EventID:          eventID,
-			AttemptID:        attempt.Body.AttemptId,
-			Time:             startTime,
-			Data:             attempt,
-			Status:           eventStatus,
-			Success:          eventSuccess,
-			LogLine:          outputStr,
-			ResponseStatus:   eventStatus,
-			ResponseHeaders:  response.Headers,
-			ResponseBody:     response.Body,
-			ResponseDuration: response.Duration,
-		})
-	}
+	r.send(tui.UpdateEventMsg{
+		EventID:          eventID,
+		AttemptID:        attempt.Body.AttemptId,
+		Time:             startTime,
+		Data:             attempt,
+		Status:           eventStatus,
+		Success:          eventSuccess,
+		LogLine:          outputStr,
+		ResponseStatus:   eventStatus,
+		ResponseHeaders:  response.Headers,
+		ResponseBody:     response.Body,
+		ResponseDuration: response.Duration,
+	})
 }
 
 // showPendingEvent shows a pending event (waiting for response)
@@ -180,9 +208,7 @@ func (r *InteractiveRenderer) showPendingEvent(eventID string, attempt *websocke
 		ResponseDuration: 0,
 	}
 
-	if r.teaProgram != nil {
-		r.teaProgram.Send(tui.NewEventMsg{Event: event})
-	}
+	r.send(tui.NewEventMsg{Event: event})
 }
 
 // OnEventError is called when an event encounters an error
@@ -209,9 +235,7 @@ func (r *InteractiveRenderer) OnEventError(eventID string, attempt *websocket.At
 		ResponseDuration: 0,
 	}
 
-	if r.teaProgram != nil {
-		r.teaProgram.Send(tui.NewEventMsg{Event: event})
-	}
+	r.send(tui.NewEventMsg{Event: event})
 }
 
 // OnConnectionWarning is called when approaching connection limits
@@ -227,12 +251,10 @@ func (r *InteractiveRenderer) OnConnectionWarning(activeRequests int32, maxConns
 
 // OnServerHealthChanged is called when server health status changes
 func (r *InteractiveRenderer) OnServerHealthChanged(healthy bool, err error) {
-	if r.teaProgram != nil {
-		r.teaProgram.Send(tui.ServerHealthMsg{
-			Healthy: healthy,
-			Error:   err,
-		})
-	}
+	r.send(tui.ServerHealthMsg{
+		Healthy: healthy,
+		Error:   err,
+	})
 }
 
 // Cleanup gracefully stops the TUI and restores terminal

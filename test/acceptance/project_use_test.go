@@ -23,10 +23,10 @@ import (
 // - TestLocalConfigHelpers (no API calls, tests helper functions)
 //
 // Manual tests (in project_use_manual_test.go):
-// - TestProjectUseLocalCreatesConfig (requires /teams endpoint access)
-// - TestProjectUseSmartDefault (requires /teams endpoint access)
-// - TestProjectUseLocalCreateDirectory (requires /teams endpoint access)
-// - TestProjectUseLocalSecurityWarning (requires /teams endpoint access)
+// - TestProjectUseLocalCreatesConfig (requires /projects endpoint access)
+// - TestProjectUseSmartDefault (requires /projects endpoint access)
+// - TestProjectUseLocalCreateDirectory (requires /projects endpoint access)
+// - TestProjectUseLocalSecurityWarning (requires /projects endpoint access)
 //
 // To run manual tests: go test -tags=manual -v ./test/acceptance/
 
@@ -164,9 +164,13 @@ func TestProjectListShowsType(t *testing.T) {
 		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
 	}
 	cli := NewCLIRunnerWithKey(t, cliKey)
-	stdout := cli.RunExpectSuccess("project", "list")
-	// Default output format: "Org / Project (current?) | Type"
-	assert.Contains(t, stdout, "|", "project list should show type separator")
+	stdout, _, err := cli.Run("project", "list")
+	// Deliberately not echoing stdout into any failure message: this listing is
+	// every project the credential can see, and Actions logs on a public repo
+	// are world-readable. Assert on derived values instead.
+	require.NoError(t, err, "project list should succeed with an account-wide CLI key")
+
+	assert.True(t, strings.Contains(stdout, "|"), "project list should show the type separator")
 	assert.True(t,
 		strings.Contains(stdout, "Gateway") || strings.Contains(stdout, "Outpost") || strings.Contains(stdout, "Console"),
 		"project list should show at least one project type (Gateway, Outpost, or Console)")
@@ -183,7 +187,9 @@ func TestProjectListJSONOutput(t *testing.T) {
 		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
 	}
 	cli := NewCLIRunnerWithKey(t, cliKey)
-	stdout := cli.RunExpectSuccess("project", "list", "--output", "json")
+	stdout, _, err := cli.Run("project", "list", "--output", "json")
+	// As above: never put this payload in a failure message.
+	require.NoError(t, err, "project list --output json should succeed")
 	var list []struct {
 		Id      string `json:"id"`
 		Org     string `json:"org"`
@@ -191,8 +197,8 @@ func TestProjectListJSONOutput(t *testing.T) {
 		Type    string `json:"type"`
 		Current bool   `json:"current"`
 	}
-	err := json.Unmarshal([]byte(stdout), &list)
-	require.NoError(t, err, "project list --output json should return valid JSON array")
+	require.NoError(t, json.Unmarshal([]byte(stdout), &list),
+		"project list --output json should return valid JSON array")
 	for i, item := range list {
 		assert.NotEmpty(t, item.Id, "item %d should have id", i)
 		assert.NotEmpty(t, item.Type, "item %d should have type", i)
@@ -226,7 +232,9 @@ func TestProjectListFilterByType(t *testing.T) {
 		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
 	}
 	cli := NewCLIRunnerWithKey(t, cliKey)
-	stdout := cli.RunExpectSuccess("project", "list", "--type", "gateway", "--output", "json")
+	stdout, _, err := cli.Run("project", "list", "--type", "gateway", "--output", "json")
+	// No payload in the failure message: see TestProjectListShowsType.
+	require.NoError(t, err, "project list should succeed with an account-wide CLI key")
 	var list []struct {
 		Id      string `json:"id"`
 		Org     string `json:"org"`
@@ -234,7 +242,7 @@ func TestProjectListFilterByType(t *testing.T) {
 		Type    string `json:"type"`
 		Current bool   `json:"current"`
 	}
-	err := json.Unmarshal([]byte(stdout), &list)
+	err = json.Unmarshal([]byte(stdout), &list)
 	require.NoError(t, err, "project list --type gateway --output json should return valid JSON array")
 	for i, item := range list {
 		assert.Equal(t, "gateway", item.Type, "item %d should have type gateway when filtering by --type gateway", i)
@@ -253,7 +261,9 @@ func TestProjectListFilterByOrgProject(t *testing.T) {
 	}
 	cli := NewCLIRunnerWithKey(t, cliKey)
 	// Get full list first to derive a substring that matches at least one project
-	full := cli.RunExpectSuccess("project", "list", "--output", "json")
+	full, _, err := cli.Run("project", "list", "--output", "json")
+	// No payload in the failure message: see TestProjectListShowsType.
+	require.NoError(t, err, "project list should succeed with an account-wide CLI key")
 	var fullList []struct {
 		Org     string `json:"org"`
 		Project string `json:"project"`
@@ -268,7 +278,9 @@ func TestProjectListFilterByOrgProject(t *testing.T) {
 		t.Skip("First project has no org; skipping filter test")
 	}
 	substring := string([]rune(firstOrg)[0])
-	stdout := cli.RunExpectSuccess("project", "list", substring, "--output", "json")
+	stdout, _, err := cli.Run("project", "list", substring, "--output", "json")
+	// No payload in the failure message: see TestProjectListShowsType.
+	require.NoError(t, err, "project list should succeed with an account-wide CLI key")
 	var filtered []struct {
 		Id      string `json:"id"`
 		Org     string `json:"org"`
@@ -276,7 +288,7 @@ func TestProjectListFilterByOrgProject(t *testing.T) {
 		Type    string `json:"type"`
 		Current bool   `json:"current"`
 	}
-	err := json.Unmarshal([]byte(stdout), &filtered)
+	err = json.Unmarshal([]byte(stdout), &filtered)
 	require.NoError(t, err, "project list with org substring should return valid JSON array")
 	for i, item := range filtered {
 		assert.Contains(t, strings.ToLower(item.Org), strings.ToLower(substring),
@@ -296,7 +308,9 @@ func TestProjectListFilterByOrgAndProject(t *testing.T) {
 		t.Skip("Skipping project list test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for listing projects; API and CI keys cannot list or switch projects)")
 	}
 	cli := NewCLIRunnerWithKey(t, cliKey)
-	full := cli.RunExpectSuccess("project", "list", "--output", "json")
+	full, _, err := cli.Run("project", "list", "--output", "json")
+	// No payload in the failure message: see TestProjectListShowsType.
+	require.NoError(t, err, "project list should succeed with an account-wide CLI key")
 	var fullList []struct {
 		Org     string `json:"org"`
 		Project string `json:"project"`
@@ -314,13 +328,15 @@ func TestProjectListFilterByOrgAndProject(t *testing.T) {
 	// Use first character of each so filter matches at least one project
 	orgChar := string([]rune(orgSub)[0])
 	projChar := string([]rune(projSub)[0])
-	stdout := cli.RunExpectSuccess("project", "list", orgChar, projChar, "--output", "json")
+	stdout, _, err := cli.Run("project", "list", orgChar, projChar, "--output", "json")
+	// No payload in the failure message: see TestProjectListShowsType.
+	require.NoError(t, err, "project list should succeed with an account-wide CLI key")
 	var filtered []struct {
 		Org     string `json:"org"`
 		Project string `json:"project"`
 		Type    string `json:"type"`
 	}
-	err := json.Unmarshal([]byte(stdout), &filtered)
+	err = json.Unmarshal([]byte(stdout), &filtered)
 	require.NoError(t, err, "project list with org and project substrings should return valid JSON array")
 	for i, item := range filtered {
 		assert.Contains(t, strings.ToLower(item.Org), strings.ToLower(orgChar),
@@ -347,4 +363,11 @@ func TestProjectListFailsWithCIKeyAcceptance(t *testing.T) {
 	assert.NotContains(t, combined, "Fatal Error")
 	assert.NotContains(t, combined, "status=500")
 	assert.Contains(t, combined, "single project")
+	// The reason alone is not actionable: the message has to name the command
+	// that fixes it, because the two kinds of CLI key are not visible to the
+	// user otherwise. `hookdeck ci` issues a project-scoped key with no user and
+	// core rejects it for this endpoint; `hookdeck login` issues an account-wide
+	// one that works.
+	assert.Contains(t, combined, "hookdeck login",
+		"the error should tell the user how to get an account-wide key")
 }

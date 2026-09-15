@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -21,8 +22,16 @@ func handleEvents(client *hookdeck.Client) mcpsdk.ToolHandler {
 		}
 
 		action := in.String("action")
+		if action == "" {
+			action = "list"
+		}
+		// get and raw_body address one event by id: every list filter passed
+		// alongside them used to be dropped in silence.
+		if err := rejectArgsUnsupportedByAction(in, "hookdeck_events", action, eventsActionArgs, eventsToolProperties); err != nil {
+			return ErrorResult(err.Error()), nil
+		}
 		switch action {
-		case "list", "":
+		case "list":
 			return eventsList(ctx, client, in)
 		case "get":
 			return eventsGet(ctx, client, in)
@@ -34,14 +43,45 @@ func handleEvents(client *hookdeck.Client) mcpsdk.ToolHandler {
 	}
 }
 
+// canonicalEventsStatus returns the status to send to GET /events, in the API's
+// own spelling.
+//
+// hookdeck_events queries the same collection as hookdeck_requests action
+// "events", so it has to accept the same values: that action canonicalises and
+// this one forwarded the raw string, which meant `hookdeck_requests
+// {action:"events", status:"failed"}` worked and `hookdeck_events
+// {action:"list", status:"failed"}` came back a 422 from the same enum.
+func canonicalEventsStatus(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	if canonical, ok := hookdeck.CanonicalStatusValue(hookdeck.EventStatusValueList, value); ok {
+		return canonical, nil
+	}
+	msg := fmt.Sprintf("status %q is not supported by hookdeck_events; it filters by %s",
+		value, hookdeck.ValueList(hookdeck.EventStatusValueList))
+	// The request log's vocabulary is the one a caller reaches for by mistake,
+	// and the API's 422 would only ever name the enum it was sent to.
+	if _, ok := hookdeck.CanonicalStatusValue(hookdeck.RequestLogStatusValueList, value); ok {
+		msg += fmt.Sprintf(". It is a request status, which hookdeck_requests action \"list\" filters by: %s",
+			hookdeck.RequestLogStatusValues)
+	}
+	return "", errors.New(msg)
+}
+
 func eventsList(ctx context.Context, client *hookdeck.Client, in input) (*mcpsdk.CallToolResult, error) {
+	status, err := canonicalEventsStatus(in.String("status"))
+	if err != nil {
+		return ErrorResult(err.Error()), nil
+	}
 	params := make(map[string]string)
 	setIfNonEmpty(params, "id", in.String("id"))
 	// connection_id maps to webhook_id in the API
 	setIfNonEmpty(params, "webhook_id", in.String("connection_id"))
 	setIfNonEmpty(params, "source_id", in.String("source_id"))
 	setIfNonEmpty(params, "destination_id", in.String("destination_id"))
-	setIfNonEmpty(params, "status", in.String("status"))
+	setIfNonEmpty(params, "delivery_group", in.String("delivery_group"))
+	setIfNonEmpty(params, "status", status)
 	setIfNonEmpty(params, "attempts", in.String("attempts"))
 	setIfNonEmpty(params, "issue_id", in.String("issue_id"))
 	setIfNonEmpty(params, "error_code", in.String("error_code"))
@@ -96,4 +136,3 @@ func eventsRawBody(ctx context.Context, client *hookdeck.Client, in input) (*mcp
 	}
 	return JSONResultEnvelopeForClient(map[string]string{"raw_body": text}, client)
 }
-
