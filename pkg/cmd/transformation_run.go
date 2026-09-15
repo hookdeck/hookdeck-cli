@@ -13,15 +13,15 @@ import (
 )
 
 type transformationRunCmd struct {
-	cmd               *cobra.Command
-	code              string
-	codeFile          string
-	transformationID  string
-	request           string
-	requestFile       string
-	connectionID      string
-	env               string
-	output            string
+	cmd              *cobra.Command
+	code             string
+	codeFile         string
+	transformationID string
+	request          string
+	requestFile      string
+	connectionID     string
+	env              string
+	output           string
 }
 
 func newTransformationRunCmd() *transformationRunCmd {
@@ -115,9 +115,9 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 	}
 
 	req := &hookdeck.TransformationRunRequest{
-		Request:     &requestInput,
-		Env:         envMap,
-		WebhookID:   tc.connectionID,
+		Request:   &requestInput,
+		Env:       envMap,
+		WebhookID: tc.connectionID,
 	}
 	if code != "" {
 		req.Code = code
@@ -137,10 +137,31 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 			return fmt.Errorf("failed to marshal result to json: %w", err)
 		}
 		fmt.Println(string(jsonBytes))
+		if result.Failed() {
+			// Still print the payload above — the console output is the useful
+			// part — but do not exit 0 on code that did not run.
+			return fmt.Errorf("the transformation did not complete")
+		}
 		return nil
 	}
 
+	// The endpoint answers 200 whether the code ran or threw. Without this a
+	// throwing handler printed "Transformation run completed" and exited 0.
+	if result.Failed() {
+		if text := result.ConsoleText(); text != "" {
+			return fmt.Errorf("the transformation did not complete:\n%s", text)
+		}
+		return fmt.Errorf("the transformation did not complete")
+	}
+
 	fmt.Printf(SuccessCheck + " Transformation run completed\n\n")
+	// A run that completed can still have logged warnings or errors on the way.
+	// Printing the console only on failure hid the diagnostics from exactly the
+	// runs most likely to need them — a handler that logs an error and returns
+	// anyway is the case a user is most likely to be debugging.
+	if text := result.ConsoleText(); text != "" {
+		fmt.Printf("Console output (highest level logged: %s):\n%s\n\n", result.LogLevel, text)
+	}
 	if result.Request != nil {
 		// Pretty-print the transformed request as JSON
 		jsonBytes, err := json.MarshalIndent(result.Request, "", "  ")
