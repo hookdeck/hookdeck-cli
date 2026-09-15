@@ -5,17 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 )
 
 // Transformation represents a Hookdeck transformation
 type Transformation struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name"`
-	Code      string                 `json:"code"`
-	Env       map[string]string      `json:"env,omitempty"`
-	UpdatedAt time.Time              `json:"updated_at"`
-	CreatedAt time.Time              `json:"created_at"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Code      string            `json:"code"`
+	Env       map[string]string `json:"env,omitempty"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	CreatedAt time.Time         `json:"created_at"`
 }
 
 // TransformationCreateRequest is the request body for create and upsert (POST/PUT /transformations).
@@ -48,29 +49,89 @@ type TransformationCountResponse struct {
 // TransformationRunRequest is the request body for PUT /transformations/run.
 // Either Code or TransformationID must be set. Request.Headers is required (can be empty object).
 type TransformationRunRequest struct {
-	Code             string                    `json:"code,omitempty"`
-	TransformationID string                    `json:"transformation_id,omitempty"`
-	WebhookID        string                    `json:"webhook_id,omitempty"`
-	Env              map[string]string         `json:"env,omitempty"`
+	Code             string                         `json:"code,omitempty"`
+	TransformationID string                         `json:"transformation_id,omitempty"`
+	WebhookID        string                         `json:"webhook_id,omitempty"`
+	Env              map[string]string              `json:"env,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
 }
 
 // TransformationRunRequestInput is the "request" object for run (required headers; optional body, path, query).
 type TransformationRunRequestInput struct {
-	Headers    map[string]string      `json:"headers"`
-	Body       interface{}            `json:"body,omitempty"`
-	Path       string                 `json:"path,omitempty"`
-	Query      string                 `json:"query,omitempty"`
+	Headers     map[string]string      `json:"headers"`
+	Body        interface{}            `json:"body,omitempty"`
+	Path        string                 `json:"path,omitempty"`
+	Query       string                 `json:"query,omitempty"`
 	ParsedQuery map[string]interface{} `json:"parsed_query,omitempty"`
 }
 
 // TransformationRunResponse is the response from PUT /transformations/run.
 // Matches OpenAPI schema TransformationExecutorOutput.
 type TransformationRunResponse struct {
-	RequestID        string                 `json:"request_id,omitempty"`
-	TransformationID string                 `json:"transformation_id,omitempty"`
-	ExecutionID      string                 `json:"execution_id,omitempty"`
+	RequestID        string                         `json:"request_id,omitempty"`
+	TransformationID string                         `json:"transformation_id,omitempty"`
+	ExecutionID      string                         `json:"execution_id,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
+
+	// LogLevel is the highest severity the run logged, and — together with a
+	// missing Request — the only signal that the code did not complete: the
+	// endpoint answers 200 for a throwing handler, a syntax error and a clean
+	// run alike.
+	//
+	// It was omitted from this struct, so the response parsed into an empty
+	// value and the CLI printed "✔ Transformation run completed" and exited 0
+	// for a transformation that threw.
+	LogLevel string `json:"log_level,omitempty"`
+
+	// Console is everything the code printed, and where the failure reason
+	// lives. A throwing handler answers with no Request at all and the error
+	// only here:
+	//
+	//   {"log_level":"fatal","console":[{"type":"error","message":"Error: ..."}]}
+	Console []TransformationConsoleLine `json:"console,omitempty"`
+}
+
+// TransformationConsoleLine is one line the transformation code emitted.
+type TransformationConsoleLine struct {
+	Type    string `json:"type"` // error, log, warn, info, debug
+	Message string `json:"message"`
+}
+
+// Failed reports whether the run did not complete.
+//
+// Only "fatal" means that. log_level is the highest severity the run logged,
+// not a completion flag — a handler that calls console.error and then returns a
+// transformed request reports "error" and succeeded. Treating that as a failure
+// would discard the result the caller asked for, which is the same shape of
+// wrong answer this type was extended to prevent, inverted.
+//
+// Verified against the live API:
+//
+//	clean run                  log_level=info   request present
+//	console.warn then returns  log_level=warn   request present
+//	console.error then returns log_level=error  request present
+//	handler returns nothing    log_level=fatal  no request
+//	handler throws             log_level=fatal  no request
+//
+// A missing request is checked too: the two failing cases have no request, so a
+// run that produced one completed however loudly it complained on the way.
+func (r *TransformationRunResponse) Failed() bool {
+	if r == nil {
+		return false
+	}
+	return r.LogLevel == "fatal" || r.Request == nil
+}
+
+// ConsoleText renders the console output as lines, for an error message.
+func (r *TransformationRunResponse) ConsoleText() string {
+	if r == nil || len(r.Console) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(r.Console))
+	for _, line := range r.Console {
+		lines = append(lines, fmt.Sprintf("[%s] %s", line.Type, line.Message))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // TransformationExecution represents a single transformation execution
