@@ -35,6 +35,29 @@ on:
       # whole directory means adding another reusable workflow to that chain
       # does not require remembering to extend this list.
       - ".github/workflows/**"
+  # Run on merge to main so the merged result is tested, not just each PR
+  # branch in isolation -- the same reasoning test.yml already applies to the
+  # unit and build jobs. A PR based on stale main can merge into a combination
+  # no PR run exercised, and a merge commit is strictly a commit nothing ran
+  # acceptance against.
+  #
+  # This closes a real gap: merging a PR into another PR's head branch fires no
+  # pull_request event, so a release branch can reach main carrying changes its
+  # last acceptance run never saw.
+  #
+  # Same paths filter as above, so a docs merge does not spend a full suite run.
+  push:
+    branches:
+      - main
+    paths:
+      - "main.go"
+      - "go.mod"
+      - "go.sum"
+      - "pkg/**"
+      - "test/**"
+      - "tools/**"
+      - ".github/workflows/**"
+
   # Allow running the acceptance suite against any branch by hand.
   #
   # workflow_dispatch takes no paths filter, by design: it is the escape hatch
