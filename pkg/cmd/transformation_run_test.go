@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -116,6 +117,83 @@ func transformationRunStub(t *testing.T, body string) *httptest.Server {
 
 // runTransformationRunAgainst drives the command's own RunE against a stub, so
 // the flags are parsed as the user typed them and stdout is what the user sees.
+
+// TestTransformationRunOutputJSONKeepsStdoutParseable pins the whole of stdout
+// being valid JSON on the failure path. The first version of the #410 fix
+// returned the reason as an ordinary error, and Execute prints those to stdout,
+// so `--output json | jq` received the payload followed by a prose line and
+// failed to parse. The reason belongs on stderr; the exit code carries the
+// failure.
+func TestTransformationRunOutputJSONKeepsStdoutParseable(t *testing.T) {
+	stdout, stderr, err := runTransformationRunCapturingBoth(t, runResponseThrew,
+		"--code", `addHandler("transform",(r,c)=>{ throw new Error("boom"); });`,
+		"--request", `{"headers":{}}`,
+		"--output", "json")
+
+	require.Error(t, err, "a failed run must still exit non-zero")
+
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &payload),
+		"the whole of stdout must parse as JSON, with no prose appended: %q", stdout)
+	assert.Equal(t, "fatal", payload["log_level"])
+
+	assert.NotContains(t, stdout, "did not complete",
+		"the reason must not be on stdout - it would break a JSON consumer")
+	assert.Contains(t, stderr, "did not complete",
+		"the reason belongs on stderr so a human still sees why it failed")
+}
+
+// runTransformationRunCapturingBoth is runTransformationRunAgainst with stderr
+// captured too, so a test can assert which stream each part went to.
+func runTransformationRunCapturingBoth(t *testing.T, body string, args ...string) (string, string, error) {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+
+	config.ResetAPIClientForTesting()
+	t.Cleanup(config.ResetAPIClientForTesting)
+
+	Config = config.Config{}
+	Config.APIBaseURL = server.URL
+	Config.Profile.APIKey = "sk_test_123456789012"
+	Config.Profile.ProjectId = "proj_1"
+
+	tc := newTransformationRunCmd()
+	require.NoError(t, tc.cmd.ParseFlags(args))
+
+	oldStdout, oldStderr := os.Stdout, os.Stderr
+	rOut, wOut, errOut := os.Pipe()
+	require.NoError(t, errOut)
+	rErr, wErr, errErr := os.Pipe()
+	require.NoError(t, errErr)
+	os.Stdout, os.Stderr = wOut, wErr
+
+	runErr := tc.runTransformationRunCmd(tc.cmd, nil)
+
+	require.NoError(t, wOut.Close())
+	require.NoError(t, wErr.Close())
+	os.Stdout, os.Stderr = oldStdout, oldStderr
+
+	return drainPipe(rOut), drainPipe(rErr), runErr
+}
+
+func drainPipe(r *os.File) string {
+	var sb strings.Builder
+	buf := make([]byte, 4096)
+	for {
+		n, readErr := r.Read(buf)
+		sb.Write(buf[:n])
+		if readErr != nil {
+			break
+		}
+	}
+	return sb.String()
+}
+
 func runTransformationRunAgainst(t *testing.T, responseBody string, args ...string) (string, error) {
 	t.Helper()
 	server := transformationRunStub(t, responseBody)

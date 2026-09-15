@@ -93,6 +93,27 @@ func (e *actionableError) Error() string { return e.err.Error() }
 // let the generic message win.
 func (e *actionableError) Unwrap() error { return e.err }
 
+// alreadyReportedError marks an error whose message the command has already
+// written to stderr itself. Execute exits non-zero without printing it again.
+//
+// This exists for commands producing machine-readable output: Execute's default
+// branch prints errors to stdout, which for `--output json` would append prose
+// to the JSON and stop the whole stream parsing. The command writes the reason
+// to stderr, keeps stdout pure, and returns this so the exit code still says it
+// failed.
+type alreadyReportedError struct {
+	err error
+}
+
+func (e *alreadyReportedError) Error() string { return e.err.Error() }
+
+func (e *alreadyReportedError) Unwrap() error { return e.err }
+
+// newAlreadyReportedError marks an error as already written to stderr.
+func newAlreadyReportedError(err error) error {
+	return &alreadyReportedError{err: err}
+}
+
 // newActionableError marks an error as carrying its own recovery guidance.
 func newActionableError(err error) error {
 	return &actionableError{err: err}
@@ -196,6 +217,10 @@ func Execute() {
 			} else {
 				fmt.Println(msg)
 			}
+
+		case errors.As(err, new(*alreadyReportedError)):
+			// The command already wrote the reason to stderr; printing it here
+			// would duplicate it, and on stdout would corrupt --output json.
 
 		case errors.As(err, new(*actionableError)):
 			// The command already explained what to do; do not replace it with

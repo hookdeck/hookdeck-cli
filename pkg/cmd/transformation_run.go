@@ -140,7 +140,13 @@ func (tc *transformationRunCmd) runTransformationRunCmd(cmd *cobra.Command, args
 		if result.Failed() {
 			// Still print the payload above — the console output is the useful
 			// part — but do not exit 0 on code that did not run.
-			return fmt.Errorf("the transformation did not complete")
+			//
+			// The reason goes to stderr, not stdout: a caller piping this to a
+			// JSON parser gets the payload and nothing else, and reads the
+			// failure from the exit code.
+			err := fmt.Errorf("the transformation did not complete")
+			fmt.Fprintln(os.Stderr, err)
+			return newAlreadyReportedError(err)
 		}
 		return nil
 	}
