@@ -114,6 +114,14 @@ go test -short ./test/acceptance/...
 ```
 Use the same `-tags` as "Run all" if you want to skip the full acceptance set. All acceptance tests are skipped when `-short` is used, allowing fast unit test runs.
 
+## Rate limits
+
+The API allows **240 requests per minute**. A full slice makes thousands of calls, so the suite runs close to that ceiling by design.
+
+**Do not run two acceptance runs against the same projects at once.** Two concurrent runs exhaust the limit, every job hits its `-timeout` with HTTP 429s in the log, and the result looks exactly like a code failure: jobs fail with **zero assertion failures**. If you see all slices failing at the timeout and no `--- FAIL` lines, check for a second run before looking at the code.
+
+Note a direct push to a branch triggers a `pull_request` run for any PR it heads, so pushing and dispatching a manual run together produces exactly this collision.
+
 ## Parallelisation
 
 Tests are partitioned by **feature build tags** so CI and local runs can execute three matrix slices in parallel (each slice uses its own Hookdeck project and config file).
