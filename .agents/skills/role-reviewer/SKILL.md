@@ -1,11 +1,20 @@
 ---
 name: role-reviewer
-description: Project overrides for the role-reviewer role in hookdeck-cli. Delta only; the base role-reviewer skill supplies everything not stated here.
+description: >-
+  Not a standalone reviewer role. This is hookdeck-cli's delta on the base
+  role-reviewer skill, which supplies the method, the read-only rule and the
+  report format; this file states only what differs in this repo. Load the base
+  role first, then apply this on top.
 ---
 
 # Reviewer overrides for hookdeck-cli
 
 This file is a delta on the base `role-reviewer` skill. It does not repeat it.
+Harnesses that index `.agents/skills/` list this file as a skill called
+`role-reviewer`, which makes it look selectable on its own. It is not: on its
+own it gives you repo trivia and no way to review. If you reached this file
+without the base role — what to check, what to leave alone, the read-only rule
+and the report format — stop and load that first.
 
 Written against `hookdeck-cli` branch `release/v3.0.0` at `3be28c6` on
 2026-09-17, and re-verified against `main` at `5c6948c` (v2.6.0) on 2026-09-21.
