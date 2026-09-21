@@ -596,6 +596,7 @@ Summary for code and docs work:
 - **Never copy a skill into a second location.** `.agents/skills/` and a root `skills/` briefly held byte-identical copies, so a fix applied to one left the other wrong (see #336). One canonical directory, symlinks everywhere else.
 - **Windows:** Git must create symlinks correctly (`core.symlinks` / Developer Mode). If symlinks are missing after clone, recreate them (`mklink /D` on Windows, or copy `.agents/skills/` into `.cursor/skills` and `.claude/skills` as a fallback).
 - **Releases:** For cutting GitHub releases, tags, npm/beta publish flow, and drafting release notes, use **`.agents/skills/hookdeck-cli-release/SKILL.md`**; human-facing steps remain in **README.md § Releasing**.
+- **Reviewing:** For reviewing a pull request, diff or branch, use **`.agents/skills/hookdeck-cli-review/SKILL.md`**: why a green pull request still needs its acceptance run read, where a new acceptance-test build tag has to be registered, which generated files and wire contracts break silently, which docs move with a command's surface, and what not to raise.
 
 ---
 
