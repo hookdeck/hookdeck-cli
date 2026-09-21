@@ -32,6 +32,15 @@ unit-test  build-linux  build-mac  build-windows
 Acceptance is not in that list. A pull request with a **red or skipped**
 acceptance run is still mergeable, and the merge button will not tell you.
 
+That list is the one claim here with no source in the tree — it lives in
+GitHub's branch-protection settings, so it can change without a commit and
+without this file noticing. Re-read it rather than trusting it:
+
+```
+gh api repos/hookdeck/hookdeck-cli/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
 **So read `gh pr checks` and flag a red or skipped acceptance run**, because
 nothing else in the process will. That is the single most useful thing this
 review does that the required checks do not.
@@ -104,8 +113,16 @@ script but not in CI, it never runs on a pull request. Left out of the "run all"
 command, the documented way to run everything quietly stops running everything —
 and that one is the worst of the five, because the command still exits 0.
 
-All five agree today, on 21 distinct tags. Check all five whenever a diff adds
-one.
+All five agree today — but count before reporting drift, because **four of the
+five carry 20 tags, not 21.** `telemetry` is the twenty-first, and it is
+registered *separately* in each of those same files: `run_telemetry()` in
+`run_parallel.sh`, the `acceptance-telemetry` job in `acceptance.yml`, and its
+own `-tags=telemetry` command in the README. Only the "Run all automated tests"
+string carries all 21 in a single list.
+
+So a slice list that reads 20 is correct, not stale. Check all five whenever a
+diff adds a tag — and if the new tag is a telemetry one, check those three
+separate sites instead.
 
 One thing the README gets wrong, before you trust it on this: it attributes the
 matrix to `.github/workflows/test-acceptance.yml`. That file only declares the
