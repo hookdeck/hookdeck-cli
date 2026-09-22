@@ -426,7 +426,7 @@ for the `list_ignored` guard, which the per-action work can reuse.
 - [x] `{action:"cancel", operation:"events_cancel"}` refused, saying it cannot be stopped
 - [x] `create` names `plan` as the thing to call first
 - [x] `replay` descriptions distinguish it from `retry`: new request, new events, current config
-- [ ] Acceptance tests, including `plan` working without `--allow-write`
+- [x] Acceptance tests, including `plan` working without `--allow-write`
 - [x] A spec-conformance test that every advertised filter is declared for its operation
 
 ### 4b. CLI platform commands
@@ -442,7 +442,8 @@ for the `list_ignored` guard, which the per-action work can reuse.
 - [x] Secret handling: print `key` once on create/roll, never log it, never echo it in an error;
       `list` renders `key_fingerprint`, never `key`
 - [x] `--scope` documents that the API is the authority — no local validation, no hardcoded list
-- [ ] Acceptance tests for each new command, success and failure paths
+- [x] Acceptance tests for each new command, success and failure paths (`-tags=platform`,
+      wired into CI slice 0 for its account-level key)
 - [x] `REFERENCE.md` regenerates cleanly and the new commands appear in the generated blocks
 
 ### 5. Docs and generated output

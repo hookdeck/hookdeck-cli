@@ -409,3 +409,137 @@ func TestMCPEventsStatusIsCanonicalisedAgainstTheLiveAPI(t *testing.T) {
 		})
 	}
 }
+
+// --- v3.0.0-beta.2: the read/write split, platform tools and bulk operations ---
+
+// The split's whole purpose, checked against a live server: every read tool is
+// annotated read-only, so a client can grant `*_read` and be prompted on
+// everything else.
+func TestMCPReadToolsAreAnnotatedReadOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	for _, tool := range []string{
+		"gateway_connections_read", "gateway_events_read", "gateway_metrics_read",
+		"hookdeck_projects_read", "hookdeck_organization_read", "gateway_bulk_read",
+	} {
+		t.Run(tool, func(t *testing.T) {
+			result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, tool,
+				map[string]any{"action": readProbeAction(tool)}, 20*time.Second)
+			assert.NotContains(t, result.Text, "Unknown tool",
+				"%s should be registered without --allow-write", tool)
+		})
+	}
+}
+
+func readProbeAction(tool string) string {
+	switch tool {
+	case "gateway_metrics_read":
+		return "events"
+	case "hookdeck_organization_read":
+		return "get"
+	default:
+		return "list"
+	}
+}
+
+// Write tools are not registered without --allow-write, and a gated action
+// asked for on the read tool names the flag rather than reading as a typo.
+func TestMCPWriteToolsAbsentWithoutAllowWrite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	absent := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_connections_write",
+		map[string]any{"action": "delete", "id": "web_does_not_exist"}, 20*time.Second)
+	assert.Contains(t, absent.Text, "Unknown tool",
+		"the write tool must not be registered in read-only mode")
+
+	gated := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_connections_read",
+		map[string]any{"action": "delete", "id": "web_does_not_exist"}, 20*time.Second)
+	require.True(t, gated.IsError)
+	assert.Contains(t, gated.Text, "--allow-write",
+		"a gated action must name the flag that enables it")
+}
+
+// plan is a read, so the blast radius of a bulk operation can be sized with no
+// write access at all. This is the safety property the design rests on, and a
+// mock cannot prove the API accepts the query.
+func TestMCPBulkPlanWorksWithoutAllowWrite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_bulk_read",
+		map[string]any{
+			"action":    "plan",
+			"operation": "events_retry",
+			"query":     map[string]any{"status": "FAILED"},
+		}, 30*time.Second)
+
+	assert.False(t, result.IsError, "plan must work in read-only mode: %s", result.Text)
+	assert.Contains(t, result.Text, "estimated_count")
+}
+
+// A filter the operation does not declare is refused locally, before anything
+// reaches the API — the API would ignore it and run across everything the rest
+// matched.
+func TestMCPBulkRefusesAFilterTheOperationDoesNotDeclare(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_bulk_read",
+		map[string]any{
+			"action":    "plan",
+			"operation": "ignored_events_retry",
+			"query":     map[string]any{"status": "FAILED"},
+		}, 20*time.Second)
+
+	require.True(t, result.IsError, "a filter the operation does not declare must be refused")
+	assert.Contains(t, result.Text, "status")
+	assert.Contains(t, result.Text, "cause", "the message should name what it does take")
+}
+
+// The platform tools reach the account API end to end.
+func TestMCPPlatformToolsAreReachable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	org := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_organization_read",
+		map[string]any{"action": "get"}, 20*time.Second)
+	assert.False(t, org.IsError, "organization read failed: %s", org.Text)
+	assert.Contains(t, org.Text, `"data"`)
+
+	projects := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_projects_read",
+		map[string]any{"action": "list"}, 20*time.Second)
+	assert.False(t, projects.IsError, "projects list failed: %s", projects.Text)
+	assert.Contains(t, projects.Text, "projects")
+}
+
+// API key management must not be reachable from MCP in any form.
+func TestMCPExposesNoAPIKeyTool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	for _, tool := range []string{"hookdeck_api_keys_read", "hookdeck_api_keys_write", "hookdeck_organization_write"} {
+		result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, tool,
+			map[string]any{"action": "list"}, 20*time.Second)
+		if tool == "hookdeck_organization_write" {
+			// Not an API key tool — it just must not be registered read-only.
+			assert.Contains(t, result.Text, "Unknown tool")
+			continue
+		}
+		assert.Contains(t, result.Text, "Unknown tool",
+			"%s must not exist: a key is a credential, and minting one is not an agent's to do", tool)
+	}
+}

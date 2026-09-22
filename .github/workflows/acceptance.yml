@@ -14,7 +14,10 @@ jobs:
         include:
           - slice: "0"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY
-            tags: "basic guest connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
+            # platform rides in slice 0 because it needs account-level access —
+            # org get and project list — and this is the slice wired with the
+            # account-wide CLI key.
+            tags: "basic guest connection source mcp listen project_use platform connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
           - slice: "1"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_2
             tags: "request event"
