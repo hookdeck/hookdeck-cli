@@ -106,7 +106,7 @@ func connectionBody() map[string]any {
 func TestConnectionsListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/connections": ok(&got, listResponse(connectionBody())),
+		"GET /2026-09-01/connections": ok(&got, listResponse(connectionBody())),
 	})
 
 	text := succeeds(t, session, "gateway_connections", map[string]any{
@@ -114,7 +114,7 @@ func TestConnectionsListSendsFilters(t *testing.T) {
 		"destination_id": "des_1", "limit": 25, "next": "cursor_1",
 	})
 
-	assert.Equal(t, "/2025-07-01/connections", got.path)
+	assert.Equal(t, "/2026-09-01/connections", got.path)
 	assert.Contains(t, got.query, "name=stripe-to-backend")
 	assert.Contains(t, got.query, "source_id=src_1")
 	assert.Contains(t, got.query, "destination_id=des_1")
@@ -127,20 +127,20 @@ func TestConnectionsListSendsFilters(t *testing.T) {
 func TestConnectionsGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/connections/web_1": ok(&got, connectionBody()),
+		"GET /2026-09-01/connections/web_1": ok(&got, connectionBody()),
 	})
 
 	text := succeeds(t, session, "gateway_connections", map[string]any{"action": "get", "id": "web_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
-	assert.Equal(t, "/2025-07-01/connections/web_1", got.path)
+	assert.Equal(t, "/2026-09-01/connections/web_1", got.path)
 	assert.Contains(t, string(envelopeData(t, text)), "stripe-to-backend")
 }
 
 func TestConnectionsCreate(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/connections": ok(&got, connectionBody()),
+		"POST /2026-09-01/connections": ok(&got, connectionBody()),
 	})
 
 	succeeds(t, session, "gateway_connections", map[string]any{
@@ -153,7 +153,7 @@ func TestConnectionsCreate(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPost, got.method)
-	assert.Equal(t, "/2025-07-01/connections", got.path)
+	assert.Equal(t, "/2026-09-01/connections", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, "stripe-to-backend", body["name"])
@@ -170,7 +170,7 @@ func TestConnectionsCreate(t *testing.T) {
 func TestConnectionsUpsertIsAPutToTheCollection(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/connections": ok(&got, connectionBody()),
+		"PUT /2026-09-01/connections": ok(&got, connectionBody()),
 	})
 
 	succeeds(t, session, "gateway_connections", map[string]any{
@@ -178,7 +178,7 @@ func TestConnectionsUpsertIsAPutToTheCollection(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/connections", got.path)
+	assert.Equal(t, "/2026-09-01/connections", got.path)
 	assert.Equal(t, "stripe-to-backend", got.decodeBody(t)["name"])
 }
 
@@ -195,8 +195,8 @@ func TestConnectionsUpsertRequiresAName(t *testing.T) {
 func TestConnectionsUpdate(t *testing.T) {
 	var resolve, got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/connections/web_1": ok(&resolve, connectionBody()),
-		"PUT /2025-07-01/connections/web_1": ok(&got, connectionBody()),
+		"GET /2026-09-01/connections/web_1": ok(&resolve, connectionBody()),
+		"PUT /2026-09-01/connections/web_1": ok(&got, connectionBody()),
 	})
 
 	succeeds(t, session, "gateway_connections", map[string]any{
@@ -205,7 +205,7 @@ func TestConnectionsUpdate(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/connections/web_1", got.path)
+	assert.Equal(t, "/2026-09-01/connections/web_1", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, "now with retries", body["description"])
@@ -221,8 +221,8 @@ func TestConnectionsUpdate(t *testing.T) {
 func TestConnectionsUpdateResolvesANameToAnID(t *testing.T) {
 	var lookup, got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/connections":       ok(&lookup, listResponse(connectionBody())),
-		"PUT /2025-07-01/connections/web_1": ok(&got, connectionBody()),
+		"GET /2026-09-01/connections":       ok(&lookup, listResponse(connectionBody())),
+		"PUT /2026-09-01/connections/web_1": ok(&got, connectionBody()),
 	})
 
 	succeeds(t, session, "gateway_connections", map[string]any{
@@ -230,20 +230,20 @@ func TestConnectionsUpdateResolvesANameToAnID(t *testing.T) {
 	})
 
 	assert.Equal(t, "name=stripe-to-backend", lookup.query)
-	assert.Equal(t, "/2025-07-01/connections/web_1", got.path)
+	assert.Equal(t, "/2026-09-01/connections/web_1", got.path)
 }
 
 func TestConnectionsDelete(t *testing.T) {
 	var resolve, got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/connections/web_1":    ok(&resolve, connectionBody()),
-		"DELETE /2025-07-01/connections/web_1": ok(&got, nil),
+		"GET /2026-09-01/connections/web_1":    ok(&resolve, connectionBody()),
+		"DELETE /2026-09-01/connections/web_1": ok(&got, nil),
 	})
 
 	text := succeeds(t, session, "gateway_connections", map[string]any{"action": "delete", "id": "web_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/connections/web_1", got.path)
+	assert.Equal(t, "/2026-09-01/connections/web_1", got.path)
 	// The API returns no useful body, so the tool has to say what happened.
 	assert.JSONEq(t, `{"connection_id":"web_1","status":"deleted"}`, string(envelopeData(t, text)))
 }
@@ -253,14 +253,14 @@ func TestConnectionsEnableAndDisable(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			var resolve, got wireRequest
 			session := writeSession(t, map[string]http.HandlerFunc{
-				"GET /2025-07-01/connections/web_1":           ok(&resolve, connectionBody()),
-				"PUT /2025-07-01/connections/web_1/" + action: ok(&got, connectionBody()),
+				"GET /2026-09-01/connections/web_1":           ok(&resolve, connectionBody()),
+				"PUT /2026-09-01/connections/web_1/" + action: ok(&got, connectionBody()),
 			})
 
 			succeeds(t, session, "gateway_connections", map[string]any{"action": action, "id": "web_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
-			assert.Equal(t, "/2025-07-01/connections/web_1/"+action, got.path)
+			assert.Equal(t, "/2026-09-01/connections/web_1/"+action, got.path)
 		})
 	}
 }
@@ -270,14 +270,14 @@ func TestConnectionsPauseAndUnpause(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			var resolve, got wireRequest
 			session := readSession(t, map[string]http.HandlerFunc{
-				"GET /2025-07-01/connections/web_1":           ok(&resolve, connectionBody()),
-				"PUT /2025-07-01/connections/web_1/" + action: ok(&got, connectionBody()),
+				"GET /2026-09-01/connections/web_1":           ok(&resolve, connectionBody()),
+				"PUT /2026-09-01/connections/web_1/" + action: ok(&got, connectionBody()),
 			})
 
 			succeeds(t, session, "gateway_connections", map[string]any{"action": action, "id": "web_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
-			assert.Equal(t, "/2025-07-01/connections/web_1/"+action, got.path)
+			assert.Equal(t, "/2026-09-01/connections/web_1/"+action, got.path)
 		})
 	}
 }
@@ -305,14 +305,14 @@ func sourceBody() map[string]any {
 func TestSourcesListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": ok(&got, listResponse(sourceBody())),
+		"GET /2026-09-01/sources": ok(&got, listResponse(sourceBody())),
 	})
 
 	succeeds(t, session, "gateway_sources", map[string]any{
 		"action": "list", "name": "stripe", "limit": 5, "next": "cursor_1",
 	})
 
-	assert.Equal(t, "/2025-07-01/sources", got.path)
+	assert.Equal(t, "/2026-09-01/sources", got.path)
 	assert.Contains(t, got.query, "name=stripe")
 	assert.Contains(t, got.query, "limit=5")
 	assert.Contains(t, got.query, "next=cursor_1")
@@ -321,11 +321,11 @@ func TestSourcesListSendsFilters(t *testing.T) {
 func TestSourcesGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources/src_1": ok(&got, sourceBody()),
+		"GET /2026-09-01/sources/src_1": ok(&got, sourceBody()),
 	})
 
 	succeeds(t, session, "gateway_sources", map[string]any{"action": "get", "id": "src_1"})
-	assert.Equal(t, "/2025-07-01/sources/src_1", got.path)
+	assert.Equal(t, "/2026-09-01/sources/src_1", got.path)
 }
 
 func TestSourcesCreateAndUpsert(t *testing.T) {
@@ -336,8 +336,8 @@ func TestSourcesCreateAndUpsert(t *testing.T) {
 	}{
 		// Create posts to the collection; upsert keys on the name and PUTs to
 		// the same collection, so the two differ only in method.
-		{"create", "POST /2025-07-01/sources", http.MethodPost},
-		{"upsert", "PUT /2025-07-01/sources", http.MethodPut},
+		{"create", "POST /2026-09-01/sources", http.MethodPost},
+		{"upsert", "PUT /2026-09-01/sources", http.MethodPut},
 	}
 
 	for _, tc := range cases {
@@ -354,7 +354,7 @@ func TestSourcesCreateAndUpsert(t *testing.T) {
 			})
 
 			assert.Equal(t, tc.method, got.method)
-			assert.Equal(t, "/2025-07-01/sources", got.path)
+			assert.Equal(t, "/2026-09-01/sources", got.path)
 
 			body := got.decodeBody(t)
 			assert.Equal(t, "stripe", body["name"])
@@ -368,7 +368,7 @@ func TestSourcesCreateAndUpsert(t *testing.T) {
 func TestSourcesUpdate(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/sources/src_1": ok(&got, sourceBody()),
+		"PUT /2026-09-01/sources/src_1": ok(&got, sourceBody()),
 	})
 
 	succeeds(t, session, "gateway_sources", map[string]any{
@@ -377,7 +377,7 @@ func TestSourcesUpdate(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/sources/src_1", got.path)
+	assert.Equal(t, "/2026-09-01/sources/src_1", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, map[string]any{"allowed_http_methods": []any{"POST"}}, body["config"])
@@ -389,13 +389,13 @@ func TestSourcesUpdate(t *testing.T) {
 func TestSourcesDelete(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/sources/src_1": ok(&got, nil),
+		"DELETE /2026-09-01/sources/src_1": ok(&got, nil),
 	})
 
 	text := succeeds(t, session, "gateway_sources", map[string]any{"action": "delete", "id": "src_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/sources/src_1", got.path)
+	assert.Equal(t, "/2026-09-01/sources/src_1", got.path)
 	assert.JSONEq(t, `{"source_id":"src_1","status":"deleted"}`, string(envelopeData(t, text)))
 }
 
@@ -404,13 +404,13 @@ func TestSourcesEnableAndDisable(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			var got wireRequest
 			session := writeSession(t, map[string]http.HandlerFunc{
-				"PUT /2025-07-01/sources/src_1/" + action: ok(&got, sourceBody()),
+				"PUT /2026-09-01/sources/src_1/" + action: ok(&got, sourceBody()),
 			})
 
 			succeeds(t, session, "gateway_sources", map[string]any{"action": action, "id": "src_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
-			assert.Equal(t, "/2025-07-01/sources/src_1/"+action, got.path)
+			assert.Equal(t, "/2026-09-01/sources/src_1/"+action, got.path)
 		})
 	}
 }
@@ -438,14 +438,14 @@ func destinationBody() map[string]any {
 func TestDestinationsListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/destinations": ok(&got, listResponse(destinationBody())),
+		"GET /2026-09-01/destinations": ok(&got, listResponse(destinationBody())),
 	})
 
 	succeeds(t, session, "gateway_destinations", map[string]any{
 		"action": "list", "name": "backend", "limit": 5, "prev": "cursor_0",
 	})
 
-	assert.Equal(t, "/2025-07-01/destinations", got.path)
+	assert.Equal(t, "/2026-09-01/destinations", got.path)
 	assert.Contains(t, got.query, "name=backend")
 	assert.Contains(t, got.query, "limit=5")
 	assert.Contains(t, got.query, "prev=cursor_0")
@@ -454,11 +454,11 @@ func TestDestinationsListSendsFilters(t *testing.T) {
 func TestDestinationsGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/destinations/des_1": ok(&got, destinationBody()),
+		"GET /2026-09-01/destinations/des_1": ok(&got, destinationBody()),
 	})
 
 	succeeds(t, session, "gateway_destinations", map[string]any{"action": "get", "id": "des_1"})
-	assert.Equal(t, "/2025-07-01/destinations/des_1", got.path)
+	assert.Equal(t, "/2026-09-01/destinations/des_1", got.path)
 }
 
 func TestDestinationsCreateAndUpsert(t *testing.T) {
@@ -467,8 +467,8 @@ func TestDestinationsCreateAndUpsert(t *testing.T) {
 		pattern string
 		method  string
 	}{
-		{"create", "POST /2025-07-01/destinations", http.MethodPost},
-		{"upsert", "PUT /2025-07-01/destinations", http.MethodPut},
+		{"create", "POST /2026-09-01/destinations", http.MethodPost},
+		{"upsert", "PUT /2026-09-01/destinations", http.MethodPut},
 	}
 
 	for _, tc := range cases {
@@ -485,7 +485,7 @@ func TestDestinationsCreateAndUpsert(t *testing.T) {
 			})
 
 			assert.Equal(t, tc.method, got.method)
-			assert.Equal(t, "/2025-07-01/destinations", got.path)
+			assert.Equal(t, "/2026-09-01/destinations", got.path)
 
 			body := got.decodeBody(t)
 			assert.Equal(t, "backend", body["name"])
@@ -500,7 +500,7 @@ func TestDestinationsCreateAndUpsert(t *testing.T) {
 func TestDestinationsUpdate(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/destinations/des_1": ok(&got, destinationBody()),
+		"PUT /2026-09-01/destinations/des_1": ok(&got, destinationBody()),
 	})
 
 	succeeds(t, session, "gateway_destinations", map[string]any{
@@ -509,7 +509,7 @@ func TestDestinationsUpdate(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/destinations/des_1", got.path)
+	assert.Equal(t, "/2026-09-01/destinations/des_1", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, map[string]any{"url": "https://example.com/new"}, body["config"])
@@ -520,13 +520,13 @@ func TestDestinationsUpdate(t *testing.T) {
 func TestDestinationsDelete(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/destinations/des_1": ok(&got, nil),
+		"DELETE /2026-09-01/destinations/des_1": ok(&got, nil),
 	})
 
 	text := succeeds(t, session, "gateway_destinations", map[string]any{"action": "delete", "id": "des_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/destinations/des_1", got.path)
+	assert.Equal(t, "/2026-09-01/destinations/des_1", got.path)
 	assert.JSONEq(t, `{"destination_id":"des_1","status":"deleted"}`, string(envelopeData(t, text)))
 }
 
@@ -535,13 +535,13 @@ func TestDestinationsEnableAndDisable(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			var got wireRequest
 			session := writeSession(t, map[string]http.HandlerFunc{
-				"PUT /2025-07-01/destinations/des_1/" + action: ok(&got, destinationBody()),
+				"PUT /2026-09-01/destinations/des_1/" + action: ok(&got, destinationBody()),
 			})
 
 			succeeds(t, session, "gateway_destinations", map[string]any{"action": action, "id": "des_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
-			assert.Equal(t, "/2025-07-01/destinations/des_1/"+action, got.path)
+			assert.Equal(t, "/2026-09-01/destinations/des_1/"+action, got.path)
 		})
 	}
 }
@@ -569,14 +569,14 @@ func transformationBody() map[string]any {
 func TestTransformationsListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/transformations": ok(&got, listResponse(transformationBody())),
+		"GET /2026-09-01/transformations": ok(&got, listResponse(transformationBody())),
 	})
 
 	succeeds(t, session, "gateway_transformations", map[string]any{
 		"action": "list", "name": "enrich", "limit": 5,
 	})
 
-	assert.Equal(t, "/2025-07-01/transformations", got.path)
+	assert.Equal(t, "/2026-09-01/transformations", got.path)
 	assert.Contains(t, got.query, "name=enrich")
 	assert.Contains(t, got.query, "limit=5")
 }
@@ -584,11 +584,11 @@ func TestTransformationsListSendsFilters(t *testing.T) {
 func TestTransformationsGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/transformations/trs_1": ok(&got, transformationBody()),
+		"GET /2026-09-01/transformations/trs_1": ok(&got, transformationBody()),
 	})
 
 	text := succeeds(t, session, "gateway_transformations", map[string]any{"action": "get", "id": "trs_1"})
-	assert.Equal(t, "/2025-07-01/transformations/trs_1", got.path)
+	assert.Equal(t, "/2026-09-01/transformations/trs_1", got.path)
 	// The code is the reason to fetch one.
 	assert.Contains(t, string(envelopeData(t, text)), "return request")
 }
@@ -599,8 +599,8 @@ func TestTransformationsCreateAndUpsert(t *testing.T) {
 		pattern string
 		method  string
 	}{
-		{"create", "POST /2025-07-01/transformations", http.MethodPost},
-		{"upsert", "PUT /2025-07-01/transformations", http.MethodPut},
+		{"create", "POST /2026-09-01/transformations", http.MethodPost},
+		{"upsert", "PUT /2026-09-01/transformations", http.MethodPut},
 	}
 
 	for _, tc := range cases {
@@ -616,7 +616,7 @@ func TestTransformationsCreateAndUpsert(t *testing.T) {
 			})
 
 			assert.Equal(t, tc.method, got.method)
-			assert.Equal(t, "/2025-07-01/transformations", got.path)
+			assert.Equal(t, "/2026-09-01/transformations", got.path)
 
 			body := got.decodeBody(t)
 			assert.Equal(t, "enrich", body["name"])
@@ -629,7 +629,7 @@ func TestTransformationsCreateAndUpsert(t *testing.T) {
 func TestTransformationsUpdate(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/trs_1": ok(&got, transformationBody()),
+		"PUT /2026-09-01/transformations/trs_1": ok(&got, transformationBody()),
 	})
 
 	succeeds(t, session, "gateway_transformations", map[string]any{
@@ -637,7 +637,7 @@ func TestTransformationsUpdate(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/transformations/trs_1", got.path)
+	assert.Equal(t, "/2026-09-01/transformations/trs_1", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, "return { ...request }", body["code"])
@@ -649,20 +649,20 @@ func TestTransformationsUpdate(t *testing.T) {
 func TestTransformationsDelete(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/transformations/trs_1": ok(&got, nil),
+		"DELETE /2026-09-01/transformations/trs_1": ok(&got, nil),
 	})
 
 	text := succeeds(t, session, "gateway_transformations", map[string]any{"action": "delete", "id": "trs_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/transformations/trs_1", got.path)
+	assert.Equal(t, "/2026-09-01/transformations/trs_1", got.path)
 	assert.JSONEq(t, `{"transformation_id":"trs_1","status":"deleted"}`, string(envelopeData(t, text)))
 }
 
 func TestTransformationsRunSendsTheSampleRequest(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{
+		"PUT /2026-09-01/transformations/run": ok(&got, map[string]any{
 			"request": map[string]any{"headers": map[string]any{}, "body": map[string]any{"ok": true}},
 		}),
 	})
@@ -674,7 +674,7 @@ func TestTransformationsRunSendsTheSampleRequest(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/transformations/run", got.path)
+	assert.Equal(t, "/2026-09-01/transformations/run", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, "return request", body["code"])
@@ -709,7 +709,7 @@ func TestTransformationsWriteActionsRequireAnID(t *testing.T) {
 func TestEventsListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
 	succeeds(t, session, "gateway_events", map[string]any{
@@ -717,7 +717,7 @@ func TestEventsListSendsFilters(t *testing.T) {
 		"destination_id": "des_1", "status": "FAILED", "limit": 5,
 	})
 
-	assert.Equal(t, "/2025-07-01/events", got.path)
+	assert.Equal(t, "/2026-09-01/events", got.path)
 	// connection_id is the MCP name for the API's webhook_id.
 	assert.Contains(t, got.query, "webhook_id=web_1")
 	assert.Contains(t, got.query, "source_id=src_1")
@@ -732,14 +732,14 @@ func TestEventsListSendsFilters(t *testing.T) {
 func TestEventsListSendsSearchTermAndDeliveryGroup(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
 	succeeds(t, session, "gateway_events", map[string]any{
 		"action": "list", "search_term": "cus_1234", "delivery_group": "grp_1",
 	})
 
-	assert.Equal(t, "/2025-07-01/events", got.path)
+	assert.Equal(t, "/2026-09-01/events", got.path)
 	assert.Contains(t, got.query, "search_term=cus_1234")
 	assert.Contains(t, got.query, "delivery_group=grp_1")
 }
@@ -750,7 +750,7 @@ func TestEventsListSendsSearchTermAndDeliveryGroup(t *testing.T) {
 func TestEventsListSendsNextAttemptBounds(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
 	succeeds(t, session, "gateway_events", map[string]any{
@@ -770,13 +770,13 @@ func TestEventsListSendsNextAttemptBounds(t *testing.T) {
 func TestEventGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events/evt_1": ok(&got, map[string]any{"id": "evt_1", "status": "FAILED"}),
+		"GET /2026-09-01/events/evt_1": ok(&got, map[string]any{"id": "evt_1", "status": "FAILED"}),
 	})
 
 	text := succeeds(t, session, "gateway_event", map[string]any{"action": "get", "id": "evt_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
-	assert.Equal(t, "/2025-07-01/events/evt_1", got.path)
+	assert.Equal(t, "/2026-09-01/events/evt_1", got.path)
 	// The id addresses one record; sending it as a filter would list instead.
 	assert.Empty(t, got.query)
 	assert.Contains(t, string(envelopeData(t, text)), "evt_1")
@@ -785,7 +785,7 @@ func TestEventGetByID(t *testing.T) {
 func TestEventRawBody(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events/evt_1/raw_body": func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/events/evt_1/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			got = wireRequest{method: r.Method, path: r.URL.Path}
 			_, _ = w.Write([]byte(`{"amount":100}`))
 		},
@@ -794,7 +794,7 @@ func TestEventRawBody(t *testing.T) {
 	text := succeeds(t, session, "gateway_event", map[string]any{"action": "raw_body", "id": "evt_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
-	assert.Equal(t, "/2025-07-01/events/evt_1/raw_body", got.path)
+	assert.Equal(t, "/2026-09-01/events/evt_1/raw_body", got.path)
 	assert.Contains(t, string(envelopeData(t, text)), "amount")
 }
 
@@ -806,9 +806,9 @@ func TestEventRetryCancelAndMute(t *testing.T) {
 		pattern string
 		method  string
 	}{
-		{"retry", "POST /2025-07-01/events/evt_1/retry", http.MethodPost},
-		{"cancel", "PUT /2025-07-01/events/evt_1/cancel", http.MethodPut},
-		{"mute", "PUT /2025-07-01/events/evt_1/mute", http.MethodPut},
+		{"retry", "POST /2026-09-01/events/evt_1/retry", http.MethodPost},
+		{"cancel", "PUT /2026-09-01/events/evt_1/cancel", http.MethodPut},
+		{"mute", "PUT /2026-09-01/events/evt_1/mute", http.MethodPut},
 	}
 
 	for _, tc := range cases {
@@ -821,7 +821,7 @@ func TestEventRetryCancelAndMute(t *testing.T) {
 			text := succeeds(t, session, "gateway_event", map[string]any{"action": tc.action, "id": "evt_1"})
 
 			assert.Equal(t, tc.method, got.method)
-			assert.Equal(t, "/2025-07-01/events/evt_1/"+tc.action, got.path)
+			assert.Equal(t, "/2026-09-01/events/evt_1/"+tc.action, got.path)
 			// The event the API answered with, not a status we assumed.
 			assert.Contains(t, string(envelopeData(t, text)), `"status":"QUEUED"`)
 		})
@@ -837,7 +837,7 @@ func TestEventMutationsReportTheRealStatusNotTheRequestedOne(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			var got wireRequest
 			session := writeSession(t, map[string]http.HandlerFunc{
-				"PUT /2025-07-01/events/evt_1/" + action: ok(&got,
+				"PUT /2026-09-01/events/evt_1/" + action: ok(&got,
 					map[string]any{"id": "evt_1", "status": "SUCCESSFUL"}),
 			})
 
@@ -862,7 +862,7 @@ func TestEventMutationsReportTheRealStatusNotTheRequestedOne(t *testing.T) {
 func TestTransformationsRunSurfacesAFailedRun(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{
+		"PUT /2026-09-01/transformations/run": ok(&got, map[string]any{
 			"log_level": "fatal",
 			"console": []map[string]any{
 				{"type": "error", "message": "Error: boom-marker"},
@@ -886,7 +886,7 @@ func TestTransformationsRunSurfacesAFailedRun(t *testing.T) {
 func TestTransformationsRunReturnsTheResultOnSuccess(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/run": ok(&got, map[string]any{
+		"PUT /2026-09-01/transformations/run": ok(&got, map[string]any{
 			"log_level": "info",
 			"request":   map[string]any{"headers": map[string]any{}, "body": map[string]any{"a": 1, "x": 1}},
 		}),
@@ -918,7 +918,7 @@ func successfulRun() map[string]any {
 func TestTransformationsRunSuppliesAContentType(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/run": ok(&got, successfulRun()),
+		"PUT /2026-09-01/transformations/run": ok(&got, successfulRun()),
 	})
 
 	succeeds(t, session, "gateway_transformations", map[string]any{
@@ -940,7 +940,7 @@ func TestTransformationsRunSuppliesAContentType(t *testing.T) {
 func TestTransformationsRunKeepsACallerContentType(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/transformations/run": ok(&got, successfulRun()),
+		"PUT /2026-09-01/transformations/run": ok(&got, successfulRun()),
 	})
 
 	succeeds(t, session, "gateway_transformations", map[string]any{
@@ -961,14 +961,14 @@ func TestTransformationsRunKeepsACallerContentType(t *testing.T) {
 func TestRequestsListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
+		"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 	})
 
 	succeeds(t, session, "gateway_requests", map[string]any{
 		"action": "list", "source_id": "src_1", "status": "accepted", "limit": 5,
 	})
 
-	assert.Equal(t, "/2025-07-01/requests", got.path)
+	assert.Equal(t, "/2026-09-01/requests", got.path)
 	assert.Contains(t, got.query, "source_id=src_1")
 	assert.Contains(t, got.query, "status=accepted")
 }
@@ -980,7 +980,7 @@ func TestRequestsListSendsFilters(t *testing.T) {
 func TestRequestsListSendsSearchTermAndCounts(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
+		"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 	})
 
 	succeeds(t, session, "gateway_requests", map[string]any{
@@ -988,7 +988,7 @@ func TestRequestsListSendsSearchTermAndCounts(t *testing.T) {
 		"events_count": "0", "ignored_count": "2", "cli_events_count": "1",
 	})
 
-	assert.Equal(t, "/2025-07-01/requests", got.path)
+	assert.Equal(t, "/2026-09-01/requests", got.path)
 	assert.Contains(t, got.query, "search_term=cus_1234")
 	assert.Contains(t, got.query, "events_count=0")
 	assert.Contains(t, got.query, "ignored_count=2")
@@ -1006,7 +1006,7 @@ func TestRequestsListSendsSearchTermAndCounts(t *testing.T) {
 func TestRequestsListAcceptsCountsAsJSONNumbers(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
+		"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 	})
 
 	succeeds(t, session, "gateway_requests", map[string]any{
@@ -1036,7 +1036,7 @@ func TestRequestsListAcceptsVerifiedAsAString(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var got wireRequest
 			session := readSession(t, map[string]http.HandlerFunc{
-				"GET /2025-07-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
+				"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 			})
 
 			succeeds(t, session, "gateway_requests", map[string]any{
@@ -1054,7 +1054,7 @@ func TestRequestsListAcceptsVerifiedAsAString(t *testing.T) {
 func TestConnectionsListAcceptsDisabledAsAString(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/connections": ok(&got, listResponse(connectionBody())),
+		"GET /2026-09-01/connections": ok(&got, listResponse(connectionBody())),
 	})
 
 	succeeds(t, session, "gateway_connections", map[string]any{
@@ -1071,13 +1071,13 @@ func TestListsAcceptLimitAsAString(t *testing.T) {
 		path string
 		body map[string]any
 	}{
-		{"gateway_requests", "/2025-07-01/requests", map[string]any{"id": "req_1"}},
-		{"gateway_events", "/2025-07-01/events", map[string]any{"id": "evt_1"}},
-		{"gateway_connections", "/2025-07-01/connections", connectionBody()},
-		{"gateway_sources", "/2025-07-01/sources", map[string]any{"id": "src_1"}},
-		{"gateway_destinations", "/2025-07-01/destinations", map[string]any{"id": "des_1"}},
-		{"gateway_transformations", "/2025-07-01/transformations", map[string]any{"id": "trs_1"}},
-		{"gateway_issues", "/2025-07-01/issues", map[string]any{"id": "iss_1"}},
+		{"gateway_requests", "/2026-09-01/requests", map[string]any{"id": "req_1"}},
+		{"gateway_events", "/2026-09-01/events", map[string]any{"id": "evt_1"}},
+		{"gateway_connections", "/2026-09-01/connections", connectionBody()},
+		{"gateway_sources", "/2026-09-01/sources", map[string]any{"id": "src_1"}},
+		{"gateway_destinations", "/2026-09-01/destinations", map[string]any{"id": "des_1"}},
+		{"gateway_transformations", "/2026-09-01/transformations", map[string]any{"id": "trs_1"}},
+		{"gateway_issues", "/2026-09-01/issues", map[string]any{"id": "iss_1"}},
 	} {
 		t.Run(tc.tool, func(t *testing.T) {
 			var got wireRequest
@@ -1097,7 +1097,7 @@ func TestListsAcceptLimitAsAString(t *testing.T) {
 func TestEventsListAcceptsAttemptsAsAJSONNumber(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
 	succeeds(t, session, "gateway_events", map[string]any{
@@ -1115,13 +1115,13 @@ func TestEventsListAcceptsAttemptsAsAJSONNumber(t *testing.T) {
 func TestRequestGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/requests/req_1": ok(&got, map[string]any{"id": "req_1"}),
+		"GET /2026-09-01/requests/req_1": ok(&got, map[string]any{"id": "req_1"}),
 	})
 
 	text := succeeds(t, session, "gateway_request", map[string]any{"action": "get", "id": "req_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
-	assert.Equal(t, "/2025-07-01/requests/req_1", got.path)
+	assert.Equal(t, "/2026-09-01/requests/req_1", got.path)
 	// The id addresses one record; sending it as a filter would list instead.
 	assert.Empty(t, got.query)
 	assert.Contains(t, string(envelopeData(t, text)), "req_1")
@@ -1130,7 +1130,7 @@ func TestRequestGetByID(t *testing.T) {
 func TestRequestRawBody(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/requests/req_1/raw_body": func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/requests/req_1/raw_body": func(w http.ResponseWriter, r *http.Request) {
 			got = wireRequest{method: r.Method, path: r.URL.Path}
 			_, _ = w.Write([]byte(`{"amount":100}`))
 		},
@@ -1139,24 +1139,32 @@ func TestRequestRawBody(t *testing.T) {
 	text := succeeds(t, session, "gateway_request", map[string]any{"action": "raw_body", "id": "req_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
-	assert.Equal(t, "/2025-07-01/requests/req_1/raw_body", got.path)
+	assert.Equal(t, "/2026-09-01/requests/req_1/raw_body", got.path)
 	assert.Contains(t, string(envelopeData(t, text)), "amount")
 }
 
 // events and ignored_events are the only relationship traversal the API
 // offers, so they have to reach their own sub-resource paths.
-func TestRequestEventsAndIgnoredEvents(t *testing.T) {
-	for _, action := range []string{"events", "ignored_events"} {
-		t.Run(action, func(t *testing.T) {
+// The request-scoped event listings live on gateway_events from v3.0.0; the
+// route is unchanged, only the tool that reaches it. See
+// plans/mcp_read_write_tool_split.md.
+func TestEventsScopedToARequestHitTheRequestRoutes(t *testing.T) {
+	for _, tc := range []struct{ action, route string }{
+		{"list", "events"},
+		{"list_ignored", "ignored_events"},
+	} {
+		t.Run(tc.action, func(t *testing.T) {
 			var got wireRequest
 			session := readSession(t, map[string]http.HandlerFunc{
-				"GET /2025-07-01/requests/req_1/" + action: ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+				"GET /2026-09-01/requests/req_1/" + tc.route: ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 			})
 
-			text := succeeds(t, session, "gateway_request", map[string]any{"action": action, "id": "req_1"})
+			text := succeeds(t, session, "gateway_events", map[string]any{
+				"action": tc.action, "request_id": "req_1",
+			})
 
 			assert.Equal(t, http.MethodGet, got.method)
-			assert.Equal(t, "/2025-07-01/requests/req_1/"+action, got.path)
+			assert.Equal(t, "/2026-09-01/requests/req_1/"+tc.route, got.path)
 			assert.Contains(t, string(envelopeData(t, text)), "evt_1")
 		})
 	}
@@ -1175,7 +1183,7 @@ func retriedRequest() map[string]any {
 func TestRequestRetrySendsSelectedConnections(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/requests/req_1/retry": ok(&got, retriedRequest()),
+		"POST /2026-09-01/requests/req_1/retry": ok(&got, retriedRequest()),
 	})
 
 	text := succeeds(t, session, "gateway_request", map[string]any{
@@ -1183,7 +1191,7 @@ func TestRequestRetrySendsSelectedConnections(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPost, got.method)
-	assert.Equal(t, "/2025-07-01/requests/req_1/retry", got.path)
+	assert.Equal(t, "/2026-09-01/requests/req_1/retry", got.path)
 	// connection_ids is the MCP name for the API's webhook_ids; dropping it
 	// would retry every connection instead of the two asked for.
 	assert.Equal(t, []any{"web_1", "web_2"}, got.decodeBody(t)["webhook_ids"])
@@ -1198,7 +1206,7 @@ func TestRequestRetrySendsSelectedConnections(t *testing.T) {
 func TestRequestRetryWithoutConnectionsSendsNoIDs(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/requests/req_1/retry": ok(&got, retriedRequest()),
+		"POST /2026-09-01/requests/req_1/retry": ok(&got, retriedRequest()),
 	})
 
 	succeeds(t, session, "gateway_request", map[string]any{"action": "retry", "id": "req_1"})
@@ -1212,14 +1220,14 @@ func TestRequestRetryWithoutConnectionsSendsNoIDs(t *testing.T) {
 func TestAttemptsListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/attempts": ok(&got, listResponse(map[string]any{"id": "atm_1"})),
+		"GET /2026-09-01/attempts": ok(&got, listResponse(map[string]any{"id": "atm_1"})),
 	})
 
 	succeeds(t, session, "gateway_attempts", map[string]any{
 		"action": "list", "event_id": "evt_1", "limit": 5, "order_by": "created_at", "dir": "desc",
 	})
 
-	assert.Equal(t, "/2025-07-01/attempts", got.path)
+	assert.Equal(t, "/2026-09-01/attempts", got.path)
 	assert.Contains(t, got.query, "event_id=evt_1")
 	assert.Contains(t, got.query, "order_by=created_at")
 	assert.Contains(t, got.query, "dir=desc")
@@ -1228,14 +1236,14 @@ func TestAttemptsListSendsFilters(t *testing.T) {
 func TestAttemptsGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/attempts/atm_1": ok(&got, map[string]any{
+		"GET /2026-09-01/attempts/atm_1": ok(&got, map[string]any{
 			"id": "atm_1", "response_status": 500, "body": "boom",
 		}),
 	})
 
 	text := succeeds(t, session, "gateway_attempts", map[string]any{"action": "get", "id": "atm_1"})
 
-	assert.Equal(t, "/2025-07-01/attempts/atm_1", got.path)
+	assert.Equal(t, "/2026-09-01/attempts/atm_1", got.path)
 	assert.Contains(t, string(envelopeData(t, text)), "atm_1")
 }
 
@@ -1246,7 +1254,7 @@ func TestAttemptsGetByID(t *testing.T) {
 func TestIssuesListSendsFilters(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/issues": ok(&got, listResponse(map[string]any{"id": "iss_1"})),
+		"GET /2026-09-01/issues": ok(&got, listResponse(map[string]any{"id": "iss_1"})),
 	})
 
 	succeeds(t, session, "gateway_issues", map[string]any{
@@ -1254,7 +1262,7 @@ func TestIssuesListSendsFilters(t *testing.T) {
 		"issue_trigger_id": "ist_1", "limit": 5,
 	})
 
-	assert.Equal(t, "/2025-07-01/issues", got.path)
+	assert.Equal(t, "/2026-09-01/issues", got.path)
 	assert.Contains(t, got.query, "type=delivery")
 	// filter_status is the MCP name for the list filter, so that `status`
 	// stays free for the update action's new value.
@@ -1265,17 +1273,17 @@ func TestIssuesListSendsFilters(t *testing.T) {
 func TestIssuesGetByID(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "OPENED"}),
+		"GET /2026-09-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "OPENED"}),
 	})
 
 	succeeds(t, session, "gateway_issues", map[string]any{"action": "get", "id": "iss_1"})
-	assert.Equal(t, "/2025-07-01/issues/iss_1", got.path)
+	assert.Equal(t, "/2026-09-01/issues/iss_1", got.path)
 }
 
 func TestIssuesUpdateSendsTheNewStatus(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "RESOLVED"}),
+		"PUT /2026-09-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "RESOLVED"}),
 	})
 
 	succeeds(t, session, "gateway_issues", map[string]any{
@@ -1283,7 +1291,7 @@ func TestIssuesUpdateSendsTheNewStatus(t *testing.T) {
 	})
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/issues/iss_1", got.path)
+	assert.Equal(t, "/2026-09-01/issues/iss_1", got.path)
 	assert.Equal(t, "RESOLVED", got.decodeBody(t)["status"])
 }
 
@@ -1300,13 +1308,13 @@ func TestIssuesUpdateRequiresAStatus(t *testing.T) {
 func TestIssuesDismissIsADelete(t *testing.T) {
 	var got wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "IGNORED"}),
+		"DELETE /2026-09-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "IGNORED"}),
 	})
 
 	text := succeeds(t, session, "gateway_issues", map[string]any{"action": "dismiss", "id": "iss_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/issues/iss_1", got.path)
+	assert.Equal(t, "/2026-09-01/issues/iss_1", got.path)
 	assert.Contains(t, string(envelopeData(t, text)), "IGNORED")
 }
 
@@ -1315,11 +1323,21 @@ func TestIssuesDismissIsADelete(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMetricsActionsHitTheirOwnEndpoints(t *testing.T) {
-	for _, action := range []string{"events", "requests", "attempts", "transformations"} {
+	// Each route honours a different filter set, so the one sent has to be one
+	// that route actually takes: source_id on attempts is refused, correctly,
+	// because the endpoint would ignore it and return unfiltered totals.
+	// Dimensions are gated per route for the same reason as filters.
+	for _, tc := range []struct{ action, arg, value, wantKey, dim string }{
+		{"events", "source_id", "src_1", "filters%5Bsource_id%5D=src_1", "status"},
+		{"requests", "source_id", "src_1", "filters%5Bsource_id%5D=src_1", "status"},
+		{"attempts", "destination_id", "des_1", "filters%5Bdestination_id%5D=des_1", "status"},
+		{"transformations", "connection_id", "web_1", "filters%5Bwebhook_id%5D=web_1", "log_level"},
+	} {
+		action := tc.action
 		t.Run(action, func(t *testing.T) {
 			var got wireRequest
 			session := readSession(t, map[string]http.HandlerFunc{
-				"GET /2025-07-01/metrics/" + action: ok(&got, []map[string]any{
+				"GET /2026-09-01/metrics/" + action: ok(&got, []map[string]any{
 					{
 						"time_bucket": "2026-08-01T00:00:00Z",
 						"dimensions":  map[string]any{"status": "FAILED"},
@@ -1334,19 +1352,19 @@ func TestMetricsActionsHitTheirOwnEndpoints(t *testing.T) {
 				"end":         "2026-08-14T00:00:00Z",
 				"granularity": "1d",
 				"measures":    []any{"count"},
-				"dimensions":  []any{"status"},
-				"source_id":   "src_1",
+				"dimensions":  []any{tc.dim},
+				tc.arg:        tc.value,
 			})
 
-			assert.Equal(t, "/2025-07-01/metrics/"+action, got.path)
+			assert.Equal(t, "/2026-09-01/metrics/"+action, got.path)
 			// The range uses bracketed keys, and repeated values use "[]"
 			// suffixes; neither is interchangeable with a plain key.
 			assert.Contains(t, got.query, "date_range%5Bstart%5D=2026-08-01T00%3A00%3A00Z")
 			assert.Contains(t, got.query, "date_range%5Bend%5D=2026-08-14T00%3A00%3A00Z")
 			assert.Contains(t, got.query, "granularity=1d")
 			assert.Contains(t, got.query, "measures%5B%5D=count")
-			assert.Contains(t, got.query, "dimensions%5B%5D=status")
-			assert.Contains(t, got.query, "filters%5Bsource_id%5D=src_1")
+			assert.Contains(t, got.query, "dimensions%5B%5D="+tc.dim)
+			assert.Contains(t, got.query, tc.wantKey)
 			assert.Contains(t, string(envelopeData(t, text)), "42")
 		})
 	}
@@ -1426,10 +1444,9 @@ func coveredActions() map[string]map[string]bool {
 		// singular by-id tools they hand IDs to.
 		"requests": {"list": true},
 		"request": {
-			"get": true, "raw_body": true, "events": true,
-			"ignored_events": true, "retry": true,
+			"get": true, "raw_body": true, "retry": true,
 		},
-		"events": {"list": true},
+		"events": {"list": true, "list_ignored": true},
 		"event": {
 			"get": true, "raw_body": true,
 			"retry": true, "cancel": true, "mute": true,
@@ -1444,20 +1461,27 @@ func coveredActions() map[string]map[string]bool {
 
 // An argument the tool does not have is ignored by the API, so the call goes
 // out unfiltered and the result reads as though it were filtered.
-// gateway_events has no request_id filter; passing one returned every event.
+//
+// webhook_id is the example because it is the trap an agent actually falls
+// into: it is the API's own name for the connection filter, and this tool
+// spells it connection_id. A caller reading the API reference reaches for the
+// wrong one, and before this guard the answer was every event in the project.
+//
+// (This test used request_id until v3.0.0, when gateway_events gained a real
+// request_id argument and the example stopped being unknown.)
 func TestUnknownArgumentsAreRejected(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
+		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
 	result := callTool(t, session, "gateway_events", map[string]any{
-		"action": "list", "request_id": "req_1",
+		"action": "list", "webhook_id": "web_1",
 	})
 
 	require.True(t, result.IsError, "an unknown filter must not be silently ignored")
 	text := textContent(t, result)
-	assert.Contains(t, text, "request_id")
+	assert.Contains(t, text, "webhook_id")
 	assert.Contains(t, text, "This tool accepts:", "the caller needs to know what is valid here")
 	assert.Empty(t, got.query, "nothing should reach the API once the argument is rejected")
 }
@@ -1538,7 +1562,7 @@ func TestUnknownActionNamesTheSiblingTool(t *testing.T) {
 func TestHiddenArgOnAVisibleActionIsRejected(t *testing.T) {
 	var got wireRequest
 	session := readSession(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": ok(&got, listResponse(map[string]any{"id": "src_1"})),
+		"GET /2026-09-01/sources": ok(&got, listResponse(map[string]any{"id": "src_1"})),
 	})
 
 	result := callTool(t, session, "gateway_sources", map[string]any{

@@ -20,7 +20,7 @@ func TestIsOutpostProject(t *testing.T) {
 
 	// Gateway and Console types must not satisfy the Outpost gate, and nor must
 	// an unset type — an unknown project should be resolved, not assumed.
-	for _, value := range []string{ProjectTypeGateway, ProjectTypeConsole, "inbound", "outbound", "console", ""} {
+	for _, value := range []string{ProjectTypeEventGateway, ProjectTypeConsole, "inbound", "outbound", "console", ""} {
 		assert.False(t, IsOutpostProject(value), "expected %q not to be an Outpost project", value)
 	}
 }

@@ -228,7 +228,7 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 	// The API is left unstubbed: a request reaching it would mean the guard
 	// failed to stop the call.
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
 			t.Errorf("read-only server called the API: %s %s", r.Method, r.URL.Path)
 		},
 	})
@@ -260,7 +260,7 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 
 func TestWriteGuard_AllowsWriteActionsInWriteMode(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+		"PUT /2026-09-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "acme", "topics": []string{}})
 		},
@@ -353,7 +353,7 @@ func TestActionSet(t *testing.T) {
 func TestTenantsList(t *testing.T) {
 	var gotQuery string
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/tenants": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/tenants": func(w http.ResponseWriter, r *http.Request) {
 			gotQuery = r.URL.RawQuery
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"models":     []map[string]any{{"id": "acme"}},
@@ -399,7 +399,7 @@ func TestDestinationsRequireTenantID(t *testing.T) {
 func TestDestinationsList(t *testing.T) {
 	var gotQuery string
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/tenants/acme/destinations": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/tenants/acme/destinations": func(w http.ResponseWriter, r *http.Request) {
 			gotQuery = r.URL.RawQuery
 			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": "des_1", "type": "webhook", "topics": "*"}})
 		},
@@ -420,7 +420,7 @@ func TestDestinationsList(t *testing.T) {
 
 func TestEventsRetryReportsQueued(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/retry": func(w http.ResponseWriter, r *http.Request) {
+		"POST /2026-09-01/retry": func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			assert.Equal(t, "evt_1", body["event_id"])
@@ -452,7 +452,7 @@ func TestEventsRetryRequiresDestination(t *testing.T) {
 
 func TestDestinationTypesOmitSetupDocsByDefault(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/destination-types": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/destination-types": func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode([]map[string]any{{
 				"type":         "webhook",
 				"label":        "Webhook",
@@ -500,7 +500,7 @@ func TestMetricsRequiresStartEndAndMeasures(t *testing.T) {
 func TestMetricsFilters(t *testing.T) {
 	var gotQuery string
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/metrics/attempts": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/metrics/attempts": func(w http.ResponseWriter, r *http.Request) {
 			gotQuery = r.URL.RawQuery
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}, "metadata": map[string]any{}})
 		},
@@ -531,7 +531,7 @@ func TestConfigSetRejectsAnEmptyChange(t *testing.T) {
 func TestConfigSetSendsValuesAndUnsets(t *testing.T) {
 	var body map[string]*string
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"PATCH /2025-07-01/config": func(w http.ResponseWriter, r *http.Request) {
+		"PATCH /2026-09-01/config": func(w http.ResponseWriter, r *http.Request) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			_ = json.NewEncoder(w).Encode(map[string]any{"TOPICS": "user.created"})
 		},
@@ -557,10 +557,10 @@ func TestPublishUsesTheProjectAPIKeyAsBearer(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
 		// Publishing first checks the tenant exists in the project the publish
 		// credential routes to.
-		"GET /2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "acme"})
 		},
-		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
+		"POST /2026-09-01/publish": func(w http.ResponseWriter, r *http.Request) {
 			authHeader = r.Header.Get("Authorization")
 			w.WriteHeader(http.StatusAccepted)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "evt_1", "destination_ids": []string{"des_1"}})
@@ -588,7 +588,7 @@ func TestPublishUsesTheProjectAPIKeyAsBearer(t *testing.T) {
 
 func TestScopeFailureIsReportedAsNotPermitted(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/tenants": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/tenants": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "insufficient scope"})
 		},
@@ -713,11 +713,11 @@ func TestServerIdentity(t *testing.T) {
 func TestPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
 	var published bool
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/ghost": func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/tenants/ghost": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "tenant not found"})
 		},
-		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
+		"POST /2026-09-01/publish": func(w http.ResponseWriter, r *http.Request) {
 			published = true
 			w.WriteHeader(http.StatusAccepted)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "evt_1", "destination_ids": []string{}})
@@ -744,10 +744,10 @@ func TestPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
 // is never delivered or recorded, so a bare success would be misleading.
 func TestPublishWarnsWhenNothingMatched(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "acme"})
 		},
-		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
+		"POST /2026-09-01/publish": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "evt_1", "destination_ids": []string{}})
 		},

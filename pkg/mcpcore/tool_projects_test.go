@@ -19,7 +19,7 @@ import (
 func projectsAPI(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/2025-07-01/cli-auth/validate", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/2026-09-01/cli-auth/validate", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"user_id":   "usr_test",
 			"user_name": "Test User",
@@ -27,11 +27,11 @@ func projectsAPI(t *testing.T) *httptest.Server {
 			"team_mode": "inbound",
 		})
 	})
-	mux.HandleFunc("/2025-07-01/teams", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/2026-09-01/projects", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"id": "proj_gateway", "name": "[Acme] gateway-project", "mode": "inbound"},
-			{"id": "proj_outpost", "name": "[Acme] outpost-project", "mode": "outpost"},
+			{"id": "proj_gateway", "name": "[Acme] gateway-project", "type": "inbound"},
+			{"id": "proj_outpost", "name": "[Acme] outpost-project", "type": "outpost"},
 		})
 	})
 	srv := httptest.NewServer(mux)

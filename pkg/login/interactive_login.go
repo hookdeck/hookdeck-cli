@@ -19,8 +19,26 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
 
+// ErrInteractiveLoginNoTerminal is returned when hookdeck login -i is run with
+// no terminal. The key prompt reads without echoing, which needs terminal
+// control; without a terminal term.GetState fails and the raw termios error
+// ("operation not supported by device") reached the caller, printed after a
+// prompt they could never answer and saying nothing about what to do instead.
+var ErrInteractiveLoginNoTerminal = errors.New(
+	"interactive sign-in needs an interactive terminal to read the key without echoing it; " +
+		"use hookdeck login --cli-key with a CLI key, " +
+		"hookdeck ci --api-key with a project API key, " +
+		"or set HOOKDECK_API_KEY to a project API key",
+)
+
 // InteractiveLogin lets the user set configuration on the command line
 func InteractiveLogin(config *configpkg.Config) error {
+	// Refuse before printing the prompt: securePrompt reads os.Stdin with echo
+	// disabled, so there is nothing this flow can do without a terminal.
+	if !stdinIsTerminal() {
+		return ErrInteractiveLoginNoTerminal
+	}
+
 	apiKey, err := getConfigureAPIKey(os.Stdin)
 	if err != nil {
 		return err
@@ -66,7 +84,7 @@ func InteractiveLogin(config *configpkg.Config) error {
 		return err
 	}
 
-	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, response.ProjectMode == "console")
+	message := SuccessMessage(response.UserName, response.UserEmail, response.OrganizationName, response.ProjectName, configpkg.IsConsoleProject(response.ProjectType, response.ProjectMode))
 
 	ansi.StopSpinner(s, message, os.Stdout)
 

@@ -51,7 +51,7 @@ func requireOutpostProject(cfg *config.Config) error {
 
 	projectType := cfg.Profile.ProjectType
 	if projectType == "" && cfg.Profile.ProjectMode != "" {
-		projectType = config.ModeToProjectType(cfg.Profile.ProjectMode)
+		projectType = config.ModeToType(cfg.Profile.ProjectMode)
 	}
 	if projectType == "" {
 		// Resolve from the API, which is authoritative for the key.

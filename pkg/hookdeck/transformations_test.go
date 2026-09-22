@@ -41,3 +41,44 @@ func TestTransformationRunResponse_Failed(t *testing.T) {
 		})
 	}
 }
+
+// TestTransformationRunResponse_ConsoleText covers the other half of #410: the
+// failure reason only ever arrives in the console array, so a run that threw
+// has nothing to say about itself unless this renders it.
+func TestTransformationRunResponse_ConsoleText(t *testing.T) {
+	tests := []struct {
+		name     string
+		response *TransformationRunResponse
+		want     string
+	}{
+		{"nil response", nil, ""},
+		{"no console output", &TransformationRunResponse{LogLevel: "info"}, ""},
+		{
+			name: "a throwing handler's error",
+			response: &TransformationRunResponse{
+				LogLevel: "fatal",
+				Console:  []TransformationConsoleLine{{Type: "error", Message: "Error: boom"}},
+			},
+			want: "[error] Error: boom",
+		},
+		{
+			name: "several lines are one per line",
+			response: &TransformationRunResponse{
+				LogLevel: "error",
+				Console: []TransformationConsoleLine{
+					{Type: "log", Message: "starting"},
+					{Type: "error", Message: "bad input"},
+				},
+			},
+			want: "[log] starting\n[error] bad input",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.response.ConsoleText(); got != tt.want {
+				t.Errorf("ConsoleText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

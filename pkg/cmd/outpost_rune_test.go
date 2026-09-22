@@ -139,10 +139,10 @@ func decodeConfigBody(t *testing.T, raw []byte) map[string]*string {
 
 func TestOutpostConfigSetSendsThePatch(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/config": jsonResponse(http.StatusOK, map[string]string{
+		"GET /2026-09-01/config": jsonResponse(http.StatusOK, map[string]string{
 			"TOPICS": "user.created", "MAX_RETRY_LIMIT": "3",
 		}),
-		"PATCH /2025-07-01/config": jsonResponse(http.StatusOK, map[string]string{
+		"PATCH /2026-09-01/config": jsonResponse(http.StatusOK, map[string]string{
 			"TOPICS": "user.created,user.updated",
 		}),
 	})
@@ -155,7 +155,7 @@ func TestOutpostConfigSetSendsThePatch(t *testing.T) {
 	require.Len(t, *requests, 2, "the current config is read first so a diff can be shown")
 	patch := (*requests)[1]
 	assert.Equal(t, http.MethodPatch, patch.method)
-	assert.Equal(t, "/2025-07-01/config", patch.path)
+	assert.Equal(t, "/2026-09-01/config", patch.path)
 
 	body := decodeConfigBody(t, patch.body)
 	require.Contains(t, body, "TOPICS")
@@ -174,7 +174,7 @@ func TestOutpostConfigSetSendsThePatch(t *testing.T) {
 
 func TestOutpostConfigSetDryRunSendsNoPatch(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/config": jsonResponse(http.StatusOK, map[string]string{
+		"GET /2026-09-01/config": jsonResponse(http.StatusOK, map[string]string{
 			"TOPICS": "user.created", "MAX_RETRY_LIMIT": "3",
 		}),
 	})
@@ -197,8 +197,8 @@ func TestOutpostConfigSetDryRunSendsNoPatch(t *testing.T) {
 
 func TestOutpostConfigSetFromAFile(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/config":   jsonResponse(http.StatusOK, map[string]string{}),
-		"PATCH /2025-07-01/config": jsonResponse(http.StatusOK, map[string]string{"TOPICS": "a"}),
+		"GET /2026-09-01/config":   jsonResponse(http.StatusOK, map[string]string{}),
+		"PATCH /2026-09-01/config": jsonResponse(http.StatusOK, map[string]string{"TOPICS": "a"}),
 	})
 
 	path := filepath.Join(t.TempDir(), "config.json")
@@ -242,7 +242,7 @@ func TestOutpostConfigSetValidation(t *testing.T) {
 
 func TestOutpostConfigGet(t *testing.T) {
 	stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/config": jsonResponse(http.StatusOK, map[string]any{
+		"GET /2026-09-01/config": jsonResponse(http.StatusOK, map[string]any{
 			"TOPICS": "user.created", "UNSET_KEY": nil,
 		}),
 	})
@@ -274,7 +274,7 @@ func TestOutpostConfigGet(t *testing.T) {
 func TestOutpostCustomDomain(t *testing.T) {
 	t.Run("get reports a configured domain and its DNS records", func(t *testing.T) {
 		stubOutpostAPI(t, map[string]http.HandlerFunc{
-			"GET /2025-07-01/config/custom_domain": jsonResponse(http.StatusOK, map[string]any{
+			"GET /2026-09-01/config/custom_domain": jsonResponse(http.StatusOK, map[string]any{
 				"hostname": "portal.example.com",
 				"status":   "pending",
 				"verification": []map[string]any{
@@ -293,7 +293,7 @@ func TestOutpostCustomDomain(t *testing.T) {
 
 	t.Run("get says how to add one when there is none", func(t *testing.T) {
 		stubOutpostAPI(t, map[string]http.HandlerFunc{
-			"GET /2025-07-01/config/custom_domain": jsonResponse(http.StatusOK, map[string]any{}),
+			"GET /2026-09-01/config/custom_domain": jsonResponse(http.StatusOK, map[string]any{}),
 		})
 
 		stdout, err := runCommand(t, newOutpostCustomDomainGetCmd().cmd)
@@ -304,7 +304,7 @@ func TestOutpostCustomDomain(t *testing.T) {
 
 	t.Run("set posts the hostname and echoes the DNS records", func(t *testing.T) {
 		requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-			"POST /2025-07-01/config/custom_domain": jsonResponse(http.StatusCreated, map[string]any{
+			"POST /2026-09-01/config/custom_domain": jsonResponse(http.StatusCreated, map[string]any{
 				"hostname": "portal.example.com",
 				"verification": []map[string]any{
 					{"type": "CNAME", "name": "portal", "value": "outpost.hookdeck.com"},
@@ -324,7 +324,7 @@ func TestOutpostCustomDomain(t *testing.T) {
 
 	t.Run("delete --force skips the prompt", func(t *testing.T) {
 		requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-			"DELETE /2025-07-01/config/custom_domain": jsonResponse(http.StatusOK, nil),
+			"DELETE /2026-09-01/config/custom_domain": jsonResponse(http.StatusOK, nil),
 		})
 
 		stdout, err := runCommand(t, newOutpostCustomDomainDeleteCmd().cmd, "--force")
@@ -332,7 +332,7 @@ func TestOutpostCustomDomain(t *testing.T) {
 
 		require.Len(t, *requests, 1)
 		assert.Equal(t, http.MethodDelete, (*requests)[0].method)
-		assert.Equal(t, "/2025-07-01/config/custom_domain", (*requests)[0].path)
+		assert.Equal(t, "/2026-09-01/config/custom_domain", (*requests)[0].path)
 		assert.Contains(t, stdout, "Custom domain removed")
 	})
 }
@@ -343,7 +343,7 @@ func TestOutpostCustomDomain(t *testing.T) {
 // delete going through unprompted in a script.
 func TestOutpostCustomDomainDeleteWithoutForceDoesNotDelete(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/config/custom_domain": func(w http.ResponseWriter, r *http.Request) {
+		"DELETE /2026-09-01/config/custom_domain": func(w http.ResponseWriter, r *http.Request) {
 			t.Error("the domain was deleted without confirmation")
 		},
 	})
@@ -359,7 +359,7 @@ func TestOutpostCustomDomainDeleteWithoutForceDoesNotDelete(t *testing.T) {
 func TestOutpostTenantPortal(t *testing.T) {
 	t.Run("prints the URL and passes the theme through", func(t *testing.T) {
 		requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-			"GET /2025-07-01/tenants/acme/portal": jsonResponse(http.StatusOK, map[string]any{
+			"GET /2026-09-01/tenants/acme/portal": jsonResponse(http.StatusOK, map[string]any{
 				"redirect_url": "https://portal.example.com/s/abc",
 				"tenant_id":    "acme",
 			}),
@@ -380,7 +380,7 @@ func TestOutpostTenantPortal(t *testing.T) {
 	// documented in the command's help, so the error has to name it too.
 	t.Run("a project with no portal is explained, not dumped", func(t *testing.T) {
 		stubOutpostAPI(t, map[string]http.HandlerFunc{
-			"GET /2025-07-01/tenants/acme/portal": jsonResponse(http.StatusNotFound, map[string]any{
+			"GET /2026-09-01/tenants/acme/portal": jsonResponse(http.StatusNotFound, map[string]any{
 				"data": map[string]any{"message": "Portal not configured for this project"},
 				"code": "NOT_FOUND",
 			}),
@@ -408,11 +408,11 @@ func TestOutpostTenantPortal(t *testing.T) {
 
 func TestOutpostDestinationCreateSendsMetadata(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/destination-types": jsonResponse(http.StatusOK, []map[string]any{{
+		"GET /2026-09-01/destination-types": jsonResponse(http.StatusOK, []map[string]any{{
 			"type":          "webhook",
 			"config_fields": []map[string]any{{"key": "url", "type": "text", "required": true}},
 		}}),
-		"POST /2025-07-01/tenants/acme/destinations": jsonResponse(http.StatusCreated, map[string]any{
+		"POST /2026-09-01/tenants/acme/destinations": jsonResponse(http.StatusCreated, map[string]any{
 			"id": "des_1", "type": "webhook", "topics": "*",
 		}),
 	})
@@ -436,7 +436,7 @@ func TestOutpostDestinationCreateSendsMetadata(t *testing.T) {
 
 func TestOutpostDestinationUpdateSendsMetadataFromAFile(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"PATCH /2025-07-01/tenants/acme/destinations/des_1": jsonResponse(http.StatusOK, map[string]any{
+		"PATCH /2026-09-01/tenants/acme/destinations/des_1": jsonResponse(http.StatusOK, map[string]any{
 			"id": "des_1", "type": "webhook", "topics": "*",
 		}),
 	})
@@ -533,7 +533,7 @@ func TestOutpostFlagsRejectEmptyValues(t *testing.T) {
 // MCP publish tool has always checked first; the CLI did not.
 func TestOutpostPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/ghost": jsonResponse(http.StatusNotFound,
+		"GET /2026-09-01/tenants/ghost": jsonResponse(http.StatusNotFound,
 			map[string]string{"message": "not found"}),
 	})
 
@@ -548,7 +548,7 @@ func TestOutpostPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
 		"the error has to say why a success would have been misleading")
 
 	for _, r := range *requests {
-		assert.NotEqual(t, "/2025-07-01/publish", r.path,
+		assert.NotEqual(t, "/2026-09-01/publish", r.path,
 			"nothing should be published once the tenant check has failed")
 	}
 }
@@ -556,8 +556,8 @@ func TestOutpostPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
 // The guard must not block a real publish.
 func TestOutpostPublishProceedsWhenTheTenantExists(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme": jsonResponse(http.StatusOK, map[string]string{"id": "acme"}),
-		"POST /2025-07-01/publish": jsonResponse(http.StatusAccepted, map[string]any{
+		"GET /2026-09-01/tenants/acme": jsonResponse(http.StatusOK, map[string]string{"id": "acme"}),
+		"POST /2026-09-01/publish": jsonResponse(http.StatusAccepted, map[string]any{
 			"id": "evt_1", "destination_ids": []string{"des_1"},
 		}),
 	})
@@ -570,7 +570,7 @@ func TestOutpostPublishProceedsWhenTheTenantExists(t *testing.T) {
 
 	var published bool
 	for _, r := range *requests {
-		if r.path == "/2025-07-01/publish" {
+		if r.path == "/2026-09-01/publish" {
 			published = true
 		}
 	}
@@ -581,9 +581,9 @@ func TestOutpostPublishProceedsWhenTheTenantExists(t *testing.T) {
 // failure would be worse than the problem being guarded against.
 func TestOutpostPublishProceedsWhenTheTenantCheckErrors(t *testing.T) {
 	requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme": jsonResponse(http.StatusInternalServerError,
+		"GET /2026-09-01/tenants/acme": jsonResponse(http.StatusInternalServerError,
 			map[string]string{"message": "upstream unavailable"}),
-		"POST /2025-07-01/publish": jsonResponse(http.StatusAccepted, map[string]any{"id": "evt_1"}),
+		"POST /2026-09-01/publish": jsonResponse(http.StatusAccepted, map[string]any{"id": "evt_1"}),
 	})
 
 	cmd := newOutpostPublishCmd().cmd
@@ -594,7 +594,7 @@ func TestOutpostPublishProceedsWhenTheTenantCheckErrors(t *testing.T) {
 
 	var published bool
 	for _, r := range *requests {
-		if r.path == "/2025-07-01/publish" {
+		if r.path == "/2026-09-01/publish" {
 			published = true
 		}
 	}

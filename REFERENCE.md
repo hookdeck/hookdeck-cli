@@ -264,7 +264,7 @@ hookdeck gateway connection list
 hookdeck gateway source create --name my-source --type WEBHOOK
 
 # Query event metrics
-hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z
+hookdeck gateway metrics events --start 2026-01-01T00:00:00Z --end 2026-02-01T00:00:00Z --measures count
 
 # Start the MCP server for AI agent access
 hookdeck gateway mcp
@@ -357,6 +357,10 @@ hookdeck gateway connection create [flags]
 | `--destination-cli-path` | `string` | CLI path for CLI destinations (default: /) (default "/") |
 | `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
 | `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--destination-delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--destination-delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--destination-delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--destination-description` | `string` | Destination description |
 | `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
 | `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
@@ -612,6 +616,10 @@ hookdeck gateway connection upsert <name> [flags]
 | `--destination-cli-path` | `string` | CLI path for CLI destinations (default: / for new connections) |
 | `--destination-custom-signature-key` | `string` | Key/header name for custom signature |
 | `--destination-custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--destination-delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--destination-delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--destination-delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--destination-delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--destination-description` | `string` | Destination description |
 | `--destination-gcp-scope` | `string` | GCP scope for service account authentication |
 | `--destination-gcp-service-account-key` | `string` | GCP service account key JSON for destination authentication |
@@ -1087,6 +1095,10 @@ hookdeck gateway destination create [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | Destination description |
 | `--http-method` | `string` | HTTP method for HTTP destinations (GET, POST, PUT, PATCH, DELETE) |
 | `--name` | `string` | Destination name (required) |
@@ -1154,6 +1166,10 @@ hookdeck gateway destination update <destination-id> [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | New destination description |
 | `--http-method` | `string` | HTTP method for HTTP destinations |
 | `--name` | `string` | New destination name |
@@ -1218,6 +1234,10 @@ hookdeck gateway destination upsert <name> [flags]
 | `--config-file` | `string` | Path to JSON file for destination config (overrides individual flags if set) |
 | `--custom-signature-key` | `string` | Key/header name for custom signature |
 | `--custom-signature-secret` | `string` | Signing secret for custom signature |
+| `--delivery-group-key` | `string` | Payload field path used to group deliveries (for example body.customer_id) |
+| `--delivery-group-overrides` | `string` | JSON object of group-specific delivery rate overrides |
+| `--delivery-group-rate` | `int` | Default maximum delivery rate for each delivery group (default "0") |
+| `--delivery-group-rate-period` | `string` | Delivery group rate period (second, minute, hour) |
 | `--description` | `string` | Destination description |
 | `--dry-run` | `bool` | Preview changes without applying |
 | `--http-method` | `string` | HTTP method for HTTP destinations |
@@ -1744,7 +1764,7 @@ hookdeck gateway request list [flags]
 | `--rejection-cause` | `string` | Filter by rejection cause |
 | `--search-term` | `string` | Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters) |
 | `--source-id` | `string` | Filter by source ID |
-| `--status` | `string` | Filter by status |
+| `--status` | `string` | Filter by status (accepted, rejected) |
 | `--verified` | `string` | Filter by verified (true/false) |
 
 **Examples:**
@@ -1802,6 +1822,9 @@ hookdeck gateway request retry req_abc123 --connection-ids web_1,web_2
 
 List events (deliveries) created from a request.
 
+Filters match `hookdeck gateway event list`: this command queries the same event
+collection, narrowed to one request.
+
 **Usage:**
 
 ```bash
@@ -1812,15 +1835,42 @@ hookdeck gateway request events <request-id> [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
+| `--attempts` | `string` | Filter by number of attempts. A whole number |
+| `--body` | `string` | Filter by body (JSON string) |
+| `--cli-id` | `string` | Filter by CLI ID |
+| `--connection-id` | `string` | Filter by connection ID |
+| `--created-after` | `string` | Filter events created after (ISO date-time) |
+| `--created-before` | `string` | Filter events created before (ISO date-time) |
+| `--delivery-group` | `string` | Filter by delivery group (comma-separated) |
+| `--destination-id` | `string` | Filter by destination ID |
+| `--dir` | `string` | Sort direction (asc, desc) |
+| `--error-code` | `string` | Filter by error code |
+| `--headers` | `string` | Filter by headers (JSON string) |
+| `--issue-id` | `string` | Filter by issue ID |
+| `--last-attempt-at-after` | `string` | Filter by last_attempt_at after (ISO date-time) |
+| `--last-attempt-at-before` | `string` | Filter by last_attempt_at before (ISO date-time) |
 | `--limit` | `int` | Limit number of results (default "100") |
 | `--next` | `string` | Pagination cursor for next page |
+| `--next-attempt-at-after` | `string` | Filter by next_attempt_at after (ISO date-time) |
+| `--next-attempt-at-before` | `string` | Filter by next_attempt_at before (ISO date-time) |
+| `--order-by` | `string` | Sort key (e.g. created_at) |
 | `--output` | `string` | Output format (json) |
+| `--parsed-query` | `string` | Filter by parsed query (JSON string) |
+| `--path` | `string` | Filter by path |
 | `--prev` | `string` | Pagination cursor for previous page |
+| `--response-status` | `string` | Filter by HTTP response status (e.g. 200, 500) |
+| `--search-term` | `string` | Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters) |
+| `--source-id` | `string` | Filter by source ID |
+| `--status` | `string` | Filter by status (SCHEDULED, QUEUED, HOLD, SUCCESSFUL, FAILED, CANCELLED) |
+| `--successful-at-after` | `string` | Filter by successful_at after (ISO date-time) |
+| `--successful-at-before` | `string` | Filter by successful_at before (ISO date-time) |
 
 **Examples:**
 
 ```bash
 hookdeck gateway request events req_abc123
+hookdeck gateway request events req_abc123 --status FAILED
+hookdeck gateway request events req_abc123 --destination-id des_abc123
 ```
 ### hookdeck gateway request ignored-events
 

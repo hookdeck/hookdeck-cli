@@ -15,12 +15,12 @@ import (
 
 func TestFillProjectDisplayNameIfNeeded_SetsNameFromAPI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/2025-07-01/teams" {
+		if r.URL.Path != "/2026-09-01/projects" {
 			http.NotFound(w, r)
 			return
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"id": "proj_x", "name": "[Acme] production", "mode": "console"},
+			{"id": "proj_x", "name": "[Acme] production", "type": "console"},
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -48,12 +48,12 @@ func TestFillProjectDisplayNameIfNeeded_NoOpWhenNameSet(t *testing.T) {
 // updated.
 func TestFillProjectDisplayNameIfNeeded_LooksUpThroughTheAccountClient(t *testing.T) {
 	accountAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/2025-07-01/teams" {
+		if r.URL.Path != "/2026-09-01/projects" {
 			http.NotFound(w, r)
 			return
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"id": "proj_x", "name": "[Acme] production", "mode": "outpost"},
+			{"id": "proj_x", "name": "[Acme] production", "type": "outpost"},
 		})
 	}))
 	t.Cleanup(accountAPI.Close)
@@ -86,7 +86,7 @@ func TestFillProjectDisplayName_ProjectScopedKey(t *testing.T) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/cli-auth/validate"):
 			_, _ = w.Write([]byte(`{"team_id":"tm_1","team_name_no_org":"cli outpost testing","organization_name":"Automated Testing"}`))
-		case strings.HasSuffix(r.URL.Path, "/teams"):
+		case strings.HasSuffix(r.URL.Path, "/projects"):
 			listCalled = true
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"message":"This credential is scoped to a single project"}`))
@@ -114,8 +114,8 @@ func TestFillProjectDisplayName_FallsBackToListing(t *testing.T) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/cli-auth/validate"):
 			_, _ = w.Write([]byte(`{"team_id":"tm_other","team_name_no_org":"wrong one","organization_name":"Org"}`))
-		case strings.HasSuffix(r.URL.Path, "/teams"):
-			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"[Acme] the active one","mode":"outpost"}]`))
+		case strings.HasSuffix(r.URL.Path, "/projects"):
+			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"[Acme] the active one","type":"outpost"}]`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

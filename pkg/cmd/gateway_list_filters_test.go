@@ -52,7 +52,7 @@ func captureListQuery(t *testing.T, args ...string) url.Values {
 	Config = config.Config{APIBaseURL: server.URL, LogLevel: "info"}
 	Config.Profile.APIKey = "sk_test_123456789012"
 	Config.Profile.ProjectId = "proj_1"
-	Config.Profile.ProjectType = config.ProjectTypeGateway
+	Config.Profile.ProjectType = config.ProjectTypeEventGateway
 
 	root := &cobra.Command{Use: "hookdeck", SilenceUsage: true, SilenceErrors: true}
 	root.AddCommand(newGatewayCmd().cmd)

@@ -91,6 +91,11 @@ type connectionCreateCmd struct {
 	DestinationRateLimit       int
 	DestinationRateLimitPeriod string
 
+	DestinationDeliveryGroupKey        string
+	DestinationDeliveryGroupRate       int
+	DestinationDeliveryGroupRatePeriod string
+	DestinationDeliveryGroupOverrides  string
+
 	// Rule flags shared with update/upsert
 	connectionRuleFlags
 
@@ -223,8 +228,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd.Flags().StringVar(&cc.DestinationGCPScope, "destination-gcp-scope", "", "GCP scope for service account authentication")
 
 	// Destination rate limiting flags
-	cc.cmd.Flags().IntVar(&cc.DestinationRateLimit, "destination-rate-limit", 0, "Rate limit for destination (requests per period)")
-	cc.cmd.Flags().StringVar(&cc.DestinationRateLimitPeriod, "destination-rate-limit-period", "", "Rate limit period (second, minute, hour, concurrent)")
+	addConnectionDestinationDeliveryPolicyFlags(cc.cmd, cc)
 
 	addConnectionRuleFlags(cc.cmd, &cc.connectionRuleFlags)
 
@@ -406,7 +410,16 @@ func (cc *connectionCreateCmd) validateRateLimiting() error {
 		// Let API validate the period value (supports: second, minute, hour, concurrent)
 	}
 
-	return nil
+	_, err := buildDeliveryPolicy(
+		cc.DestinationRateLimit,
+		cc.DestinationRateLimitPeriod,
+		cc.DestinationDeliveryGroupKey,
+		cc.DestinationDeliveryGroupRate,
+		cc.DestinationDeliveryGroupRatePeriod,
+		cc.DestinationDeliveryGroupOverrides,
+		"destination-",
+	)
+	return err
 }
 
 func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args []string) error {
@@ -564,7 +577,13 @@ func (cc *connectionCreateCmd) buildDestinationInput() (*hookdeck.DestinationCre
 			destinationConfig["http_method"] = method
 		}
 	case "CLI":
-		destinationConfig["path"] = cc.destinationCliPath
+		// An empty path means "leave it alone". connection create never reaches
+		// that (its --destination-cli-path defaults to "/"), but connection
+		// upsert deliberately clears it against an existing CLI destination, and
+		// sending "" would reset the stored path just as "/" did.
+		if cc.destinationCliPath != "" {
+			destinationConfig["path"] = cc.destinationCliPath
+		}
 	case "MOCK_API":
 		// No extra fields needed for MOCK_API
 	default:
@@ -595,11 +614,22 @@ func (cc *connectionCreateCmd) buildDestinationConfig() (map[string]interface{},
 		config["auth"] = auth
 	}
 
-	// Add rate limiting configuration
-	if cc.DestinationRateLimit > 0 {
-		config["rate_limit"] = cc.DestinationRateLimit
-		config["rate_limit_period"] = cc.DestinationRateLimitPeriod
+	policy, err := buildDeliveryPolicy(
+		cc.DestinationRateLimit,
+		cc.DestinationRateLimitPeriod,
+		cc.DestinationDeliveryGroupKey,
+		cc.DestinationDeliveryGroupRate,
+		cc.DestinationDeliveryGroupRatePeriod,
+		cc.DestinationDeliveryGroupOverrides,
+		"destination-",
+	)
+	if err != nil {
+		return nil, err
 	}
+	if err := rejectDeliveryPolicyForCLI(cc.destinationType, policy, "destination-"); err != nil {
+		return nil, err
+	}
+	mergeDeliveryPolicy(config, policy)
 
 	if len(config) == 0 {
 		return make(map[string]interface{}), nil

@@ -22,13 +22,13 @@ func (c *Client) withoutStoredAuth() *Client {
 // ID is optional; supplying one makes the publish idempotent, and republishing
 // the same ID reports Duplicate rather than creating a second event.
 type OutpostPublishRequest struct {
-	ID               string                 `json:"id,omitempty"`
-	TenantID         string                 `json:"tenant_id"`
-	Topic            string                 `json:"topic"`
-	DestinationID    string                 `json:"destination_id,omitempty"`
-	EligibleForRetry *bool                  `json:"eligible_for_retry,omitempty"`
-	Time             *time.Time             `json:"time,omitempty"`
-	Metadata         map[string]string      `json:"metadata,omitempty"`
+	ID               string            `json:"id,omitempty"`
+	TenantID         string            `json:"tenant_id"`
+	Topic            string            `json:"topic"`
+	DestinationID    string            `json:"destination_id,omitempty"`
+	EligibleForRetry *bool             `json:"eligible_for_retry,omitempty"`
+	Time             *time.Time        `json:"time,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
 	// Data is a pointer for the same reason a destination filter is: the API
 	// requires a payload and accepts an empty object, but omitempty dropped an
 	// empty map, so --data '{}' sent no data at all and the publish failed

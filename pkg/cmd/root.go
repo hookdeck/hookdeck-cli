@@ -94,6 +94,27 @@ func (e *actionableError) Error() string { return e.err.Error() }
 // let the generic message win.
 func (e *actionableError) Unwrap() error { return e.err }
 
+// alreadyReportedError marks an error whose message the command has already
+// written to stderr itself. Execute exits non-zero without printing it again.
+//
+// This exists for commands producing machine-readable output: Execute's default
+// branch prints errors to stdout, which for `--output json` would append prose
+// to the JSON and stop the whole stream parsing. The command writes the reason
+// to stderr, keeps stdout pure, and returns this so the exit code still says it
+// failed.
+type alreadyReportedError struct {
+	err error
+}
+
+func (e *alreadyReportedError) Error() string { return e.err.Error() }
+
+func (e *alreadyReportedError) Unwrap() error { return e.err }
+
+// newAlreadyReportedError marks an error as already written to stderr.
+func newAlreadyReportedError(err error) error {
+	return &alreadyReportedError{err: err}
+}
+
 // newActionableError marks an error as carrying its own recovery guidance.
 func newActionableError(err error) error {
 	return &actionableError{err: err}
@@ -200,6 +221,10 @@ func Execute() {
 				fmt.Println(msg)
 			}
 
+		case errors.As(err, new(*alreadyReportedError)):
+			// The command already wrote the reason to stderr; printing it here
+			// would duplicate it, and on stdout would corrupt --output json.
+
 		case errors.As(err, new(*actionableError)):
 			// The command already explained what to do; do not replace it with
 			// the generic recovery text below.
@@ -211,11 +236,18 @@ func Execute() {
 
 		default:
 			if hookdeck.IsUnauthorizedError(err) {
-				msg := "Authentication failed: your API key is invalid or expired.\n\n" +
-					"Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`."
+				// Lead with whatever the API said. The generic text is a guess:
+				// a bare 401 cannot tell an expired key from a wrong-type one.
+				msg := "Authentication failed: your API key is invalid or expired.\n\n"
+				if serverMsg := unauthorizedServerMessage(err); serverMsg != "" {
+					msg = "Authentication failed: " + serverMsg + "\n\n"
+				}
+				msg += "Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`."
 				if isMCP {
 					// Only an MCP session can act on this; in a terminal it is
-					// advice about a tool the reader has no way to call.
+					// advice about a tool the reader has no way to call. The
+					// tool name is derived rather than hardcoded so it follows
+					// the login tool wherever it is registered.
 					fmt.Fprintln(os.Stderr, msg+"\n\nMCP: use "+mcpLoginTool+" with reauth: true.")
 				} else {
 					fmt.Println(msg)
@@ -392,4 +424,26 @@ func init() {
 	rootCmd.AddCommand(newTelemetryCmd().cmd)
 	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
 	addConnectionCmdTo(rootCmd)
+}
+
+// unauthorizedServerMessage returns the API's own explanation for a 401, if it
+// gave one. These endpoints currently answer with a bare "Unauthorized", so it
+// usually returns empty and the caller falls back to generic guidance.
+func unauthorizedServerMessage(err error) string {
+	var apiErr *hookdeck.APIError
+	if !errors.As(err, &apiErr) {
+		return ""
+	}
+	msg := strings.TrimSpace(apiErr.Message)
+	// APIError.Message is not always the server's words: for a non-JSON body
+	// checkAndPrintError synthesizes "unexpected http status code: ..." and
+	// stores it here. Printing that back is worse than the generic guidance.
+	if msg == "" || strings.HasPrefix(msg, "unexpected http status code:") {
+		return ""
+	}
+	// The bare status word says nothing the status code did not.
+	if strings.EqualFold(msg, "unauthorized") {
+		return ""
+	}
+	return msg
 }

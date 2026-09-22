@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -304,4 +305,107 @@ func TestGatewayMCPTool_HelpReportsMode(t *testing.T) {
 		append(append([]string{}, gatewayMCPCommand...), "--allow-write"),
 		"gateway_help", map[string]any{}, 20*time.Second)
 	assert.Contains(t, write.Text, "Mode: write enabled")
+}
+
+// --- Request-scoped event listings (v3.0.0: moved onto gateway_events) ---
+
+// firstRequestID returns a request id from the live project, or skips.
+func firstRequestID(t *testing.T, cli *CLIRunner) string {
+	t.Helper()
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests", map[string]any{
+		"action": "list",
+		"limit":  1,
+	}, 20*time.Second)
+	require.False(t, result.IsError, "listing requests failed: %s", result.Text)
+
+	m := regexp.MustCompile(`"id"\s*:\s*"(req_[A-Za-z0-9]+)"`).FindStringSubmatch(result.Text)
+	if m == nil {
+		t.Skip("no requests in the test project to scope an event listing to")
+	}
+	return m[1]
+}
+
+// TestMCPEventsScopedToARequest exercises the route the singular request tool
+// used to own. The filters have to reach GET /requests/{id}/events and be
+// accepted: an undeclared one comes back 422 from the live API, which a mock
+// cannot tell us.
+func TestMCPEventsScopedToARequest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	requestID := firstRequestID(t, cli)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+		"action":         "list",
+		"request_id":     requestID,
+		"created_after":  "2020-01-01T00:00:00Z",
+		"created_before": "2030-01-01T00:00:00Z",
+		"limit":          5,
+	}, 20*time.Second)
+
+	assert.False(t, result.IsError, "tool error: %s", result.Text)
+	assert.Contains(t, result.Text, `"data"`)
+}
+
+// TestMCPEventsIgnoredScopedToARequest covers the sibling route, which declares
+// only paging and ordering.
+func TestMCPEventsIgnoredScopedToARequest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	requestID := firstRequestID(t, cli)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+		"action":     "list_ignored",
+		"request_id": requestID,
+		"limit":      5,
+	}, 20*time.Second)
+
+	assert.False(t, result.IsError, "tool error: %s", result.Text)
+	assert.Contains(t, result.Text, `"data"`)
+}
+
+// TestMCPEventsIgnoredRefusesUndeclaredFilters is the guard, end to end.
+// GET /requests/{id}/ignored_events declares six query parameters where its
+// sibling declares thirty, so a filter has to be refused here rather than sent
+// to be ignored. The refusal is local, so this never reaches the API.
+func TestMCPEventsIgnoredRefusesUndeclaredFilters(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+		"action":     "list_ignored",
+		"request_id": "req_does_not_matter",
+		"status":     "FAILED",
+	}, 20*time.Second)
+
+	require.True(t, result.IsError, "a filter the route does not declare must be refused: %s", result.Text)
+	assert.Contains(t, result.Text, "status")
+}
+
+// TestMCPEventsStatusIsCanonicalisedAgainstTheLiveAPI is the case a mock cannot
+// prove. The events enum is upper case and the API 422s a lower-case value, so
+// if canonicalisation regresses this fails against the real endpoint.
+func TestMCPEventsStatusIsCanonicalisedAgainstTheLiveAPI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	for _, spelling := range []string{"FAILED", "failed", "Failed"} {
+		t.Run(spelling, func(t *testing.T) {
+			result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+				"action": "list",
+				"status": spelling,
+				"limit":  1,
+			}, 20*time.Second)
+
+			assert.False(t, result.IsError, "status %q was rejected: %s", spelling, result.Text)
+			assert.NotContains(t, result.Text, "422")
+		})
+	}
 }

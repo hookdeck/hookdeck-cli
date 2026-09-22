@@ -315,3 +315,28 @@ func OptionalStringPtr(in Input, key string) *string {
 	}
 	return &s
 }
+
+// ArgIsSet reports whether an argument carries a value worth acting on.
+//
+// A key present with a zero value is how MCP clients spell "not supplied" —
+// they serialise an empty string or a zero rather than omitting the key — so a
+// guard that only checked for presence would refuse calls that set nothing.
+//
+// Ported from the pre-v3.0.0 per-action argument guard, which needed the same
+// distinction.
+func ArgIsSet(v interface{}) bool {
+	switch val := v.(type) {
+	case nil:
+		return false
+	case string:
+		return val != ""
+	case float64:
+		return val != 0
+	case []interface{}:
+		return len(val) > 0
+	case map[string]interface{}:
+		return len(val) > 0
+	default:
+		return true
+	}
+}

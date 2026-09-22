@@ -54,9 +54,21 @@ type Model struct {
 	userNavigated bool // Track if user has manually navigated away from latest
 
 	// UI state
-	ready              bool
-	hasReceivedEvent   bool
-	isConnected        bool
+	ready            bool
+	hasReceivedEvent bool
+	isConnected      bool
+	// connState is the affirmative connection state drawn in the status bar on
+	// every frame. #399: the TUI used to render the full layout with an empty
+	// status bar while nothing was connected, so "connected" and "failing to
+	// connect for 40 seconds" differed only by the presence of one line — and an
+	// absent line is not a signal anyone reads.
+	connState connectionState
+	// connAttempts counts connection attempts that have failed before the first
+	// successful connect, so the pending state can say it is making progress
+	// rather than looking stuck.
+	connAttempts int
+	// connErr is the reason the connection failed, shown in the failure state.
+	connErr            error
 	waitingFrameToggle bool
 	width              int
 	height             int
@@ -84,6 +96,20 @@ type Model struct {
 	serverHealthChecked bool
 }
 
+// connectionState is what the status bar reports about the websocket.
+type connectionState uint8
+
+const (
+	// connConnecting is the state every session starts in, before the websocket
+	// is up. It is deliberately the zero value: a Model that has been told
+	// nothing yet must render "Connecting…", never a blank or connected-looking
+	// status bar.
+	connConnecting connectionState = iota
+	connConnected
+	connReconnecting
+	connFailed
+)
+
 // Config holds configuration for the TUI
 type Config struct {
 	DeviceName       string
@@ -91,7 +117,7 @@ type Config struct {
 	APIBaseURL       string
 	DashboardBaseURL string
 	ConsoleBaseURL   string
-	ProjectMode      string
+	ProjectType      string
 	ProjectID        string
 	GuestURL         string
 	TargetURL        *url.URL
@@ -111,6 +137,7 @@ func NewModel(cfg *Config) Model {
 		selectedIndex:  -1,
 		ready:          false,
 		isConnected:    false,
+		connState:      connConnecting,
 		clipboardWrite: clipboard.WriteAll,
 	}
 }
@@ -542,4 +569,10 @@ func refreshGuestURLCmd(app_config *configpkg.Config) tea.Cmd {
 type ServerHealthMsg struct {
 	Healthy bool
 	Error   error
+}
+
+// ConnectionFailedMsg is sent when the CLI gives up connecting, so the failure
+// is visible in the TUI rather than only after the alt-screen is torn down.
+type ConnectionFailedMsg struct {
+	Err error
 }

@@ -88,10 +88,10 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 		assert.Equal(t, []string{"list", "get", "run"}, actionEnum(t, tools["gateway_transformations"]))
 		// The plural tools search and nothing else; the singular tools are
 		// where the by-id actions live, write-gated as before.
-		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_events"]))
+		assert.Equal(t, []string{"list", "list_ignored"}, actionEnum(t, tools["gateway_events"]))
 		assert.Equal(t, []string{"get", "raw_body"}, actionEnum(t, tools["gateway_event"]))
 		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_requests"]))
-		assert.Equal(t, []string{"get", "raw_body", "events", "ignored_events"}, actionEnum(t, tools["gateway_request"]))
+		assert.Equal(t, []string{"get", "raw_body"}, actionEnum(t, tools["gateway_request"]))
 		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_issues"]))
 	})
 
@@ -169,7 +169,7 @@ func TestListTools_WriteMode(t *testing.T) {
 		assert.Equal(t,
 			[]string{"list", "get", "create", "upsert", "update", "delete", "run"},
 			actionEnum(t, tools["gateway_transformations"]))
-		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_events"]),
+		assert.Equal(t, []string{"list", "list_ignored"}, actionEnum(t, tools["gateway_events"]),
 			"the plural tool stays search-only in write mode")
 		assert.Equal(t,
 			[]string{"get", "raw_body", "retry", "cancel", "mute"},
@@ -177,7 +177,7 @@ func TestListTools_WriteMode(t *testing.T) {
 		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_requests"]),
 			"the plural tool stays search-only in write mode")
 		assert.Equal(t,
-			[]string{"get", "raw_body", "events", "ignored_events", "retry"},
+			[]string{"get", "raw_body", "retry"},
 			actionEnum(t, tools["gateway_request"]))
 		assert.Equal(t,
 			[]string{"list", "get", "update", "dismiss"},
@@ -231,17 +231,17 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 		t.Errorf("read-only server called the API: %s %s", r.Method, r.URL.Path)
 	}
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/connections":      fail,
-		"/2025-07-01/connections/":     fail,
-		"/2025-07-01/sources":          fail,
-		"/2025-07-01/sources/":         fail,
-		"/2025-07-01/destinations":     fail,
-		"/2025-07-01/destinations/":    fail,
-		"/2025-07-01/transformations":  fail,
-		"/2025-07-01/transformations/": fail,
-		"/2025-07-01/events/":          fail,
-		"/2025-07-01/requests/":        fail,
-		"/2025-07-01/issues/":          fail,
+		"/2026-09-01/connections":      fail,
+		"/2026-09-01/connections/":     fail,
+		"/2026-09-01/sources":          fail,
+		"/2026-09-01/sources/":         fail,
+		"/2026-09-01/destinations":     fail,
+		"/2026-09-01/destinations/":    fail,
+		"/2026-09-01/transformations":  fail,
+		"/2026-09-01/transformations/": fail,
+		"/2026-09-01/events/":          fail,
+		"/2026-09-01/requests/":        fail,
+		"/2026-09-01/issues/":          fail,
 	})
 	session := connectInMemory(t, newTestClient(api.URL, "test-key"))
 
@@ -284,13 +284,13 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 // mutations that stay available must not be blocked in read-only mode.
 func TestWriteGuard_PauseIsNotGated(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/connections/web_1/pause": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/connections/web_1/pause": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_1", "paused_at": "2026-01-01T00:00:00Z"})
 		},
-		"/2025-07-01/connections/web_1/unpause": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/connections/web_1/unpause": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_1"})
 		},
-		"/2025-07-01/connections/web_1": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/connections/web_1": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "web_1"})
 		},
 	})
@@ -315,7 +315,7 @@ func TestWriteGuard_PauseIsNotGated(t *testing.T) {
 // which is the debugging work read-only mode is for.
 func TestWriteGuard_TransformationRunIsNotGated(t *testing.T) {
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/transformations/run": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/transformations/run": func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"request": map[string]any{"headers": map[string]any{}},
 			})
@@ -340,12 +340,12 @@ func TestWriteGuard_AllowsWriteActionsInWriteMode(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"id": "res_1"})
 	}
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/events/evt_1/retry":   record,
-		"/2025-07-01/requests/req_1/retry": record,
-		"/2025-07-01/sources":              record,
-		"/2025-07-01/destinations":         record,
-		"/2025-07-01/transformations":      record,
-		"/2025-07-01/issues/iss_1":         record,
+		"/2026-09-01/events/evt_1/retry":   record,
+		"/2026-09-01/requests/req_1/retry": record,
+		"/2026-09-01/sources":              record,
+		"/2026-09-01/destinations":         record,
+		"/2026-09-01/transformations":      record,
+		"/2026-09-01/issues/iss_1":         record,
 	})
 	session := connectInMemoryWriteEnabled(t, newTestClient(api.URL, "test-key"))
 
@@ -355,13 +355,13 @@ func TestWriteGuard_AllowsWriteActionsInWriteMode(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"event retry", "gateway_event", map[string]any{"action": "retry", "id": "evt_1"}, "POST /2025-07-01/events/evt_1/retry"},
-		{"request retry", "gateway_request", map[string]any{"action": "retry", "id": "req_1"}, "POST /2025-07-01/requests/req_1/retry"},
-		{"sources create", "gateway_sources", map[string]any{"action": "create", "name": "s", "type": "HTTP"}, "POST /2025-07-01/sources"},
-		{"sources upsert", "gateway_sources", map[string]any{"action": "upsert", "name": "s", "type": "HTTP"}, "PUT /2025-07-01/sources"},
-		{"destinations create", "gateway_destinations", map[string]any{"action": "create", "name": "d", "type": "HTTP"}, "POST /2025-07-01/destinations"},
-		{"transformations create", "gateway_transformations", map[string]any{"action": "create", "name": "t", "code": "return request"}, "POST /2025-07-01/transformations"},
-		{"issues update", "gateway_issues", map[string]any{"action": "update", "id": "iss_1", "status": "RESOLVED"}, "PUT /2025-07-01/issues/iss_1"},
+		{"event retry", "gateway_event", map[string]any{"action": "retry", "id": "evt_1"}, "POST /2026-09-01/events/evt_1/retry"},
+		{"request retry", "gateway_request", map[string]any{"action": "retry", "id": "req_1"}, "POST /2026-09-01/requests/req_1/retry"},
+		{"sources create", "gateway_sources", map[string]any{"action": "create", "name": "s", "type": "HTTP"}, "POST /2026-09-01/sources"},
+		{"sources upsert", "gateway_sources", map[string]any{"action": "upsert", "name": "s", "type": "HTTP"}, "PUT /2026-09-01/sources"},
+		{"destinations create", "gateway_destinations", map[string]any{"action": "create", "name": "d", "type": "HTTP"}, "POST /2026-09-01/destinations"},
+		{"transformations create", "gateway_transformations", map[string]any{"action": "create", "name": "t", "code": "return request"}, "POST /2026-09-01/transformations"},
+		{"issues update", "gateway_issues", map[string]any{"action": "update", "id": "iss_1", "status": "RESOLVED"}, "PUT /2026-09-01/issues/iss_1"},
 	}
 
 	for _, tc := range cases {

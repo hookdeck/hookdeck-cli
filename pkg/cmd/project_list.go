@@ -119,7 +119,7 @@ func (lc *projectListCmd) runProjectListCmd(cmd *cobra.Command, args []string) e
 			if it.Org != "" {
 				namePart = it.Org + " / " + it.Project
 			}
-			fmt.Printf("%s%s | %s\n", namePart, color.Green(" (current)"), it.Type)
+			fmt.Printf("%s%s | %s\n", namePart, color.Green(" (current)"), config.TypeLabel(it.Type))
 		} else {
 			fmt.Println(it.DisplayLine())
 		}

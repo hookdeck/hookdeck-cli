@@ -5,6 +5,16 @@ on:
     branches:
       - next
       - main
+  # Allow running the acceptance suite against any branch by hand.
+  #
+  # The pull_request trigger above does not fire when a PR's head branch is
+  # updated by merging another PR into it, so a stacked release branch can end
+  # up with no acceptance run at all. workflow_dispatch is the only way to
+  # exercise that code before it reaches main.
+  #
+  # Note GitHub takes the workflow definition from the ref you dispatch, so a
+  # branch can only be dispatched once it also carries this block.
+  workflow_dispatch: {}
 
 jobs:
   acceptance:

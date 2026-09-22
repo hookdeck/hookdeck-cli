@@ -52,7 +52,7 @@ func logRecordedTelemetry(t *testing.T, recorded []RecordedRequest) {
 }
 
 // TestTelemetryLoginProxy verifies what we send when we run "hookdeck login --api-key":
-// exactly one API call (GET /2025-07-01/cli-auth/validate) with one command_path and one
+// exactly one API call (GET /2026-09-01/cli-auth/validate) with one command_path and one
 // invocation_id. Uses the same proxy approach as other telemetry tests (record then forward
 // to the real API). Requires HOOKDECK_CLI_TESTING_CLI_KEY (the validate endpoint accepts
 // CLI keys from interactive login; API/CI keys may return 401).
@@ -1313,8 +1313,14 @@ func TestTelemetryGatewayIssueGetProxy(t *testing.T) {
 	issueID := listResp.Models[0].ID
 	proxy := StartRecordingProxy(t, defaultAPIUpstream)
 	defer proxy.Close()
-	_, _, err := cli.Run("--api-base", proxy.URL(), "gateway", "issue", "get", issueID)
-	require.NoError(t, err)
+	stdout, stderr, err := cli.Run("--api-base", proxy.URL(), "gateway", "issue", "get", issueID)
+	// Carry the command output into the failure. This assertion used to report
+	// only "exit status 1", which said the CLI failed and nothing about why -
+	// so an intermittent failure here could not be diagnosed from a CI log and
+	// was only ever re-run. The issue id is included because this test, unlike
+	// its siblings, does not filter to OPENED and so may pick up an issue in
+	// any state.
+	require.NoError(t, err, "gateway issue get %s failed\nstdout: %s\nstderr: %s", issueID, stdout, stderr)
 	recorded := proxy.Recorded()
 	require.GreaterOrEqual(t, len(recorded), 1)
 	AssertTelemetryConsistent(t, recorded, "hookdeck gateway issue get")

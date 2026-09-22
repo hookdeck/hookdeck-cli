@@ -43,11 +43,11 @@ func updateHarness(t *testing.T) *struct {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/2025-07-01/destination-types":
+		case r.URL.Path == "/2026-09-01/destination-types":
 			_ = json.NewEncoder(w).Encode(webhookSchema())
-		case r.Method == http.MethodGet && r.URL.Path == "/2025-07-01/tenants/acme/destinations/des_1":
+		case r.Method == http.MethodGet && r.URL.Path == "/2026-09-01/tenants/acme/destinations/des_1":
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "des_1", "type": "webhook"})
-		case r.Method == http.MethodPatch && r.URL.Path == "/2025-07-01/tenants/acme/destinations/des_1":
+		case r.Method == http.MethodPatch && r.URL.Path == "/2026-09-01/tenants/acme/destinations/des_1":
 			got.patched = true
 			_ = json.NewDecoder(r.Body).Decode(&got.patchBody)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "des_1", "type": "webhook"})

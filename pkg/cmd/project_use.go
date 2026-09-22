@@ -10,7 +10,6 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/spf13/cobra"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 )
@@ -119,13 +118,13 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		}
 	}
 
-	// Use project by id and mode derived from type
-	mode := config.ProjectTypeToMode(selected.Type)
+	// selected.Type is already the API project type.
+	projectType := selected.Type
 	var configPath string
 	var isNewConfig bool
 
 	if lc.local {
-		isNewConfig, err = Config.UseProjectLocal(selected.Id, mode)
+		isNewConfig, err = Config.UseProjectLocal(selected.Id, projectType)
 		if err != nil {
 			return err
 		}
@@ -143,13 +142,13 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		localConfigExists, _ := Config.FileExists(localConfigPath)
 
 		if localConfigExists {
-			isNewConfig, err = Config.UseProjectLocal(selected.Id, mode)
+			isNewConfig, err = Config.UseProjectLocal(selected.Id, projectType)
 			if err != nil {
 				return err
 			}
 			configPath = localConfigPath
 		} else {
-			err = Config.UseProject(selected.Id, mode)
+			err = Config.UseProject(selected.Id, projectType)
 			if err != nil {
 				return err
 			}

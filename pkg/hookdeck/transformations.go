@@ -73,13 +73,14 @@ type TransformationRunResponse struct {
 	ExecutionID      string                         `json:"execution_id,omitempty"`
 	Request          *TransformationRunRequestInput `json:"request,omitempty"`
 
-	// LogLevel is how the run ended, and the only signal that it failed: the
+	// LogLevel is the highest severity the run logged, and — together with a
+	// missing Request — the only signal that the code did not complete: the
 	// endpoint answers 200 for a throwing handler, a syntax error and a clean
-	// run alike. "fatal" and "error" mean the code did not complete.
+	// run alike.
 	//
-	// It was omitted from this struct, so both surfaces reported success for a
-	// transformation that threw — the CLI printed "✔ Transformation run
-	// completed" and exited 0.
+	// It was omitted from this struct, so the response parsed into an empty
+	// value and the CLI printed "✔ Transformation run completed" and exited 0
+	// for a transformation that threw.
 	LogLevel string `json:"log_level,omitempty"`
 
 	// Console is everything the code printed, and where the failure reason
@@ -101,8 +102,8 @@ type TransformationConsoleLine struct {
 // Only "fatal" means that. log_level is the highest severity the run logged,
 // not a completion flag — a handler that calls console.error and then returns a
 // transformed request reports "error" and succeeded. Treating that as a failure
-// discarded the result the caller asked for, which is the same shape of wrong
-// answer this type was extended to prevent, inverted.
+// would discard the result the caller asked for, which is the same shape of
+// wrong answer this type was extended to prevent, inverted.
 //
 // Verified against the live API:
 //

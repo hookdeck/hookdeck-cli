@@ -17,7 +17,7 @@ import (
 func accountAPI(t *testing.T) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/2025-07-01/cli-auth/validate", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/2026-09-01/cli-auth/validate", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"user_id":   "usr_1",
 			"user_name": "Test User",
@@ -25,11 +25,11 @@ func accountAPI(t *testing.T) *http.ServeMux {
 			"team_mode": "outpost",
 		})
 	})
-	mux.HandleFunc("/2025-07-01/teams", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/2026-09-01/projects", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"id": "proj_outpost", "name": "[Acme] outpost-project", "mode": "outpost"},
-			{"id": "proj_other", "name": "[Acme] second-outpost", "mode": "outpost"},
-			{"id": "proj_gateway", "name": "[Acme] gateway-project", "mode": "inbound"},
+			{"id": "proj_outpost", "name": "[Acme] outpost-project", "type": "outpost"},
+			{"id": "proj_other", "name": "[Acme] second-outpost", "type": "outpost"},
+			{"id": "proj_gateway", "name": "[Acme] gateway-project", "type": "inbound"},
 		})
 	})
 	return mux
@@ -37,12 +37,12 @@ func accountAPI(t *testing.T) *http.ServeMux {
 
 func TestProjectsTool_UsesTheAccountAPIAndSwitchesTheOutpostClient(t *testing.T) {
 	account := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/cli-auth/validate": accountAPI(t).ServeHTTP,
-		"/2025-07-01/teams":             accountAPI(t).ServeHTTP,
+		"/2026-09-01/cli-auth/validate": accountAPI(t).ServeHTTP,
+		"/2026-09-01/projects":          accountAPI(t).ServeHTTP,
 	})
 	// The Outpost API must never be asked for the project list.
 	outpost := mockAPI(t, map[string]http.HandlerFunc{
-		"/2025-07-01/teams": func(w http.ResponseWriter, r *http.Request) {
+		"/2026-09-01/projects": func(w http.ResponseWriter, r *http.Request) {
 			t.Error("the Outpost API was asked to list projects")
 		},
 	})

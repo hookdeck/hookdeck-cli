@@ -349,6 +349,12 @@ time against code that had just been restructured.
       between the pair as long as `DispatchWithDefault` still resolves.
 - [ ] Write tools must **not** default an action. Require `action` explicitly. Read tools keep
       their existing defaults.
+- [ ] Move `events`/`ignored_events` from the singular request tool to the plural one, and
+      rewrite the `Notes` prose on both (see the decision above)
+- [ ] Port `canonicalEventsStatus` / `canonicalRequestsStatus` from `main` — status vocabulary is
+      canonicalised per action, so `status: "failed"` works everywhere it is offered
+- [ ] Rewrite `tool_requests_events_filters_test.go` for this architecture; it merged in from
+      `main` written against `hookdeck_requests` / `requestsToolProperties`
 - [ ] `tool_help.go`: overview must describe the new shape, and say `_write` tools appear under
       `--allow-write` rather than that actions are added.
 - [ ] Tool descriptions: drop "only the actions listed above are available; see help for how to
@@ -367,6 +373,11 @@ time against code that had just been restructured.
 ### 4. Description fixes (from the blind runs, scheme-independent)
 
 - [ ] `transformations_read.run` — state explicitly that it persists nothing
+- [ ] Port per-action argument scoping into `mcpcore`. `main`'s deleted `tool_actions.go` carried
+      `rejectArgsUnsupportedByAction`, a per-action whitelist over **all** declared args. Ours
+      (`rejectUnknownArgs`) only catches `Prop.Write` on a non-write action, so a read filter on
+      the wrong read action — `{action:"get", id:"x", disabled:true}` on connections — is still
+      accepted and ignored. Same bug class as the `ignored_events` finding above
 - [ ] `metrics_read` — distinguish `events` from `attempts` for delivery questions
 - [ ] `request_write.retry` / `event_write.retry` — disambiguate from each other
 - [ ] `connections_pause.pause` vs `connections_write.disable` — say which is the reversible
@@ -423,8 +434,147 @@ Add:
       modes; write tools only under `--allow-write`; no enum mixes read and write; annotations
       match contents
 - [ ] Manual QA against a real project per `.agents/skills/` — platform writes especially
+- [ ] **Independent verification sweep on the `events`/`ignored_events` move** — an agent that did
+      not make the change confirms no filter, action or behaviour that worked in v2.6.0 was lost,
+      checked against `main`'s shipped tool surface rather than against this branch's tests
 
 ---
+
+## Decision: `events` / `ignored_events` move to the plural requests tool
+
+**Decided 2026-09-22, during the v2.6.0 merge. Flagged for an independent verification sweep
+before this work is considered done.**
+
+`main` shipped `1ac27c1 fix: forward the filters the request events route actually honours` in
+v2.6.0: `hookdeck_requests {action:"events"}` forwards 25 filters (`source_id`, `status`,
+`attempts`, the date ranges, `body`/`headers`/`parsed_query`, paging), pinned by a test asserting
+the set stays identical to `hookdeck_events {action:"list"}` — `GET /requests/{id}/events` and
+`GET /events` declare the same query parameters.
+
+This branch forwards none of them: `requestEvents` calls `GetRequestEvents(ctx, id, nil)`, because
+the v3.0.0 split made the singular tool id-only ("Takes an id and nothing else… has no filters and
+cannot search").
+
+Shipping that would drop 25 filters that work in v2.6.0 — a functional regression on upgrade,
+beyond the renaming this release is meant to be about.
+
+**Resolution: `events` and `ignored_events` move from `<prefix>_request` (singular) to
+`<prefix>_events`, the events collection tool.**
+
+An earlier revision of this decision sent them to the plural *requests* tool on the assumption
+that it already carried the filter props. It does not — measured against the 25 filters main's
+test pins:
+
+| Tool | Missing | Extra props the route rejects |
+|---|---|---|
+| `gateway_requests` | **12** — `connection_id`, `destination_id`, `delivery_group`, `attempts`, `issue_id`, `error_code`, `response_status`, `cli_id`, `successful_*`, `last_attempt_*` | 9 — `rejection_cause`, `verified`, `ingested_*`, `search_term`, `*_count` |
+| `gateway_events` | **0** | 0 |
+
+`gateway_events` queries `GET /events`, which is the route main identified as declaring the same
+query parameters as `GET /requests/{id}/events`. The filters are already there because they are
+the same filters.
+
+| Tool | Actions |
+|---|---|
+| `gateway_events_read` | `list`, `list_ignored` — both scoped by an optional `request_id` |
+| `gateway_requests_read` | `list` (unchanged) |
+| `gateway_request_read` | `get`, `raw_body` |
+| `gateway_request_write` | `retry` |
+
+`gateway_events` gains one property, `request_id`. When present, `list` queries
+`GET /requests/{id}/events` instead of `GET /events`; `list_ignored` requires it and queries
+`GET /requests/{id}/ignored_events`. Every existing filter keeps working across all three routes
+because all three declare the same set.
+
+This is better motivated than either branch's shape. An action that returns events, filtered by
+event filters, belongs on the events tool. The original split exists because "list carries ~20
+filters that no by-id action can use" — and `events` *does* use them, so it was never a by-id
+action in the sense the split assumed. `get` and `raw_body` genuinely take an id and nothing else
+and stay on the singular tool.
+
+Consequences to carry through:
+
+- `list_ignored` requires `request_id` while `list` does not, on one tool. Main's shape had the
+  same property on its own tool, so the asymmetry is not new.
+- The traversal note on the request tools currently says events "cannot be filtered by
+  request_id". That was true of `GET /events` as a raw filter and is now misleading: the tool
+  accepts `request_id` and switches route. Rewrite it.
+- The `Notes` prose on both request tools describes the old division and must be rewritten.
+- `TestRequestsEventsMatchesTheEventsListFilterSet` — main's drift guard between the two filter
+  sets — must survive the move, retargeted at our spec structure.
+
+Alternatives rejected: adding the 25 filters to the singular request tool (re-creates the exact
+problem the split solved — showing list filters to a caller who only has an id); moving them to
+the plural requests tool (needs 12 new props plus per-action arg scoping, to reach a set the
+events tool already has); and accepting the regression (a real capability loss on upgrade,
+undocumented).
+
+## Spec conformance check (2026-09-22)
+
+The tool parameter sets were verified directly against
+`https://api.hookdeck.com/2026-09-01/openapi`, rather than against either branch's tests, after
+the merge raised the question of whether parameters had been lost.
+
+| Route | Query params declared | Our tool |
+|---|---|---|
+| `GET /events` | 30 | complete, 5 deliberately hidden |
+| `GET /requests` | 23 | complete, 3 deliberately hidden |
+| `GET /requests/{id}/events` | 30 — **identical to `/events`** | complete |
+| `GET /requests/{id}/ignored_events` | **6** | restricted, see below |
+
+Findings:
+
+- **Nothing was lost in the merge.** Every parameter either branch forwarded is still forwarded.
+- **`GET /requests/{id}/events` declares exactly the `/events` set**, which confirms the premise
+  the `events` move rests on: one schema can serve both routes.
+- **`GET /requests/{id}/ignored_events` declares only `dir`, `id`, `limit`, `next`, `order_by`,
+  `prev`.** It is *not* symmetric with its sibling. The first implementation of `list_ignored`
+  forwarded the full 30-filter set on the assumption that it was, which would have produced
+  exactly the failure this package keeps finding: an unfiltered list that reads as a filtered
+  one. `refuseFiltersIgnoredEventsDrops` now refuses anything the route does not declare and
+  points the caller at `list`, which does filter.
+- **Five parameters are deliberately not offered** on `gateway_events`
+  (`bulk_retry_id`, `include`, `progressive`, `event_data_id`, `cli_user_id`) and three on
+  `gateway_requests` (`bulk_retry_id`, `include`, `progressive`). Pinned by an existing test in
+  `pkg/gateway/mcp/server_test.go`. A conscious decision, not a gap, and unchanged by the merge.
+
+Worth building on this: nothing currently checks tool schemas against the OpenAPI document, so
+the `ignored_events` asymmetry was found by hand and the next one would be too. A generated
+conformance test — every advertised filter must appear in the spec for the route the action
+queries — would close the class rather than the instance. Out of scope here; logged as follow-up.
+
+## Testing rule: a mock must be built from the spec, or use an acceptance test
+
+Adopted 2026-09-22, after a mock-backed test confirmed a bug rather than catching it.
+
+A hand-written mock answers whatever it is asked. A test asserting "this filter reached the API"
+against one proves what the code does, not what the API accepts — so `list_ignored` forwarding
+thirty filters to a route that declares six went green. The API is the contract; a mock that does
+not encode it cannot test conformance to it.
+
+**The rule: prefer an acceptance test against the live API. A mock is acceptable only where it is
+built from the OpenAPI document.**
+
+Both halves are now in place:
+
+- `internal/speccheck` reads `test/openapi/openapi_2026-09-01.json` (the version
+  `hookdeck.APIPathPrefix` pins) and reports query parameters a route does not declare. It
+  resolves `{id}` templates and normalises the bracket serialisations — `created_at[gte]`,
+  `measures[]`, `filters[source_id]` — to the parameter the document names.
+- `specGuard` in `pkg/gateway/mcp/server_test.go` wraps every mock handler, so **every existing
+  mock-backed test is now spec-checked** rather than only new ones. Verified by reintroducing the
+  `list_ignored` bug: the guard fails with the route and the offending parameters named. The
+  suite is otherwise clean, so no other route is sending undeclared parameters today.
+- Acceptance tests under `-tags=mcp` cover what a mock cannot: that the live API accepts the
+  request-scoped listings, and that a lower-case `status` is canonicalised rather than 422'd.
+
+Known limit: the inner key of a deepObject (`filters[source_id]`) is not checked, because the
+document does not describe it at that level. `pkg/hookdeck`'s metrics filter matrix owns that
+question.
+
+Follow-up worth taking: the spec file is a committed copy, so it can drift from the live API.
+A check that re-fetches and diffs it — or a CI step that fails when `APIPathPrefix` names a
+version the committed document does not — would close that.
 
 ## Open questions
 

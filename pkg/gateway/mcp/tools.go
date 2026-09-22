@@ -150,3 +150,35 @@ const (
 	// both rejected as "must be one of [number, object, array]".
 	descCountFilter = "A whole number, e.g. 0 to find records that produced none. Comparisons such as \">0\" are not supported here."
 )
+
+// measures, dimensions and status decide whether a metrics call succeeds, and
+// each of the four actions has its own vocabulary. One flat schema cannot carry
+// four enums, so the per-action lists go in the description - built from the
+// same constants the CLI's --help reads, because a hand-written "Common:
+// count, successful_count, failed_count, error_count" was the contract clients
+// planned against and three quarters of it 422s on most actions.
+var (
+	descMetricsMeasures = "Metrics to retrieve (required). Valid values differ per action — " +
+		"events: " + hookdeck.EventMetricsMeasures + "; " +
+		"requests: " + hookdeck.RequestMetricsMeasures + "; " +
+		"attempts: " + hookdeck.AttemptMetricsMeasures + "; " +
+		"transformations: " + hookdeck.TransformationMetricsMeasures + ". " +
+		"Only count is valid on all four."
+
+	descMetricsDimensions = "Grouping dimensions. Valid values differ per action — " +
+		"events: " + hookdeck.EventMetricsDimensions + "; " +
+		"requests: " + hookdeck.RequestMetricsDimensions + "; " +
+		"attempts: " + hookdeck.AttemptMetricsDimensions + "; " +
+		"transformations: " + hookdeck.TransformationMetricsDimensions + ". " +
+		"On events the accepted set narrows with the route the measures select " +
+		"(queue_depth: " + hookdeck.DimensionList(hookdeck.QueueDepthRouteDimensions) + "; " +
+		"pending: " + hookdeck.DimensionList(hookdeck.PendingTimeseriesRouteDimensions) + "; " +
+		"issue_id: " + hookdeck.DimensionList(hookdeck.EventsByIssueRouteDimensions) + "). " +
+		"Grouping by delivery_group also requires destination_id."
+
+	descMetricsStatus = "Filter by status. Values differ per action — " +
+		"events: " + hookdeck.EventStatusValues + "; " +
+		"requests: " + hookdeck.RequestStatusValues + "; " +
+		"attempts: " + hookdeck.AttemptStatusValues + ". " +
+		"Not supported on transformations."
+)

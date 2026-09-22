@@ -14,61 +14,93 @@ var (
 	colorFaint  = lipgloss.Color("240") // Faint gray
 	colorPurple = lipgloss.Color("5")   // Purple for brand accent
 	colorCyan   = lipgloss.Color("6")   // Cyan for brand accent
+	colorBlue   = lipgloss.Color("4")   // Blue for the brand header
+	colorWhite  = lipgloss.Color("7")   // White/default for selection and status bar
+)
 
-	// Base styles
-	faintStyle = lipgloss.NewStyle().
-			Foreground(colorFaint)
+// Base styles
+var (
+	faintStyle lipgloss.Style
+	boldStyle  lipgloss.Style
+	greenStyle lipgloss.Style
+	redStyle   lipgloss.Style
 
-	boldStyle = lipgloss.NewStyle().
-			Bold(true)
-
-	greenStyle = lipgloss.NewStyle().
-			Foreground(colorGreen)
-
-	redStyle = lipgloss.NewStyle().
-			Foreground(colorRed).
-			Bold(true)
-
-	yellowStyle = lipgloss.NewStyle().
-			Foreground(colorYellow)
-
-	cyanStyle = lipgloss.NewStyle().
-			Foreground(colorCyan)
+	yellowStyle lipgloss.Style
+	cyanStyle   lipgloss.Style
 
 	// Brand styles
-	brandStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("4")). // Blue
-			Bold(true)
-
-	brandAccentStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("4")) // Blue
+	brandStyle       lipgloss.Style
+	brandAccentStyle lipgloss.Style
 
 	// Component styles
-	selectionIndicatorStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("7")) // White/default
-
-	sectionTitleStyle = faintStyle.Copy()
-
-	statusBarStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("7"))
-
-	waitingDotStyle = greenStyle.Copy()
-
-	connectingDotStyle = yellowStyle.Copy()
-
-	dividerStyle = lipgloss.NewStyle().
-			Foreground(colorFaint)
+	selectionIndicatorStyle lipgloss.Style
+	sectionTitleStyle       lipgloss.Style
+	statusBarStyle          lipgloss.Style
+	waitingDotStyle         lipgloss.Style
+	connectingDotStyle      lipgloss.Style
+	dividerStyle            lipgloss.Style
 
 	// Status code color styles
-	successStatusStyle = lipgloss.NewStyle().
-				Foreground(colorGreen)
-
-	errorStatusStyle = lipgloss.NewStyle().
-				Foreground(colorRed)
-
-	warningStatusStyle = lipgloss.NewStyle().
-				Foreground(colorYellow)
+	successStatusStyle lipgloss.Style
+	errorStatusStyle   lipgloss.Style
+	warningStatusStyle lipgloss.Style
 )
+
+// colorEnabled records whether the TUI may emit ANSI decoration. The interactive
+// renderer sets it from the same answer ansi.ShouldUseColors gives the compact
+// renderer; see SetColorEnabled.
+var colorEnabled = true
+
+func init() {
+	buildStyles()
+}
+
+// SetColorEnabled turns TUI decoration on or off, and must be called before the
+// Bubble Tea program starts.
+//
+// #404: --color off reached only the compact renderer, because the TUI draws
+// with lipgloss rather than pkg/ansi. A controlling-pty run with --color off
+// still emitted 48 SGR sequences. With colour disabled every style below becomes
+// a bare lipgloss.Style, which renders its input unchanged, so the frames carry
+// no SGR bytes at all — bold and faint included, matching what --color off means
+// everywhere else in the CLI.
+func SetColorEnabled(enabled bool) {
+	colorEnabled = enabled
+	buildStyles()
+}
+
+// decorated returns the styled variant when colour is on and a plain style when
+// it is off. Every style in this file is built through it so no decoration can
+// be added that --color off fails to suppress.
+func decorated(style lipgloss.Style) lipgloss.Style {
+	if !colorEnabled {
+		return lipgloss.NewStyle()
+	}
+	return style
+}
+
+func buildStyles() {
+	faintStyle = decorated(lipgloss.NewStyle().Foreground(colorFaint))
+	boldStyle = decorated(lipgloss.NewStyle().Bold(true))
+	greenStyle = decorated(lipgloss.NewStyle().Foreground(colorGreen))
+	redStyle = decorated(lipgloss.NewStyle().Foreground(colorRed).Bold(true))
+	yellowStyle = decorated(lipgloss.NewStyle().Foreground(colorYellow))
+	cyanStyle = decorated(lipgloss.NewStyle().Foreground(colorCyan))
+
+	brandStyle = decorated(lipgloss.NewStyle().Foreground(colorBlue).Bold(true))
+	brandAccentStyle = decorated(lipgloss.NewStyle().Foreground(colorBlue))
+
+	selectionIndicatorStyle = decorated(lipgloss.NewStyle().Foreground(colorWhite))
+	sectionTitleStyle = faintStyle
+	statusBarStyle = decorated(lipgloss.NewStyle().Foreground(colorWhite))
+	waitingDotStyle = greenStyle
+	connectingDotStyle = yellowStyle
+	dividerStyle = decorated(lipgloss.NewStyle().Foreground(colorFaint))
+
+	successStatusStyle = decorated(lipgloss.NewStyle().Foreground(colorGreen))
+	errorStatusStyle = decorated(lipgloss.NewStyle().Foreground(colorRed))
+	warningStatusStyle = decorated(lipgloss.NewStyle().Foreground(colorYellow))
+}
 
 // ColorizeStatus returns a styled status code string
 func ColorizeStatus(status int) string {

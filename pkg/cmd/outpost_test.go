@@ -50,7 +50,7 @@ func TestRequireOutpostProject(t *testing.T) {
 	// The point of the gate: without it these produce a 404 from the API, which
 	// reads as "no such resource" rather than "wrong project".
 	for name, projectType := range map[string]string{
-		"Gateway type fails": config.ProjectTypeGateway,
+		"Gateway type fails": config.ProjectTypeEventGateway,
 		"Console type fails": config.ProjectTypeConsole,
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -93,7 +93,7 @@ func TestRequireOutpostProjectExplainsAProjectScopedKey(t *testing.T) {
 		cfg := &config.Config{APIBaseURL: server.URL}
 		cfg.Profile.APIKey = "sk_xxx"
 		cfg.Profile.ProjectId = "proj_1"
-		cfg.Profile.ProjectType = config.ProjectTypeGateway
+		cfg.Profile.ProjectType = config.ProjectTypeEventGateway
 
 		// GetAPIClient is a process-wide singleton, so it has to be rebuilt for
 		// this config or the request goes wherever an earlier test pointed it.

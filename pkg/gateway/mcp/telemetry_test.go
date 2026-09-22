@@ -67,7 +67,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET " + hookdeck.APIPathPrefix + "/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "webhook", "url": "https://example.com"},
 			))
@@ -97,7 +97,7 @@ func TestMCPToolCall_EachCallGetsUniqueInvocationID(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET " + hookdeck.APIPathPrefix + "/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "webhook", "url": "https://example.com"},
 			))
@@ -127,12 +127,12 @@ func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET " + hookdeck.APIPathPrefix + "/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"},
 			))
 		}),
-		"GET /2025-07-01/sources/src_1": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET " + hookdeck.APIPathPrefix + "/sources/src_1": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"})
 		}),
 	})
@@ -161,10 +161,10 @@ func TestMCPToolCall_TelemetryNamesTheSingularTools(t *testing.T) {
 	cases := []struct {
 		tool, action, id, path, want string
 	}{
-		{"gateway_event", "get", "evt_1", "/2025-07-01/events/evt_1", "gateway_event/get"},
-		{"gateway_request", "get", "req_1", "/2025-07-01/requests/req_1", "gateway_request/get"},
-		{"gateway_events", "list", "", "/2025-07-01/events", "gateway_events/list"},
-		{"gateway_requests", "list", "", "/2025-07-01/requests", "gateway_requests/list"},
+		{"gateway_event", "get", "evt_1", "/2026-09-01/events/evt_1", "gateway_event/get"},
+		{"gateway_request", "get", "req_1", "/2026-09-01/requests/req_1", "gateway_request/get"},
+		{"gateway_events", "list", "", "/2026-09-01/events", "gateway_events/list"},
+		{"gateway_requests", "list", "", "/2026-09-01/requests", "gateway_requests/list"},
 	}
 
 	for _, tc := range cases {
@@ -195,7 +195,7 @@ func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
 	capture := &headerCapture{}
 
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET " + hookdeck.APIPathPrefix + "/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"},
 			))
@@ -219,7 +219,7 @@ func TestMCPToolCall_TelemetryDisabledByEnvVar(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET " + hookdeck.APIPathPrefix + "/sources": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(listResponse(
 				map[string]any{"id": "src_1", "name": "test-source", "url": "https://example.com"},
 			))
@@ -241,10 +241,10 @@ func TestMCPToolCall_MultipleAPICallsSameInvocation(t *testing.T) {
 	capture := &headerCapture{}
 
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/teams": capture.handler(func(w http.ResponseWriter, r *http.Request) {
+		"GET " + hookdeck.APIPathPrefix + "/projects": capture.handler(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "proj_abc", "name": "My Project", "mode": "console"},
+				{"id": "proj_abc", "name": "My Project", "type": "console"},
 			})
 		}),
 	})

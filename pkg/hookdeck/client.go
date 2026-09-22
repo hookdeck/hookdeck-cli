@@ -43,7 +43,7 @@ const DefaultProfileName = "default"
 // APIPathPrefix is the versioned path prefix for all REST API requests.
 // Used by connections, sources, destinations, events, auth, etc.
 // Change in one place when the API version is updated.
-const APIPathPrefix = "/2025-07-01"
+const APIPathPrefix = "/2026-09-01"
 
 // Client is the API client used to sent requests to Hookdeck.
 type Client struct {
@@ -169,7 +169,7 @@ func flattenErrorData(raw json.RawMessage) []string {
 	case []interface{}:
 		lines := make([]string, 0, len(value))
 		for _, item := range value {
-			lines = append(lines, errorDataScalar(item))
+			lines = append(lines, errorDataEntry(item))
 		}
 		return lines
 
@@ -194,6 +194,20 @@ func flattenErrorData(raw json.RawMessage) []string {
 	default:
 		return []string{errorDataScalar(decoded)}
 	}
+}
+
+// errorDataEntry renders one entry of a "data" array. Entries arrive both as
+// plain strings and as objects carrying a message field, and an object was
+// being marshalled back to JSON and shown whole:
+// {"data":[{"message":"nested problem"}]} reached the caller as
+// `{"message":"nested problem"}` rather than as the sentence inside it.
+func errorDataEntry(item interface{}) string {
+	if obj, ok := item.(map[string]interface{}); ok {
+		if message, ok := obj["message"].(string); ok && message != "" {
+			return message
+		}
+	}
+	return errorDataScalar(item)
 }
 
 // errorDataScalar renders one detail value, keeping strings unquoted.

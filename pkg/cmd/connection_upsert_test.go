@@ -433,6 +433,56 @@ func TestUpsertValidateDestinationFlagsAllowsNameOnly(t *testing.T) {
 	assert.NoError(t, err, "validateDestinationFlags should allow --destination-name alone for upsert")
 }
 
+func TestConnectionDestinationDeliveryPolicy(t *testing.T) {
+	cc := &connectionCreateCmd{
+		DestinationRateLimit:               100,
+		DestinationRateLimitPeriod:         "minute",
+		DestinationDeliveryGroupKey:        "headers.x-tenant-id",
+		DestinationDeliveryGroupRate:       10,
+		DestinationDeliveryGroupRatePeriod: "second",
+		DestinationDeliveryGroupOverrides:  `{"priority":{"rate":50,"rate_period":"second"}}`,
+	}
+
+	config, err := cc.buildDestinationConfig()
+	require.NoError(t, err)
+	policy, ok := config["delivery_policy"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, 100, policy["rate"])
+	groups, ok := policy["groups"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "headers.x-tenant-id", groups["key"])
+	assert.Equal(t, 10, groups["rate"])
+}
+
+func TestConnectionUpsertMergesDeliveryPolicy(t *testing.T) {
+	cu := &connectionUpsertCmd{connectionCreateCmd: &connectionCreateCmd{
+		DestinationDeliveryGroupKey:        "body.customer_id",
+		DestinationDeliveryGroupRate:       5,
+		DestinationDeliveryGroupRatePeriod: "second",
+	}}
+	existing := &hookdeck.Destination{
+		Name: "api",
+		Type: "HTTP",
+		Config: map[string]interface{}{
+			"url": "https://api.example.com",
+			"delivery_policy": map[string]interface{}{
+				"rate":   100,
+				"period": "minute",
+			},
+		},
+	}
+
+	input, err := cu.buildDestinationInputForUpdate(existing)
+	require.NoError(t, err)
+	policy, ok := input.Config["delivery_policy"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, 100, policy["rate"])
+	assert.Equal(t, "minute", policy["period"])
+	groups, ok := policy["groups"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "body.customer_id", groups["key"])
+}
+
 // TestUpsertBuildRequestFillsSourceTypeFromExisting verifies that when
 // --source-name is provided without --source-type during an update,
 // the existing source type is used.
@@ -469,4 +519,195 @@ func TestUpsertBuildRequestFillsSourceTypeFromExisting(t *testing.T) {
 	require.NotNil(t, req.Source, "Should have Source input for name change")
 	assert.Equal(t, "new-source-name", req.Source.Name)
 	assert.Equal(t, "WEBHOOK", req.Source.Type, "Should fill type from existing source")
+}
+
+// newUpsertCmdForFlags builds an upsert command struct directly, which is how
+// the flag-driven decisions below are reachable without a live API client.
+func newUpsertCmdForFlags() *connectionUpsertCmd {
+	return &connectionUpsertCmd{connectionCreateCmd: &connectionCreateCmd{}}
+}
+
+// TestNeedsExistingConnection pins the lookup decision. The create-time
+// behaviours below are wrong against a connection that already exists, and the
+// ordinary idempotent invocation - --destination-name plus --destination-type
+// together - matched none of the original conditions, so the guards that depend
+// on knowing the connection exists never fired.
+func TestNeedsExistingConnection(t *testing.T) {
+	t.Run("CLI destination by name and type must still look the connection up", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.destinationName = "local"
+		cu.destinationType = "CLI"
+
+		assert.True(t, cu.needsExistingConnection(),
+			`without the lookup the "/" default resets a stored custom path`)
+	})
+
+	t.Run("lowercase --destination-type cli counts too", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.destinationName = "local"
+		cu.destinationType = "cli"
+
+		assert.True(t, cu.needsExistingConnection())
+	})
+
+	t.Run("an explicit --destination-cli-path needs no lookup", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.destinationName = "local"
+		cu.destinationType = "CLI"
+		cu.destinationCliPath = "/webhooks"
+
+		assert.False(t, cu.needsExistingConnection(),
+			"the caller said what the path should be, so nothing is being defaulted")
+	})
+
+	t.Run("delivery group flags without overrides must look the connection up", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.destinationName = "web"
+		cu.destinationType = "HTTP"
+		cu.destinationURL = "https://api.example.com"
+		cu.DestinationDeliveryGroupKey = "body.customer_id"
+		cu.DestinationDeliveryGroupRate = 30
+		cu.DestinationDeliveryGroupRatePeriod = "second"
+
+		assert.True(t, cu.needsExistingConnection(),
+			"without the lookup the bare groups object replaces the stored overrides (#393)")
+	})
+
+	t.Run("delivery group flags with overrides need no lookup", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.destinationName = "web"
+		cu.destinationType = "HTTP"
+		cu.destinationURL = "https://api.example.com"
+		cu.DestinationDeliveryGroupKey = "body.customer_id"
+		cu.DestinationDeliveryGroupRate = 30
+		cu.DestinationDeliveryGroupRatePeriod = "second"
+		cu.DestinationDeliveryGroupOverrides = `{"cust_1":{"rate":5,"rate_period":"minute"}}`
+
+		assert.False(t, cu.needsExistingConnection(),
+			"the caller supplied the overrides, so there is nothing to carry forward")
+	})
+
+	t.Run("an HTTP destination by name and type still needs no lookup", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.destinationName = "web"
+		cu.destinationType = "HTTP"
+		cu.destinationURL = "https://api.example.com"
+
+		assert.False(t, cu.needsExistingConnection(),
+			"upsert is meant to be one API call where the lookup cannot change the outcome")
+	})
+
+	t.Run("--destination-id is the caller pointing at a destination, not creating one", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.destinationID = "des_1"
+
+		assert.False(t, cu.needsExistingConnection())
+	})
+
+	t.Run("the pre-existing conditions still hold", func(t *testing.T) {
+		dryRun := newUpsertCmdForFlags()
+		dryRun.dryRun = true
+		dryRun.destinationName = "web"
+		dryRun.destinationType = "HTTP"
+		assert.True(t, dryRun.needsExistingConnection())
+
+		nameOnly := newUpsertCmdForFlags()
+		nameOnly.destinationName = "web"
+		assert.True(t, nameOnly.needsExistingConnection(), "a name without a type is filled in from the stored record")
+
+		noFlags := newUpsertCmdForFlags()
+		assert.True(t, noFlags.needsExistingConnection())
+	})
+}
+
+// TestUpsertKeepsStoredCLIPath pins the other half of the same fix: once the
+// connection is known to exist, the request must leave the path alone rather
+// than send "/" or "".
+func TestUpsertKeepsStoredCLIPath(t *testing.T) {
+	existing := &hookdeck.Connection{
+		ID:   "web_1",
+		Name: strPtr("my-connection"),
+		Destination: &hookdeck.Destination{
+			ID: "des_1", Name: "local", Type: "CLI",
+			Config: map[string]interface{}{"path": "/webhooks"},
+		},
+	}
+
+	t.Run("no path is sent when the flag is omitted", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.name = "my-connection"
+		cu.destinationName = "local"
+		cu.destinationType = "CLI"
+
+		req, err := cu.buildUpsertRequest(existing, true)
+		require.NoError(t, err)
+		require.NotNil(t, req.Destination)
+		_, sent := req.Destination.Config["path"]
+		assert.False(t, sent, "sending either / or \"\" overwrites the stored path")
+	})
+
+	t.Run("an explicit path is still sent", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.name = "my-connection"
+		cu.destinationName = "local"
+		cu.destinationType = "CLI"
+		cu.destinationCliPath = "/other"
+
+		req, err := cu.buildUpsertRequest(existing, true)
+		require.NoError(t, err)
+		assert.Equal(t, "/other", req.Destination.Config["path"])
+	})
+
+	t.Run("a create still gets the / default", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.name = "brand-new"
+		cu.destinationName = "local"
+		cu.destinationType = "CLI"
+
+		req, err := cu.buildUpsertRequest(nil, false)
+		require.NoError(t, err)
+		assert.Equal(t, "/", req.Destination.Config["path"])
+	})
+}
+
+// TestUpsertPreservesOverridesOnInlineDestination covers the second guard at the
+// same site: --destination-name with a delivery-group bump must carry the stored
+// overrides forward.
+func TestUpsertPreservesOverridesOnInlineDestination(t *testing.T) {
+	existing := &hookdeck.Connection{
+		ID:   "web_1",
+		Name: strPtr("my-connection"),
+		Destination: &hookdeck.Destination{
+			ID: "des_2", Name: "web", Type: "HTTP",
+			Config: map[string]interface{}{
+				"url": "https://api.example.com",
+				"delivery_policy": map[string]interface{}{
+					"groups": map[string]interface{}{
+						"key": "body.customer_id", "rate": 10, "rate_period": "second",
+						"overrides": map[string]interface{}{
+							"cust_1": map[string]interface{}{"rate": 5, "rate_period": "minute"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cu := newUpsertCmdForFlags()
+	cu.name = "my-connection"
+	cu.destinationName = "web"
+	cu.destinationType = "HTTP"
+	cu.destinationURL = "https://api.example.com"
+	cu.DestinationDeliveryGroupKey = "body.customer_id"
+	cu.DestinationDeliveryGroupRate = 30
+	cu.DestinationDeliveryGroupRatePeriod = "second"
+
+	req, err := cu.buildUpsertRequest(existing, true)
+	require.NoError(t, err)
+	require.NotNil(t, req.Destination)
+
+	groups, ok := nestedMap(req.Destination.Config, "delivery_policy", "groups")
+	require.True(t, ok)
+	assert.Equal(t, 30, groups["rate"])
+	assert.NotNil(t, groups["overrides"], "the stored overrides must survive a rate bump")
 }

@@ -29,7 +29,7 @@ func persistedConfig(t *testing.T) (*Config, string) {
 	c.Profile.APIKey = "sk_test_123456789012"
 	c.Profile.ProjectId = "proj_1"
 	c.Profile.ProjectMode = "inbound"
-	c.Profile.ProjectType = ProjectTypeGateway
+	c.Profile.ProjectType = ProjectTypeEventGateway
 	c.Profile.GuestURL = "https://example.test/guest"
 	return c, path
 }

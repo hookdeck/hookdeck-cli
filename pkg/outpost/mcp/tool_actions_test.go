@@ -70,7 +70,7 @@ func envelopeData(t *testing.T, text string) json.RawMessage {
 func TestTenantsGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/tenants/acme": recordJSON(&got, http.StatusOK, map[string]any{
 			"id": "acme", "destinations_count": 2, "topics": []string{"user.created"},
 		}),
 	})
@@ -79,14 +79,14 @@ func TestTenantsGet(t *testing.T) {
 	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "get", "id": "acme"})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/tenants/acme", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme", got.path)
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), `"acme"`)
 }
 
 func TestTenantsUpsertSendsMetadata(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"PUT /2025-07-01/tenants/acme": recordJSON(&got, http.StatusOK, map[string]any{"id": "acme"}),
+		"PUT /2026-09-01/tenants/acme": recordJSON(&got, http.StatusOK, map[string]any{"id": "acme"}),
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
@@ -98,14 +98,14 @@ func TestTenantsUpsertSendsMetadata(t *testing.T) {
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodPut, got.method)
-	assert.Equal(t, "/2025-07-01/tenants/acme", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme", got.path)
 	assert.Equal(t, map[string]any{"plan": "pro", "region": "eu"}, got.decodeBody(t)["metadata"])
 }
 
 func TestTenantsDelete(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/tenants/acme": recordJSON(&got, http.StatusOK, map[string]any{"success": true}),
+		"DELETE /2026-09-01/tenants/acme": recordJSON(&got, http.StatusOK, map[string]any{"success": true}),
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
@@ -113,7 +113,7 @@ func TestTenantsDelete(t *testing.T) {
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/tenants/acme", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme", got.path)
 	// The API returns no useful body, so the tool has to say what happened.
 	assert.JSONEq(t, `{"tenant_id":"acme","status":"deleted"}`, string(envelopeData(t, resultText(t, result))))
 }
@@ -130,7 +130,7 @@ func TestTenantsDeleteRequiresAnID(t *testing.T) {
 func TestTenantsToken(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme/token": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/tenants/acme/token": recordJSON(&got, http.StatusOK, map[string]any{
 			"token": "header.payload.signature", "tenant_id": "acme",
 		}),
 	})
@@ -139,14 +139,14 @@ func TestTenantsToken(t *testing.T) {
 	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "token", "id": "acme"})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/tenants/acme/token", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme/token", got.path)
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), "header.payload.signature")
 }
 
 func TestTenantsPortal(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme/portal": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/tenants/acme/portal": recordJSON(&got, http.StatusOK, map[string]any{
 			"redirect_url": "https://portal.example.com/s/abc", "tenant_id": "acme",
 		}),
 	})
@@ -157,7 +157,7 @@ func TestTenantsPortal(t *testing.T) {
 	})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/tenants/acme/portal", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme/portal", got.path)
 	assert.Equal(t, "theme=dark", got.query, "the theme has to reach the API or the flag does nothing")
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), "https://portal.example.com/s/abc")
 }
@@ -169,7 +169,7 @@ func TestTenantsPortal(t *testing.T) {
 func TestDestinationsGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, map[string]any{
 			"id": "des_1", "type": "webhook", "topics": "*",
 		}),
 	})
@@ -179,13 +179,13 @@ func TestDestinationsGet(t *testing.T) {
 		"action": "get", "tenant_id": "acme", "id": "des_1",
 	})
 	require.False(t, result.IsError, resultText(t, result))
-	assert.Equal(t, "/2025-07-01/tenants/acme/destinations/des_1", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme/destinations/des_1", got.path)
 }
 
 func TestDestinationsCreate(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/tenants/acme/destinations": recordJSON(&got, http.StatusCreated, map[string]any{
+		"POST /2026-09-01/tenants/acme/destinations": recordJSON(&got, http.StatusCreated, map[string]any{
 			"id": "des_1", "type": "webhook", "topics": []string{"user.created"},
 		}),
 	})
@@ -204,7 +204,7 @@ func TestDestinationsCreate(t *testing.T) {
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodPost, got.method)
-	assert.Equal(t, "/2025-07-01/tenants/acme/destinations", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme/destinations", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, "webhook", body["type"])
@@ -221,7 +221,7 @@ func TestDestinationsCreate(t *testing.T) {
 func TestDestinationsCreateSendsTheWildcardAsAString(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/tenants/acme/destinations": recordJSON(&got, http.StatusCreated, map[string]any{
+		"POST /2026-09-01/tenants/acme/destinations": recordJSON(&got, http.StatusCreated, map[string]any{
 			"id": "des_1", "type": "webhook", "topics": "*",
 		}),
 	})
@@ -242,7 +242,7 @@ func TestDestinationsCreateSendsTheWildcardAsAString(t *testing.T) {
 func TestDestinationsCreateDefaultsTopicsToEverything(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/tenants/acme/destinations": recordJSON(&got, http.StatusCreated, map[string]any{
+		"POST /2026-09-01/tenants/acme/destinations": recordJSON(&got, http.StatusCreated, map[string]any{
 			"id": "des_1", "type": "webhook", "topics": "*",
 		}),
 	})
@@ -265,7 +265,7 @@ func TestDestinationsCreateDefaultsTopicsToEverything(t *testing.T) {
 func TestDestinationsUpdateDoesNotDefaultTopics(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"PATCH /2025-07-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, map[string]any{
+		"PATCH /2026-09-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, map[string]any{
 			"id": "des_1", "type": "webhook",
 		}),
 	})
@@ -293,7 +293,7 @@ func TestDestinationsCreateRequiresAType(t *testing.T) {
 func TestDestinationsUpdateIsAPatch(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"PATCH /2025-07-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, map[string]any{
+		"PATCH /2026-09-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, map[string]any{
 			"id": "des_1", "type": "webhook", "topics": "*",
 		}),
 	})
@@ -307,7 +307,7 @@ func TestDestinationsUpdateIsAPatch(t *testing.T) {
 
 	// A PUT here would replace the destination rather than merge into it.
 	assert.Equal(t, http.MethodPatch, got.method)
-	assert.Equal(t, "/2025-07-01/tenants/acme/destinations/des_1", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme/destinations/des_1", got.path)
 
 	body := got.decodeBody(t)
 	assert.Equal(t, map[string]any{"url": "https://example.com/new"}, body["config"])
@@ -321,7 +321,7 @@ func TestDestinationsUpdateIsAPatch(t *testing.T) {
 func TestDestinationsDelete(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, nil),
+		"DELETE /2026-09-01/tenants/acme/destinations/des_1": recordJSON(&got, http.StatusOK, nil),
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
@@ -331,7 +331,7 @@ func TestDestinationsDelete(t *testing.T) {
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/tenants/acme/destinations/des_1", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme/destinations/des_1", got.path)
 	assert.JSONEq(t, `{"tenant_id":"acme","destination_id":"des_1","status":"deleted"}`,
 		string(envelopeData(t, resultText(t, result))))
 }
@@ -341,7 +341,7 @@ func TestDestinationsEnableAndDisable(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			var got captured
 			api := mockAPI(t, map[string]http.HandlerFunc{
-				"PUT /2025-07-01/tenants/acme/destinations/des_1/" + action: recordJSON(&got, http.StatusOK, map[string]any{
+				"PUT /2026-09-01/tenants/acme/destinations/des_1/" + action: recordJSON(&got, http.StatusOK, map[string]any{
 					"id": "des_1", "type": "webhook", "topics": "*",
 				}),
 			})
@@ -353,7 +353,7 @@ func TestDestinationsEnableAndDisable(t *testing.T) {
 			require.False(t, result.IsError, resultText(t, result))
 
 			assert.Equal(t, http.MethodPut, got.method)
-			assert.Equal(t, "/2025-07-01/tenants/acme/destinations/des_1/"+action, got.path)
+			assert.Equal(t, "/2026-09-01/tenants/acme/destinations/des_1/"+action, got.path)
 		})
 	}
 }
@@ -380,7 +380,7 @@ func TestDestinationsWriteActionsRequireADestinationID(t *testing.T) {
 func TestConfigGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/config": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/config": recordJSON(&got, http.StatusOK, map[string]any{
 			"TOPICS": "user.created", "MAX_RETRY_LIMIT": "5",
 		}),
 	})
@@ -389,7 +389,7 @@ func TestConfigGet(t *testing.T) {
 	t.Run("everything", func(t *testing.T) {
 		result := callTool(t, session, "outpost_config", map[string]any{"action": "get"})
 		require.False(t, result.IsError, resultText(t, result))
-		assert.Equal(t, "/2025-07-01/config", got.path)
+		assert.Equal(t, "/2026-09-01/config", got.path)
 
 		data := envelopeData(t, resultText(t, result))
 		assert.Contains(t, string(data), "TOPICS")
@@ -412,7 +412,7 @@ func TestConfigGet(t *testing.T) {
 func TestConfigCustomDomainGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/config/custom_domain": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/config/custom_domain": recordJSON(&got, http.StatusOK, map[string]any{
 			"hostname": "portal.example.com", "status": "pending",
 		}),
 	})
@@ -421,14 +421,14 @@ func TestConfigCustomDomainGet(t *testing.T) {
 	result := callTool(t, session, "outpost_config", map[string]any{"action": "custom_domain_get"})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/config/custom_domain", got.path)
+	assert.Equal(t, "/2026-09-01/config/custom_domain", got.path)
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), "portal.example.com")
 }
 
 func TestConfigCustomDomainSet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"POST /2025-07-01/config/custom_domain": recordJSON(&got, http.StatusCreated, map[string]any{
+		"POST /2026-09-01/config/custom_domain": recordJSON(&got, http.StatusCreated, map[string]any{
 			"hostname": "portal.example.com",
 			"status":   "pending",
 			"verification": []map[string]any{
@@ -444,7 +444,7 @@ func TestConfigCustomDomainSet(t *testing.T) {
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodPost, got.method)
-	assert.Equal(t, "/2025-07-01/config/custom_domain", got.path)
+	assert.Equal(t, "/2026-09-01/config/custom_domain", got.path)
 	assert.Equal(t, "portal.example.com", got.decodeBody(t)["hostname"])
 	// The DNS records are the only actionable part of the response; dropping
 	// them would leave the domain permanently unverified.
@@ -463,7 +463,7 @@ func TestConfigCustomDomainSetRequiresAHostname(t *testing.T) {
 func TestConfigCustomDomainDelete(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"DELETE /2025-07-01/config/custom_domain": recordJSON(&got, http.StatusOK, nil),
+		"DELETE /2026-09-01/config/custom_domain": recordJSON(&got, http.StatusOK, nil),
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
@@ -471,7 +471,7 @@ func TestConfigCustomDomainDelete(t *testing.T) {
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodDelete, got.method)
-	assert.Equal(t, "/2025-07-01/config/custom_domain", got.path)
+	assert.Equal(t, "/2026-09-01/config/custom_domain", got.path)
 	assert.JSONEq(t, `{"status":"deleted"}`, string(envelopeData(t, resultText(t, result))))
 }
 
@@ -482,7 +482,7 @@ func TestConfigCustomDomainDelete(t *testing.T) {
 func TestAttemptsList(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/attempts": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/attempts": recordJSON(&got, http.StatusOK, map[string]any{
 			"models":     []map[string]any{{"id": "att_1", "status": "failed", "code": "500"}},
 			"pagination": map[string]any{"limit": 10},
 		}),
@@ -501,7 +501,7 @@ func TestAttemptsList(t *testing.T) {
 	})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/attempts", got.path)
+	assert.Equal(t, "/2026-09-01/attempts", got.path)
 	// Repeated values use indexed brackets; repeating the bare key is not
 	// equivalent for this API.
 	assert.Contains(t, got.query, "event_id%5B0%5D=evt_1")
@@ -523,9 +523,9 @@ func TestListsAcceptLimitAsAString(t *testing.T) {
 		path string
 		args map[string]any
 	}{
-		{"outpost_attempts", "/2025-07-01/attempts", map[string]any{}},
-		{"outpost_events", "/2025-07-01/events", map[string]any{}},
-		{"outpost_tenants", "/2025-07-01/tenants", map[string]any{}},
+		{"outpost_attempts", "/2026-09-01/attempts", map[string]any{}},
+		{"outpost_events", "/2026-09-01/events", map[string]any{}},
+		{"outpost_tenants", "/2026-09-01/tenants", map[string]any{}},
 	} {
 		t.Run(tc.tool, func(t *testing.T) {
 			var got captured
@@ -555,10 +555,10 @@ func TestListsAcceptLimitAsAString(t *testing.T) {
 func TestPublishAcceptsEligibleForRetryAsAString(t *testing.T) {
 	var body map[string]any
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
+		"GET /2026-09-01/tenants/acme": func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "acme"})
 		},
-		"POST /2025-07-01/publish": func(w http.ResponseWriter, r *http.Request) {
+		"POST /2026-09-01/publish": func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			w.WriteHeader(http.StatusAccepted)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "evt_1", "destination_ids": []string{"des_1"}})
@@ -582,7 +582,7 @@ func TestPublishAcceptsEligibleForRetryAsAString(t *testing.T) {
 func TestAttemptsListUsesTheTenantScopedRoute(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/tenants/acme/destinations/des_1/attempts": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/tenants/acme/destinations/des_1/attempts": recordJSON(&got, http.StatusOK, map[string]any{
 			"models": []map[string]any{{"id": "att_1"}},
 		}),
 	})
@@ -592,13 +592,13 @@ func TestAttemptsListUsesTheTenantScopedRoute(t *testing.T) {
 		"action": "list", "tenant_id": "acme", "destination_id": "des_1",
 	})
 	require.False(t, result.IsError, resultText(t, result))
-	assert.Equal(t, "/2025-07-01/tenants/acme/destinations/des_1/attempts", got.path)
+	assert.Equal(t, "/2026-09-01/tenants/acme/destinations/des_1/attempts", got.path)
 }
 
 func TestAttemptsGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/attempts/att_1": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/attempts/att_1": recordJSON(&got, http.StatusOK, map[string]any{
 			"id": "att_1", "status": "failed", "code": "500",
 			"response_data": map[string]any{"body": "boom"},
 		}),
@@ -610,7 +610,7 @@ func TestAttemptsGet(t *testing.T) {
 	})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/attempts/att_1", got.path)
+	assert.Equal(t, "/2026-09-01/attempts/att_1", got.path)
 	assert.Contains(t, got.query, "include%5B0%5D=destination")
 	// The response body is why anyone looks at an attempt.
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), "boom")
@@ -632,7 +632,7 @@ func TestAttemptsGetRequiresAnID(t *testing.T) {
 func TestEventsList(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/events": recordJSON(&got, http.StatusOK, map[string]any{
 			"models":     []map[string]any{{"id": "evt_1", "topic": "user.created"}},
 			"pagination": map[string]any{"limit": 5, "next": "cursor_2"},
 		}),
@@ -645,7 +645,7 @@ func TestEventsList(t *testing.T) {
 	})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/events", got.path)
+	assert.Equal(t, "/2026-09-01/events", got.path)
 	assert.Contains(t, got.query, "tenant_id%5B0%5D=acme")
 	assert.Contains(t, got.query, "topic%5B0%5D=user.created")
 	assert.Contains(t, got.query, "limit=5")
@@ -658,7 +658,7 @@ func TestEventsList(t *testing.T) {
 func TestEventsGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/events/evt_1": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/events/evt_1": recordJSON(&got, http.StatusOK, map[string]any{
 			"id": "evt_1", "topic": "user.created", "data": map[string]any{"user_id": "123"},
 		}),
 	})
@@ -669,7 +669,7 @@ func TestEventsGet(t *testing.T) {
 	})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/events/evt_1", got.path)
+	assert.Equal(t, "/2026-09-01/events/evt_1", got.path)
 	assert.Equal(t, "tenant_id=acme", got.query)
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), "user_id")
 }
@@ -690,7 +690,7 @@ func TestEventsGetRequiresAnID(t *testing.T) {
 func TestDestinationTypesGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/destination-types/webhook": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/destination-types/webhook": recordJSON(&got, http.StatusOK, map[string]any{
 			"type":         "webhook",
 			"label":        "Webhook",
 			"icon":         "<svg>icon</svg>",
@@ -707,7 +707,7 @@ func TestDestinationTypesGet(t *testing.T) {
 	})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/destination-types/webhook", got.path)
+	assert.Equal(t, "/2026-09-01/destination-types/webhook", got.path)
 	text := resultText(t, result)
 	assert.Contains(t, text, "url", "the config fields are the reason to call this")
 	assert.NotContains(t, text, "a very long setup guide", "setup docs are opt-in on get too")
@@ -730,14 +730,14 @@ func TestDestinationTypesGetRequiresAType(t *testing.T) {
 func TestTopicsList(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/topics": recordJSON(&got, http.StatusOK, []string{"user.created", "user.deleted"}),
+		"GET /2026-09-01/topics": recordJSON(&got, http.StatusOK, []string{"user.created", "user.deleted"}),
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
 	result := callTool(t, session, "outpost_topics", map[string]any{"action": "list"})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/topics", got.path)
+	assert.Equal(t, "/2026-09-01/topics", got.path)
 	assert.JSONEq(t, `{"topics":["user.created","user.deleted"]}`,
 		string(envelopeData(t, resultText(t, result))))
 }
@@ -745,7 +745,7 @@ func TestTopicsList(t *testing.T) {
 func TestStatusGet(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/status": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/status": recordJSON(&got, http.StatusOK, map[string]any{
 			"status": "ready", "version": "1.2.3", "portal_hostname": "portal.example.com",
 		}),
 	})
@@ -754,7 +754,7 @@ func TestStatusGet(t *testing.T) {
 	result := callTool(t, session, "outpost_status", map[string]any{"action": "get"})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/status", got.path)
+	assert.Equal(t, "/2026-09-01/status", got.path)
 	assert.Contains(t, string(envelopeData(t, resultText(t, result))), "portal.example.com")
 }
 
@@ -765,7 +765,7 @@ func TestStatusGet(t *testing.T) {
 func TestMetricsEvents(t *testing.T) {
 	var got captured
 	api := mockAPI(t, map[string]http.HandlerFunc{
-		"GET /2025-07-01/metrics/events": recordJSON(&got, http.StatusOK, map[string]any{
+		"GET /2026-09-01/metrics/events": recordJSON(&got, http.StatusOK, map[string]any{
 			"data": []map[string]any{
 				{"dimensions": map[string]string{"topic": "user.created"}, "metrics": map[string]any{"count": 42}},
 			},
@@ -784,7 +784,7 @@ func TestMetricsEvents(t *testing.T) {
 	})
 	require.False(t, result.IsError, resultText(t, result))
 
-	assert.Equal(t, "/2025-07-01/metrics/events", got.path)
+	assert.Equal(t, "/2026-09-01/metrics/events", got.path)
 	// The range uses bracketed keys, not start/end.
 	assert.Contains(t, got.query, "time%5Bstart%5D=2026-08-01T00%3A00%3A00Z")
 	assert.Contains(t, got.query, "time%5Bend%5D=2026-08-14T00%3A00%3A00Z")

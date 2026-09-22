@@ -5,6 +5,7 @@ package acceptance
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -318,6 +319,47 @@ func TestTransformationRunWithTransformationID(t *testing.T) {
 	stdout, stderr, err := cli.Run("gateway", "transformation", "run", "--id", trnID, "--request", request)
 	require.NoError(t, err, "stdout: %s, stderr: %s", stdout, stderr)
 	assert.Contains(t, stdout, "Transformation run completed")
+}
+
+// TestTransformationRunThrowingHandlerFails covers #410. PUT
+// /transformations/run answers 200 whether the code ran or threw, so the CLI
+// reported success for every kind of failure: a throwing handler printed "{}"
+// and exited 0. Testing a transformation before shipping it is this command's
+// whole purpose, so a broken transformation has to be an error.
+func TestTransformationRunThrowingHandlerFails(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	code := `addHandler("transform", (request, context) => { throw new Error("boom"); });`
+	request := `{"headers":{}}`
+
+	stdout, stderr, err := cli.Run("gateway", "transformation", "run", "--code", code, "--request", request)
+	require.Error(t, err, "a handler that throws must not exit 0; stdout: %s, stderr: %s", stdout, stderr)
+	assert.NotContains(t, stdout, "Transformation run completed")
+	// The thrown error only ever arrives in the response's console array, so
+	// this also pins that the console output reaches the user.
+	assert.Contains(t, stdout+stderr, "boom")
+}
+
+// TestTransformationRunThrowingHandlerFailsOutputJSON is the same failure on the
+// --output json path, which must still print the payload a script consumes
+// before it exits non-zero.
+func TestTransformationRunThrowingHandlerFailsOutputJSON(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	code := `addHandler("transform", (request, context) => { throw new Error("boom"); });`
+	request := `{"headers":{}}`
+
+	stdout, stderr, err := cli.Run("gateway", "transformation", "run", "--code", code, "--request", request, "--output", "json")
+	require.Error(t, err, "a handler that throws must not exit 0 with --output json; stdout: %s, stderr: %s", stdout, stderr)
+	assert.Contains(t, stdout, "fatal", "the payload carries the diagnosis and must still be printed")
+	assert.NotEqual(t, "{}", strings.TrimSpace(stdout),
+		"the empty object in #410 was the response parsing into a struct with no fields for log_level or console")
 }
 
 func TestTransformationRunWithEnv(t *testing.T) {

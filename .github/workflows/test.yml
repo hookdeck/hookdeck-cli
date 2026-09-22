@@ -30,6 +30,13 @@ jobs:
           go-version: 1.26.6
       - name: Run unit tests
         run: go test -short ./pkg/...
+      # `go test` runs a reduced vet suite (printf, bools, atomic and a few
+      # more) and only over the packages it tests. The full suite is what
+      # catches things like sigchanyzer, which found an unbuffered
+      # signal.Notify channel that had been dropping Ctrl-C on the login
+      # prompt. Run it over ./... so test/ and tools/ are covered too.
+      - name: Run go vet
+        run: go vet ./...
 
   # Keeps the vulnerability scan clean rather than asserting it once. Nothing ran
   # govulncheck before, which is how GO-2026-5932 (x/crypto/openpgp, reached only
