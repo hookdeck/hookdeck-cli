@@ -45,6 +45,27 @@ gh api repos/hookdeck/hookdeck-cli/branches/main/protection \
 nothing else in the process will. That is the single most useful thing this
 review does that the required checks do not.
 
+### A green acceptance job is not a run
+
+A tick is not coverage either. An acceptance test that needs a credential skips
+itself when the job's `env:` block does not supply one, and a job whose tests
+all skipped still reports green. `gh pr checks` cannot show the difference.
+`acceptance-telemetry` is the live example — see *`CLITelemetry` JSON tags are a
+wire contract* below.
+
+Three gates sit between an assertion existing and a red check, and all three
+have to hold: the file's build tag has to be in a slice list or the telemetry
+job's `-tags`; the test's own guards (`testing.Short()`, a `t.Skip` on a missing
+environment variable) have to pass; and the job's `env:` block has to supply
+what those guards need.
+
+So when a diff touches behaviour an acceptance test covers, read the log rather
+than the colour:
+
+```
+gh run view --job=<id> --log | grep -E -- '--- (SKIP|PASS): <TestName>'
+```
+
 ### The one case where it genuinely does not run
 
 `pull_request` does not fire when a pull request's head branch is updated by
@@ -190,8 +211,8 @@ against real output, not against a fixture.
 ## Things that compile, pass, and are still broken
 
 Two surfaces in this repository have no test or CI job guarding them, so a green
-run means nothing about them. A third is guarded — and the guard is what makes it
-dangerous.
+run means nothing about them. A third is guarded only in part — and both halves,
+the guarded one and the unguarded one, are dangerous in their own way.
 
 ### `REFERENCE.md` is generated
 
@@ -224,19 +245,30 @@ in the `X-Hookdeck-CLI-Telemetry` header. Its `json:"..."` tags —
 `command_path`, `invocation_id`, `command_flags`, `mcp_client` and the rest —
 are field names that Hookdeck's usage analytics query by name.
 
-A rename does **not** pass silently. `pkg/hookdeck/telemetry_test.go` marshals
-the struct into a `map[string]interface{}` and asserts by literal key name —
-`TestTelemetryJSONSerialization` covers six of the eight tags,
-`TestTelemetryJSONWithGeneratedResource` covers `generated_resource`. Neither
-carries a build tag or a `testing.Short()` guard, so both run under the
-**required** `unit-test` check. The eighth, `command_flags`, is pinned only by
-the acceptance telemetry job (`test/acceptance/telemetry_test.go`), and
-`AssertTelemetryConsistent` separately pins `command_path` and `invocation_id`
-on the wire.
+Whether a rename goes red depends on which tag it is, and the split is not
+uniform. Most are pinned by literal key name in `pkg/hookdeck/telemetry_test.go`,
+which marshals the struct into a `map[string]interface{}`; that file carries no
+build tag and no `testing.Short()` guard, so it runs under the **required**
+`unit-test` check and renaming one of those tags goes red. At least one is not:
+`command_flags` is asserted only by `TestTelemetryLoginCommandFlagsProxy` in
+`test/acceptance/telemetry_test.go`, which skips itself unless
+`HOOKDECK_CLI_TESTING_CLI_KEY` is set — and the `acceptance-telemetry` job does
+not set it. Renaming that one goes green and empties the dashboard.
 
-The trap is the next move. The obvious way to get the build green again is to
-update the expected key in the test — which restores the signal while the
-dashboards built on the old name stay empty. **Treat a diff that edits both
+Do not carry that split around in your head, and do not trust the sentence above
+to still be true: it rots every time a test moves. Derive it for the tag in
+front of you.
+
+```
+grep -rn '<the json tag>' --include='*_test.go' .
+```
+
+No hit means nothing guards it. Hits only under `test/acceptance/` mean check
+whether that test runs at all — see *A green acceptance job is not a run* above.
+
+The trap, when it does go red, is the next move. The obvious way to get the
+build green again is to update the expected key in the test — which restores the
+signal while the dashboards built on the old name stay empty. **Treat a diff that edits both
 `telemetry.go` and its expected key names as a breaking change to a consumer
 outside this repository**, and say so explicitly. Adding a field is safe;
 renaming or removing one is not.
