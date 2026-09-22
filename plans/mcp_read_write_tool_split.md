@@ -451,10 +451,12 @@ for the `list_ignored` guard, which the per-action work can reuse.
       corrected; the `_read`/`_write` rename is not reflected yet
 - [x] `go run ./tools/generate-reference --check`, regenerate if it fails (green as of eab705f;
       rerun after the rename)
-- [ ] `CHANGELOG.md` — breaking, alongside the `hookdeck_*` to `gateway_*` rename. Say plainly
-      that per-tool grants and `allowedTools` entries need updating once. Note the new platform
-      tools and the API version bump.
-- [ ] Anything in `docs/` listing MCP tools
+- [x] ~~`CHANGELOG.md`~~ — **not the right place.** The file says outright that it is no longer
+      maintained and points at GitHub Releases. The breaking change belongs in the beta.2 release
+      notes instead; the draft is under "Release notes" below, and `.agents/skills/` carries the
+      release process.
+- [x] Anything in `docs/` listing MCP tools — `docs/` holds only a demo GIF; `README.md` was the
+      only document naming tools, and is updated
 
 ### 6. Tests
 
@@ -638,6 +640,49 @@ question.
 Follow-up worth taking: the spec file is a committed copy, so it can drift from the live API.
 A check that re-fetches and diffs it — or a CI step that fails when `APIPathPrefix` names a
 version the committed document does not — would close that.
+
+## Release notes for v3.0.0-beta.2
+
+`CHANGELOG.md` is unmaintained and points at GitHub Releases, so this is the text to lift when
+cutting the tag rather than a file to edit.
+
+### Breaking: every MCP tool has been renamed
+
+v3.0.0 already renamed the Event Gateway tools from `hookdeck_*` to `gateway_*`. beta.2 goes
+further and splits each one by what it does:
+
+```
+gateway_connections   ->  gateway_connections_read    list, get
+                          gateway_connections_pause   pause, unpause
+                          gateway_connections_write   create, upsert, update, delete, enable, disable
+```
+
+**Per-tool permission grants and `allowedTools` entries need updating once.** They do not survive
+a rename, and there is no automatic migration — MCP has no mechanism for one.
+
+The upside is the reason for the churn: **"allow all reads, prompt on anything that changes data"
+is now one rule**, `mcp__hookdeck-gateway__*_read`, where before it could not be expressed at all.
+Clients grant permission per tool name and cannot match on arguments, so a single tool carrying
+both `list` and `delete` had to be allowed or denied whole.
+
+Both renames land in one upgrade deliberately. Splitting after GA would have meant a second
+re-grant.
+
+### New
+
+- `hookdeck_organization_read` / `_write`, and `hookdeck_projects` split into `_read`, `_use` and
+  `_write` — projects can now be created, renamed and deleted, not just listed and switched to.
+- `gateway_bulk_read` / `_write` — bulk retry, cancel and replay across five operations. `plan`
+  estimates what a bulk operation would touch **without running it**, and is a read, so the blast
+  radius can be sized without `--allow-write`.
+- `hookdeck org` and `hookdeck project` CLI commands: organization get/update, API key
+  management, project CRUD, and project custom domains.
+
+### Deliberately not included
+
+**API key management is not available through MCP, in any form.** A key is a credential; an agent
+able to mint one could grant itself access the server would otherwise refuse. Use
+`hookdeck org api-key` or the dashboard.
 
 ## Open questions
 

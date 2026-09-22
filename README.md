@@ -649,35 +649,57 @@ Pausing and unpausing a connection are available in **both** modes. Read-only is
 
 Product tools are prefixed `gateway_`. Signing in and switching project are Hookdeck operations rather than Event Gateway ones, so they keep the platform `hookdeck_` prefix and are shared with `hookdeck outpost mcp`.
 
-| Tool | Read actions | Added by `--allow-write` |
-|------|--------------|--------------------------|
-| `hookdeck_projects` | list, use | — |
-| `hookdeck_login` | (sign in) | — |
-| `gateway_connections` | list, get, pause, unpause | create, upsert, update, delete, enable, disable |
-| `gateway_sources` | list, get | create, upsert, update, delete, enable, disable |
-| `gateway_destinations` | list, get | create, upsert, update, delete, enable, disable |
-| `gateway_transformations` | list, get | create, upsert, update, delete, run |
-| `gateway_requests` | list | — |
-| `gateway_request` | get, raw_body | retry |
-| `gateway_events` | list, list_ignored | — |
-| `gateway_event` | get, raw_body | retry, cancel, mute |
-| `gateway_attempts` | list, get | — |
-| `gateway_issues` | list, get | update, dismiss |
-| `gateway_metrics` | events, requests, attempts, transformations | — |
-| `gateway_help` | overview, per-tool topics | — |
+| Read tool (both modes) | Actions | Write tool (`--allow-write` only) | Actions |
+|---|---|---|---|
+| `hookdeck_projects_read` | list, get | `hookdeck_projects_write` | create, update, delete |
+| `hookdeck_projects_use` | use | — | — |
+| `hookdeck_organization_read` | get | `hookdeck_organization_write` | update |
+| `hookdeck_login` | (sign in) | — | — |
+| `gateway_connections_read` | list, get | `gateway_connections_write` | create, upsert, update, delete, enable, disable |
+| `gateway_connections_pause` | pause, unpause | — | — |
+| `gateway_sources_read` | list, get | `gateway_sources_write` | create, upsert, update, delete, enable, disable |
+| `gateway_destinations_read` | list, get | `gateway_destinations_write` | create, upsert, update, delete, enable, disable |
+| `gateway_transformations_read` | list, get, run | `gateway_transformations_write` | create, upsert, update, delete |
+| `gateway_requests_read` | list | — | — |
+| `gateway_request_read` | get, raw_body | `gateway_request_write` | retry |
+| `gateway_events_read` | list, list_ignored | — | — |
+| `gateway_event_read` | get, raw_body | `gateway_event_write` | retry, cancel, mute |
+| `gateway_attempts_read` | list, get | — | — |
+| `gateway_issues_read` | list, get | `gateway_issues_write` | update, dismiss |
+| `gateway_metrics_read` | events, requests, attempts, transformations | — | — |
+| `gateway_bulk_read` | list, get, plan | `gateway_bulk_write` | create, cancel |
+| `gateway_help` | overview, per-tool topics | — | — |
+
+Every tool name ends in `_read` or `_write`, so a client that grants permission per tool name can
+allow all reads with one rule — `mcp__hookdeck-gateway__*_read` — and be prompted on everything
+that changes data. A read tool is identical in both modes, so a grant written against one keeps
+meaning the same thing after the server is restarted with `--allow-write`.
+
+Two tools match neither suffix, and both are deliberate. `gateway_connections_pause` changes
+delivery but stays available without `--allow-write`, because pausing a misbehaving connection is
+usually how an investigation ends. `hookdeck_projects_use` changes which project every later call
+targets, and gating it would strand a read-only session in whichever project it started in.
+
+`gateway_bulk_read`'s `plan` action estimates how many records a bulk operation would touch
+without running it — so the blast radius of a bulk retry or replay can be sized with no write
+access at all.
+
+API key management is deliberately **not** exposed to MCP in any form. A key is a credential, and
+an agent able to mint one could grant itself access this server would otherwise refuse. Use
+`hookdeck org api-key` or the dashboard.
 
 `transformations run` executes code without storing anything, but it is gated as a write: a read-only session should not be able to run caller-supplied code.
 
 Events and requests are each split into a **plural** tool that searches and a **singular** tool that acts on one record:
 
-- `gateway_events` / `gateway_requests` (plural) take the filters and return IDs. They cannot fetch or change a single record.
-- `gateway_event` / `gateway_request` (singular) take an `id` and nothing else (plus `connection_ids` on request retry). They cannot search.
+- `gateway_events_read` / `gateway_requests_read` (plural) take the filters and return IDs. They cannot fetch or change a single record.
+- `gateway_event_read` / `gateway_request_read` (singular) take an `id` and nothing else (plus `connection_ids` on request retry). They cannot search.
 
 The usual flow is plural to find an ID, then singular with that ID. The split keeps ~20 list filters out of the schema for actions that only need an id.
 
-`gateway_events` and `gateway_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `gateway_help` with topic `gateway_events` or `gateway_requests` for the full parameter list.
+`gateway_events_read` and `gateway_requests_read` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `gateway_help` with topic `gateway_events_read` or `gateway_requests_read` for the full parameter list.
 
-The only relationship traversal the API supports is request → events, and `gateway_events` owns both directions of it. Pass `request_id` with action `list` for the events a request produced, or action `list_ignored` for the ones a connection filter dropped. `GET /events` declares no `request_id` filter, so the tool queries the request's own events route instead — it takes the same filters, so every argument still applies (`list_ignored`'s route is the exception: it takes `id`, paging and ordering only). There is no `event_id` filter on requests. To go the other way, read `request_id` off an event and call `gateway_request` with action `get`.
+The only relationship traversal the API supports is request → events, and `gateway_events_read` owns both directions of it. Pass `request_id` with action `list` for the events a request produced, or action `list_ignored` for the ones a connection filter dropped. `GET /events` declares no `request_id` filter, so the tool queries the request's own events route instead — it takes the same filters, so every argument still applies (`list_ignored`'s route is the exception: it takes `id`, paging and ordering only). There is no `event_id` filter on requests. To go the other way, read `request_id` off an event and call `gateway_request_read` with action `get`.
 
 `gateway_help` reports which mode the session is in and lists only the actions it can perform.
 
@@ -702,7 +724,7 @@ Once the MCP server is configured, you can ask your agent questions like:
 → Agent uses gateway_events filtered by status FAILED, then gateway_attempts to inspect delivery details.
 
 "Pause the connection between Stripe and my staging endpoint while I debug."
-→ Agent uses gateway_connections to find and pause the connection.
+→ Agent uses gateway_connections_read to find it, then gateway_connections_pause to stop delivery.
 
 "Compare failure rates across all my destinations this week."
 → Agent uses gateway_metrics with dimensions set to destination_id and measures like error_rate.
@@ -788,7 +810,7 @@ For complete command and flag reference, see [REFERENCE.md](REFERENCE.md).
 }
 ```
 
-The client starts `hookdeck outpost mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool logs in via the browser. The active project must be an Outpost project; `hookdeck_projects` lists the Outpost projects available to you and switches between them. Signing in and switching projects are Hookdeck operations rather than Outpost ones, so they keep the `hookdeck_` prefix in both servers.
+The client starts `hookdeck outpost mcp` as a stdio subprocess. If you haven't authenticated yet, the `hookdeck_login` tool logs in via the browser. The active project must be an Outpost project; `hookdeck_projects_read` lists the Outpost projects available to you and switches between them. Signing in and switching projects are Hookdeck operations rather than Outpost ones, so they keep the `hookdeck_` prefix in both servers.
 
 #### Read-only by default
 
@@ -800,9 +822,9 @@ The server starts read-only. Each tool advertises only the actions that read dat
 
 `--read-only` is accepted as an explicit way to ask for the default, and wins if both are passed.
 
-Two actions that only read are gated with the writes, because both return a reusable credential: `outpost_tenants` `token` mints a tenant-scoped access token, and `outpost_tenants` `portal` returns a URL granting access to a tenant's portal.
+Two actions that only read are gated with the writes, because both return a reusable credential: `outpost_tenants_write` `token` mints a tenant-scoped access token, and `outpost_tenants_read` `portal` returns a URL granting access to a tenant's portal.
 
-Publishing needs a Hookdeck **Project API key**, which the credentials stored by `hookdeck login` cannot substitute for. Without one the `outpost_publish` tool is not registered at all; pass `--publish-api-key` or set `HOOKDECK_OUTPOST_PUBLISH_API_KEY` to enable it.
+Publishing needs a Hookdeck **Project API key**, which the credentials stored by `hookdeck login` cannot substitute for. Without one the `outpost_publish_write` tool is not registered at all; pass `--publish-api-key` or set `HOOKDECK_OUTPOST_PUBLISH_API_KEY` to enable it.
 
 `HOOKDECK_API_KEY` is deliberately **not** read here. Elsewhere in the CLI it means "a key to exchange for CLI credentials" and is commonly exported for CI, so reading it here would let an ambient variable silently grant an agent the ability to publish real events to real destinations.
 
@@ -811,17 +833,18 @@ Publishing needs a Hookdeck **Project API key**, which the credentials stored by
 | Tool | Description |
 |------|-------------|
 | `hookdeck_login` | Sign in via the browser |
-| `hookdeck_projects` | List Outpost projects or switch the active one for this session |
-| `outpost_tenants` | Inspect tenants (list, get) and manage them (upsert, delete, token, portal) |
-| `outpost_destinations` | Inspect a tenant's destinations (list, get) and manage them (create, update, delete, enable, disable) |
-| `outpost_events` | Query published events (list, get) and retry delivery |
-| `outpost_attempts` | Query delivery attempts — status, response codes, retry history |
-| `outpost_publish` | Publish an event to a topic |
-| `outpost_topics` | List the topics available in the project |
-| `outpost_destination_types` | Inspect destination types and the config and credential fields each accepts |
-| `outpost_metrics` | Query aggregate publish and delivery metrics |
-| `outpost_config` | Read and change project configuration, including the portal's custom domain |
-| `outpost_status` | Show the deployment status |
+| `hookdeck_projects_read` / `_use` / `_write` | List or read projects, switch the active one, create and change them |
+| `hookdeck_organization_read` / `_write` | Read or rename the organization |
+| `outpost_tenants_read` / `_write` | Inspect tenants (list, get); manage them (upsert, delete, token, portal) |
+| `outpost_destinations_read` / `_write` | Inspect a tenant's destinations (list, get); manage them (create, update, delete, enable, disable) |
+| `outpost_events_read` / `_write` | Query published events (list, get); retry delivery |
+| `outpost_attempts_read` | Query delivery attempts — status, response codes, retry history |
+| `outpost_publish_write` | Publish an event to a topic |
+| `outpost_topics_read` | List the topics available in the project |
+| `outpost_destination_types_read` | Inspect destination types and the config and credential fields each accepts |
+| `outpost_metrics_read` | Query aggregate publish and delivery metrics |
+| `outpost_config_read` / `_write` | Read and change project configuration, including the portal's custom domain |
+| `outpost_status_read` | Show the deployment status |
 | `outpost_help` | Discover the available tools, their actions, and the current mode |
 
 Call `outpost_help` at any time to see which mode the session is in and which actions it can perform.
