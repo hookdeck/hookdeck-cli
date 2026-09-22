@@ -181,6 +181,23 @@ func (s *Server) platformToolName(resource string) string {
 	return prefix + "_" + resource
 }
 
+// PlatformSpecs are the specs both servers expose under the hookdeck_ prefix.
+//
+// They live here rather than in either product because they are the same
+// operation whichever product's server you are in — you log in to Hookdeck, you
+// switch a Hookdeck project, you rename a Hookdeck organization. A client with
+// both servers configured should see one name for each.
+//
+// summary is the product's own wording for the projects tool, which differs
+// because the surrounding advice does (which tools to call next, and why the
+// active project matters to them).
+func (s *Server) PlatformSpecs(projectsSummary string) []ToolSpec {
+	return []ToolSpec{
+		s.ProjectsSpec(projectsSummary),
+		s.OrganizationSpec(),
+	}
+}
+
 // RequireAuth guards a handler on an unauthenticated session, naming this
 // server's login tool.
 func (s *Server) RequireAuth() *mcpsdk.CallToolResult {

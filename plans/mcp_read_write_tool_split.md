@@ -394,13 +394,13 @@ for the `list_ignored` guard, which the per-action work can reuse.
 
 ### 3. Platform tools
 
-- [ ] API client methods for organizations, projects CRUD, API keys
-- [ ] `hookdeck_projects_read` (`list`, `get`) — replaces today's `hookdeck_projects`
-- [ ] `hookdeck_projects_use` (`use`) — both modes
-- [ ] `hookdeck_projects_write` (`create`, `update`, `delete`), `type` defaulted per server
-- [ ] `hookdeck_organization_read` / `_write`
-- [ ] Register on both Gateway and Outpost servers
-- [ ] Help topics for each
+- [x] API client methods for organizations, projects CRUD (no API keys, by decision)
+- [x] `hookdeck_projects_read` (`list`, `get`) — replaces today's `hookdeck_projects`
+- [x] `hookdeck_projects_use` (`use`) — both modes
+- [x] `hookdeck_projects_write` (`create`, `update`, `delete`), `type` defaulted per server
+- [x] `hookdeck_organization_read` / `_write`
+- [x] Register on both Gateway and Outpost servers
+- [x] Help topics for each
 
 ### 4. Description fixes (from the blind runs, scheme-independent)
 

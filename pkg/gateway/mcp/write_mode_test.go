@@ -59,7 +59,7 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 
 	t.Run("registers every read tool", func(t *testing.T) {
 		for _, name := range []string{
-			"hookdeck_projects", "hookdeck_login", "gateway_help",
+			"hookdeck_projects_read", "hookdeck_login", "gateway_help",
 			"gateway_connections_read", "gateway_sources_read", "gateway_destinations_read",
 			"gateway_transformations_read", "gateway_requests_read", "gateway_request_read",
 			"gateway_events_read", "gateway_event_read",

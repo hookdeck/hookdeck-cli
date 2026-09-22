@@ -190,7 +190,7 @@ func TestListTools_Authenticated(t *testing.T) {
 	assert.Contains(t, toolNames, "hookdeck_login")
 
 	expectedTools := []string{
-		"hookdeck_projects", "gateway_connections_read", "gateway_sources_read",
+		"hookdeck_projects_read", "gateway_connections_read", "gateway_sources_read",
 		"gateway_destinations_read", "gateway_transformations_read",
 		"gateway_requests_read", "gateway_request_read",
 		"gateway_events_read", "gateway_event_read", "gateway_attempts_read", "gateway_issues_read",
@@ -497,7 +497,7 @@ func TestAuthGuard_UnauthenticatedReturnsError(t *testing.T) {
 		"gateway_issues_read":          "list",
 		"gateway_transformations_read": "list",
 		"gateway_metrics_read":         "events",
-		"hookdeck_projects":            "list",
+		"hookdeck_projects_read":       "list",
 	}
 
 	for toolName, action := range resourceTools {
@@ -1368,7 +1368,7 @@ func TestProjectsList_Success(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "list"})
+	result := callTool(t, session, "hookdeck_projects_read", map[string]any{"action": "list"})
 	assert.False(t, result.IsError)
 	text := textContent(t, result)
 	assert.Contains(t, text, `"data"`)
@@ -1390,7 +1390,7 @@ func TestProjectsList_ForbiddenIncludesReauthHint(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "list"})
+	result := callTool(t, session, "hookdeck_projects_read", map[string]any{"action": "list"})
 	assert.True(t, result.IsError)
 	text := textContent(t, result)
 	assert.Contains(t, strings.ToLower(text), "reauth")
@@ -1407,7 +1407,7 @@ func TestProjectsUse_Success(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "use", "project_id": "proj_new"})
+	result := callTool(t, session, "hookdeck_projects_use", map[string]any{"action": "use", "project_id": "proj_new"})
 	assert.False(t, result.IsError)
 	text := textContent(t, result)
 	assert.Contains(t, text, "proj_new")
@@ -1419,7 +1419,7 @@ func TestProjectsUse_Success(t *testing.T) {
 func TestProjectsUse_MissingProjectID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "use"})
+	result := callTool(t, session, "hookdeck_projects_use", map[string]any{"action": "use"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "project_id is required")
 }
@@ -1433,7 +1433,7 @@ func TestProjectsUse_ProjectNotFound(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "use", "project_id": "proj_nonexistent"})
+	result := callTool(t, session, "hookdeck_projects_use", map[string]any{"action": "use", "project_id": "proj_nonexistent"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "not found")
 }
@@ -1441,9 +1441,23 @@ func TestProjectsUse_ProjectNotFound(t *testing.T) {
 func TestProjectsTool_UnknownAction(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_projects", map[string]any{"action": "create"})
+
+	// "create" used to be the example here, back when this tool had only list
+	// and use. It is a real action now, so the example has to be one that is
+	// genuinely not an action — otherwise the test asserts nothing.
+	result := callTool(t, session, "hookdeck_projects_read", map[string]any{"action": "archive"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "unknown action")
+}
+
+// A gated action asked for on the read tool gets the mode message, not
+// "unknown action" — it exists, it is just not registered here.
+func TestProjectsTool_GatedActionNamesTheFlag(t *testing.T) {
+	client := newTestClient("https://api.hookdeck.com", "test-key")
+	session := connectInMemory(t, client)
+	result := callTool(t, session, "hookdeck_projects_read", map[string]any{"action": "delete", "project_id": "tm_1"})
+	require.True(t, result.IsError)
+	assert.Contains(t, textContent(t, result), "--allow-write")
 }
 
 // ---------------------------------------------------------------------------
@@ -1969,7 +1983,7 @@ func TestHelpTool_AllTopics(t *testing.T) {
 		name           string
 		expectContains string
 	}{
-		{"hookdeck_projects", "list"},
+		{"hookdeck_projects_read", "list"},
 		{"gateway_connections_read", "list"},
 		// pause moved to its own tool, so it has its own topic.
 		{"gateway_connections_pause", "unpause"},
@@ -2034,7 +2048,7 @@ func TestHelpTool_OverviewListsAllTools(t *testing.T) {
 	text := textContent(t, result)
 
 	expectedTools := []string{
-		"hookdeck_projects", "gateway_connections_read", "gateway_sources_read",
+		"hookdeck_projects_read", "gateway_connections_read", "gateway_sources_read",
 		"gateway_destinations_read", "gateway_transformations_read",
 		"gateway_requests_read", "gateway_request_read",
 		"gateway_events_read", "gateway_event_read", "gateway_attempts_read", "gateway_issues_read",

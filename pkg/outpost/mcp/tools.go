@@ -83,7 +83,13 @@ func resourceSpecs() []mcpcore.ToolSpec {
 }
 
 func toolDefs(srv *mcpcore.Server, opts ServerOptions) []mcpcore.ToolDef {
-	defs := []mcpcore.ToolDef{srv.ProjectsToolDef(projectsToolDesc)}
+	// Platform tools: the organization and its projects. Both servers expose
+	// them under the hookdeck_ prefix — it is the same operation whichever
+	// product you are in.
+	var defs []mcpcore.ToolDef
+	for _, spec := range srv.PlatformSpecs(projectsToolDesc) {
+		defs = append(defs, spec.Define(srv)...)
+	}
 	for _, spec := range resourceSpecs() {
 		// Each group renders its own tool, read first and the gated one last,
 		// so the pairing is visible where an agent reads the tool list.

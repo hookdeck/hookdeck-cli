@@ -102,7 +102,7 @@ func toolSummaryLines(srv *mcpcore.Server) []string {
 		{srv.LoginToolName(), "Sign in, or reauth: true for a fresh browser session when listing projects fails"},
 	}
 
-	for _, spec := range resourceSpecs() {
+	for _, spec := range append(srv.PlatformSpecs(projectsToolDesc), resourceSpecs()...) {
 		for _, group := range spec.Actions.Groups() {
 			actions := spec.Actions.InGroup(group)
 			if len(actions) == 0 {
@@ -115,7 +115,7 @@ func toolSummaryLines(srv *mcpcore.Server) []string {
 				continue
 			}
 			entries = append(entries, entry{
-				name:    srv.ToolName(spec.Resource) + "_" + group,
+				name:    spec.GroupToolName(srv, group),
 				summary: "Actions: " + strings.Join(actions.Names(), ", "),
 			})
 		}
@@ -172,25 +172,6 @@ repeats the common JSON response shape above for convenience.`,
 // never documents an action this session cannot perform.
 func toolHelp(srv *mcpcore.Server) map[string]string {
 	topics := map[string]string{
-		srv.ProjectsToolName(): `hookdeck_projects — List or switch the active project
-
-Always call this first when the user references a specific project by name. List available
-projects to find the matching project ID, then use the "use" action to switch to it before
-calling any other tools. All queries (events, issues, connections, metrics, requests) are
-scoped to the active project — if the wrong project is active, all results will be wrong.
-Also use this when unsure which project is currently active.
-
-Actions:
-  list  — List all projects. data.projects is the array (id, org, project, type gateway/outpost/console, current). meta includes active_project_id, active_project_name (short), and active_project_org when known.
-  use   — Switch the active project for this session (in-memory only).
-
-Switching affects this session only. Unlike 'hookdeck project use' on the command line, it does
-not write to the config file, so it will not change which project the user's own CLI is pointed
-at. Say so if the user asks whether their CLI was affected.
-
-Parameters:
-  action      (string, required) — "list" or "use"
-  project_id  (string)           — Required for "use"`,
 
 		srv.LoginToolName(): `hookdeck_login — Browser sign-in for the Hookdeck CLI inside MCP
 
@@ -214,7 +195,7 @@ Parameters:
 			srv.HelpToolName(), srv.ProjectsToolName(), srv.ToolName("events")),
 	}
 
-	for _, spec := range resourceSpecs() {
+	for _, spec := range append(srv.PlatformSpecs(projectsToolDesc), resourceSpecs()...) {
 		for _, group := range spec.Actions.Groups() {
 			actions := spec.Actions.InGroup(group)
 			if len(actions) == 0 {
@@ -226,7 +207,7 @@ Parameters:
 			if group == mcpcore.GroupWrite && !srv.WriteEnabled() {
 				continue
 			}
-			topics[srv.ToolName(spec.Resource)+"_"+group] = spec.Help(srv, group, actions)
+			topics[spec.GroupToolName(srv, group)] = spec.Help(srv, group, actions)
 		}
 	}
 

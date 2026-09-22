@@ -135,7 +135,7 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 		{srv.LoginToolName(), "Sign in, or reauth: true for a fresh browser session when listing projects fails"},
 	}
 
-	specs := resourceSpecs()
+	specs := append(srv.PlatformSpecs(projectsToolDesc), resourceSpecs()...)
 	for _, spec := range specs {
 		for _, group := range spec.Actions.Groups() {
 			actions := spec.Actions.InGroup(group)
@@ -149,7 +149,7 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 				continue
 			}
 			entries = append(entries, entry{
-				name:    srv.ToolName(spec.Resource) + "_" + group,
+				name:    spec.GroupToolName(srv, group),
 				summary: "Actions: " + strings.Join(actions.Names(), ", "),
 			})
 		}
@@ -177,24 +177,6 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 // never documents an action this session cannot perform.
 func toolHelp(srv *mcpcore.Server) map[string]string {
 	topics := map[string]string{
-		srv.ProjectsToolName(): `hookdeck_projects — List or switch the active project
-
-Always call this first when the user references a specific project by name. Every other tool is
-scoped to the active project. Only Outpost projects are listed and only an Outpost project can be
-switched to: this server talks to the Outpost API and has no access to Event Gateway projects.
-
-Actions:
-  list  — List the Outpost projects available to your credentials
-  use   — Switch the active project for this session
-
-Switching affects this session only. Unlike 'hookdeck project use' on the command line, it does not
-write to the config file, so it will not change which project the user's own CLI is pointed at. Say
-so if the user asks whether their CLI was affected. Signing in does persist, because that is an
-explicit action the user took.
-
-Parameters:
-  action      (string, required) — "list" or "use"
-  project_id  (string)           — Required for "use"`,
 
 		srv.LoginToolName(): `hookdeck_login — Browser sign-in for the Hookdeck CLI inside MCP
 
@@ -219,7 +201,7 @@ Parameters:
 	// publish is appended unconditionally, so a topic lookup describes it even
 	// when no publish key was supplied and the tool was not registered. The
 	// overview above reports its absence correctly; see #364.
-	specs := append(resourceSpecs(), publishSpec(""))
+	specs := append(srv.PlatformSpecs(projectsToolDesc), append(resourceSpecs(), publishSpec(""))...)
 	for _, spec := range specs {
 		for _, group := range spec.Actions.Groups() {
 			actions := spec.Actions.InGroup(group)
@@ -232,7 +214,7 @@ Parameters:
 			if group == mcpcore.GroupWrite && !srv.WriteEnabled() {
 				continue
 			}
-			topics[srv.ToolName(spec.Resource)+"_"+group] = spec.Help(srv, group, actions)
+			topics[spec.GroupToolName(srv, group)] = spec.Help(srv, group, actions)
 		}
 	}
 

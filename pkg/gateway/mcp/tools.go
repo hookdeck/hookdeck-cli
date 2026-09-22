@@ -94,7 +94,13 @@ func resourceSpecs() []mcpcore.ToolSpec {
 // toolDefs builds the tool definitions for the current write mode. Each spec
 // renders its own schema, so read-only sessions never advertise a write action.
 func toolDefs(srv *mcpcore.Server) []mcpcore.ToolDef {
-	defs := []mcpcore.ToolDef{srv.ProjectsToolDef(projectsToolDesc)}
+	// Platform tools: the organization and its projects. Both servers expose
+	// them under the hookdeck_ prefix — it is the same operation whichever
+	// product you are in.
+	var defs []mcpcore.ToolDef
+	for _, spec := range srv.PlatformSpecs(projectsToolDesc) {
+		defs = append(defs, spec.Define(srv)...)
+	}
 
 	for _, spec := range resourceSpecs() {
 		// Each group renders its own tool, read first and the gated one last,

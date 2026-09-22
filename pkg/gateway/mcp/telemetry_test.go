@@ -249,7 +249,7 @@ func TestMCPToolCall_MultipleAPICallsSameInvocation(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "hookdeck_projects", map[string]any{
+	result := callTool(t, session, "hookdeck_projects_use", map[string]any{
 		"action":     "use",
 		"project_id": "proj_abc",
 	})

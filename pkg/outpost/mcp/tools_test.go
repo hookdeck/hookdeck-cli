@@ -132,7 +132,7 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 
 	t.Run("registers every read tool", func(t *testing.T) {
 		for _, name := range []string{
-			"hookdeck_projects", "hookdeck_login", "outpost_help",
+			"hookdeck_projects_read", "hookdeck_login", "outpost_help",
 			"outpost_tenants_read", "outpost_destinations_read", "outpost_events_read",
 			"outpost_attempts_read", "outpost_topics_read", "outpost_destination_types_read",
 			"outpost_metrics_read", "outpost_config_read", "outpost_status_read",
@@ -336,7 +336,7 @@ func TestUnauthenticated_PointsAtALoginToolThatExists(t *testing.T) {
 	require.True(t, registered["hookdeck_login"], "login is platform-level, so it is hookdeck_login in every server")
 	require.False(t, registered["outpost_login"], "the product prefix must not be used for a platform tool")
 
-	for _, name := range []string{"outpost_tenants_read", "outpost_events_read", "outpost_status_read", "hookdeck_projects"} {
+	for _, name := range []string{"outpost_tenants_read", "outpost_events_read", "outpost_status_read", "hookdeck_projects_read"} {
 		t.Run(name, func(t *testing.T) {
 			result := callTool(t, session, name, map[string]any{"action": "list"})
 			require.True(t, result.IsError)

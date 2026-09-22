@@ -11,24 +11,48 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 )
 
-// ProjectsToolDef returns the projects tool for this server, named
-// "<prefix>_projects". The description is supplied by the product; the list and
-// use actions are shared.
+// projectsActions is the platform projects surface.
 //
-// When Options.ProjectFilter is set, only projects of that type are listed and
-// only those can be switched to — a server can only serve the product its API
-// belongs to.
-func (s *Server) ProjectsToolDef(description string) ToolDef {
-	return ToolDef{
-		Tool: &mcpsdk.Tool{
-			Name:        s.ProjectsToolName(),
-			Description: description,
-			InputSchema: Schema(map[string]Prop{
-				"action":     {Type: "string", Desc: "Action to perform: list or use", Enum: []string{"list", "use"}},
-				"project_id": {Type: "string", Desc: "Project ID (required for use action)"},
-			}, "action"),
+// use is Mutates rather than Write, and takes a tool of its own. It changes
+// which project every later call in the session targets — so it cannot sit on
+// the read tool without costing that tool its ReadOnlyHint — but gating it
+// would leave a read-only session stuck in whichever project it started in,
+// which is the opposite of useful when the job is investigating another one.
+// Same reasoning as connections pause/unpause.
+var projectsActions = ActionSet{
+	{Name: "list", Desc: "list the projects this credential can see"},
+	{Name: "get", Desc: "get one project by ID"},
+
+	{Name: "use", Desc: "switch the active project for every later call in this session", Mutates: true, Tool: "use"},
+
+	{Name: "create", Desc: "create a project in the current organization", Write: true},
+	{Name: "update", Desc: "rename a project or change its settings", Write: true},
+	{Name: "delete", Desc: "delete a project and everything in it", Write: true, Destructive: true},
+}
+
+// ProjectsSpec returns the platform projects spec for this server. The summary
+// is supplied by the product; the actions and handlers are shared.
+//
+// When Options.ProjectFilter is set, every action is confined to projects of
+// that type: a server can only serve the product its API belongs to, so
+// listing, reading, switching to, changing or deleting another product's
+// project would either fail later or act outside what this server is for.
+func (s *Server) ProjectsSpec(summary string) ToolSpec {
+	return ToolSpec{
+		Resource: "projects",
+		Platform: true,
+		Summary:  summary,
+		Actions:  projectsActions,
+		Props: map[string]Prop{
+			"project_id": {Type: "string", Desc: "Project ID. Required for get, use, update and delete."},
+			"name":       {Type: "string", Desc: "Project name (create, update)."},
+			"type": {Type: "string", Desc: "Project type (create). Defaults to the type this server serves.",
+				Enum: []string{config.ProjectTypeEventGateway, config.ProjectTypeOutpost}, Only: []string{GroupWrite}},
+			"private":        {Type: "boolean", Desc: "Whether the project is private (create, update).", Only: []string{GroupWrite}},
+			"domain":         {Type: "string", Desc: "Project domain (update).", Only: []string{GroupWrite}},
+			"headers_prefix": {Type: "string", Desc: "Prefix applied to forwarded headers (update).", Only: []string{GroupWrite}},
 		},
-		Handler: handleProjects(s),
+		Handler: handleProjects,
 	}
 }
 
@@ -44,16 +68,136 @@ func handleProjects(srv *Server) mcpsdk.ToolHandler {
 			return ErrorResult(err.Error()), nil
 		}
 
-		action := in.String("action")
+		action, blocked := DispatchWithDefault(srv, projectsActions, in.String("action"), "list")
+		if blocked != nil {
+			return blocked, nil
+		}
+
 		switch action {
-		case "list", "":
+		case "list":
 			return projectsList(srv, client)
+		case "get":
+			return projectsGet(ctx, srv, client, in)
 		case "use":
 			return projectsUse(srv, client, in)
+		case "create":
+			return projectsCreate(ctx, srv, client, in)
+		case "update":
+			return projectsUpdate(ctx, srv, client, in)
 		default:
-			return ErrorResult(fmt.Sprintf("unknown action %q; expected list or use", action)), nil
+			return projectsDelete(ctx, srv, client, in)
 		}
 	}
+}
+
+// servableProject resolves a project by id and refuses one this server cannot
+// serve.
+//
+// Every by-id action goes through here. Without it a Gateway server could
+// delete an Outpost project — the API would allow it, because the credential is
+// the same; it is this server that has no business doing it.
+func servableProject(ctx context.Context, srv *Server, id string) (*hookdeck.Project, *mcpsdk.CallToolResult) {
+	if id == "" {
+		return nil, ErrorResult("project_id is required")
+	}
+	proj, err := srv.AccountClient().GetProject(ctx, id)
+	if err != nil {
+		return nil, ErrorResult(TranslateAPIError(err))
+	}
+	filter := srv.ProjectFilter()
+	if filter != "" && config.NormalizeProjectType(proj.Type) != filter {
+		return nil, ErrorResult(fmt.Sprintf(
+			"project %q is a %s project, and this server serves %s projects. Use action list to see the ones it can act on.",
+			id, config.ProjectTypeToJSON(proj.Type), config.ProjectTypeToJSON(filter),
+		))
+	}
+	return proj, nil
+}
+
+func projectsGet(ctx context.Context, srv *Server, client *hookdeck.Client, in Input) (*mcpsdk.CallToolResult, error) {
+	proj, refused := servableProject(ctx, srv, in.String("project_id"))
+	if refused != nil {
+		return refused, nil
+	}
+	return JSONResultEnvelopeForClient(proj, client)
+}
+
+func projectsCreate(ctx context.Context, srv *Server, client *hookdeck.Client, in Input) (*mcpsdk.CallToolResult, error) {
+	name := in.String("name")
+	if name == "" {
+		// The endpoint declares no required fields, so a bare call is valid and
+		// would make an unnamed project. Nobody means that.
+		return ErrorResult("name is required to create a project"), nil
+	}
+
+	req := &hookdeck.ProjectCreateRequest{Name: &name}
+
+	// Default the type to what this server serves, so an agent is not asked for
+	// a value it has no way to infer — and cannot create a project this server
+	// would then refuse to act on.
+	projectType := in.String("type")
+	if projectType == "" {
+		projectType = srv.ProjectFilter()
+	}
+	if projectType != "" {
+		if filter := srv.ProjectFilter(); filter != "" && config.NormalizeProjectType(projectType) != filter {
+			return ErrorResult(fmt.Sprintf(
+				"this server serves %s projects and cannot create a %s one",
+				config.ProjectTypeToJSON(filter), config.ProjectTypeToJSON(projectType),
+			)), nil
+		}
+		req.Type = &projectType
+	}
+	if private, err := in.BoolOrStringE("private"); err == nil && private != nil {
+		req.Private = private
+	}
+
+	proj, err := srv.AccountClient().CreateProject(ctx, req)
+	if err != nil {
+		return ErrorResult(TranslateAPIError(err)), nil
+	}
+	return JSONResultEnvelopeForClient(proj, client)
+}
+
+func projectsUpdate(ctx context.Context, srv *Server, client *hookdeck.Client, in Input) (*mcpsdk.CallToolResult, error) {
+	id := in.String("project_id")
+	if _, refused := servableProject(ctx, srv, id); refused != nil {
+		return refused, nil
+	}
+
+	req := &hookdeck.ProjectUpdateRequest{
+		Name:          OptionalStringPtr(in, "name"),
+		Domain:        OptionalStringPtr(in, "domain"),
+		HeadersPrefix: OptionalStringPtr(in, "headers_prefix"),
+	}
+	if private, err := in.BoolOrStringE("private"); err == nil && private != nil {
+		req.Private = private
+	}
+	if req.Name == nil && req.Domain == nil && req.HeadersPrefix == nil && req.Private == nil {
+		// An empty PUT succeeds and changes nothing, which reads as success.
+		return ErrorResult("nothing to update: pass name, domain, headers_prefix or private"), nil
+	}
+
+	proj, err := srv.AccountClient().UpdateProject(ctx, id, req)
+	if err != nil {
+		return ErrorResult(TranslateAPIError(err)), nil
+	}
+	return JSONResultEnvelopeForClient(proj, client)
+}
+
+func projectsDelete(ctx context.Context, srv *Server, client *hookdeck.Client, in Input) (*mcpsdk.CallToolResult, error) {
+	id := in.String("project_id")
+	if _, refused := servableProject(ctx, srv, id); refused != nil {
+		return refused, nil
+	}
+	if err := srv.AccountClient().DeleteProject(ctx, id); err != nil {
+		return ErrorResult(TranslateAPIError(err)), nil
+	}
+	// The API returns no useful body, so the tool has to say what happened.
+	return JSONResultEnvelopeForClient(map[string]string{
+		"project_id": id,
+		"status":     "deleted",
+	}, client)
 }
 
 type projectEntry struct {

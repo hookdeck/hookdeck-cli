@@ -114,7 +114,14 @@ func TestProjectsTool_ToolNamesFollowThePrefix(t *testing.T) {
 	assert.Equal(t, "outpost_events", srv.ToolName("events"))
 	assert.Equal(t, "outpost_", srv.ToolPrefix())
 
-	def := srv.ProjectsToolDef("desc")
-	assert.Equal(t, "hookdeck_projects", def.Tool.Name)
-	assert.Equal(t, "desc", def.Tool.Description)
+	// Platform tools take the hookdeck_ prefix in every server, and split by
+	// group like any other spec.
+	defs := srv.ProjectsSpec("desc").Define(srv)
+	names := make([]string, len(defs))
+	for i, d := range defs {
+		names[i] = d.Tool.Name
+	}
+	assert.Equal(t, []string{"hookdeck_projects_read", "hookdeck_projects_use"}, names,
+		"the write tool is not registered without --allow-write")
+	assert.Contains(t, defs[0].Tool.Description, "desc")
 }
