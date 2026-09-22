@@ -405,19 +405,8 @@ for the `list_ignored` guard, which the per-action work can reuse.
 ### 4. Description fixes (from the blind runs, scheme-independent)
 
 - [x] `transformations_read.run` — state explicitly that it persists nothing
-- [ ] Port per-action argument scoping into `mcpcore`. `main`'s deleted `tool_actions.go` carried
-      `rejectArgsUnsupportedByAction`, a per-action whitelist over **all** declared args. Ours
-      (`rejectUnknownArgs`) only catches `Prop.Write` on a non-write action, so a read filter on
-      the wrong read action — `{action:"get", id:"x", disabled:true}` on connections — is still
-      accepted and ignored. Same bug class as the `ignored_events` finding above
-- [x] `metrics_read` — distinguish `events` from `attempts` for delivery questions
-- [x] `request_write.retry` / `event_write.retry` — disambiguate from each other
-- [x] `connections_pause.pause` vs `connections_write.disable` — say which is the reversible
-      incident-response action
-- [x] `projects_use` — say it changes what every subsequent call targets
-
-### 4c. Bulk operations
-
+- [x] Port per-action argument scoping into `mcpcore` — `Prop.Actions`, declared on the property
+      rather than in a parallel map, so there is one place to change when an action gains an argument
 - [ ] API client methods for all 19 `/bulk/` endpoints
 - [ ] `gateway_bulk_read` — `list`, `get`, `plan`
 - [ ] `gateway_bulk_write` — `create`, `cancel`

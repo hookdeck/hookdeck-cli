@@ -30,9 +30,9 @@ var destinationsSpec = mcpcore.ToolSpec{
 		"type":        {Type: "string", Desc: "Destination type, e.g. HTTP, CLI, MOCK_API (create/upsert/update)", Write: true},
 		"description": {Type: "string", Desc: "Destination description (create/upsert/update)", Write: true},
 		"config":      {Type: "object", Desc: "Type-specific configuration: url, auth, rate limiting (create/upsert/update). Replaces the stored config.", Write: true},
-		"limit":       {Type: "integer", Desc: "Max results (list)"},
-		"next":        {Type: "string", Desc: "Next page cursor"},
-		"prev":        {Type: "string", Desc: "Previous page cursor"},
+		"limit":       {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
+		"next":        {Type: "string", Desc: "Next page cursor", Actions: []string{"list"}},
+		"prev":        {Type: "string", Desc: "Previous page cursor", Actions: []string{"list"}},
 	},
 	Handler: handleDestinations,
 }

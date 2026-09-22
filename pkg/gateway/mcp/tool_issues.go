@@ -28,9 +28,9 @@ var issuesSpec = mcpcore.ToolSpec{
 		"issue_trigger_id": {Type: "string", Desc: "Filter by trigger (list)"},
 		"order_by":         {Type: "string", Desc: "Sort field (list)"},
 		"dir":              {Type: "string", Desc: "Sort direction: asc or desc (list)"},
-		"limit":            {Type: "integer", Desc: "Max results (list)"},
-		"next":             {Type: "string", Desc: "Next page cursor"},
-		"prev":             {Type: "string", Desc: "Previous page cursor"},
+		"limit":            {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
+		"next":             {Type: "string", Desc: "Next page cursor", Actions: []string{"list"}},
+		"prev":             {Type: "string", Desc: "Previous page cursor", Actions: []string{"list"}},
 	},
 	Handler: handleIssues,
 }

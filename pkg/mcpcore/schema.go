@@ -15,6 +15,21 @@ type Prop struct {
 	Items *Prop    `json:"items,omitempty"`
 	Write bool     `json:"-"`
 
+	// Actions restricts the property to the named actions. Empty means every
+	// action on the tool it appears on.
+	//
+	// The group split put reads and writes on separate tools, which stops a
+	// write-only property being offered to a read-only caller. It does not stop
+	// a LIST filter being accepted on a by-id action of the same tool:
+	// {action:"get", id:"web_1", disabled:true} was taken, `disabled` ignored,
+	// and the caller handed one connection as though the filter had applied.
+	// Same failure one level down, and the reason main carried a per-action
+	// argument whitelist before v3.0.0.
+	//
+	// Declared on the property rather than in a parallel action->args map, so
+	// there is one place to change when an action gains an argument.
+	Actions []string `json:"-"`
+
 	// Only restricts the property to the named action groups. Empty means every
 	// group the resource renders.
 	//

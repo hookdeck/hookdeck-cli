@@ -2,11 +2,13 @@ package mcp
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
@@ -133,4 +135,50 @@ func TestWriteToolsAreAbsentInReadOnlyMode(t *testing.T) {
 	require.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "--allow-write",
 		"a gated action must name the flag that enables it, not read as a typo")
+}
+
+// TestListFiltersAreRefusedOnByIDActions closes the gap left when main's
+// per-action argument whitelist was deleted in the v2.6.0 merge.
+//
+// Splitting by group stops a write-only property reaching a read-only caller.
+// It does not stop a LIST filter being accepted on a by-id action of the same
+// tool: {action:"get", id:"web_1", disabled:true} was taken, `disabled` was
+// ignored, and one connection came back as though the filter had applied.
+func TestListFiltersAreRefusedOnByIDActions(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/connections/web_1": func(w http.ResponseWriter, r *http.Request) {
+			t.Fatalf("a list filter on a by-id action must not reach the API")
+		},
+	})
+
+	for _, filter := range []string{"disabled", "limit", "next", "prev"} {
+		t.Run(filter, func(t *testing.T) {
+			args := map[string]any{"action": "get", "id": "web_1", filter: "1"}
+			if filter == "disabled" {
+				args[filter] = true
+			}
+			result := callTool(t, session, "gateway_connections_read", args)
+			require.True(t, result.IsError, "%s must be refused on get", filter)
+			body := textContent(t, result)
+			assert.Contains(t, body, filter)
+			assert.Contains(t, body, "list", "the message should name the action that does take it")
+		})
+	}
+}
+
+// The other half: a filter that genuinely serves both actions must still work.
+// source_id filters the listing and links the source on create, so refusing it
+// would be the same bug inverted — a real argument reported as wrong.
+func TestFiltersServingSeveralActionsStillWork(t *testing.T) {
+	var saw string
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/connections": func(w http.ResponseWriter, r *http.Request) {
+			saw = r.URL.Query().Get("source_id")
+			_ = json.NewEncoder(w).Encode(listResponse())
+		},
+	})
+	result := callTool(t, session, "gateway_connections_read",
+		map[string]any{"action": "list", "source_id": "src_1"})
+	assert.False(t, result.IsError, textContent(t, result))
+	assert.Equal(t, "src_1", saw)
 }

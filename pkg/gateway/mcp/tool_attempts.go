@@ -22,12 +22,12 @@ var attemptsSpec = mcpcore.ToolSpec{
 	Actions:  attemptsActions,
 	Props: map[string]mcpcore.Prop{
 		"id":       {Type: "string", Desc: "Attempt ID (required for get)"},
-		"event_id": {Type: "string", Desc: "Filter by event (list)"},
-		"limit":    {Type: "integer", Desc: "Max results (list)"},
+		"event_id": {Type: "string", Desc: "Filter by event (list)", Actions: []string{"list"}},
+		"limit":    {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
 		"order_by": {Type: "string", Desc: "Sort field (list)"},
 		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)"},
-		"next":     {Type: "string", Desc: "Next page cursor"},
-		"prev":     {Type: "string", Desc: "Previous page cursor"},
+		"next":     {Type: "string", Desc: "Next page cursor", Actions: []string{"list"}},
+		"prev":     {Type: "string", Desc: "Previous page cursor", Actions: []string{"list"}},
 	},
 	Handler: handleAttempts,
 }

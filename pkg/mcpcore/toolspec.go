@@ -254,6 +254,35 @@ func (p Prop) visibleIn(group string) bool {
 	return true
 }
 
+// appliesTo reports whether the property is meaningful for this action.
+func (p Prop) appliesTo(action string) bool {
+	if len(p.Actions) == 0 {
+		return true
+	}
+	for _, a := range p.Actions {
+		if a == action {
+			return true
+		}
+	}
+	return false
+}
+
+// actionsAccepting names the actions that do take a property, so a refusal can
+// redirect rather than just say no.
+func (spec ToolSpec) actionsAccepting(name string, group string) []string {
+	prop, ok := spec.Props[name]
+	if !ok {
+		return nil
+	}
+	out := []string{}
+	for _, a := range spec.Actions.InGroup(group) {
+		if prop.appliesTo(a.Name) {
+			out = append(out, a.Name)
+		}
+	}
+	return out
+}
+
 // writeActionNames lists the gated actions, for the message that explains where
 // a write-only property belongs.
 func (spec ToolSpec) writeActionNames() []string {
@@ -573,6 +602,18 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, group string, visible map[str
 				// as though it were filtered. That is the exact failure this
 				// guard exists to prevent, so enabling writes must not
 				// reintroduce it on the actions that never took the argument.
+				// A property this tool has, on an action that does not read it.
+				// The API ignores it, so the result comes back unfiltered while
+				// reading as filtered — the failure this guard exists for.
+				// Only for an action this tool actually carries. When the action
+				// belongs to a sibling tool, the mode guard above has the
+				// better message — "restart with --allow-write" beats telling
+				// the caller an argument is on the wrong action of a tool that
+				// was never going to run it.
+				if haveAction && !requestedHidden && !prop.appliesTo(requestedAction.Name) {
+					wrongAction = append(wrongAction, key)
+					continue
+				}
 				if prop.Write && haveAction && !requestedAction.Write {
 					// Reported separately: the tool does have this argument, so
 					// calling it unknown while listing it among the accepted
@@ -590,11 +631,14 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, group string, visible map[str
 		if len(wrongAction) > 0 {
 			sort.Strings(wrongAction)
 			writeActions := spec.writeActionNames()
+			hint := actionScopeHint(writeActions)
+			if accepted := spec.actionsAccepting(wrongAction[0], group); len(accepted) > 0 {
+				hint = "it belongs to " + strings.Join(accepted, ", ")
+			}
 			return ErrorResult(fmt.Sprintf(
 				"%s cannot be used with action %q — %s. "+
 					"The action ignores it, so the result would have looked filtered without being filtered.",
-				strings.Join(wrongAction, ", "), requestedAction.Name,
-				actionScopeHint(writeActions),
+				strings.Join(wrongAction, ", "), requestedAction.Name, hint,
 			)), nil
 		}
 

@@ -30,9 +30,9 @@ var sourcesSpec = mcpcore.ToolSpec{
 		"type":        {Type: "string", Desc: "Source type, e.g. STRIPE, GITHUB, HTTP (create/upsert/update)", Write: true},
 		"description": {Type: "string", Desc: "Source description (create/upsert/update)", Write: true},
 		"config":      {Type: "object", Desc: "Type-specific configuration, including verification settings (create/upsert/update). Replaces the stored config.", Write: true},
-		"limit":       {Type: "integer", Desc: "Max results (list)"},
-		"next":        {Type: "string", Desc: "Next page cursor"},
-		"prev":        {Type: "string", Desc: "Previous page cursor"},
+		"limit":       {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
+		"next":        {Type: "string", Desc: "Next page cursor", Actions: []string{"list"}},
+		"prev":        {Type: "string", Desc: "Previous page cursor", Actions: []string{"list"}},
 	},
 	Handler: handleSources,
 }
