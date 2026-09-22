@@ -491,13 +491,14 @@ Add:
 
 ### 7. Verification
 
-- [ ] `go build ./...`
-- [ ] `go test ./...`
-- [ ] `gofmt -l .` clean
-- [ ] `go run ./tools/generate-reference --check`
-- [ ] Start both servers in both modes, diff `tools/list`: read tools byte-identical between
-      modes; write tools only under `--allow-write`; no enum mixes read and write; annotations
-      match contents
+- [x] `go build ./...`
+- [x] `go test ./...`
+- [x] `gofmt -l .` clean
+- [x] `go run ./tools/generate-reference --check`
+- [x] Start both servers in both modes, diff `tools/list` — done as a test rather than by hand.
+      `TestToolSurfaceIsWhatWeThinkItIs` renders the whole advertised surface in both modes and
+      asserts it as a golden list, so any tool added, removed, renamed or re-annotated shows up
+      as a diff a reviewer has to agree to. Verified by renaming an action and watching it fail.
 - [ ] Manual QA against a real project per `.agents/skills/` — platform writes especially
 - [ ] **Independent verification sweep on the `events`/`ignored_events` move** — an agent that did
       not make the change confirms no filter, action or behaviour that worked in v2.6.0 was lost,

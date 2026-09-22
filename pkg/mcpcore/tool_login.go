@@ -43,6 +43,8 @@ type loginState struct {
 // reauth: true clears stored credentials and starts a fresh browser login.
 // The description is supplied by the product so it can speak about its own
 // tools; the behaviour is shared.
+var loginIsNotDestructive = false
+
 func (s *Server) LoginToolDef(description string) ToolDef {
 	return ToolDef{
 		Tool: &mcpsdk.Tool{
@@ -51,6 +53,16 @@ func (s *Server) LoginToolDef(description string) ToolDef {
 			InputSchema: Schema(map[string]Prop{
 				"reauth": {Type: "boolean", Desc: fmt.Sprintf("If true, clear stored credentials and start a new browser login. Use when project listing fails — complete login in the browser, then retry %s.", s.ProjectsToolName())},
 			}),
+			// Stated rather than left to the default. An unset ReadOnlyHint
+			// reads as false, which happens to be right here — signing in
+			// changes stored credentials — but an unset DestructiveHint is a
+			// silent gap, and a client gating on it cannot tell "not
+			// destructive" from "nobody said". Logging in destroys nothing;
+			// with reauth it replaces the stored session, which is the point.
+			Annotations: &mcpsdk.ToolAnnotations{
+				ReadOnlyHint:    false,
+				DestructiveHint: &loginIsNotDestructive,
+			},
 		},
 		Handler: handleLogin(s),
 	}
