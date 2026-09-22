@@ -307,20 +307,45 @@ this change produces, so it is downstream of this work, not instead of it.
 rewrites. Merging after the split would mean resolving those same conflicts twice, the second
 time against code that had just been restructured.
 
-- [ ] Merge `origin/main`; brings `APIPathPrefix = "/2026-09-01"` and `GET /projects`
-- [ ] Port `d5836cd` (`fix: resolve MCP active project name for project-scoped keys`, +136 lines)
+- [x] Merge `origin/main`; brings `APIPathPrefix = "/2026-09-01"` and `GET /projects`
+- [x] Port `d5836cd` (`fix: resolve MCP active project name for project-scoped keys`, +136 lines)
       into `pkg/mcpcore/project_display.go` — this branch moved the file there, `main` fixed it in
       the old `pkg/gateway/mcp/` location, so git reports modify/delete and the fix must be
       carried across by hand or it is silently lost
-- [ ] Resolve the MCP conflicts: `tools.go` (197 lines main-side), `tool_help.go` (90),
+- [x] Resolve the MCP conflicts: `tools.go` (197 lines main-side), `tool_help.go` (90),
       `tool_metrics.go` (117), `tool_requests.go` (64), `tool_events.go` (45), `server_test.go`,
       `pkg/mcpcore/tool_projects_errors.go`
-- [ ] Resolve the rest: `pkg/config/project_type.go` (121), `pkg/hookdeck/client.go` (65),
+- [x] Resolve the rest: `pkg/config/project_type.go` (121), `pkg/hookdeck/client.go` (65),
       `transformations.go`, `projects_test.go`, `pkg/login/claimed_cli_key.go`,
       `pkg/cmd/{root,event_list,request_list,transformation_run,destination_common,destination_update}.go`
-- [ ] Non-code: `package.json` (version), `REFERENCE.md` (regenerate, do not hand-merge),
+- [x] Non-code: `package.json` (version), `REFERENCE.md` (regenerate, do not hand-merge),
       `AGENTS.md`, `.github/workflows/acceptance.yml`
-- [ ] `go build ./... && go test ./...` green before any split work starts
+- [x] `go build ./... && go test ./...` green before any split work starts
+
+### 0b. Unplanned work the merge surfaced — **done**
+
+None of this was in the plan; all of it shipped in commits b0b5710, 5c21412 and eab705f.
+
+- [x] Port `main`'s metrics filter matrix (`rejectFilters`, `rejectDimensions`, the per-action
+      schema descriptions, `delivery_group`). Believed present on this branch, verified absent.
+- [x] Port `canonicalEventsStatus` **and** `canonicalRequestsStatus`. The first pass took only the
+      events half, reintroducing the asymmetry this repo had already fixed; the verification sweep
+      caught it.
+- [x] Move `events`/`ignored_events` to `gateway_events` with a `request_id` route selector
+- [x] Restrict `list_ignored` to the six parameters its route declares, and refuse the rest
+- [x] Align the CLI: `request events` was missing `--next-attempt-at-after/before` and
+      `--search-term`, and disagreed with `event list` on two usage strings
+- [x] `internal/speccheck` + `specGuard` — every mock-backed test now validates query parameters
+      against the pinned OpenAPI document
+- [x] Acceptance tests (`-tags=mcp`) for the request-scoped listings and status canonicalisation,
+      run against the live API
+- [x] Generalise the REFERENCE.md example guard from `gateway metrics` to every hand-written
+      `hookdeck ...` invocation
+- [x] Fix `ErrorResponse.Detail` rendering an object inside a `data` array as raw JSON
+- [x] Fix `InitConfig` running its log-level switch before the default was applied, so any Config
+      not built through the root command called `log.Fatalf` and exited the process
+- [x] Rewrite six schema/Notes sites that pointed at the removed `gateway_request` actions
+- [x] Correct three `REFERENCE.md` metrics examples naming subcommands that do not exist
 
 ### 1. `pkg/mcpcore/`
 
@@ -386,8 +411,10 @@ time against code that had just been restructured.
 
 ### 5. Docs and generated output
 
-- [ ] `README.md`, `REFERENCE.md`
-- [ ] `go run ./tools/generate-reference --check`, regenerate if it fails
+- [~] `README.md`, `REFERENCE.md` — the events/requests tables and traversal prose are
+      corrected; the `_read`/`_write` rename is not reflected yet
+- [x] `go run ./tools/generate-reference --check`, regenerate if it fails (green as of eab705f;
+      rerun after the rename)
 - [ ] `CHANGELOG.md` — breaking, alongside the `hookdeck_*` to `gateway_*` rename. Say plainly
       that per-tool grants and `allowedTools` entries need updating once. Note the new platform
       tools and the API version bump.
@@ -440,7 +467,7 @@ Add:
 
 ---
 
-## Decision: `events` / `ignored_events` move to the plural requests tool
+## Decision: `events` / `ignored_events` move to the events tool
 
 **Decided 2026-09-22, during the v2.6.0 merge. Flagged for an independent verification sweep
 before this work is considered done.**
