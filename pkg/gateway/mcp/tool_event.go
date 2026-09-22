@@ -17,7 +17,7 @@ import (
 var eventActions = mcpcore.ActionSet{
 	{Name: "get", Desc: "get this event's metadata and headers"},
 	{Name: "raw_body", Desc: "get this event's payload"},
-	{Name: "retry", Desc: "queue another delivery attempt for this event", Write: true},
+	{Name: "retry", Desc: "queue another delivery attempt for THIS event. Acts on one event; to re-run a whole request through its connections, creating new events, use the request tool's retry instead", Write: true},
 	{Name: "cancel", Desc: "stop this scheduled event from being delivered", Write: true, Destructive: true},
 	{Name: "mute", Desc: "mute this failed event so it stops raising issues", Write: true, Destructive: true},
 }

@@ -17,7 +17,7 @@ const maxRawBodyBytes = 100 * 1024 // 100 KB
 var requestActions = mcpcore.ActionSet{
 	{Name: "get", Desc: "get this request"},
 	{Name: "raw_body", Desc: "get this request's raw body"},
-	{Name: "retry", Desc: "route this request through its connections again, creating new events", Write: true},
+	{Name: "retry", Desc: "route THIS REQUEST through its connections again, creating new events. Acts on a request and produces events; to re-deliver one existing event instead, use the event tool's retry", Write: true},
 }
 
 var requestSpec = mcpcore.ToolSpec{

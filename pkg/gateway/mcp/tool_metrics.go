@@ -13,9 +13,9 @@ import (
 // metrics is read-only: every action is an aggregate query. The action here
 // names the metric family rather than a verb.
 var metricsActions = mcpcore.ActionSet{
-	{Name: "events", Desc: "aggregated event metrics"},
+	{Name: "events", Desc: "event metrics — how many events there were, and what became of them. \"How many were delivered\" is usually this one: an event is the logical delivery, and its status says whether it succeeded"},
 	{Name: "requests", Desc: "aggregated inbound request metrics"},
-	{Name: "attempts", Desc: "aggregated delivery attempt metrics"},
+	{Name: "attempts", Desc: "attempt metrics — the individual HTTP calls, including retries. One event can produce several attempts, so these counts run higher than the event ones and answer \"how hard did we try\" rather than \"how many got through\""},
 	{Name: "transformations", Desc: "aggregated transformation execution metrics"},
 }
 

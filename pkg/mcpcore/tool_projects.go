@@ -23,7 +23,7 @@ var projectsActions = ActionSet{
 	{Name: "list", Desc: "list the projects this credential can see"},
 	{Name: "get", Desc: "get one project by ID"},
 
-	{Name: "use", Desc: "switch the active project for every later call in this session", Mutates: true, Tool: "use"},
+	{Name: "use", Desc: "switch the active project. Every later call in this session — events, connections, metrics, everything — is scoped to it, so calling this changes what every other tool returns", Mutates: true, Tool: "use"},
 
 	{Name: "create", Desc: "create a project in the current organization", Write: true},
 	{Name: "update", Desc: "rename a project or change its settings", Write: true},

@@ -33,7 +33,7 @@ var connectionsActions = mcpcore.ActionSet{
 	// but they do change delivery, so this tool must not tell a client it is a
 	// pure read — a client that auto-approves ReadOnlyHint tools would otherwise
 	// halt production delivery without asking anyone.
-	{Name: "pause", Desc: "pause delivery on a connection; events are buffered, not dropped", Mutates: true, Tool: "pause"},
+	{Name: "pause", Desc: "pause delivery on a connection. Events keep arriving and are buffered, not dropped, and unpause resumes them — this is the reversible way to stop a connection flooding a destination, and the one available without --allow-write", Mutates: true, Tool: "pause"},
 	{Name: "unpause", Desc: "resume delivery on a paused connection", Mutates: true, Tool: "pause"},
 
 	{Name: "create", Desc: "create a connection between a source and a destination", Write: true},
@@ -41,7 +41,7 @@ var connectionsActions = mcpcore.ActionSet{
 	{Name: "update", Desc: "update a connection", Write: true},
 	{Name: "delete", Desc: "delete a connection", Write: true, Destructive: true},
 	{Name: "enable", Desc: "enable a disabled connection", Write: true},
-	{Name: "disable", Desc: "disable a connection", Write: true},
+	{Name: "disable", Desc: "disable a connection. A configuration change, not an incident control: to stop delivery temporarily and buffer what arrives, use pause instead", Write: true},
 }
 
 var connectionsSpec = mcpcore.ToolSpec{
