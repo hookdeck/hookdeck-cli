@@ -312,3 +312,51 @@ func TestRequestIDIsARouteSelectorNotAFilter(t *testing.T) {
 		assert.NotContains(t, sawQuery, "request_id")
 	})
 }
+
+// TestRequestsStatusIsCanonicalised is the counterpart to
+// TestEventsStatusIsCanonicalised, and exists because this half was dropped
+// once already.
+//
+// main shipped canonicalisation for both vocabularies. The v2.6.0 merge carried
+// the events half across and lost the requests half, so
+// gateway_requests{status:"ACCEPTED"} — which worked in v2.6.0 — started 422ing
+// against an enum the API spells in lower case. A verification sweep caught it.
+// Both halves are pinned here so the asymmetry cannot come back a third time.
+func TestRequestsStatusIsCanonicalised(t *testing.T) {
+	for _, tt := range []struct{ name, value, want string }{
+		{"canonical spelling is forwarded", "accepted", "accepted"},
+		{"upper case is canonicalised", "ACCEPTED", "accepted"},
+		{"mixed case is canonicalised", "Rejected", "rejected"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var saw string
+			session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+				hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
+					saw = r.URL.Query().Get("status")
+					_ = json.NewEncoder(w).Encode(listResponse())
+				},
+			})
+			result := callTool(t, session, requestsToolName, map[string]any{
+				"action": "list", "status": tt.value,
+			})
+			assert.False(t, result.IsError, textContent(t, result))
+			assert.Equal(t, tt.want, saw, "status must reach the API in the spelling the enum uses")
+		})
+	}
+}
+
+// TestRequestsStatusRejectsTheEventVocabulary: a lifecycle status sent to the
+// request log is refused with the tool that does take it, rather than the API's
+// 422 naming only the enum it was sent to.
+func TestRequestsStatusRejectsTheEventVocabulary(t *testing.T) {
+	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/requests": func(w http.ResponseWriter, r *http.Request) {
+			t.Fatalf("must not query the API with a status from the other vocabulary")
+		},
+	})
+	result := callTool(t, session, requestsToolName, map[string]any{"action": "list", "status": "SUCCESSFUL"})
+	require.True(t, result.IsError, "an event status must be refused here")
+	body := textContent(t, result)
+	assert.Contains(t, body, "SUCCESSFUL")
+	assert.Contains(t, body, eventsToolName, "the message should name the tool that takes it")
+}

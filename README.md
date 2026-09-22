@@ -658,8 +658,8 @@ Product tools are prefixed `gateway_`. Signing in and switching project are Hook
 | `gateway_destinations` | list, get | create, upsert, update, delete, enable, disable |
 | `gateway_transformations` | list, get | create, upsert, update, delete, run |
 | `gateway_requests` | list | — |
-| `gateway_request` | get, raw_body, events, ignored_events | retry |
-| `gateway_events` | list | — |
+| `gateway_request` | get, raw_body | retry |
+| `gateway_events` | list, list_ignored | — |
 | `gateway_event` | get, raw_body | retry, cancel, mute |
 | `gateway_attempts` | list, get | — |
 | `gateway_issues` | list, get | update, dismiss |
@@ -677,7 +677,7 @@ The usual flow is plural to find an ID, then singular with that ID. The split ke
 
 `gateway_events` and `gateway_requests` **list** actions support the same filters as `hookdeck gateway event list` and `hookdeck gateway request list` — including payload search (`body`, `headers`, `parsed_query`, `path`) and date windows via `*_after` / `*_before` (ISO 8601; maps to API `field[gte]` / `field[lte]`). See `gateway_help` with topic `gateway_events` or `gateway_requests` for the full parameter list.
 
-The only relationship traversal the API supports is request → events: `gateway_request` with action `events` (or `ignored_events`). There is no `request_id` filter on events and no `event_id` filter on requests. To go the other way, read `request_id` off an event and call `gateway_request` with action `get`.
+The only relationship traversal the API supports is request → events, and `gateway_events` owns both directions of it. Pass `request_id` with action `list` for the events a request produced, or action `list_ignored` for the ones a connection filter dropped. `GET /events` declares no `request_id` filter, so the tool queries the request's own events route instead — it takes the same filters, so every argument still applies (`list_ignored`'s route is the exception: it takes `id`, paging and ordering only). There is no `event_id` filter on requests. To go the other way, read `request_id` off an event and call `gateway_request` with action `get`.
 
 `gateway_help` reports which mode the session is in and lists only the actions it can perform.
 

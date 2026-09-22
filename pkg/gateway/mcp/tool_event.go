@@ -49,8 +49,8 @@ Acting on a failure (write mode):
 
 From an event to its request:
   An event carries request_id. Pass that to ` + requestToolName + ` with action get to see the raw
-  inbound request. Events cannot be filtered by request_id — for the other direction, call
-  ` + requestToolName + ` with action events.`,
+  inbound request. For the other direction — every event a request produced — pass the same
+  request_id to ` + eventsToolName + ` with action list.`,
 	Handler: handleEvent,
 }
 

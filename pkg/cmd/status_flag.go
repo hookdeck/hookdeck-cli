@@ -17,10 +17,12 @@ import (
 // either mistake with a 422 that names only the enum of the route it was sent
 // to.
 //
-// MCP canonicalises through hookdeck.CanonicalStatusValue and the CLI did not,
-// so in one release `hookdeck_requests {action:"list", status:"ACCEPTED"}`
-// succeeded and `hookdeck gateway request list --status ACCEPTED` was a 422:
-// same contract, two surfaces, two answers.
+// Both surfaces canonicalise through hookdeck.CanonicalStatusValue, and they
+// have to stay that way. They have drifted apart twice, in both directions: MCP
+// canonicalised before the CLI did, and then a merge dropped MCP's request-log
+// half while keeping its events half, so `gateway_requests {status:"ACCEPTED"}`
+// 422'd while `hookdeck gateway request list --status ACCEPTED` worked. Same
+// contract, two surfaces, two answers — either way round it is a bug.
 type statusFlagVocabulary struct {
 	values []string
 	// other is the sibling vocabulary, named in the error so a caller who

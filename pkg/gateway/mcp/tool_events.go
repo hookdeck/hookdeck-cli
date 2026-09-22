@@ -18,7 +18,7 @@ import (
 // gateway_event — see tool_event.go.
 var eventsActions = mcpcore.ActionSet{
 	{Name: "list", Desc: "search events by filter, most recent first; returns event IDs. Pass request_id to list only the events one request produced"},
-	{Name: "list_ignored", Desc: "list the events a request produced that a connection filter dropped; requires request_id. Takes paging and ordering only — the route declares no filters"},
+	{Name: "list_ignored", Desc: "list the events a request produced that a connection filter dropped; requires request_id. Takes id, paging and ordering only — the route declares no other filters"},
 }
 
 var eventsSpec = mcpcore.ToolSpec{
@@ -26,11 +26,11 @@ var eventsSpec = mcpcore.ToolSpec{
 	Summary: "SEARCH MANY events — plural, collection only. Find events (processed deliveries routed through connections to destinations) matching filters and get back their IDs. " +
 		"List supports the same filters as `hookdeck gateway event list` (metadata, date range, payload search, sort). " +
 		"To act on a specific event you already have an ID for, use " + eventToolName + " (singular). This tool only searches. " +
-		"There is no request_id filter here: to see the events one request produced, call " + requestToolName + " with action events. " +
+		"To see the events one request produced, pass request_id — this tool queries the request's own events route, which takes these same filters. " +
 		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions: eventsActions,
 	Props: map[string]mcpcore.Prop{
-		"request_id":          {Type: "string", Desc: "Scope to the events one request produced. Required for list_ignored. This is the only way to go from a request to its events: GET /events has no request_id filter, so the tool queries the request's own events route, which honours this same filter set."},
+		"request_id":          {Type: "string", Desc: "Request ID (req_...) to scope to — lists the events that request produced. Required for list_ignored. This is the only way from a request to its events: GET /events declares no request_id filter, so the tool queries the request's own events route, which honours this same filter set. Not to be confused with id, which filters by event ID."},
 		"id":                  {Type: "string", Desc: "Filter by event ID(s), comma-separated. To fetch or act on one event by ID, use " + eventToolName + " instead."},
 		"connection_id":       {Type: "string", Desc: "Filter by connection (maps to webhook_id)"},
 		"source_id":           {Type: "string", Desc: "Filter by source"},
@@ -97,11 +97,14 @@ Delivery group:
   group of that name and returns nothing. There is no filter for "has no delivery group".
 
 Requests and events:
-  The API offers one traversal direction only. Events cannot be filtered by request_id — there is
-  no such filter, so do not look for one. To get the events a request produced, call
-  ` + requestToolName + ` with action events (or ignored_events for the ones filtered out).
+  The API offers one traversal direction only, and this tool is both ends of it.
+  From a request to its events: pass request_id with action list. GET /events itself declares no
+  request_id filter, so the tool queries GET /requests/{id}/events instead — it takes the same
+  filters, so every argument here still applies. Use action list_ignored for the events a
+  connection filter dropped; that route takes paging and ordering only.
   Going the other way, an event carries request_id: read it from the event and pass it to
-  ` + requestToolName + ` with action get.`,
+  ` + requestToolName + ` with action get to see the raw inbound request.
+  Requests cannot be filtered by event_id — there is no such filter, so do not look for one.`,
 	Handler: handleEvents,
 }
 
@@ -212,9 +215,12 @@ func refuseFiltersIgnoredEventsDrops(in mcpcore.Input) *mcpsdk.CallToolResult {
 
 // eventsListing builds the filter set once and picks the route.
 //
-// GET /events, GET /requests/{id}/events and GET /requests/{id}/ignored_events
-// declare the same query parameters, so the params map is route-independent and
-// only the call at the end differs.
+// GET /events and GET /requests/{id}/events declare the same query parameters,
+// so for those two the params map is route-independent and only the call at the
+// end differs. GET /requests/{id}/ignored_events does NOT: it declares six, and
+// refuseFiltersIgnoredEventsDrops above has already rejected the rest before
+// this runs. Do not "simplify" by dropping that guard on the strength of this
+// comment — see ignoredEventsQueryParams for the list.
 func eventsListing(ctx context.Context, client *hookdeck.Client, in mcpcore.Input, ignored bool) (*mcpsdk.CallToolResult, error) {
 	requestID := in.String("request_id")
 	if ignored && requestID == "" {

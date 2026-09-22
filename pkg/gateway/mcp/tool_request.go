@@ -37,11 +37,11 @@ var requestSpec = mcpcore.ToolSpec{
   The usual flow is ` + requestsToolName + ` to find an ID, then ` + requestToolName + ` with that ID.
 
 Requests and events:
-  events lists the events this request produced; ignored_events lists the ones a connection filter
-  dropped. This is the only relationship traversal the API offers — events cannot be filtered by
-  request_id, and requests cannot be filtered by event_id, so do not look for those filters.
+  To list the events this request produced, use ` + eventsToolName + ` with request_id — it owns
+  that listing because the route takes the events filter set. list_ignored there gives the events
+  a connection filter dropped. Those actions are not on this tool.
   Coming the other way, an event carries request_id: pass it here with action get.
-  Act on an individual event returned by the events action with ` + eventToolName + `.
+  Act on an individual event with ` + eventToolName + `.
 
 Retrying (write mode):
   retry re-routes the stored request through its connections, creating new events. It does not
@@ -82,10 +82,6 @@ func handleRequest(srv *mcpcore.Server) mcpsdk.ToolHandler {
 			return requestGet(ctx, client, in)
 		case "raw_body":
 			return requestRawBody(ctx, client, in)
-		case "events":
-			return requestEvents(ctx, client, in)
-		case "ignored_events":
-			return requestIgnoredEvents(ctx, client, in)
 		default:
 			return requestRetry(ctx, client, in)
 		}
@@ -118,30 +114,6 @@ func requestRawBody(ctx context.Context, client *hookdeck.Client, in mcpcore.Inp
 		text = string(body[:maxRawBodyBytes]) + "\n... [truncated]"
 	}
 	return mcpcore.JSONResultEnvelopeForClient(map[string]string{"raw_body": text}, client)
-}
-
-func requestEvents(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return mcpcore.ErrorResult("id is required for the events action"), nil
-	}
-	result, err := client.GetRequestEvents(ctx, id, nil)
-	if err != nil {
-		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
-	}
-	return mcpcore.JSONResultEnvelopeForClient(result, client)
-}
-
-func requestIgnoredEvents(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
-	id := in.String("id")
-	if id == "" {
-		return mcpcore.ErrorResult("id is required for the ignored_events action"), nil
-	}
-	result, err := client.GetRequestIgnoredEvents(ctx, id, nil)
-	if err != nil {
-		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
-	}
-	return mcpcore.JSONResultEnvelopeForClient(result, client)
 }
 
 func requestRetry(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {

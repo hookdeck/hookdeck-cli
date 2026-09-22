@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -27,7 +29,7 @@ var requestsSpec = mcpcore.ToolSpec{
 	Props: map[string]mcpcore.Prop{
 		"id":              {Type: "string", Desc: "Filter by request ID(s), comma-separated. To fetch or act on one request by ID, use " + requestToolName + " instead."},
 		"source_id":       {Type: "string", Desc: "Filter by source"},
-		"status":          {Type: "string", Desc: "Filter by status: accepted or rejected"},
+		"status":          {Type: "string", Desc: "Filter by request status: " + hookdeck.RequestLogStatusValues + ". Matched without regard to case. This is the request log vocabulary; the delivery lifecycle statuses (" + hookdeck.EventStatusValues + ") belong to " + eventsToolName + "."},
 		"rejection_cause": {Type: "string", Desc: "Filter by rejection cause"},
 		"verified":        {Type: "boolean", Desc: "Filter by verification status"},
 		"created_after":   {Type: "string", Desc: "created_at lower bound. " + descDateAfter},
@@ -53,7 +55,7 @@ var requestsSpec = mcpcore.ToolSpec{
 	Notes: `Plural vs singular — which of the two request tools to use:
   ` + requestsToolName + ` (this tool, plural) — you have filters and want to find matching requests.
   ` + requestToolName + `  (singular)          — you already have a request ID and want to read or act on it
-                              (get, raw_body, events, ignored_events, retry).
+                              (get, raw_body, retry).
   The usual flow is ` + requestsToolName + ` to find an ID, then ` + requestToolName + ` with that ID.
 
 Date range filters:
@@ -82,8 +84,8 @@ Count filters:
 Requests and events:
   The API offers one traversal direction only. Requests cannot be filtered by event_id — there is
   no such filter, so do not look for one. From an event, read its request_id and call
-  ` + requestToolName + ` with action get. From a request, call ` + requestToolName + ` with action
-  events to list the events it produced.`,
+  ` + requestToolName + ` with action get. From a request, call ` + eventsToolName + ` with
+  request_id to list the events it produced.`,
 	Handler: handleRequests,
 }
 
@@ -107,11 +109,43 @@ func handleRequests(srv *mcpcore.Server) mcpsdk.ToolHandler {
 	}
 }
 
+// canonicalRequestsStatus returns the status to send to GET /requests, in the
+// API's own spelling.
+//
+// Ported from main, where it was lost in the v2.6.0 merge while its events
+// counterpart survived — which half-reintroduced the asymmetry the repo had
+// already fixed once. The API is strict about both vocabulary and case:
+// /requests filters by accepted/rejected in lower case and 422s "ACCEPTED".
+//
+// The events vocabulary is the one a caller reaches for by mistake, and the
+// API's 422 would only ever name the enum it was sent to, so the error points
+// at the tool that does take it.
+func canonicalRequestsStatus(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	if canonical, ok := hookdeck.CanonicalStatusValue(hookdeck.RequestLogStatusValueList, value); ok {
+		return canonical, nil
+	}
+	msg := fmt.Sprintf("status %q is not supported by %s; it filters by %s",
+		value, requestsToolName, hookdeck.RequestLogStatusValues)
+	if _, ok := hookdeck.CanonicalStatusValue(hookdeck.EventStatusValueList, value); ok {
+		msg += fmt.Sprintf(". It is an event status, which %s filters by: %s",
+			eventsToolName, hookdeck.EventStatusValues)
+	}
+	return "", errors.New(msg)
+}
+
 func requestsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
+	status, err := canonicalRequestsStatus(in.String("status"))
+	if err != nil {
+		return mcpcore.ErrorResult(err.Error()), nil
+	}
+
 	params := make(map[string]string)
 	mcpcore.SetIfNonEmpty(params, "id", in.String("id"))
 	mcpcore.SetIfNonEmpty(params, "source_id", in.String("source_id"))
-	mcpcore.SetIfNonEmpty(params, "status", in.String("status"))
+	mcpcore.SetIfNonEmpty(params, "status", status)
 	mcpcore.SetIfNonEmpty(params, "rejection_cause", in.String("rejection_cause"))
 	mcpcore.SetIfNonEmpty(params, "search_term", in.String("search_term"))
 	mcpcore.SetIfNonEmpty(params, "events_count", in.NumberOrString("events_count"))
