@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -151,6 +152,42 @@ func bulkPath(family string, extra ...string) (string, error) {
 	return apiPath(segments...)
 }
 
+// encodeBulkQuery renders the query object the way the API reads it: bracket
+// notation, query[status]=FAILED, the same convention the metrics routes use
+// for filters[...] and date_range[...].
+//
+// It is NOT a JSON string. Sending one is accepted by any hand-written mock and
+// rejected by the API with "query must be of type object" — which is how this
+// was found, by an acceptance test rather than a unit test.
+func encodeBulkQuery(query map[string]interface{}) string {
+	values := url.Values{}
+	for key, raw := range query {
+		switch v := raw.(type) {
+		case nil:
+			continue
+		case string:
+			values.Set("query["+key+"]", v)
+		case bool:
+			values.Set("query["+key+"]", strconv.FormatBool(v))
+		case float64:
+			values.Set("query["+key+"]", strconv.FormatFloat(v, 'f', -1, 64))
+		case []interface{}:
+			for _, item := range v {
+				values.Add("query["+key+"][]", fmt.Sprintf("%v", item))
+			}
+		case map[string]interface{}:
+			// Nested objects — target[source_id], and the range filters'
+			// operator forms such as created_at[gte].
+			for inner, iv := range v {
+				values.Set("query["+key+"]["+inner+"]", fmt.Sprintf("%v", iv))
+			}
+		default:
+			values.Set("query["+key+"]", fmt.Sprintf("%v", v))
+		}
+	}
+	return values.Encode()
+}
+
 // PlanBulk estimates what a bulk operation would match, running nothing.
 func (c *Client) PlanBulk(ctx context.Context, family string, query map[string]interface{}) (*BulkPlan, error) {
 	if err := RejectUnsupportedBulkFilters(family, query); err != nil {
@@ -160,14 +197,7 @@ func (c *Client) PlanBulk(ctx context.Context, family string, query map[string]i
 	if err != nil {
 		return nil, err
 	}
-	encoded, err := json.Marshal(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal bulk query: %w", err)
-	}
-	params := url.Values{}
-	params.Set("query", string(encoded))
-
-	resp, err := c.Get(ctx, path, params.Encode(), nil)
+	resp, err := c.Get(ctx, path, encodeBulkQuery(query), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -118,3 +118,29 @@ func bulkQueryFilters(t *testing.T, doc map[string]interface{}, path string) []s
 	}
 	return out
 }
+
+// The API reads the query as an object in bracket notation, the same
+// convention the metrics routes use. A JSON string is accepted by any
+// hand-written mock and rejected by the API with "query must be of type
+// object" — which is how this was found.
+func TestBulkQueryUsesBracketNotation(t *testing.T) {
+	got := encodeBulkQuery(map[string]interface{}{
+		"status":     "FAILED",
+		"webhook_id": "web_1",
+	})
+	assert.Contains(t, got, "query%5Bstatus%5D=FAILED")
+	assert.Contains(t, got, "query%5Bwebhook_id%5D=web_1")
+	assert.NotContains(t, got, "%7B", "a JSON object must not be sent as a string")
+}
+
+func TestBulkQueryEncodesNestedAndListValues(t *testing.T) {
+	got := encodeBulkQuery(map[string]interface{}{
+		"target":     map[string]interface{}{"source_id": "src_1"},
+		"created_at": map[string]interface{}{"gte": "2026-01-01T00:00:00Z"},
+		"id":         []interface{}{"evt_1", "evt_2"},
+	})
+	assert.Contains(t, got, "query%5Btarget%5D%5Bsource_id%5D=src_1")
+	assert.Contains(t, got, "query%5Bcreated_at%5D%5Bgte%5D=2026-01-01T00%3A00%3A00Z")
+	assert.Contains(t, got, "query%5Bid%5D%5B%5D=evt_1")
+	assert.Contains(t, got, "query%5Bid%5D%5B%5D=evt_2")
+}
