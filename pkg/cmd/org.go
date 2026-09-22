@@ -47,6 +47,11 @@ There is no way to name another one; sign in with one of its credentials instead
 	oc.cmd.PersistentFlags().StringVar(&oc.apiKey, "api-key", "",
 		"Hookdeck organization API key. Read from HOOKDECK_API_KEY when not provided.")
 	oc.cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		// Every command carrying a PersistentPreRun has to do this, or its
+		// invocations go unrecorded — pinned by
+		// TestAllCommandsWithPersistentPreRunInitTelemetry.
+		initTelemetry(cmd)
+
 		key := oc.apiKey
 		if key == "" {
 			key = envAPIKey()
