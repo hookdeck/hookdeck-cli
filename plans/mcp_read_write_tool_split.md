@@ -349,6 +349,13 @@ None of this was in the plan; all of it shipped in commits b0b5710, 5c21412 and 
 
 ### 1. `pkg/mcpcore/`
 
+Notes below re-verified against the post-merge file (2026-09-22). The merge did not touch
+`toolspec.go`: `Available` is still additive, `VisibleProps` still filters by mode rather than per
+tool, `Define` still renders one tool per spec, and the `rejectUnknownArgs` carve-out is intact at
+lines 402/415/424. One addition since the plan was written — `mcpcore.ArgIsSet` (input.go), added
+for the `list_ignored` guard, which the per-action work can reuse.
+
+
 - [ ] `ActionSet`: add write-only and read-only selection alongside the existing additive
       `Available(writeEnabled)`. Keep `ActionSet` the single source of truth — do not duplicate
       action lists across two hand-written specs, they will drift.
@@ -612,14 +619,52 @@ version the committed document does not — would close that.
 2. ~~**API version bump: wholesale or per-call?**~~ **Resolved** — `main` bumped wholesale to
    `/2026-09-01` in v2.6.0. Merging delivers it.
 
-3. **Do platform tools belong on both servers?**
-   Proposed yes, matching `hookdeck_projects` today. It does mean a user running both servers
-   sees the platform tools twice and grants them twice. The alternative — platform tools on
-   Gateway only — is worse for Outpost-only users.
+3. ~~**Do platform tools belong on both servers?**~~ **Resolved: yes, both.** Matches
+   `hookdeck_projects` today. A user running both servers sees them twice and grants them twice,
+   which is the lesser cost: platform tools on Gateway only would leave Outpost-only users unable
+   to switch project. Decided 2026-09-22.
 
-4. **Does `hookdeck project` (the CLI command tree) grow to match?**
-   `pkg/cmd/project.go`, `project_list.go`, `project_use.go` exist. The API now supports create,
-   update and delete. Out of scope here, but the gap will be noticed once MCP has it.
+4. ~~**Does `hookdeck project` (the CLI command tree) grow to match?**~~ **Resolved: yes, and
+   further than MCP goes.** The CLI gains commands for the platform APIs — organizations,
+   projects, **and API keys**. Decided 2026-09-22. Scope and naming still to settle; see
+   "CLI platform commands" below.
+
+## CLI platform commands
+
+Decided 2026-09-22: the CLI grows commands for the platform APIs, covering organizations,
+projects and API keys.
+
+### The deliberate asymmetry, recorded
+
+**API keys get CLI commands but no MCP tool, in any form.** That looks inconsistent until the
+reason is stated, so it is stated here: the boundary is not the capability, it is who is holding
+the credential. A human at a terminal minting a key is the normal way to provision CI. An agent
+able to mint one can escalate past every other boundary in this plan — a read-only agent that
+could create a write-scoped key has defeated the point of the read/write split. Same API, two
+surfaces, different trust, on purpose.
+
+Anyone later "fixing the inconsistency" by adding an `hookdeck_api_keys` tool should read this
+paragraph first.
+
+### Existing surface
+
+`pkg/cmd/project.go` with `project_list.go` and `project_use.go`. No organization command group.
+
+### To settle before implementing
+
+- **Command naming.** `hookdeck organization` or `hookdeck org`? The API path is
+  `/organizations/current`; the CLI has no precedent either way.
+- **Where API keys live.** Under the organization group (`hookdeck organization api-keys ...`,
+  mirroring the API path) or as their own top-level group (`hookdeck api-key ...`, shorter and
+  more discoverable for the thing people actually reach for). The API scopes keys to an
+  organization, but a top-level group reads better and `--project` can scope it.
+- **Whether this ships in beta.2 at all.** beta.2 already carries the read/write split, the
+  platform MCP tools, and everything the merge added. Adding a CLI command family is a third
+  workstream. Splitting it into beta.3 would keep each reviewable; keeping it together means one
+  upgrade for users. Worth an explicit call rather than drifting into it.
+- **Destructive command confirmation.** `project delete` and `api-key delete` destroy access.
+  The CLI already has a confirmation path (`cannot confirm this action: no terminal is
+  attached`); these must use it.
 
 ## Out of scope
 
