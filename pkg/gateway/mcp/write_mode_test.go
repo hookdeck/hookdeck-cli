@@ -57,13 +57,13 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 	session := connectInMemory(t, newTestClient(api.URL, "test-key"))
 	tools := listTools(t, session)
 
-	t.Run("registers every tool", func(t *testing.T) {
+	t.Run("registers every read tool", func(t *testing.T) {
 		for _, name := range []string{
 			"hookdeck_projects", "hookdeck_login", "gateway_help",
-			"gateway_connections", "gateway_sources", "gateway_destinations",
-			"gateway_transformations", "gateway_requests", "gateway_request",
-			"gateway_events", "gateway_event",
-			"gateway_attempts", "gateway_issues", "gateway_metrics",
+			"gateway_connections_read", "gateway_sources_read", "gateway_destinations_read",
+			"gateway_transformations_read", "gateway_requests_read", "gateway_request_read",
+			"gateway_events_read", "gateway_event_read",
+			"gateway_attempts_read", "gateway_issues_read", "gateway_metrics_read",
 		} {
 			assert.Contains(t, tools, name)
 		}
@@ -79,34 +79,58 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 		}
 	})
 
-	t.Run("write actions are absent from the action enum", func(t *testing.T) {
-		assert.Equal(t, []string{"list", "get", "pause", "unpause"}, actionEnum(t, tools["gateway_connections"]))
-		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_sources"]))
-		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_destinations"]))
-		// run stays available: it is a sandbox evaluation that persists nothing,
-		// and debugging a transformation is read-only-mode work.
-		assert.Equal(t, []string{"list", "get", "run"}, actionEnum(t, tools["gateway_transformations"]))
-		// The plural tools search and nothing else; the singular tools are
-		// where the by-id actions live, write-gated as before.
-		assert.Equal(t, []string{"list", "list_ignored"}, actionEnum(t, tools["gateway_events"]))
-		assert.Equal(t, []string{"get", "raw_body"}, actionEnum(t, tools["gateway_event"]))
-		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_requests"]))
-		assert.Equal(t, []string{"get", "raw_body"}, actionEnum(t, tools["gateway_request"]))
-		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_issues"]))
-	})
-
-	// This is the regression gate for the pause/unpause decision: they are
-	// mutations, and they stay offered in the mode people investigate in.
-	t.Run("pause and unpause remain available", func(t *testing.T) {
-		enum := actionEnum(t, tools["gateway_connections"])
-		assert.Contains(t, enum, "pause")
-		assert.Contains(t, enum, "unpause")
-	})
-
-	t.Run("write actions are absent from the description", func(t *testing.T) {
+	// The unsuffixed names were the v3.0.0-beta.1 shape. They are gone too: a
+	// grant written against gateway_connections must fail loudly rather than
+	// silently match nothing.
+	t.Run("the unsuffixed resource names are gone", func(t *testing.T) {
 		for _, name := range []string{
 			"gateway_connections", "gateway_sources", "gateway_destinations",
-			"gateway_transformations", "gateway_event", "gateway_request", "gateway_issues",
+			"gateway_transformations", "gateway_requests", "gateway_request",
+			"gateway_events", "gateway_event", "gateway_attempts",
+			"gateway_issues", "gateway_metrics",
+		} {
+			assert.NotContains(t, tools, name)
+		}
+	})
+
+	t.Run("no write tool is registered", func(t *testing.T) {
+		for _, name := range []string{
+			"gateway_connections_write", "gateway_sources_write", "gateway_destinations_write",
+			"gateway_transformations_write", "gateway_request_write", "gateway_event_write",
+			"gateway_issues_write",
+		} {
+			assert.NotContains(t, tools, name)
+		}
+	})
+
+	t.Run("read tools carry only read actions", func(t *testing.T) {
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_connections_read"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_sources_read"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_destinations_read"]))
+		// run stays here: it is a sandbox evaluation that persists nothing, so
+		// it is a read, and debugging a transformation is read-only-mode work.
+		assert.Equal(t, []string{"list", "get", "run"}, actionEnum(t, tools["gateway_transformations_read"]))
+		assert.Equal(t, []string{"list", "list_ignored"}, actionEnum(t, tools["gateway_events_read"]))
+		assert.Equal(t, []string{"get", "raw_body"}, actionEnum(t, tools["gateway_event_read"]))
+		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_requests_read"]))
+		assert.Equal(t, []string{"get", "raw_body"}, actionEnum(t, tools["gateway_request_read"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_issues_read"]))
+	})
+
+	// The regression gate for the pause/unpause decision: they are mutations,
+	// and they stay offered in the mode people investigate in — on a tool of
+	// their own, so the read tool can still be annotated read-only.
+	t.Run("pause and unpause remain available, on their own tool", func(t *testing.T) {
+		require.Contains(t, tools, "gateway_connections_pause")
+		assert.Equal(t, []string{"pause", "unpause"}, actionEnum(t, tools["gateway_connections_pause"]))
+		assert.NotContains(t, actionEnum(t, tools["gateway_connections_read"]), "pause")
+	})
+
+	t.Run("read tools do not describe write actions", func(t *testing.T) {
+		for _, name := range []string{
+			"gateway_connections_read", "gateway_sources_read", "gateway_destinations_read",
+			"gateway_transformations_read", "gateway_event_read", "gateway_request_read",
+			"gateway_issues_read",
 		} {
 			description := tools[name].Description
 			for _, action := range []string{"create", "upsert", "update", "delete", "retry", "cancel", "mute", "dismiss"} {
@@ -115,39 +139,38 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 		}
 	})
 
-	t.Run("read-only mode is stated in the description", func(t *testing.T) {
-		assert.Contains(t, tools["gateway_event"].Description, "read-only mode")
-		assert.Contains(t, tools["gateway_event"].Description, "gateway_help")
-		// The plural tools only search, so there is nothing being withheld
-		// from them and no notice to give.
-		assert.NotContains(t, tools["gateway_events"].Description, "read-only mode")
+	t.Run("a read tool says where the write actions live", func(t *testing.T) {
+		description := tools["gateway_event_read"].Description
+		assert.Contains(t, description, "gateway_event_write")
+		assert.Contains(t, description, "--allow-write")
+		// The plural tools only search, so nothing is being withheld from them
+		// and there is no counterpart to name.
+		assert.NotContains(t, tools["gateway_events_read"].Description, "--allow-write")
 	})
 
-	t.Run("tools that only read are annotated read-only", func(t *testing.T) {
+	t.Run("every read tool is annotated read-only", func(t *testing.T) {
 		for _, name := range []string{
-			"gateway_sources", "gateway_events",
-			"gateway_event", "gateway_requests", "gateway_request",
-			"gateway_attempts", "gateway_metrics",
+			"gateway_connections_read", "gateway_sources_read", "gateway_events_read",
+			"gateway_event_read", "gateway_requests_read", "gateway_request_read",
+			"gateway_attempts_read", "gateway_metrics_read", "gateway_issues_read",
 		} {
 			require.NotNil(t, tools[name].Annotations, name)
-			assert.True(t, tools[name].Annotations.ReadOnlyHint, "%s should be annotated read-only", name)
+			assert.True(t, tools[name].Annotations.ReadOnlyHint,
+				"%s must be annotated read-only, or it cannot be blanket-allowed", name)
 		}
 	})
 
-	// gateway_connections is the exception, and it is deliberate. pause and
-	// unpause stay available in read-only mode because pausing a misbehaving
-	// connection is the natural end of an investigation. They still change
-	// delivery, so the tool must not claim to be a pure read: a client that
-	// auto-approves read-only tools would otherwise halt production delivery
-	// without asking anyone.
-	t.Run("a tool offering pause is not annotated read-only", func(t *testing.T) {
-		require.NotNil(t, tools["gateway_connections"].Annotations)
-		assert.False(t, tools["gateway_connections"].Annotations.ReadOnlyHint,
-			"gateway_connections offers pause in read-only mode, so it is not a pure read")
-
-		assert.Equal(t, []string{"list", "get", "pause", "unpause"},
-			actionEnum(t, tools["gateway_connections"]),
-			"the gating decision is unchanged — only the annotation is")
+	// gateway_connections_pause is the deliberate exception. It changes
+	// delivery, so it must not claim to be a pure read: a client that
+	// auto-approves ReadOnlyHint tools would otherwise halt production
+	// delivery without asking anyone.
+	t.Run("the pause tool is not annotated read-only", func(t *testing.T) {
+		require.NotNil(t, tools["gateway_connections_pause"].Annotations)
+		assert.False(t, tools["gateway_connections_pause"].Annotations.ReadOnlyHint,
+			"pausing changes delivery; the tool must say so")
+		require.NotNil(t, tools["gateway_connections_pause"].Annotations.DestructiveHint)
+		assert.False(t, *tools["gateway_connections_pause"].Annotations.DestructiveHint,
+			"pausing buffers rather than drops, and is reversible")
 	})
 }
 
@@ -156,73 +179,44 @@ func TestListTools_WriteMode(t *testing.T) {
 	session := connectInMemoryWriteEnabled(t, newTestClient(api.URL, "test-key"))
 	tools := listTools(t, session)
 
-	t.Run("write actions appear in the enum", func(t *testing.T) {
-		assert.Equal(t,
-			[]string{"list", "get", "pause", "unpause", "create", "upsert", "update", "delete", "enable", "disable"},
-			actionEnum(t, tools["gateway_connections"]))
-		assert.Equal(t,
-			[]string{"list", "get", "create", "upsert", "update", "delete", "enable", "disable"},
-			actionEnum(t, tools["gateway_sources"]))
-		assert.Equal(t,
-			[]string{"list", "get", "create", "upsert", "update", "delete", "enable", "disable"},
-			actionEnum(t, tools["gateway_destinations"]))
-		assert.Equal(t,
-			[]string{"list", "get", "create", "upsert", "update", "delete", "run"},
-			actionEnum(t, tools["gateway_transformations"]))
-		assert.Equal(t, []string{"list", "list_ignored"}, actionEnum(t, tools["gateway_events"]),
-			"the plural tool stays search-only in write mode")
-		assert.Equal(t,
-			[]string{"get", "raw_body", "retry", "cancel", "mute"},
-			actionEnum(t, tools["gateway_event"]))
-		assert.Equal(t, []string{"list"}, actionEnum(t, tools["gateway_requests"]),
-			"the plural tool stays search-only in write mode")
-		assert.Equal(t,
-			[]string{"get", "raw_body", "retry"},
-			actionEnum(t, tools["gateway_request"]))
-		assert.Equal(t,
-			[]string{"list", "get", "update", "dismiss"},
-			actionEnum(t, tools["gateway_issues"]))
-	})
-
-	t.Run("tools with writes are no longer annotated read-only", func(t *testing.T) {
-		assert.False(t, tools["gateway_connections"].Annotations.ReadOnlyHint)
-		assert.False(t, tools["gateway_event"].Annotations.ReadOnlyHint)
-		assert.False(t, tools["gateway_request"].Annotations.ReadOnlyHint)
-		assert.True(t, tools["gateway_events"].Annotations.ReadOnlyHint,
-			"searching for events changes nothing in any mode")
-		assert.True(t, tools["gateway_requests"].Annotations.ReadOnlyHint,
-			"searching for requests changes nothing in any mode")
-		assert.True(t, tools["gateway_attempts"].Annotations.ReadOnlyHint,
-			"attempts has no write actions in any mode")
-		assert.True(t, tools["gateway_metrics"].Annotations.ReadOnlyHint,
-			"metrics has no write actions in any mode")
-	})
-
-	t.Run("destructive tools carry the destructive hint", func(t *testing.T) {
+	t.Run("write tools appear", func(t *testing.T) {
 		for _, name := range []string{
-			"gateway_connections", "gateway_sources", "gateway_destinations",
-			"gateway_transformations", "gateway_event", "gateway_issues",
+			"gateway_connections_write", "gateway_sources_write", "gateway_destinations_write",
+			"gateway_transformations_write", "gateway_request_write", "gateway_event_write",
+			"gateway_issues_write",
 		} {
-			require.NotNil(t, tools[name].Annotations.DestructiveHint, name)
-			assert.True(t, *tools[name].Annotations.DestructiveHint, "%s should be flagged destructive", name)
-		}
-		// cancel and mute moved to the singular tool, so the plural one no
-		// longer claims to be destructive.
-		for _, name := range []string{"gateway_request", "gateway_events", "gateway_requests"} {
-			require.NotNil(t, tools[name].Annotations.DestructiveHint, name)
-			assert.False(t, *tools[name].Annotations.DestructiveHint,
-				"%s destroys nothing", name)
+			assert.Contains(t, tools, name)
 		}
 	})
 
-	t.Run("the read-only notice is gone", func(t *testing.T) {
-		assert.NotContains(t, tools["gateway_event"].Description, "read-only mode")
+	t.Run("write tools carry only gated actions", func(t *testing.T) {
+		assert.Equal(t, []string{"create", "upsert", "update", "delete", "enable", "disable"},
+			actionEnum(t, tools["gateway_connections_write"]))
+		assert.Equal(t, []string{"create", "upsert", "update", "delete"},
+			actionEnum(t, tools["gateway_transformations_write"]))
+		assert.Equal(t, []string{"retry", "cancel", "mute"}, actionEnum(t, tools["gateway_event_write"]))
+		assert.Equal(t, []string{"retry"}, actionEnum(t, tools["gateway_request_write"]))
+		assert.Equal(t, []string{"update", "dismiss"}, actionEnum(t, tools["gateway_issues_write"]))
+	})
+
+	t.Run("read tools are unchanged by write mode", func(t *testing.T) {
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["gateway_connections_read"]))
+		assert.Equal(t, []string{"list", "list_ignored"}, actionEnum(t, tools["gateway_events_read"]))
+		assert.Equal(t, []string{"pause", "unpause"}, actionEnum(t, tools["gateway_connections_pause"]))
+	})
+
+	t.Run("write tools are annotated honestly", func(t *testing.T) {
+		require.NotNil(t, tools["gateway_connections_write"].Annotations)
+		assert.False(t, tools["gateway_connections_write"].Annotations.ReadOnlyHint)
+		require.NotNil(t, tools["gateway_connections_write"].Annotations.DestructiveHint)
+		assert.True(t, *tools["gateway_connections_write"].Annotations.DestructiveHint,
+			"the tool carrying delete must say it is destructive")
+
+		// retry creates new events but destroys nothing.
+		require.NotNil(t, tools["gateway_request_write"].Annotations.DestructiveHint)
+		assert.False(t, *tools["gateway_request_write"].Annotations.DestructiveHint)
 	})
 }
-
-// ---------------------------------------------------------------------------
-// The handler-level guard (defence in depth)
-// ---------------------------------------------------------------------------
 
 func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 	// Every path a blocked action would reach fails the test: a request
@@ -249,24 +243,24 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"gateway_connections", map[string]any{"action": "create", "name": "c", "source_id": "src_1", "destination_id": "des_1"}},
-		{"gateway_connections", map[string]any{"action": "upsert", "name": "c"}},
-		{"gateway_connections", map[string]any{"action": "update", "id": "web_1"}},
-		{"gateway_connections", map[string]any{"action": "delete", "id": "web_1"}},
-		{"gateway_connections", map[string]any{"action": "enable", "id": "web_1"}},
-		{"gateway_connections", map[string]any{"action": "disable", "id": "web_1"}},
-		{"gateway_sources", map[string]any{"action": "create", "name": "s", "type": "HTTP"}},
-		{"gateway_sources", map[string]any{"action": "delete", "id": "src_1"}},
-		{"gateway_destinations", map[string]any{"action": "create", "name": "d", "type": "HTTP"}},
-		{"gateway_destinations", map[string]any{"action": "delete", "id": "des_1"}},
-		{"gateway_transformations", map[string]any{"action": "create", "name": "t", "code": "return"}},
-		{"gateway_transformations", map[string]any{"action": "delete", "id": "trs_1"}},
-		{"gateway_event", map[string]any{"action": "retry", "id": "evt_1"}},
-		{"gateway_event", map[string]any{"action": "cancel", "id": "evt_1"}},
-		{"gateway_event", map[string]any{"action": "mute", "id": "evt_1"}},
-		{"gateway_request", map[string]any{"action": "retry", "id": "req_1"}},
-		{"gateway_issues", map[string]any{"action": "update", "id": "iss_1", "status": "RESOLVED"}},
-		{"gateway_issues", map[string]any{"action": "dismiss", "id": "iss_1"}},
+		{"gateway_connections_read", map[string]any{"action": "create", "name": "c", "source_id": "src_1", "destination_id": "des_1"}},
+		{"gateway_connections_read", map[string]any{"action": "upsert", "name": "c"}},
+		{"gateway_connections_read", map[string]any{"action": "update", "id": "web_1"}},
+		{"gateway_connections_read", map[string]any{"action": "delete", "id": "web_1"}},
+		{"gateway_connections_read", map[string]any{"action": "enable", "id": "web_1"}},
+		{"gateway_connections_read", map[string]any{"action": "disable", "id": "web_1"}},
+		{"gateway_sources_read", map[string]any{"action": "create", "name": "s", "type": "HTTP"}},
+		{"gateway_sources_read", map[string]any{"action": "delete", "id": "src_1"}},
+		{"gateway_destinations_read", map[string]any{"action": "create", "name": "d", "type": "HTTP"}},
+		{"gateway_destinations_read", map[string]any{"action": "delete", "id": "des_1"}},
+		{"gateway_transformations_read", map[string]any{"action": "create", "name": "t", "code": "return"}},
+		{"gateway_transformations_read", map[string]any{"action": "delete", "id": "trs_1"}},
+		{"gateway_event_read", map[string]any{"action": "retry", "id": "evt_1"}},
+		{"gateway_event_read", map[string]any{"action": "cancel", "id": "evt_1"}},
+		{"gateway_event_read", map[string]any{"action": "mute", "id": "evt_1"}},
+		{"gateway_request_read", map[string]any{"action": "retry", "id": "req_1"}},
+		{"gateway_issues_read", map[string]any{"action": "update", "id": "iss_1", "status": "RESOLVED"}},
+		{"gateway_issues_read", map[string]any{"action": "dismiss", "id": "iss_1"}},
 	}
 
 	for _, tc := range cases {
@@ -298,7 +292,7 @@ func TestWriteGuard_PauseIsNotGated(t *testing.T) {
 
 	for _, action := range []string{"pause", "unpause"} {
 		t.Run(action, func(t *testing.T) {
-			result := callTool(t, session, "gateway_connections", map[string]any{
+			result := callTool(t, session, "gateway_connections_pause", map[string]any{
 				"action": action, "id": "web_1",
 			})
 			assert.False(t, result.IsError, "%s must stay available in read-only mode: %s",
@@ -323,7 +317,7 @@ func TestWriteGuard_TransformationRunIsNotGated(t *testing.T) {
 	})
 	session := connectInMemory(t, newTestClient(api.URL, "test-key"))
 
-	result := callTool(t, session, "gateway_transformations", map[string]any{
+	result := callTool(t, session, "gateway_transformations_read", map[string]any{
 		"action":  "run",
 		"code":    "addHandler(\"transform\", (request, context) => { return request; });",
 		"request": map[string]any{"headers": map[string]any{}},
@@ -355,13 +349,13 @@ func TestWriteGuard_AllowsWriteActionsInWriteMode(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"event retry", "gateway_event", map[string]any{"action": "retry", "id": "evt_1"}, "POST /2026-09-01/events/evt_1/retry"},
-		{"request retry", "gateway_request", map[string]any{"action": "retry", "id": "req_1"}, "POST /2026-09-01/requests/req_1/retry"},
-		{"sources create", "gateway_sources", map[string]any{"action": "create", "name": "s", "type": "HTTP"}, "POST /2026-09-01/sources"},
-		{"sources upsert", "gateway_sources", map[string]any{"action": "upsert", "name": "s", "type": "HTTP"}, "PUT /2026-09-01/sources"},
-		{"destinations create", "gateway_destinations", map[string]any{"action": "create", "name": "d", "type": "HTTP"}, "POST /2026-09-01/destinations"},
-		{"transformations create", "gateway_transformations", map[string]any{"action": "create", "name": "t", "code": "return request"}, "POST /2026-09-01/transformations"},
-		{"issues update", "gateway_issues", map[string]any{"action": "update", "id": "iss_1", "status": "RESOLVED"}, "PUT /2026-09-01/issues/iss_1"},
+		{"event retry", "gateway_event_write", map[string]any{"action": "retry", "id": "evt_1"}, "POST /2026-09-01/events/evt_1/retry"},
+		{"request retry", "gateway_request_write", map[string]any{"action": "retry", "id": "req_1"}, "POST /2026-09-01/requests/req_1/retry"},
+		{"sources create", "gateway_sources_write", map[string]any{"action": "create", "name": "s", "type": "HTTP"}, "POST /2026-09-01/sources"},
+		{"sources upsert", "gateway_sources_write", map[string]any{"action": "upsert", "name": "s", "type": "HTTP"}, "PUT /2026-09-01/sources"},
+		{"destinations create", "gateway_destinations_write", map[string]any{"action": "create", "name": "d", "type": "HTTP"}, "POST /2026-09-01/destinations"},
+		{"transformations create", "gateway_transformations_write", map[string]any{"action": "create", "name": "t", "code": "return request"}, "POST /2026-09-01/transformations"},
+		{"issues update", "gateway_issues_write", map[string]any{"action": "update", "id": "iss_1", "status": "RESOLVED"}, "PUT /2026-09-01/issues/iss_1"},
 	}
 
 	for _, tc := range cases {
@@ -386,14 +380,14 @@ func TestWriteActions_RequireAnID(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"gateway_event", map[string]any{"action": "retry"}},
-		{"gateway_event", map[string]any{"action": "cancel"}},
-		{"gateway_event", map[string]any{"action": "mute"}},
-		{"gateway_request", map[string]any{"action": "retry"}},
-		{"gateway_sources", map[string]any{"action": "delete"}},
-		{"gateway_destinations", map[string]any{"action": "delete"}},
-		{"gateway_transformations", map[string]any{"action": "delete"}},
-		{"gateway_issues", map[string]any{"action": "dismiss"}},
+		{"gateway_event_write", map[string]any{"action": "retry"}},
+		{"gateway_event_write", map[string]any{"action": "cancel"}},
+		{"gateway_event_write", map[string]any{"action": "mute"}},
+		{"gateway_request_write", map[string]any{"action": "retry"}},
+		{"gateway_sources_write", map[string]any{"action": "delete"}},
+		{"gateway_destinations_write", map[string]any{"action": "delete"}},
+		{"gateway_transformations_write", map[string]any{"action": "delete"}},
+		{"gateway_issues_write", map[string]any{"action": "dismiss"}},
 	}
 
 	for _, tc := range cases {
@@ -440,6 +434,12 @@ func TestHelpReportsMode(t *testing.T) {
 			assert.NotContains(t, actions, gated,
 				"read-only help must not list the %s action", gated)
 		}
-		assert.Contains(t, text, "unavailable in read-only mode")
+		// The topic names its write counterpart and the flag that registers it.
+		// It deliberately does not say "unavailable in read-only mode": a read
+		// tool's help has to read identically in both modes, or a grant written
+		// against it stops describing the same tool. See
+		// TestReadToolsAreIdenticalInBothModes.
+		assert.Contains(t, text, "gateway_event_write")
+		assert.Contains(t, text, "--allow-write")
 	})
 }

@@ -42,7 +42,7 @@ Getting the payload:
   the request tools when you already have an event id.
   Example: {"action":"raw_body","id":"evt_abc"}
 
-Acting on a failure (write mode):
+Acting on a failure (` + eventWriteToolName + `, write mode only):
   retry queues another delivery attempt and is the usual follow-up to investigating a failed event.
   cancel stops a scheduled event from ever being delivered; mute stops a failed event raising
   further issues without retrying it.

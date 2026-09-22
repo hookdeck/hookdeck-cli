@@ -133,28 +133,28 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 	t.Run("registers every read tool", func(t *testing.T) {
 		for _, name := range []string{
 			"hookdeck_projects", "hookdeck_login", "outpost_help",
-			"outpost_tenants", "outpost_destinations", "outpost_events",
-			"outpost_attempts", "outpost_topics", "outpost_destination_types",
-			"outpost_metrics", "outpost_config", "outpost_status",
+			"outpost_tenants_read", "outpost_destinations_read", "outpost_events_read",
+			"outpost_attempts_read", "outpost_topics_read", "outpost_destination_types_read",
+			"outpost_metrics_read", "outpost_config_read", "outpost_status_read",
 		} {
 			assert.Contains(t, tools, name)
 		}
 	})
 
 	t.Run("omits the publish tool entirely", func(t *testing.T) {
-		assert.NotContains(t, tools, "outpost_publish",
+		assert.NotContains(t, tools, "outpost_publish_read",
 			"a tool that could only ever fail must not be advertised")
 	})
 
 	t.Run("write actions are absent from the action enum", func(t *testing.T) {
-		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_tenants"]))
-		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_destinations"]))
-		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_events"]))
-		assert.Equal(t, []string{"get", "custom_domain_get"}, actionEnum(t, tools["outpost_config"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_tenants_read"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_destinations_read"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_events_read"]))
+		assert.Equal(t, []string{"get", "custom_domain_get"}, actionEnum(t, tools["outpost_config_read"]))
 	})
 
 	t.Run("write actions are absent from the description", func(t *testing.T) {
-		for _, name := range []string{"outpost_tenants", "outpost_destinations", "outpost_events", "outpost_config"} {
+		for _, name := range []string{"outpost_tenants_read", "outpost_destinations_read", "outpost_events_read", "outpost_config_read"} {
 			description := tools[name].Description
 			for _, action := range []string{"upsert", "delete", "create", "retry", "set"} {
 				assert.NotContains(t, description, " "+action+" (", "%s should not describe the %s action", name, action)
@@ -163,13 +163,13 @@ func TestListTools_ReadOnlyMode(t *testing.T) {
 	})
 
 	t.Run("credential-returning reads are treated as writes", func(t *testing.T) {
-		enum := actionEnum(t, tools["outpost_tenants"])
+		enum := actionEnum(t, tools["outpost_tenants_read"])
 		assert.NotContains(t, enum, "token", "a tenant token is a reusable credential")
 		assert.NotContains(t, enum, "portal", "a portal URL grants access to tenant data")
 	})
 
 	t.Run("read tools are annotated as read-only", func(t *testing.T) {
-		for _, name := range []string{"outpost_tenants", "outpost_events", "outpost_attempts", "outpost_status"} {
+		for _, name := range []string{"outpost_tenants_read", "outpost_events_read", "outpost_attempts_read", "outpost_status_read"} {
 			require.NotNil(t, tools[name].Annotations, name)
 			assert.True(t, tools[name].Annotations.ReadOnlyHint, "%s should be annotated read-only", name)
 		}
@@ -185,28 +185,54 @@ func TestListTools_WriteMode(t *testing.T) {
 	})
 	tools := listTools(t, session)
 
-	t.Run("write actions appear in the enum", func(t *testing.T) {
-		assert.Equal(t, []string{"list", "get", "upsert", "delete", "token", "portal"}, actionEnum(t, tools["outpost_tenants"]))
-		assert.Equal(t, []string{"list", "get", "create", "update", "delete", "enable", "disable"}, actionEnum(t, tools["outpost_destinations"]))
-		assert.Equal(t, []string{"list", "get", "retry"}, actionEnum(t, tools["outpost_events"]))
+	t.Run("write tools are registered alongside the read ones", func(t *testing.T) {
+		for _, name := range []string{
+			"outpost_tenants_write", "outpost_destinations_write",
+			"outpost_events_write", "outpost_config_write",
+		} {
+			assert.Contains(t, tools, name)
+		}
+	})
+
+	t.Run("each tool carries only its own kind of action", func(t *testing.T) {
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_tenants_read"]))
+		assert.Equal(t, []string{"upsert", "delete", "token", "portal"}, actionEnum(t, tools["outpost_tenants_write"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_destinations_read"]))
+		assert.Equal(t, []string{"create", "update", "delete", "enable", "disable"},
+			actionEnum(t, tools["outpost_destinations_write"]))
+		assert.Equal(t, []string{"list", "get"}, actionEnum(t, tools["outpost_events_read"]))
+		assert.Equal(t, []string{"retry"}, actionEnum(t, tools["outpost_events_write"]))
 	})
 
 	t.Run("publish is registered when a Project API key is available", func(t *testing.T) {
-		assert.Contains(t, tools, "outpost_publish")
+		assert.Contains(t, tools, "outpost_publish_write")
 	})
 
-	t.Run("tools with writes are no longer annotated read-only", func(t *testing.T) {
-		assert.False(t, tools["outpost_tenants"].Annotations.ReadOnlyHint)
-		assert.True(t, tools["outpost_attempts"].Annotations.ReadOnlyHint, "attempts has no write actions in any mode")
+	// The point of the split: enabling write mode does not change what the read
+	// tools are, so a permission granted against one still means the same thing.
+	t.Run("read tools stay read-only in write mode", func(t *testing.T) {
+		for _, name := range []string{
+			"outpost_tenants_read", "outpost_destinations_read", "outpost_events_read",
+			"outpost_config_read", "outpost_attempts_read",
+		} {
+			require.NotNil(t, tools[name].Annotations, name)
+			assert.True(t, tools[name].Annotations.ReadOnlyHint,
+				"%s must stay read-only even with --allow-write", name)
+		}
 	})
 
-	t.Run("destructive tools carry the destructive hint", func(t *testing.T) {
-		for _, name := range []string{"outpost_tenants", "outpost_destinations", "outpost_config", "outpost_publish"} {
+	t.Run("write tools are annotated honestly", func(t *testing.T) {
+		for _, name := range []string{
+			"outpost_tenants_write", "outpost_destinations_write",
+			"outpost_config_write", "outpost_publish_write",
+		} {
 			require.NotNil(t, tools[name].Annotations.DestructiveHint, name)
+			assert.False(t, tools[name].Annotations.ReadOnlyHint, "%s changes data", name)
 			assert.True(t, *tools[name].Annotations.DestructiveHint, "%s should be flagged destructive", name)
 		}
-		require.NotNil(t, tools["outpost_events"].Annotations.DestructiveHint)
-		assert.False(t, *tools["outpost_events"].Annotations.DestructiveHint, "a retry does not destroy anything")
+		// A retry creates a new delivery attempt and destroys nothing.
+		require.NotNil(t, tools["outpost_events_write"].Annotations.DestructiveHint)
+		assert.False(t, *tools["outpost_events_write"].Annotations.DestructiveHint)
 	})
 }
 
@@ -215,9 +241,9 @@ func TestListTools_WriteModeWithoutPublishKey(t *testing.T) {
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 	tools := listTools(t, session)
 
-	assert.NotContains(t, tools, "outpost_publish",
+	assert.NotContains(t, tools, "outpost_publish_write",
 		"publishing needs a Project API key, which write mode alone does not supply")
-	assert.Contains(t, tools, "outpost_tenants")
+	assert.Contains(t, tools, "outpost_tenants_read")
 }
 
 // ---------------------------------------------------------------------------
@@ -238,13 +264,13 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"outpost_tenants", map[string]any{"action": "upsert", "id": "acme"}},
-		{"outpost_tenants", map[string]any{"action": "delete", "id": "acme"}},
-		{"outpost_tenants", map[string]any{"action": "token", "id": "acme"}},
-		{"outpost_tenants", map[string]any{"action": "portal", "id": "acme"}},
-		{"outpost_destinations", map[string]any{"action": "delete", "tenant_id": "acme", "id": "des_1"}},
-		{"outpost_events", map[string]any{"action": "retry", "id": "evt_1", "destination_id": "des_1"}},
-		{"outpost_config", map[string]any{"action": "set", "values": map[string]any{"TOPICS": "a"}}},
+		{"outpost_tenants_read", map[string]any{"action": "upsert", "id": "acme"}},
+		{"outpost_tenants_read", map[string]any{"action": "delete", "id": "acme"}},
+		{"outpost_tenants_read", map[string]any{"action": "token", "id": "acme"}},
+		{"outpost_tenants_read", map[string]any{"action": "portal", "id": "acme"}},
+		{"outpost_destinations_read", map[string]any{"action": "delete", "tenant_id": "acme", "id": "des_1"}},
+		{"outpost_events_read", map[string]any{"action": "retry", "id": "evt_1", "destination_id": "des_1"}},
+		{"outpost_config_read", map[string]any{"action": "set", "values": map[string]any{"TOPICS": "a"}}},
 	}
 
 	for _, tc := range cases {
@@ -253,6 +279,7 @@ func TestWriteGuard_BlocksWriteActionsInReadOnlyMode(t *testing.T) {
 			require.True(t, result.IsError)
 			text := resultText(t, result)
 			assert.Contains(t, text, "read-only mode")
+			assert.Contains(t, text, "--allow-write")
 			assert.Contains(t, text, "--allow-write")
 		})
 	}
@@ -267,7 +294,7 @@ func TestWriteGuard_AllowsWriteActionsInWriteMode(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{
+	result := callTool(t, session, "outpost_tenants_write", map[string]any{
 		"action":   "upsert",
 		"id":       "acme",
 		"metadata": map[string]any{"plan": "pro"},
@@ -280,7 +307,7 @@ func TestUnknownAction(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "explode"})
+	result := callTool(t, session, "outpost_tenants_read", map[string]any{"action": "explode"})
 	require.True(t, result.IsError)
 	text := resultText(t, result)
 	assert.Contains(t, text, `unknown action "explode"`)
@@ -309,7 +336,7 @@ func TestUnauthenticated_PointsAtALoginToolThatExists(t *testing.T) {
 	require.True(t, registered["hookdeck_login"], "login is platform-level, so it is hookdeck_login in every server")
 	require.False(t, registered["outpost_login"], "the product prefix must not be used for a platform tool")
 
-	for _, name := range []string{"outpost_tenants", "outpost_events", "outpost_status", "hookdeck_projects"} {
+	for _, name := range []string{"outpost_tenants_read", "outpost_events_read", "outpost_status_read", "hookdeck_projects"} {
 		t.Run(name, func(t *testing.T) {
 			result := callTool(t, session, name, map[string]any{"action": "list"})
 			require.True(t, result.IsError)
@@ -364,7 +391,7 @@ func TestTenantsList(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{
+	result := callTool(t, session, "outpost_tenants_read", map[string]any{
 		"action": "list",
 		"id":     "acme,globex",
 		"limit":  10,
@@ -391,7 +418,7 @@ func TestDestinationsRequireTenantID(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{"action": "list"})
+	result := callTool(t, session, "outpost_destinations_read", map[string]any{"action": "list"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "tenant_id is required")
 }
@@ -406,7 +433,7 @@ func TestDestinationsList(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_read", map[string]any{
 		"action":    "list",
 		"tenant_id": "acme",
 		"type":      "webhook",
@@ -431,7 +458,7 @@ func TestEventsRetryReportsQueued(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_events", map[string]any{
+	result := callTool(t, session, "outpost_events_write", map[string]any{
 		"action":         "retry",
 		"id":             "evt_1",
 		"destination_id": "des_1",
@@ -445,7 +472,7 @@ func TestEventsRetryRequiresDestination(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_events", map[string]any{"action": "retry", "id": "evt_1"})
+	result := callTool(t, session, "outpost_events_write", map[string]any{"action": "retry", "id": "evt_1"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "destination_id is required")
 }
@@ -463,11 +490,11 @@ func TestDestinationTypesOmitSetupDocsByDefault(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_destination_types", map[string]any{"action": "list"})
+	result := callTool(t, session, "outpost_destination_types_read", map[string]any{"action": "list"})
 	require.False(t, result.IsError, resultText(t, result))
 	assert.NotContains(t, resultText(t, result), "a very long setup guide")
 
-	verbose := callTool(t, session, "outpost_destination_types", map[string]any{
+	verbose := callTool(t, session, "outpost_destination_types_read", map[string]any{
 		"action":             "list",
 		"include_setup_docs": true,
 	})
@@ -479,7 +506,7 @@ func TestMetricsRequiresStartEndAndMeasures(t *testing.T) {
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
 	t.Run("missing range", func(t *testing.T) {
-		result := callTool(t, session, "outpost_metrics", map[string]any{
+		result := callTool(t, session, "outpost_metrics_read", map[string]any{
 			"action": "events", "measures": []any{"count"},
 		})
 		require.True(t, result.IsError)
@@ -487,7 +514,7 @@ func TestMetricsRequiresStartEndAndMeasures(t *testing.T) {
 	})
 
 	t.Run("missing measures", func(t *testing.T) {
-		result := callTool(t, session, "outpost_metrics", map[string]any{
+		result := callTool(t, session, "outpost_metrics_read", map[string]any{
 			"action": "events",
 			"start":  "2026-08-01T00:00:00Z",
 			"end":    "2026-08-14T00:00:00Z",
@@ -507,7 +534,7 @@ func TestMetricsFilters(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_metrics", map[string]any{
+	result := callTool(t, session, "outpost_metrics_read", map[string]any{
 		"action":   "attempts",
 		"start":    "2026-08-01T00:00:00Z",
 		"end":      "2026-08-14T00:00:00Z",
@@ -523,7 +550,7 @@ func TestConfigSetRejectsAnEmptyChange(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_config", map[string]any{"action": "set"})
+	result := callTool(t, session, "outpost_config_write", map[string]any{"action": "set"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "nothing to change")
 }
@@ -538,7 +565,7 @@ func TestConfigSetSendsValuesAndUnsets(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_config", map[string]any{
+	result := callTool(t, session, "outpost_config_write", map[string]any{
 		"action": "set",
 		"values": map[string]any{"TOPICS": "user.created"},
 		"unset":  []any{"MAX_RETRY_LIMIT"},
@@ -572,7 +599,7 @@ func TestPublishUsesTheProjectAPIKeyAsBearer(t *testing.T) {
 		PublishAPIKey: "project-api-key",
 	})
 
-	result := callTool(t, session, "outpost_publish", map[string]any{
+	result := callTool(t, session, "outpost_publish_write", map[string]any{
 		"action":    "publish",
 		"tenant_id": "acme",
 		"topic":     "user.created",
@@ -595,7 +622,7 @@ func TestScopeFailureIsReportedAsNotPermitted(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "list"})
+	result := callTool(t, session, "outpost_tenants_read", map[string]any{"action": "list"})
 	require.True(t, result.IsError)
 	text := resultText(t, result)
 	assert.Contains(t, text, "Not permitted")
@@ -632,7 +659,7 @@ func TestHelpOverview_WriteMode(t *testing.T) {
 		})
 		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{}))
 		assert.Contains(t, text, "Mode: write enabled")
-		assert.Contains(t, text, "outpost_publish")
+		assert.Contains(t, text, "outpost_publish_write")
 	})
 
 	t.Run("without a publish key", func(t *testing.T) {
@@ -653,15 +680,18 @@ func TestHelpTopic(t *testing.T) {
 
 	t.Run("read-only topics document only the available actions", func(t *testing.T) {
 		session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
-		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": "outpost_tenants"}))
+		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": "outpost_tenants_read"}))
 		assert.Contains(t, text, "list")
 		assert.NotContains(t, text, "\n  delete ")
-		assert.Contains(t, text, "read-only mode")
+		// Names the write counterpart and the flag, rather than the current
+		// mode: a read tool's help must read identically in both.
+		assert.Contains(t, text, "outpost_tenants_write")
+		assert.Contains(t, text, "--allow-write")
 	})
 
 	t.Run("write topics document the write actions", func(t *testing.T) {
 		session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
-		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": "outpost_tenants"}))
+		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": "outpost_tenants_read"}))
 		assert.Contains(t, text, "delete")
 		assert.Contains(t, text, "token")
 	})
@@ -669,7 +699,7 @@ func TestHelpTopic(t *testing.T) {
 	t.Run("bare topic names resolve", func(t *testing.T) {
 		session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": "events"}))
-		assert.Contains(t, text, "outpost_events")
+		assert.Contains(t, text, "outpost_events_read")
 	})
 
 	t.Run("an unknown topic lists the available ones", func(t *testing.T) {
@@ -729,7 +759,7 @@ func TestPublishRefusesATenantTheCredentialCannotSee(t *testing.T) {
 		PublishAPIKey: "project-api-key",
 	})
 
-	result := callTool(t, session, "outpost_publish", map[string]any{
+	result := callTool(t, session, "outpost_publish_write", map[string]any{
 		"action": "publish", "tenant_id": "ghost", "topic": "user.created",
 	})
 
@@ -758,7 +788,7 @@ func TestPublishWarnsWhenNothingMatched(t *testing.T) {
 		PublishAPIKey: "project-api-key",
 	})
 
-	result := callTool(t, session, "outpost_publish", map[string]any{
+	result := callTool(t, session, "outpost_publish_write", map[string]any{
 		"action": "publish", "tenant_id": "acme", "topic": "user.created",
 	})
 
@@ -795,7 +825,7 @@ func TestReadOnlyPropSurface(t *testing.T) {
 			require.True(t, listed, "%s is not in the expected set; add it", spec.Resource)
 
 			got := make([]string, 0)
-			for name := range spec.VisibleProps(false) {
+			for name := range spec.VisibleProps(mcpcore.GroupRead) {
 				got = append(got, name)
 			}
 			sort.Strings(got)
@@ -810,8 +840,8 @@ func TestReadOnlyPropSurface(t *testing.T) {
 // need them cannot be called.
 func TestWriteModeRestoresTheHiddenProps(t *testing.T) {
 	for _, spec := range resourceSpecs() {
-		readOnly := len(spec.VisibleProps(false))
-		writeMode := len(spec.VisibleProps(true))
+		readOnly := len(spec.VisibleProps(mcpcore.GroupRead))
+		writeMode := len(spec.VisibleProps(mcpcore.GroupWrite))
 		assert.GreaterOrEqual(t, writeMode, readOnly,
 			"%s must not lose properties in write mode", spec.Resource)
 		assert.Equal(t, len(spec.Props), writeMode,

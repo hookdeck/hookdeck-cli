@@ -41,9 +41,10 @@ Requests and events:
   that listing because the route takes the events filter set. list_ignored there gives the events
   a connection filter dropped. Those actions are not on this tool.
   Coming the other way, an event carries request_id: pass it here with action get.
-  Act on an individual event with ` + eventToolName + `.
+  Read an individual event with ` + eventToolName + `; retry, cancel or mute it with
+  ` + eventWriteToolName + `.
 
-Retrying (write mode):
+Retrying (` + requestWriteToolName + `, write mode only):
   retry re-routes the stored request through its connections, creating new events. It does not
   modify the original request. Omit connection_ids to retry every connection the request matched.
   Example: {"action":"retry","id":"req_abc","connection_ids":["web_123"]}`,

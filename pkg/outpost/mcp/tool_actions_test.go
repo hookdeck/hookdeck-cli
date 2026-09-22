@@ -76,7 +76,7 @@ func TestTenantsGet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "get", "id": "acme"})
+	result := callTool(t, session, "outpost_tenants_read", map[string]any{"action": "get", "id": "acme"})
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, "/2026-09-01/tenants/acme", got.path)
@@ -90,7 +90,7 @@ func TestTenantsUpsertSendsMetadata(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{
+	result := callTool(t, session, "outpost_tenants_write", map[string]any{
 		"action":   "upsert",
 		"id":       "acme",
 		"metadata": map[string]any{"plan": "pro", "region": "eu"},
@@ -109,7 +109,7 @@ func TestTenantsDelete(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "delete", "id": "acme"})
+	result := callTool(t, session, "outpost_tenants_write", map[string]any{"action": "delete", "id": "acme"})
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodDelete, got.method)
@@ -122,7 +122,7 @@ func TestTenantsDeleteRequiresAnID(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "delete"})
+	result := callTool(t, session, "outpost_tenants_write", map[string]any{"action": "delete"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "id is required")
 }
@@ -136,7 +136,7 @@ func TestTenantsToken(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{"action": "token", "id": "acme"})
+	result := callTool(t, session, "outpost_tenants_write", map[string]any{"action": "token", "id": "acme"})
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, "/2026-09-01/tenants/acme/token", got.path)
@@ -152,7 +152,7 @@ func TestTenantsPortal(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_tenants", map[string]any{
+	result := callTool(t, session, "outpost_tenants_write", map[string]any{
 		"action": "portal", "id": "acme", "theme": "dark",
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -175,7 +175,7 @@ func TestDestinationsGet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_read", map[string]any{
 		"action": "get", "tenant_id": "acme", "id": "des_1",
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -191,7 +191,7 @@ func TestDestinationsCreate(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_write", map[string]any{
 		"action":      "create",
 		"tenant_id":   "acme",
 		"type":        "webhook",
@@ -227,7 +227,7 @@ func TestDestinationsCreateSendsTheWildcardAsAString(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_write", map[string]any{
 		"action": "create", "tenant_id": "acme", "type": "webhook",
 		"topics": []any{"*"},
 		"config": map[string]any{"url": "https://example.com/hooks"},
@@ -248,7 +248,7 @@ func TestDestinationsCreateDefaultsTopicsToEverything(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_write", map[string]any{
 		"action": "create", "tenant_id": "acme", "type": "webhook",
 		"config": map[string]any{"url": "https://example.com/hooks"},
 	})
@@ -271,7 +271,7 @@ func TestDestinationsUpdateDoesNotDefaultTopics(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_write", map[string]any{
 		"action": "update", "tenant_id": "acme", "id": "des_1",
 		"config": map[string]any{"url": "https://example.com/new"},
 	})
@@ -283,7 +283,7 @@ func TestDestinationsCreateRequiresAType(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_write", map[string]any{
 		"action": "create", "tenant_id": "acme",
 	})
 	require.True(t, result.IsError)
@@ -299,7 +299,7 @@ func TestDestinationsUpdateIsAPatch(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_write", map[string]any{
 		"action": "update", "tenant_id": "acme", "id": "des_1",
 		"config": map[string]any{"url": "https://example.com/new"},
 	})
@@ -325,7 +325,7 @@ func TestDestinationsDelete(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_destinations", map[string]any{
+	result := callTool(t, session, "outpost_destinations_write", map[string]any{
 		"action": "delete", "tenant_id": "acme", "id": "des_1",
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -347,7 +347,7 @@ func TestDestinationsEnableAndDisable(t *testing.T) {
 			})
 			session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-			result := callTool(t, session, "outpost_destinations", map[string]any{
+			result := callTool(t, session, "outpost_destinations_write", map[string]any{
 				"action": action, "tenant_id": "acme", "id": "des_1",
 			})
 			require.False(t, result.IsError, resultText(t, result))
@@ -364,7 +364,7 @@ func TestDestinationsWriteActionsRequireADestinationID(t *testing.T) {
 
 	for _, action := range []string{"update", "delete", "enable", "disable"} {
 		t.Run(action, func(t *testing.T) {
-			result := callTool(t, session, "outpost_destinations", map[string]any{
+			result := callTool(t, session, "outpost_destinations_write", map[string]any{
 				"action": action, "tenant_id": "acme",
 			})
 			require.True(t, result.IsError)
@@ -387,7 +387,7 @@ func TestConfigGet(t *testing.T) {
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
 	t.Run("everything", func(t *testing.T) {
-		result := callTool(t, session, "outpost_config", map[string]any{"action": "get"})
+		result := callTool(t, session, "outpost_config_read", map[string]any{"action": "get"})
 		require.False(t, result.IsError, resultText(t, result))
 		assert.Equal(t, "/2026-09-01/config", got.path)
 
@@ -397,13 +397,13 @@ func TestConfigGet(t *testing.T) {
 	})
 
 	t.Run("one key", func(t *testing.T) {
-		result := callTool(t, session, "outpost_config", map[string]any{"action": "get", "key": "TOPICS"})
+		result := callTool(t, session, "outpost_config_read", map[string]any{"action": "get", "key": "TOPICS"})
 		require.False(t, result.IsError, resultText(t, result))
 		assert.JSONEq(t, `{"TOPICS":"user.created"}`, string(envelopeData(t, resultText(t, result))))
 	})
 
 	t.Run("an unknown key is named in the error", func(t *testing.T) {
-		result := callTool(t, session, "outpost_config", map[string]any{"action": "get", "key": "NOPE"})
+		result := callTool(t, session, "outpost_config_read", map[string]any{"action": "get", "key": "NOPE"})
 		require.True(t, result.IsError)
 		assert.Contains(t, resultText(t, result), `no configuration key named "NOPE"`)
 	})
@@ -418,7 +418,7 @@ func TestConfigCustomDomainGet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_config", map[string]any{"action": "custom_domain_get"})
+	result := callTool(t, session, "outpost_config_read", map[string]any{"action": "custom_domain_get"})
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, "/2026-09-01/config/custom_domain", got.path)
@@ -438,7 +438,7 @@ func TestConfigCustomDomainSet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_config", map[string]any{
+	result := callTool(t, session, "outpost_config_write", map[string]any{
 		"action": "custom_domain_set", "hostname": "portal.example.com",
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -455,7 +455,7 @@ func TestConfigCustomDomainSetRequiresAHostname(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_config", map[string]any{"action": "custom_domain_set"})
+	result := callTool(t, session, "outpost_config_write", map[string]any{"action": "custom_domain_set"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "hostname is required")
 }
@@ -467,7 +467,7 @@ func TestConfigCustomDomainDelete(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 
-	result := callTool(t, session, "outpost_config", map[string]any{"action": "custom_domain_delete"})
+	result := callTool(t, session, "outpost_config_write", map[string]any{"action": "custom_domain_delete"})
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, http.MethodDelete, got.method)
@@ -489,7 +489,7 @@ func TestAttemptsList(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_attempts", map[string]any{
+	result := callTool(t, session, "outpost_attempts_read", map[string]any{
 		"action":      "list",
 		"event_id":    "evt_1",
 		"status":      "failed",
@@ -523,9 +523,9 @@ func TestListsAcceptLimitAsAString(t *testing.T) {
 		path string
 		args map[string]any
 	}{
-		{"outpost_attempts", "/2026-09-01/attempts", map[string]any{}},
-		{"outpost_events", "/2026-09-01/events", map[string]any{}},
-		{"outpost_tenants", "/2026-09-01/tenants", map[string]any{}},
+		{"outpost_attempts_read", "/2026-09-01/attempts", map[string]any{}},
+		{"outpost_events_read", "/2026-09-01/events", map[string]any{}},
+		{"outpost_tenants_read", "/2026-09-01/tenants", map[string]any{}},
 	} {
 		t.Run(tc.tool, func(t *testing.T) {
 			var got captured
@@ -568,7 +568,7 @@ func TestPublishAcceptsEligibleForRetryAsAString(t *testing.T) {
 		Client: newTestClient(t, api.URL), WriteEnabled: true, PublishAPIKey: "project-api-key",
 	})
 
-	result := callTool(t, session, "outpost_publish", map[string]any{
+	result := callTool(t, session, "outpost_publish_write", map[string]any{
 		"action": "publish", "tenant_id": "acme", "topic": "user.created",
 		"data": map[string]any{"user_id": "123"}, "eligible_for_retry": "false",
 	})
@@ -588,7 +588,7 @@ func TestAttemptsListUsesTheTenantScopedRoute(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_attempts", map[string]any{
+	result := callTool(t, session, "outpost_attempts_read", map[string]any{
 		"action": "list", "tenant_id": "acme", "destination_id": "des_1",
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -605,7 +605,7 @@ func TestAttemptsGet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_attempts", map[string]any{
+	result := callTool(t, session, "outpost_attempts_read", map[string]any{
 		"action": "get", "id": "att_1", "include": []any{"destination"},
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -620,7 +620,7 @@ func TestAttemptsGetRequiresAnID(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_attempts", map[string]any{"action": "get"})
+	result := callTool(t, session, "outpost_attempts_read", map[string]any{"action": "get"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "id is required")
 }
@@ -639,7 +639,7 @@ func TestEventsList(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_events", map[string]any{
+	result := callTool(t, session, "outpost_events_read", map[string]any{
 		"action": "list", "tenant_id": "acme", "topic": "user.created",
 		"limit": 5, "dir": "desc", "next": "cursor_1",
 	})
@@ -664,7 +664,7 @@ func TestEventsGet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_events", map[string]any{
+	result := callTool(t, session, "outpost_events_read", map[string]any{
 		"action": "get", "id": "evt_1", "tenant_id": "acme",
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -678,7 +678,7 @@ func TestEventsGetRequiresAnID(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_events", map[string]any{"action": "get"})
+	result := callTool(t, session, "outpost_events_read", map[string]any{"action": "get"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "id is required")
 }
@@ -702,7 +702,7 @@ func TestDestinationTypesGet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_destination_types", map[string]any{
+	result := callTool(t, session, "outpost_destination_types_read", map[string]any{
 		"action": "get", "type": "webhook",
 	})
 	require.False(t, result.IsError, resultText(t, result))
@@ -712,7 +712,7 @@ func TestDestinationTypesGet(t *testing.T) {
 	assert.Contains(t, text, "url", "the config fields are the reason to call this")
 	assert.NotContains(t, text, "a very long setup guide", "setup docs are opt-in on get too")
 
-	verbose := callTool(t, session, "outpost_destination_types", map[string]any{
+	verbose := callTool(t, session, "outpost_destination_types_read", map[string]any{
 		"action": "get", "type": "webhook", "include_setup_docs": true,
 	})
 	assert.Contains(t, resultText(t, verbose), "a very long setup guide")
@@ -722,7 +722,7 @@ func TestDestinationTypesGetRequiresAType(t *testing.T) {
 	api := mockAPI(t, nil)
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_destination_types", map[string]any{"action": "get"})
+	result := callTool(t, session, "outpost_destination_types_read", map[string]any{"action": "get"})
 	require.True(t, result.IsError)
 	assert.Contains(t, resultText(t, result), "type is required")
 }
@@ -734,7 +734,7 @@ func TestTopicsList(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_topics", map[string]any{"action": "list"})
+	result := callTool(t, session, "outpost_topics_read", map[string]any{"action": "list"})
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, "/2026-09-01/topics", got.path)
@@ -751,7 +751,7 @@ func TestStatusGet(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_status", map[string]any{"action": "get"})
+	result := callTool(t, session, "outpost_status_read", map[string]any{"action": "get"})
 	require.False(t, result.IsError, resultText(t, result))
 
 	assert.Equal(t, "/2026-09-01/status", got.path)
@@ -774,7 +774,7 @@ func TestMetricsEvents(t *testing.T) {
 	})
 	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
 
-	result := callTool(t, session, "outpost_metrics", map[string]any{
+	result := callTool(t, session, "outpost_metrics_read", map[string]any{
 		"action":      "events",
 		"start":       "2026-08-01T00:00:00Z",
 		"end":         "2026-08-14T00:00:00Z",

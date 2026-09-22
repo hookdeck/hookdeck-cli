@@ -39,7 +39,7 @@ func TestMetricsToolRejectsFiltersTheEndpointIgnores(t *testing.T) {
 				},
 			})
 
-			result := callTool(t, session, "gateway_metrics", map[string]any{
+			result := callTool(t, session, "gateway_metrics_read", map[string]any{
 				"action":   tt.action,
 				"start":    "2025-01-01T00:00:00Z",
 				"end":      "2025-01-02T00:00:00Z",
@@ -66,7 +66,7 @@ func TestMetricsToolAcceptsFiltersTheEndpointHonours(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "gateway_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":         "attempts",
 		"start":          "2025-01-01T00:00:00Z",
 		"end":            "2025-01-02T00:00:00Z",
@@ -91,7 +91,7 @@ func TestMetricsToolMapsConnectionDimension(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "gateway_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":     "events",
 		"start":      "2025-01-01T00:00:00Z",
 		"end":        "2025-01-02T00:00:00Z",
@@ -176,7 +176,7 @@ func TestMetricsToolRejectsFiltersTheEventsRouteIgnores(t *testing.T) {
 				args[k] = v
 			}
 
-			result := callTool(t, session, "gateway_metrics", args)
+			result := callTool(t, session, "gateway_metrics_read", args)
 
 			assert.True(t, result.IsError, "events with %s must be refused", tt.filter)
 			body := textContent(t, result)
@@ -237,7 +237,7 @@ func TestMetricsToolKeepsFiltersTheEventsRouteHonours(t *testing.T) {
 				args[k] = v
 			}
 
-			result := callTool(t, session, "gateway_metrics", args)
+			result := callTool(t, session, "gateway_metrics_read", args)
 			assert.False(t, result.IsError, textContent(t, result))
 			assert.Equal(t, tt.want, got)
 		})

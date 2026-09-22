@@ -72,7 +72,7 @@ func formatCurrentProject(client *hookdeck.Client) string {
 // change that.
 func modeHelp(srv *mcpcore.Server, opts ServerOptions) string {
 	if srv.WriteEnabled() {
-		text := `Mode: write enabled. Every action below is available, including the ones that create,
+		text := `Mode: write enabled. The ` + "`_write`" + ` tools are registered alongside the ` + "`_read`" + ` ones, so every action below is available, including the ones that create,
 change or delete data. Destructive actions (delete, config set, publish) are real and immediate.`
 		if opts.PublishAPIKey == "" {
 			text += "\n\noutpost_publish is not registered in this session: publishing needs a Hookdeck Project API key,\n" +
@@ -82,7 +82,7 @@ change or delete data. Destructive actions (delete, config set, publish) are rea
 		return text
 	}
 
-	return `Mode: read-only. Actions that change data are not offered, and the tools above list only
+	return `Mode: read-only. The tools that create, change or delete data are unavailable in read-only mode: each resource has a ` + "`_write`" + ` tool and none is registered. The tools above list only
 the actions this session can perform. Two reads are treated as writes and are also unavailable:
 outpost_tenants token mints a tenant-scoped access token, and outpost_tenants portal returns a URL
 granting access to a tenant's portal — both hand back reusable credentials, so a read-only session
@@ -155,7 +155,7 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 		}
 	}
 	if srv.WriteEnabled() && opts.PublishAPIKey != "" {
-		entries = append(entries, entry{srv.ToolName("publish"), "Publish an event (actions: publish)"})
+		entries = append(entries, entry{srv.ToolName("publish") + "_" + mcpcore.GroupWrite, "Publish an event (actions: publish)"})
 	}
 	entries = append(entries, entry{helpToolName, "This help text"})
 

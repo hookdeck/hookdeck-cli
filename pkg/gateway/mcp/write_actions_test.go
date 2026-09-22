@@ -109,7 +109,7 @@ func TestConnectionsListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/connections": ok(&got, listResponse(connectionBody())),
 	})
 
-	text := succeeds(t, session, "gateway_connections", map[string]any{
+	text := succeeds(t, session, "gateway_connections_read", map[string]any{
 		"action": "list", "name": "stripe-to-backend", "source_id": "src_1",
 		"destination_id": "des_1", "limit": 25, "next": "cursor_1",
 	})
@@ -130,7 +130,7 @@ func TestConnectionsGetByID(t *testing.T) {
 		"GET /2026-09-01/connections/web_1": ok(&got, connectionBody()),
 	})
 
-	text := succeeds(t, session, "gateway_connections", map[string]any{"action": "get", "id": "web_1"})
+	text := succeeds(t, session, "gateway_connections_read", map[string]any{"action": "get", "id": "web_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
 	assert.Equal(t, "/2026-09-01/connections/web_1", got.path)
@@ -143,7 +143,7 @@ func TestConnectionsCreate(t *testing.T) {
 		"POST /2026-09-01/connections": ok(&got, connectionBody()),
 	})
 
-	succeeds(t, session, "gateway_connections", map[string]any{
+	succeeds(t, session, "gateway_connections_write", map[string]any{
 		"action":         "create",
 		"name":           "stripe-to-backend",
 		"description":    "routes Stripe events",
@@ -173,7 +173,7 @@ func TestConnectionsUpsertIsAPutToTheCollection(t *testing.T) {
 		"PUT /2026-09-01/connections": ok(&got, connectionBody()),
 	})
 
-	succeeds(t, session, "gateway_connections", map[string]any{
+	succeeds(t, session, "gateway_connections_write", map[string]any{
 		"action": "upsert", "name": "stripe-to-backend", "source_id": "src_1", "destination_id": "des_1",
 	})
 
@@ -185,7 +185,7 @@ func TestConnectionsUpsertIsAPutToTheCollection(t *testing.T) {
 func TestConnectionsUpsertRequiresAName(t *testing.T) {
 	session := writeSession(t, nil)
 
-	result := callTool(t, session, "gateway_connections", map[string]any{
+	result := callTool(t, session, "gateway_connections_write", map[string]any{
 		"action": "upsert", "source_id": "src_1",
 	})
 	require.True(t, result.IsError)
@@ -199,7 +199,7 @@ func TestConnectionsUpdate(t *testing.T) {
 		"PUT /2026-09-01/connections/web_1": ok(&got, connectionBody()),
 	})
 
-	succeeds(t, session, "gateway_connections", map[string]any{
+	succeeds(t, session, "gateway_connections_write", map[string]any{
 		"action": "update", "id": "web_1", "description": "now with retries",
 		"rules": []any{map[string]any{"type": "retry"}},
 	})
@@ -225,7 +225,7 @@ func TestConnectionsUpdateResolvesANameToAnID(t *testing.T) {
 		"PUT /2026-09-01/connections/web_1": ok(&got, connectionBody()),
 	})
 
-	succeeds(t, session, "gateway_connections", map[string]any{
+	succeeds(t, session, "gateway_connections_write", map[string]any{
 		"action": "update", "id": "stripe-to-backend", "description": "renamed target",
 	})
 
@@ -240,7 +240,7 @@ func TestConnectionsDelete(t *testing.T) {
 		"DELETE /2026-09-01/connections/web_1": ok(&got, nil),
 	})
 
-	text := succeeds(t, session, "gateway_connections", map[string]any{"action": "delete", "id": "web_1"})
+	text := succeeds(t, session, "gateway_connections_write", map[string]any{"action": "delete", "id": "web_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
 	assert.Equal(t, "/2026-09-01/connections/web_1", got.path)
@@ -257,7 +257,7 @@ func TestConnectionsEnableAndDisable(t *testing.T) {
 				"PUT /2026-09-01/connections/web_1/" + action: ok(&got, connectionBody()),
 			})
 
-			succeeds(t, session, "gateway_connections", map[string]any{"action": action, "id": "web_1"})
+			succeeds(t, session, "gateway_connections_write", map[string]any{"action": action, "id": "web_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
 			assert.Equal(t, "/2026-09-01/connections/web_1/"+action, got.path)
@@ -274,7 +274,7 @@ func TestConnectionsPauseAndUnpause(t *testing.T) {
 				"PUT /2026-09-01/connections/web_1/" + action: ok(&got, connectionBody()),
 			})
 
-			succeeds(t, session, "gateway_connections", map[string]any{"action": action, "id": "web_1"})
+			succeeds(t, session, "gateway_connections_pause", map[string]any{"action": action, "id": "web_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
 			assert.Equal(t, "/2026-09-01/connections/web_1/"+action, got.path)
@@ -287,7 +287,7 @@ func TestConnectionsWriteActionsRequireAnID(t *testing.T) {
 
 	for _, action := range []string{"update", "delete", "enable", "disable"} {
 		t.Run(action, func(t *testing.T) {
-			result := callTool(t, session, "gateway_connections", map[string]any{"action": action})
+			result := callTool(t, session, "gateway_connections_write", map[string]any{"action": action})
 			require.True(t, result.IsError)
 			assert.Contains(t, textContent(t, result), "id or name is required")
 		})
@@ -308,7 +308,7 @@ func TestSourcesListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/sources": ok(&got, listResponse(sourceBody())),
 	})
 
-	succeeds(t, session, "gateway_sources", map[string]any{
+	succeeds(t, session, "gateway_sources_read", map[string]any{
 		"action": "list", "name": "stripe", "limit": 5, "next": "cursor_1",
 	})
 
@@ -324,7 +324,7 @@ func TestSourcesGetByID(t *testing.T) {
 		"GET /2026-09-01/sources/src_1": ok(&got, sourceBody()),
 	})
 
-	succeeds(t, session, "gateway_sources", map[string]any{"action": "get", "id": "src_1"})
+	succeeds(t, session, "gateway_sources_read", map[string]any{"action": "get", "id": "src_1"})
 	assert.Equal(t, "/2026-09-01/sources/src_1", got.path)
 }
 
@@ -347,7 +347,7 @@ func TestSourcesCreateAndUpsert(t *testing.T) {
 				tc.pattern: ok(&got, sourceBody()),
 			})
 
-			succeeds(t, session, "gateway_sources", map[string]any{
+			succeeds(t, session, "gateway_sources_write", map[string]any{
 				"action": tc.action, "name": "stripe", "type": "STRIPE",
 				"description": "Stripe webhooks",
 				"config":      map[string]any{"auth_type": "STRIPE_SIGNATURE"},
@@ -371,7 +371,7 @@ func TestSourcesUpdate(t *testing.T) {
 		"PUT /2026-09-01/sources/src_1": ok(&got, sourceBody()),
 	})
 
-	succeeds(t, session, "gateway_sources", map[string]any{
+	succeeds(t, session, "gateway_sources_write", map[string]any{
 		"action": "update", "id": "src_1",
 		"config": map[string]any{"allowed_http_methods": []any{"POST"}},
 	})
@@ -392,7 +392,7 @@ func TestSourcesDelete(t *testing.T) {
 		"DELETE /2026-09-01/sources/src_1": ok(&got, nil),
 	})
 
-	text := succeeds(t, session, "gateway_sources", map[string]any{"action": "delete", "id": "src_1"})
+	text := succeeds(t, session, "gateway_sources_write", map[string]any{"action": "delete", "id": "src_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
 	assert.Equal(t, "/2026-09-01/sources/src_1", got.path)
@@ -407,7 +407,7 @@ func TestSourcesEnableAndDisable(t *testing.T) {
 				"PUT /2026-09-01/sources/src_1/" + action: ok(&got, sourceBody()),
 			})
 
-			succeeds(t, session, "gateway_sources", map[string]any{"action": action, "id": "src_1"})
+			succeeds(t, session, "gateway_sources_write", map[string]any{"action": action, "id": "src_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
 			assert.Equal(t, "/2026-09-01/sources/src_1/"+action, got.path)
@@ -420,7 +420,7 @@ func TestSourcesWriteActionsRequireAnID(t *testing.T) {
 
 	for _, action := range []string{"update", "delete", "enable", "disable"} {
 		t.Run(action, func(t *testing.T) {
-			result := callTool(t, session, "gateway_sources", map[string]any{"action": action})
+			result := callTool(t, session, "gateway_sources_write", map[string]any{"action": action})
 			require.True(t, result.IsError)
 			assert.Contains(t, textContent(t, result), "id is required")
 		})
@@ -441,7 +441,7 @@ func TestDestinationsListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/destinations": ok(&got, listResponse(destinationBody())),
 	})
 
-	succeeds(t, session, "gateway_destinations", map[string]any{
+	succeeds(t, session, "gateway_destinations_read", map[string]any{
 		"action": "list", "name": "backend", "limit": 5, "prev": "cursor_0",
 	})
 
@@ -457,7 +457,7 @@ func TestDestinationsGetByID(t *testing.T) {
 		"GET /2026-09-01/destinations/des_1": ok(&got, destinationBody()),
 	})
 
-	succeeds(t, session, "gateway_destinations", map[string]any{"action": "get", "id": "des_1"})
+	succeeds(t, session, "gateway_destinations_read", map[string]any{"action": "get", "id": "des_1"})
 	assert.Equal(t, "/2026-09-01/destinations/des_1", got.path)
 }
 
@@ -478,7 +478,7 @@ func TestDestinationsCreateAndUpsert(t *testing.T) {
 				tc.pattern: ok(&got, destinationBody()),
 			})
 
-			succeeds(t, session, "gateway_destinations", map[string]any{
+			succeeds(t, session, "gateway_destinations_write", map[string]any{
 				"action": tc.action, "name": "backend", "type": "HTTP",
 				"description": "the API",
 				"config":      map[string]any{"url": "https://example.com/hooks"},
@@ -503,7 +503,7 @@ func TestDestinationsUpdate(t *testing.T) {
 		"PUT /2026-09-01/destinations/des_1": ok(&got, destinationBody()),
 	})
 
-	succeeds(t, session, "gateway_destinations", map[string]any{
+	succeeds(t, session, "gateway_destinations_write", map[string]any{
 		"action": "update", "id": "des_1",
 		"config": map[string]any{"url": "https://example.com/new"},
 	})
@@ -523,7 +523,7 @@ func TestDestinationsDelete(t *testing.T) {
 		"DELETE /2026-09-01/destinations/des_1": ok(&got, nil),
 	})
 
-	text := succeeds(t, session, "gateway_destinations", map[string]any{"action": "delete", "id": "des_1"})
+	text := succeeds(t, session, "gateway_destinations_write", map[string]any{"action": "delete", "id": "des_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
 	assert.Equal(t, "/2026-09-01/destinations/des_1", got.path)
@@ -538,7 +538,7 @@ func TestDestinationsEnableAndDisable(t *testing.T) {
 				"PUT /2026-09-01/destinations/des_1/" + action: ok(&got, destinationBody()),
 			})
 
-			succeeds(t, session, "gateway_destinations", map[string]any{"action": action, "id": "des_1"})
+			succeeds(t, session, "gateway_destinations_write", map[string]any{"action": action, "id": "des_1"})
 
 			assert.Equal(t, http.MethodPut, got.method)
 			assert.Equal(t, "/2026-09-01/destinations/des_1/"+action, got.path)
@@ -551,7 +551,7 @@ func TestDestinationsWriteActionsRequireAnID(t *testing.T) {
 
 	for _, action := range []string{"update", "delete", "enable", "disable"} {
 		t.Run(action, func(t *testing.T) {
-			result := callTool(t, session, "gateway_destinations", map[string]any{"action": action})
+			result := callTool(t, session, "gateway_destinations_write", map[string]any{"action": action})
 			require.True(t, result.IsError)
 			assert.Contains(t, textContent(t, result), "id is required")
 		})
@@ -572,7 +572,7 @@ func TestTransformationsListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/transformations": ok(&got, listResponse(transformationBody())),
 	})
 
-	succeeds(t, session, "gateway_transformations", map[string]any{
+	succeeds(t, session, "gateway_transformations_read", map[string]any{
 		"action": "list", "name": "enrich", "limit": 5,
 	})
 
@@ -587,7 +587,7 @@ func TestTransformationsGetByID(t *testing.T) {
 		"GET /2026-09-01/transformations/trs_1": ok(&got, transformationBody()),
 	})
 
-	text := succeeds(t, session, "gateway_transformations", map[string]any{"action": "get", "id": "trs_1"})
+	text := succeeds(t, session, "gateway_transformations_read", map[string]any{"action": "get", "id": "trs_1"})
 	assert.Equal(t, "/2026-09-01/transformations/trs_1", got.path)
 	// The code is the reason to fetch one.
 	assert.Contains(t, string(envelopeData(t, text)), "return request")
@@ -610,7 +610,7 @@ func TestTransformationsCreateAndUpsert(t *testing.T) {
 				tc.pattern: ok(&got, transformationBody()),
 			})
 
-			succeeds(t, session, "gateway_transformations", map[string]any{
+			succeeds(t, session, "gateway_transformations_write", map[string]any{
 				"action": tc.action, "name": "enrich", "code": "return request",
 				"env": map[string]any{"API_KEY": "shh"},
 			})
@@ -632,7 +632,7 @@ func TestTransformationsUpdate(t *testing.T) {
 		"PUT /2026-09-01/transformations/trs_1": ok(&got, transformationBody()),
 	})
 
-	succeeds(t, session, "gateway_transformations", map[string]any{
+	succeeds(t, session, "gateway_transformations_write", map[string]any{
 		"action": "update", "id": "trs_1", "code": "return { ...request }",
 	})
 
@@ -652,7 +652,7 @@ func TestTransformationsDelete(t *testing.T) {
 		"DELETE /2026-09-01/transformations/trs_1": ok(&got, nil),
 	})
 
-	text := succeeds(t, session, "gateway_transformations", map[string]any{"action": "delete", "id": "trs_1"})
+	text := succeeds(t, session, "gateway_transformations_write", map[string]any{"action": "delete", "id": "trs_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
 	assert.Equal(t, "/2026-09-01/transformations/trs_1", got.path)
@@ -667,7 +667,7 @@ func TestTransformationsRunSendsTheSampleRequest(t *testing.T) {
 		}),
 	})
 
-	succeeds(t, session, "gateway_transformations", map[string]any{
+	succeeds(t, session, "gateway_transformations_read", map[string]any{
 		"action": "run", "code": "return request", "connection_id": "web_1",
 		"env":     map[string]any{"API_KEY": "shh"},
 		"request": map[string]any{"headers": map[string]any{"x-test": "1"}, "body": map[string]any{"id": 7}, "path": "/hooks"},
@@ -695,7 +695,7 @@ func TestTransformationsWriteActionsRequireAnID(t *testing.T) {
 
 	for _, action := range []string{"update", "delete"} {
 		t.Run(action, func(t *testing.T) {
-			result := callTool(t, session, "gateway_transformations", map[string]any{"action": action})
+			result := callTool(t, session, "gateway_transformations_write", map[string]any{"action": action})
 			require.True(t, result.IsError)
 			assert.Contains(t, textContent(t, result), "id is required")
 		})
@@ -712,7 +712,7 @@ func TestEventsListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
-	succeeds(t, session, "gateway_events", map[string]any{
+	succeeds(t, session, "gateway_events_read", map[string]any{
 		"action": "list", "connection_id": "web_1", "source_id": "src_1",
 		"destination_id": "des_1", "status": "FAILED", "limit": 5,
 	})
@@ -735,7 +735,7 @@ func TestEventsListSendsSearchTermAndDeliveryGroup(t *testing.T) {
 		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
-	succeeds(t, session, "gateway_events", map[string]any{
+	succeeds(t, session, "gateway_events_read", map[string]any{
 		"action": "list", "search_term": "cus_1234", "delivery_group": "grp_1",
 	})
 
@@ -753,7 +753,7 @@ func TestEventsListSendsNextAttemptBounds(t *testing.T) {
 		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
-	succeeds(t, session, "gateway_events", map[string]any{
+	succeeds(t, session, "gateway_events_read", map[string]any{
 		"action":              "list",
 		"next_attempt_after":  "2026-06-01T00:00:00Z",
 		"next_attempt_before": "2026-06-30T00:00:00Z",
@@ -773,7 +773,7 @@ func TestEventGetByID(t *testing.T) {
 		"GET /2026-09-01/events/evt_1": ok(&got, map[string]any{"id": "evt_1", "status": "FAILED"}),
 	})
 
-	text := succeeds(t, session, "gateway_event", map[string]any{"action": "get", "id": "evt_1"})
+	text := succeeds(t, session, "gateway_event_read", map[string]any{"action": "get", "id": "evt_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
 	assert.Equal(t, "/2026-09-01/events/evt_1", got.path)
@@ -791,7 +791,7 @@ func TestEventRawBody(t *testing.T) {
 		},
 	})
 
-	text := succeeds(t, session, "gateway_event", map[string]any{"action": "raw_body", "id": "evt_1"})
+	text := succeeds(t, session, "gateway_event_read", map[string]any{"action": "raw_body", "id": "evt_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
 	assert.Equal(t, "/2026-09-01/events/evt_1/raw_body", got.path)
@@ -818,7 +818,7 @@ func TestEventRetryCancelAndMute(t *testing.T) {
 				tc.pattern: ok(&got, map[string]any{"id": "evt_1", "status": "QUEUED"}),
 			})
 
-			text := succeeds(t, session, "gateway_event", map[string]any{"action": tc.action, "id": "evt_1"})
+			text := succeeds(t, session, "gateway_event_write", map[string]any{"action": tc.action, "id": "evt_1"})
 
 			assert.Equal(t, tc.method, got.method)
 			assert.Equal(t, "/2026-09-01/events/evt_1/"+tc.action, got.path)
@@ -841,7 +841,7 @@ func TestEventMutationsReportTheRealStatusNotTheRequestedOne(t *testing.T) {
 					map[string]any{"id": "evt_1", "status": "SUCCESSFUL"}),
 			})
 
-			text := succeeds(t, session, "gateway_event", map[string]any{"action": action, "id": "evt_1"})
+			text := succeeds(t, session, "gateway_event_write", map[string]any{"action": action, "id": "evt_1"})
 			data := string(envelopeData(t, text))
 
 			assert.Contains(t, data, `"status":"SUCCESSFUL"`,
@@ -870,7 +870,7 @@ func TestTransformationsRunSurfacesAFailedRun(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "gateway_transformations", map[string]any{
+	result := callTool(t, session, "gateway_transformations_read", map[string]any{
 		"action":  "run",
 		"code":    `addHandler("transform", (r, c) => { throw new Error("boom-marker"); });`,
 		"request": map[string]any{"headers": map[string]any{}, "body": map[string]any{"a": 1}},
@@ -892,7 +892,7 @@ func TestTransformationsRunReturnsTheResultOnSuccess(t *testing.T) {
 		}),
 	})
 
-	text := succeeds(t, session, "gateway_transformations", map[string]any{
+	text := succeeds(t, session, "gateway_transformations_read", map[string]any{
 		"action":  "run",
 		"code":    `addHandler("transform", (r, c) => { r.body.x = 1; return r; });`,
 		"request": map[string]any{"headers": map[string]any{}, "body": map[string]any{"a": 1}},
@@ -921,7 +921,7 @@ func TestTransformationsRunSuppliesAContentType(t *testing.T) {
 		"PUT /2026-09-01/transformations/run": ok(&got, successfulRun()),
 	})
 
-	succeeds(t, session, "gateway_transformations", map[string]any{
+	succeeds(t, session, "gateway_transformations_read", map[string]any{
 		"action":  "run",
 		"code":    "addHandler(\"transform\", (r, c) => r);",
 		"request": map[string]any{"headers": map[string]any{}},
@@ -943,7 +943,7 @@ func TestTransformationsRunKeepsACallerContentType(t *testing.T) {
 		"PUT /2026-09-01/transformations/run": ok(&got, successfulRun()),
 	})
 
-	succeeds(t, session, "gateway_transformations", map[string]any{
+	succeeds(t, session, "gateway_transformations_read", map[string]any{
 		"action":  "run",
 		"code":    "addHandler(\"transform\", (r, c) => r);",
 		"request": map[string]any{"headers": map[string]any{"content-type": "text/plain"}},
@@ -964,7 +964,7 @@ func TestRequestsListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 	})
 
-	succeeds(t, session, "gateway_requests", map[string]any{
+	succeeds(t, session, "gateway_requests_read", map[string]any{
 		"action": "list", "source_id": "src_1", "status": "accepted", "limit": 5,
 	})
 
@@ -983,7 +983,7 @@ func TestRequestsListSendsSearchTermAndCounts(t *testing.T) {
 		"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 	})
 
-	succeeds(t, session, "gateway_requests", map[string]any{
+	succeeds(t, session, "gateway_requests_read", map[string]any{
 		"action": "list", "search_term": "cus_1234",
 		"events_count": "0", "ignored_count": "2", "cli_events_count": "1",
 	})
@@ -1009,7 +1009,7 @@ func TestRequestsListAcceptsCountsAsJSONNumbers(t *testing.T) {
 		"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 	})
 
-	succeeds(t, session, "gateway_requests", map[string]any{
+	succeeds(t, session, "gateway_requests_read", map[string]any{
 		"action": "list", "events_count": 0, "ignored_count": 2, "cli_events_count": 1,
 	})
 
@@ -1039,7 +1039,7 @@ func TestRequestsListAcceptsVerifiedAsAString(t *testing.T) {
 				"GET /2026-09-01/requests": ok(&got, listResponse(map[string]any{"id": "req_1"})),
 			})
 
-			succeeds(t, session, "gateway_requests", map[string]any{
+			succeeds(t, session, "gateway_requests_read", map[string]any{
 				"action": "list", "verified": tc.value,
 			})
 
@@ -1057,7 +1057,7 @@ func TestConnectionsListAcceptsDisabledAsAString(t *testing.T) {
 		"GET /2026-09-01/connections": ok(&got, listResponse(connectionBody())),
 	})
 
-	succeeds(t, session, "gateway_connections", map[string]any{
+	succeeds(t, session, "gateway_connections_read", map[string]any{
 		"action": "list", "disabled": "true",
 	})
 
@@ -1071,13 +1071,13 @@ func TestListsAcceptLimitAsAString(t *testing.T) {
 		path string
 		body map[string]any
 	}{
-		{"gateway_requests", "/2026-09-01/requests", map[string]any{"id": "req_1"}},
-		{"gateway_events", "/2026-09-01/events", map[string]any{"id": "evt_1"}},
-		{"gateway_connections", "/2026-09-01/connections", connectionBody()},
-		{"gateway_sources", "/2026-09-01/sources", map[string]any{"id": "src_1"}},
-		{"gateway_destinations", "/2026-09-01/destinations", map[string]any{"id": "des_1"}},
-		{"gateway_transformations", "/2026-09-01/transformations", map[string]any{"id": "trs_1"}},
-		{"gateway_issues", "/2026-09-01/issues", map[string]any{"id": "iss_1"}},
+		{"gateway_requests_read", "/2026-09-01/requests", map[string]any{"id": "req_1"}},
+		{"gateway_events_read", "/2026-09-01/events", map[string]any{"id": "evt_1"}},
+		{"gateway_connections_read", "/2026-09-01/connections", connectionBody()},
+		{"gateway_sources_read", "/2026-09-01/sources", map[string]any{"id": "src_1"}},
+		{"gateway_destinations_read", "/2026-09-01/destinations", map[string]any{"id": "des_1"}},
+		{"gateway_transformations_read", "/2026-09-01/transformations", map[string]any{"id": "trs_1"}},
+		{"gateway_issues_read", "/2026-09-01/issues", map[string]any{"id": "iss_1"}},
 	} {
 		t.Run(tc.tool, func(t *testing.T) {
 			var got wireRequest
@@ -1100,7 +1100,7 @@ func TestEventsListAcceptsAttemptsAsAJSONNumber(t *testing.T) {
 		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
-	succeeds(t, session, "gateway_events", map[string]any{
+	succeeds(t, session, "gateway_events_read", map[string]any{
 		"action": "list", "attempts": 0, "response_status": 500,
 	})
 
@@ -1118,7 +1118,7 @@ func TestRequestGetByID(t *testing.T) {
 		"GET /2026-09-01/requests/req_1": ok(&got, map[string]any{"id": "req_1"}),
 	})
 
-	text := succeeds(t, session, "gateway_request", map[string]any{"action": "get", "id": "req_1"})
+	text := succeeds(t, session, "gateway_request_read", map[string]any{"action": "get", "id": "req_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
 	assert.Equal(t, "/2026-09-01/requests/req_1", got.path)
@@ -1136,7 +1136,7 @@ func TestRequestRawBody(t *testing.T) {
 		},
 	})
 
-	text := succeeds(t, session, "gateway_request", map[string]any{"action": "raw_body", "id": "req_1"})
+	text := succeeds(t, session, "gateway_request_read", map[string]any{"action": "raw_body", "id": "req_1"})
 
 	assert.Equal(t, http.MethodGet, got.method)
 	assert.Equal(t, "/2026-09-01/requests/req_1/raw_body", got.path)
@@ -1159,7 +1159,7 @@ func TestEventsScopedToARequestHitTheRequestRoutes(t *testing.T) {
 				"GET /2026-09-01/requests/req_1/" + tc.route: ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 			})
 
-			text := succeeds(t, session, "gateway_events", map[string]any{
+			text := succeeds(t, session, "gateway_events_read", map[string]any{
 				"action": tc.action, "request_id": "req_1",
 			})
 
@@ -1186,7 +1186,7 @@ func TestRequestRetrySendsSelectedConnections(t *testing.T) {
 		"POST /2026-09-01/requests/req_1/retry": ok(&got, retriedRequest()),
 	})
 
-	text := succeeds(t, session, "gateway_request", map[string]any{
+	text := succeeds(t, session, "gateway_request_write", map[string]any{
 		"action": "retry", "id": "req_1", "connection_ids": []any{"web_1", "web_2"},
 	})
 
@@ -1209,7 +1209,7 @@ func TestRequestRetryWithoutConnectionsSendsNoIDs(t *testing.T) {
 		"POST /2026-09-01/requests/req_1/retry": ok(&got, retriedRequest()),
 	})
 
-	succeeds(t, session, "gateway_request", map[string]any{"action": "retry", "id": "req_1"})
+	succeeds(t, session, "gateway_request_write", map[string]any{"action": "retry", "id": "req_1"})
 	assert.NotContains(t, got.decodeBody(t), "webhook_ids")
 }
 
@@ -1223,7 +1223,7 @@ func TestAttemptsListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/attempts": ok(&got, listResponse(map[string]any{"id": "atm_1"})),
 	})
 
-	succeeds(t, session, "gateway_attempts", map[string]any{
+	succeeds(t, session, "gateway_attempts_read", map[string]any{
 		"action": "list", "event_id": "evt_1", "limit": 5, "order_by": "created_at", "dir": "desc",
 	})
 
@@ -1241,7 +1241,7 @@ func TestAttemptsGetByID(t *testing.T) {
 		}),
 	})
 
-	text := succeeds(t, session, "gateway_attempts", map[string]any{"action": "get", "id": "atm_1"})
+	text := succeeds(t, session, "gateway_attempts_read", map[string]any{"action": "get", "id": "atm_1"})
 
 	assert.Equal(t, "/2026-09-01/attempts/atm_1", got.path)
 	assert.Contains(t, string(envelopeData(t, text)), "atm_1")
@@ -1257,7 +1257,7 @@ func TestIssuesListSendsFilters(t *testing.T) {
 		"GET /2026-09-01/issues": ok(&got, listResponse(map[string]any{"id": "iss_1"})),
 	})
 
-	succeeds(t, session, "gateway_issues", map[string]any{
+	succeeds(t, session, "gateway_issues_read", map[string]any{
 		"action": "list", "type": "delivery", "filter_status": "OPENED",
 		"issue_trigger_id": "ist_1", "limit": 5,
 	})
@@ -1276,7 +1276,7 @@ func TestIssuesGetByID(t *testing.T) {
 		"GET /2026-09-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "OPENED"}),
 	})
 
-	succeeds(t, session, "gateway_issues", map[string]any{"action": "get", "id": "iss_1"})
+	succeeds(t, session, "gateway_issues_read", map[string]any{"action": "get", "id": "iss_1"})
 	assert.Equal(t, "/2026-09-01/issues/iss_1", got.path)
 }
 
@@ -1286,7 +1286,7 @@ func TestIssuesUpdateSendsTheNewStatus(t *testing.T) {
 		"PUT /2026-09-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "RESOLVED"}),
 	})
 
-	succeeds(t, session, "gateway_issues", map[string]any{
+	succeeds(t, session, "gateway_issues_write", map[string]any{
 		"action": "update", "id": "iss_1", "status": "RESOLVED",
 	})
 
@@ -1298,7 +1298,7 @@ func TestIssuesUpdateSendsTheNewStatus(t *testing.T) {
 func TestIssuesUpdateRequiresAStatus(t *testing.T) {
 	session := writeSession(t, nil)
 
-	result := callTool(t, session, "gateway_issues", map[string]any{"action": "update", "id": "iss_1"})
+	result := callTool(t, session, "gateway_issues_write", map[string]any{"action": "update", "id": "iss_1"})
 	require.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "status is required")
 }
@@ -1311,7 +1311,7 @@ func TestIssuesDismissIsADelete(t *testing.T) {
 		"DELETE /2026-09-01/issues/iss_1": ok(&got, map[string]any{"id": "iss_1", "status": "IGNORED"}),
 	})
 
-	text := succeeds(t, session, "gateway_issues", map[string]any{"action": "dismiss", "id": "iss_1"})
+	text := succeeds(t, session, "gateway_issues_write", map[string]any{"action": "dismiss", "id": "iss_1"})
 
 	assert.Equal(t, http.MethodDelete, got.method)
 	assert.Equal(t, "/2026-09-01/issues/iss_1", got.path)
@@ -1346,7 +1346,7 @@ func TestMetricsActionsHitTheirOwnEndpoints(t *testing.T) {
 				}),
 			})
 
-			text := succeeds(t, session, "gateway_metrics", map[string]any{
+			text := succeeds(t, session, "gateway_metrics_read", map[string]any{
 				"action":      action,
 				"start":       "2026-08-01T00:00:00Z",
 				"end":         "2026-08-14T00:00:00Z",
@@ -1475,7 +1475,7 @@ func TestUnknownArgumentsAreRejected(t *testing.T) {
 		"GET /2026-09-01/events": ok(&got, listResponse(map[string]any{"id": "evt_1"})),
 	})
 
-	result := callTool(t, session, "gateway_events", map[string]any{
+	result := callTool(t, session, "gateway_events_read", map[string]any{
 		"action": "list", "webhook_id": "web_1",
 	})
 
@@ -1492,7 +1492,7 @@ func TestUnknownArgumentsAreRejected(t *testing.T) {
 func TestHiddenWriteArgumentsGetTheWriteModeMessage(t *testing.T) {
 	session := readSession(t, nil)
 
-	result := callTool(t, session, "gateway_sources", map[string]any{
+	result := callTool(t, session, "gateway_sources_read", map[string]any{
 		"action": "create", "name": "s", "type": "HTTP",
 	})
 
@@ -1511,27 +1511,27 @@ func TestSingularToolsCatchAnIDOfTheWrongKind(t *testing.T) {
 	session := readSession(t, nil)
 
 	t.Run("a request id passed to gateway_event", func(t *testing.T) {
-		result := callTool(t, session, "gateway_event",
+		result := callTool(t, session, "gateway_event_read",
 			map[string]any{"action": "get", "id": "req_CXgN9WztKCtGplqLfKlZ"})
 		require.True(t, result.IsError)
 		text := textContent(t, result)
-		assert.Contains(t, text, "gateway_request", "the error has to name the tool that would work")
+		assert.Contains(t, text, "gateway_request_read", "the error has to name the tool that would work")
 		assert.NotContains(t, text, "not found",
 			"a wrong-kind id is not a missing record, and saying so sends the caller looking for the wrong thing")
 	})
 
 	t.Run("an event id passed to gateway_request", func(t *testing.T) {
-		result := callTool(t, session, "gateway_request",
+		result := callTool(t, session, "gateway_request_read",
 			map[string]any{"action": "get", "id": "evt_90lo6Wn1vhCSa32gzE"})
 		require.True(t, result.IsError)
-		assert.Contains(t, textContent(t, result), "gateway_event")
+		assert.Contains(t, textContent(t, result), "gateway_event_read")
 	})
 
 	t.Run("an unrecognised prefix is left to the API", func(t *testing.T) {
 		// Only ids that clearly belong to another tool are caught. Anything else
 		// is the API's to judge, so a new resource type does not start failing
 		// here the day it ships.
-		result := callTool(t, session, "gateway_event",
+		result := callTool(t, session, "gateway_event_read",
 			map[string]any{"action": "get", "id": "future_abc123"})
 		assert.NotContains(t, textContent(t, result), "is a ")
 	})
@@ -1542,12 +1542,12 @@ func TestUnknownActionNamesTheSiblingTool(t *testing.T) {
 	session := readSession(t, nil)
 
 	assert.Contains(t,
-		textContent(t, callTool(t, session, "gateway_event", map[string]any{"action": "list"})),
-		"gateway_events", "list belongs to the plural tool; say so")
+		textContent(t, callTool(t, session, "gateway_event_read", map[string]any{"action": "list"})),
+		"gateway_events_read", "list belongs to the plural tool; say so")
 
 	assert.Contains(t,
-		textContent(t, callTool(t, session, "gateway_events", map[string]any{"action": "raw_body"})),
-		"gateway_event", "raw_body belongs to the singular tool; say so")
+		textContent(t, callTool(t, session, "gateway_events_read", map[string]any{"action": "raw_body"})),
+		"gateway_event_read", "raw_body belongs to the singular tool; say so")
 }
 
 // A hidden write-only argument on a VISIBLE action must be rejected, not
@@ -1565,7 +1565,7 @@ func TestHiddenArgOnAVisibleActionIsRejected(t *testing.T) {
 		"GET /2026-09-01/sources": ok(&got, listResponse(map[string]any{"id": "src_1"})),
 	})
 
-	result := callTool(t, session, "gateway_sources", map[string]any{
+	result := callTool(t, session, "gateway_sources_read", map[string]any{
 		"action": "list", "type": "HTTP",
 	})
 
@@ -1578,7 +1578,7 @@ func TestHiddenArgOnAVisibleActionIsRejected(t *testing.T) {
 func TestHiddenArgOnAHiddenActionDefersToTheWriteGuard(t *testing.T) {
 	session := readSession(t, nil)
 
-	result := callTool(t, session, "gateway_sources", map[string]any{
+	result := callTool(t, session, "gateway_sources_read", map[string]any{
 		"action": "create", "name": "s", "type": "HTTP",
 	})
 
@@ -1595,7 +1595,7 @@ func TestHelpAndSchemaAgreeOnParameters(t *testing.T) {
 	session := readSession(t, nil)
 	tools := listTools(t, session)
 
-	for _, tool := range []string{"gateway_sources", "gateway_destinations", "gateway_connections", "gateway_issues"} {
+	for _, tool := range []string{"gateway_sources_read", "gateway_destinations_read", "gateway_connections_read", "gateway_issues_read"} {
 		t.Run(tool, func(t *testing.T) {
 			help := textContent(t, callTool(t, session, "gateway_help", map[string]any{"topic": tool}))
 			schema := schemaPropertyNames(t, tools[tool])

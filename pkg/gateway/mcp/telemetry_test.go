@@ -74,7 +74,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources_read", map[string]any{"action": "list"})
 	require.False(t, result.IsError, "tool call should succeed")
 
 	// Verify the telemetry header was sent.
@@ -83,7 +83,7 @@ func TestMCPToolCall_TelemetryHeaderSentToAPI(t *testing.T) {
 
 	tel := parseTelemetryHeader(t, raw)
 	require.Equal(t, "mcp", tel.Source)
-	require.Equal(t, "gateway_sources/list", tel.CommandPath)
+	require.Equal(t, "gateway_sources_read/list", tel.CommandPath)
 	require.True(t, strings.HasPrefix(tel.InvocationID, "inv_"), "invocation ID must start with inv_")
 	require.NotEmpty(t, tel.DeviceName)
 	require.Contains(t, []string{"interactive", "ci"}, tel.Environment)
@@ -106,7 +106,7 @@ func TestMCPToolCall_EachCallGetsUniqueInvocationID(t *testing.T) {
 
 	// Make three separate tool calls.
 	for i := 0; i < 3; i++ {
-		result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
+		result := callTool(t, session, "gateway_sources_read", map[string]any{"action": "list"})
 		require.False(t, result.IsError)
 	}
 
@@ -138,18 +138,18 @@ func TestMCPToolCall_TelemetryHeaderReflectsAction(t *testing.T) {
 	})
 
 	// Call "list" action.
-	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources_read", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	listTel := parseTelemetryHeader(t, capture.all()[0])
-	require.Equal(t, "gateway_sources/list", listTel.CommandPath)
+	require.Equal(t, "gateway_sources_read/list", listTel.CommandPath)
 
 	// Call "get" action.
-	result = callTool(t, session, "gateway_sources", map[string]any{"action": "get", "id": "src_1"})
+	result = callTool(t, session, "gateway_sources_read", map[string]any{"action": "get", "id": "src_1"})
 	require.False(t, result.IsError)
 
 	getTel := parseTelemetryHeader(t, capture.all()[1])
-	require.Equal(t, "gateway_sources/get", getTel.CommandPath)
+	require.Equal(t, "gateway_sources_read/get", getTel.CommandPath)
 }
 
 // command_path is "<tool>/<action>", so splitting a tool changes what
@@ -161,10 +161,10 @@ func TestMCPToolCall_TelemetryNamesTheSingularTools(t *testing.T) {
 	cases := []struct {
 		tool, action, id, path, want string
 	}{
-		{"gateway_event", "get", "evt_1", "/2026-09-01/events/evt_1", "gateway_event/get"},
-		{"gateway_request", "get", "req_1", "/2026-09-01/requests/req_1", "gateway_request/get"},
-		{"gateway_events", "list", "", "/2026-09-01/events", "gateway_events/list"},
-		{"gateway_requests", "list", "", "/2026-09-01/requests", "gateway_requests/list"},
+		{"gateway_event_read", "get", "evt_1", "/2026-09-01/events/evt_1", "gateway_event_read/get"},
+		{"gateway_request_read", "get", "req_1", "/2026-09-01/requests/req_1", "gateway_request_read/get"},
+		{"gateway_events_read", "list", "", "/2026-09-01/events", "gateway_events_read/list"},
+		{"gateway_requests_read", "list", "", "/2026-09-01/requests", "gateway_requests_read/list"},
 	}
 
 	for _, tc := range cases {
@@ -206,7 +206,7 @@ func TestMCPToolCall_TelemetryDisabledByConfig(t *testing.T) {
 	client.TelemetryDisabled = true
 	session := connectInMemory(t, client)
 
-	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources_read", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	raw := capture.last()
@@ -226,7 +226,7 @@ func TestMCPToolCall_TelemetryDisabledByEnvVar(t *testing.T) {
 		}),
 	})
 
-	result := callTool(t, session, "gateway_sources", map[string]any{"action": "list"})
+	result := callTool(t, session, "gateway_sources_read", map[string]any{"action": "list"})
 	require.False(t, result.IsError)
 
 	raw := capture.last()

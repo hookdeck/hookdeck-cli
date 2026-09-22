@@ -356,40 +356,40 @@ lines 402/415/424. One addition since the plan was written — `mcpcore.ArgIsSet
 for the `list_ignored` guard, which the per-action work can reuse.
 
 
-- [ ] `ActionSet`: add write-only and read-only selection alongside the existing additive
+- [x] `ActionSet`: add write-only and read-only selection alongside the existing additive
       `Available(writeEnabled)`. Keep `ActionSet` the single source of truth — do not duplicate
       action lists across two hand-written specs, they will drift.
-- [ ] `ToolSpec.Define`: render the read tool and, under write mode, the write tool.
-- [ ] `VisibleProps`: filter props per **tool**, not per mode. The read tool must not advertise
+- [x] `ToolSpec.Define`: render the read tool and, under write mode, the write tool.
+- [x] `VisibleProps`: filter props per **tool**, not per mode. The read tool must not advertise
       write-only props (`rules`, `config`); the write tool should not advertise read-only
       filters it cannot use. Check `Prop.Write` handling.
-- [ ] Annotations per tool: `ReadOnlyHint` true exactly when no action changes state;
+- [x] Annotations per tool: `ReadOnlyHint` true exactly when no action changes state;
       `DestructiveHint` true exactly when that tool carries a destructive action. Keep
       `HasChanging()` driving `ReadOnlyHint`.
-- [ ] `rejectUnknownArgs`: preserve the carve-out that lets a hidden-by-mode argument through
+- [x] `rejectUnknownArgs`: preserve the carve-out that lets a hidden-by-mode argument through
       when the requested action is itself hidden. A write action requested on the read tool in
       read-only mode must still produce the "restart with `--allow-write`" message, not an
       unknown-tool or unknown-arg error.
-- [ ] `help.go` / `HelpTopic`: topics for the new tool names.
+- [x] `help.go` / `HelpTopic`: topics for the new tool names.
 
 ### 2. Split existing tools
 
-- [ ] `pkg/gateway/mcp/tools.go`, `pkg/outpost/mcp/tools.go`: `resourceSpecs()` / `toolDefs()`.
+- [x] `pkg/gateway/mcp/tools.go`, `pkg/outpost/mcp/tools.go`: `resourceSpecs()` / `toolDefs()`.
       Register each `_write` tool immediately after its `_read` counterpart so the pairing is
       visible in the advertised order.
-- [ ] `tool_*.go`: `ActionSet` declarations stay the source of truth. Handlers can be shared
+- [x] `tool_*.go`: `ActionSet` declarations stay the source of truth. Handlers can be shared
       between the pair as long as `DispatchWithDefault` still resolves.
-- [ ] Write tools must **not** default an action. Require `action` explicitly. Read tools keep
+- [x] Write tools must **not** default an action. Require `action` explicitly. Read tools keep
       their existing defaults.
-- [ ] Move `events`/`ignored_events` from the singular request tool to the plural one, and
+- [x] Move `events`/`ignored_events` from the singular request tool to the plural one, and
       rewrite the `Notes` prose on both (see the decision above)
-- [ ] Port `canonicalEventsStatus` / `canonicalRequestsStatus` from `main` — status vocabulary is
+- [x] Port `canonicalEventsStatus` / `canonicalRequestsStatus` from `main` — status vocabulary is
       canonicalised per action, so `status: "failed"` works everywhere it is offered
-- [ ] Rewrite `tool_requests_events_filters_test.go` for this architecture; it merged in from
+- [x] Rewrite `tool_requests_events_filters_test.go` for this architecture; it merged in from
       `main` written against `hookdeck_requests` / `requestsToolProperties`
-- [ ] `tool_help.go`: overview must describe the new shape, and say `_write` tools appear under
+- [x] `tool_help.go`: overview must describe the new shape, and say `_write` tools appear under
       `--allow-write` rather than that actions are added.
-- [ ] Tool descriptions: drop "only the actions listed above are available; see help for how to
+- [x] Tool descriptions: drop "only the actions listed above are available; see help for how to
       enable the rest" from read tools. The reads are all that tool ever offers, in either mode.
 
 ### 3. Platform tools
@@ -460,16 +460,16 @@ Update:
 
 Add:
 
-- [ ] **No tool mixes read and write actions.** Iterate every registered tool in write mode and
+- [x] **No tool mixes read and write actions.** Iterate every registered tool in write mode and
       assert its enum is homogeneous. This is the invariant the change creates and the one that
       will silently regress when someone adds an action later.
-- [ ] **Annotations match contents.** `ReadOnlyHint` true exactly when nothing changes state;
+- [x] **Annotations match contents.** `ReadOnlyHint` true exactly when nothing changes state;
       `DestructiveHint` true exactly when a destructive action is present.
-- [ ] **Read tools identical in both modes** — name, description, schema, annotations.
-- [ ] **Write tools absent in read-only mode**, and a write action still yields the
+- [x] **Read tools identical in both modes** — name, description, schema, annotations.
+- [x] **Write tools absent in read-only mode**, and a write action still yields the
       "restart with `--allow-write`" guidance rather than an unknown-tool error.
-- [ ] `pause`/`unpause` stay ungated
-- [ ] `transformations/run` stays ungated
+- [x] `pause`/`unpause` stay ungated
+- [x] `transformations/run` stays ungated
 - [ ] `projects use` stays ungated
 - [ ] Platform tool coverage: projects CRUD, organization
 - [ ] **No API key tool is registered on either server, in either mode**

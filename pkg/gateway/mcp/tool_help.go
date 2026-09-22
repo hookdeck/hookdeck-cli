@@ -70,18 +70,23 @@ Errors use the host error flag; bodies are plain text, not JSON envelopes.`
 // change that.
 func modeHelp(srv *mcpcore.Server) string {
 	if srv.WriteEnabled() {
-		return `Mode: write enabled. Every action listed above is available, including the ones that
-create, change and delete data. Destructive actions (delete, cancel, mute, dismiss) are real and
+		return `Mode: write enabled. The ` + "`_write`" + ` tools are registered alongside the
+` + "`_read`" + ` ones, so every action listed above is available, including the ones that create,
+change and delete data. Destructive actions (delete, cancel, mute, dismiss) are real and
 immediate.`
 	}
 
-	return `Mode: read-only. Actions that change data are not offered, and the tools above list only
-the actions this session can perform. Pausing and unpausing a connection are the exception: they
-stay available because stopping a misbehaving connection is the natural end of an investigation,
-and both are reversible and drop nothing.
+	return `Mode: read-only. The tools that create, change or delete data are unavailable in
+read-only mode: each resource has a ` + "`_write`" + ` tool, and none of them is registered. The
+` + "`_read`" + ` tools above are the whole surface, and they are the same tools, with the same
+schemas, in either mode.
 
-To enable the rest, restart the server with --allow-write, or set HOOKDECK_MCP_ALLOW_WRITE=true
-(the flag wins).`
+Pausing and unpausing a connection are the exception. They change delivery but stay available,
+on their own tool, because stopping a misbehaving connection is the natural end of an
+investigation, and both are reversible and drop nothing.
+
+To register the write tools, restart the server with --allow-write, or set
+HOOKDECK_MCP_ALLOW_WRITE=true (the flag wins).`
 }
 
 // toolSummaryLines renders one line per registered tool, listing only the

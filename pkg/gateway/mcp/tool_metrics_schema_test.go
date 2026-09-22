@@ -24,7 +24,7 @@ func metricsSchemaProperty(t *testing.T, name string) map[string]any {
 	require.NoError(t, err)
 
 	for _, tool := range listed.Tools {
-		if tool.Name != "gateway_metrics" {
+		if tool.Name != "gateway_metrics_read" {
 			continue
 		}
 		raw, err := json.Marshal(tool.InputSchema)
@@ -142,7 +142,7 @@ func TestAPIValidationErrorReachesTheClientReadable(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "gateway_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":      "events",
 		"start":       "2025-01-01T00:00:00Z",
 		"end":         "2025-01-02T00:00:00Z",

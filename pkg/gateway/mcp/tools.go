@@ -15,15 +15,23 @@ import (
 // The platform tools (hookdeck_login, hookdeck_projects) deliberately do not
 // take this prefix — see mcpcore.DefaultPlatformPrefix.
 const (
-	toolPrefix       = "gateway"
-	helpToolName     = toolPrefix + "_help"
-	helpTopicPrefix  = toolPrefix + "_"
-	eventsToolName   = toolPrefix + "_events"
-	eventToolName    = toolPrefix + "_event"
-	requestsToolName = toolPrefix + "_requests"
-	requestToolName  = toolPrefix + "_request"
-	loginToolDesc    = "Authenticate the Hookdeck CLI or sign in again. Without arguments, returns a URL for browser login when not yet authenticated, or confirms if already signed in. Set reauth: true to clear the current session and start a new browser login (use when hookdeck_projects list fails and the stored key may be a single-project or dashboard API key)."
-	projectsToolDesc = "Always call this first when the user references a specific project by name. List available projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. All queries (events, issues, connections, metrics, requests) are scoped to the active project — if the wrong project is active, all results will be wrong. Also use this when unsure which project is currently active. If list or use fails (especially 401/403), the error may suggest hookdeck_login with reauth: true. JSON successes use a standard data/meta envelope; see gateway_help (overview or any tool topic)."
+	toolPrefix      = "gateway"
+	helpToolName    = toolPrefix + "_help"
+	helpTopicPrefix = toolPrefix + "_"
+	// The sibling-pointer constants name the READ tools, because that is what
+	// prose pointing at a sibling almost always means: "use gateway_event to
+	// read one by id". Write references are spelled with the _write constants
+	// below, so a reader is never sent to a tool that is not registered in the
+	// mode they are in.
+	eventsToolName   = toolPrefix + "_events_" + mcpcore.GroupRead
+	eventToolName    = toolPrefix + "_event_" + mcpcore.GroupRead
+	requestsToolName = toolPrefix + "_requests_" + mcpcore.GroupRead
+	requestToolName  = toolPrefix + "_request_" + mcpcore.GroupRead
+
+	eventWriteToolName   = toolPrefix + "_event_" + mcpcore.GroupWrite
+	requestWriteToolName = toolPrefix + "_request_" + mcpcore.GroupWrite
+	loginToolDesc        = "Authenticate the Hookdeck CLI or sign in again. Without arguments, returns a URL for browser login when not yet authenticated, or confirms if already signed in. Set reauth: true to clear the current session and start a new browser login (use when hookdeck_projects list fails and the stored key may be a single-project or dashboard API key)."
+	projectsToolDesc     = "Always call this first when the user references a specific project by name. List available projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. All queries (events, issues, connections, metrics, requests) are scoped to the active project — if the wrong project is active, all results will be wrong. Also use this when unsure which project is currently active. If list or use fails (especially 401/403), the error may suggest hookdeck_login with reauth: true. JSON successes use a standard data/meta envelope; see gateway_help (overview or any tool topic)."
 )
 
 // ServerOptions configure the Event Gateway MCP server.

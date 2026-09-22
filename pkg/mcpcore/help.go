@@ -26,13 +26,22 @@ func HelpTopic(prefix string, topics map[string]string, topic, suffix string) *m
 	// and fail on every other one.
 	text, ok := topics[topic]
 	if !ok {
-		for _, p := range []string{prefix, DefaultPlatformPrefix + "_"} {
-			if p == "" || strings.HasPrefix(topic, p) {
-				continue
-			}
-			if text, ok = topics[p+topic]; ok {
-				topic = p + topic
-				break
+		// A bare resource resolves to its read tool. Since v3.0.0 every resource
+		// renders <prefix>_<resource>_read and _write, so "connections" alone is
+		// ambiguous — and the read half is what someone asking for help on a
+		// resource almost always wants. Asking for the gated tool by its full
+		// name still works, and is the only way to reach it.
+		candidates := []string{topic, topic + "_" + GroupRead}
+	outer:
+		for _, p := range []string{"", prefix, DefaultPlatformPrefix + "_"} {
+			for _, c := range candidates {
+				if p != "" && strings.HasPrefix(topic, p) {
+					continue
+				}
+				if text, ok = topics[p+c]; ok {
+					topic = p + c
+					break outer
+				}
 			}
 		}
 	}
