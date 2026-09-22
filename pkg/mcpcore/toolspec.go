@@ -35,6 +35,33 @@ type Action struct {
 	Write       bool
 	Destructive bool
 	Mutates     bool
+
+	// Tool puts this action on its own tool, named <resource>_<Tool>, instead of
+	// the read or write tool its flags would otherwise imply.
+	//
+	// It exists for the ungated mutations. An action that changes state but is
+	// deliberately not gated cannot sit on the read tool — that tool would lose
+	// ReadOnlyHint and stop being blanket-allowable, which is the whole point of
+	// the split — and it cannot sit on the write tool either, because that would
+	// gate it. So it gets a third name with a third posture: available in both
+	// modes, honestly annotated as changing state.
+	//
+	// connections pause/unpause and projects use are the cases. Leaving Tool
+	// empty on a Mutates action silently puts it back on the read tool and
+	// breaks that tool's annotation, so TestNoToolMixesReadAndWrite fails.
+	Tool string
+}
+
+// Group names the tool this action belongs to: "read", "write", or whatever
+// Tool says. It is the suffix in <prefix>_<resource>_<group>.
+func (a Action) Group() string {
+	if a.Tool != "" {
+		return a.Tool
+	}
+	if a.Write {
+		return GroupWrite
+	}
+	return GroupRead
 }
 
 // Changes reports whether the action alters state, whether or not it is gated.
@@ -43,8 +70,46 @@ func (a Action) Changes() bool { return a.Write || a.Mutates }
 // Enabled reports whether the action is available in this mode.
 func (a Action) Enabled(writeEnabled bool) bool { return writeEnabled || !a.Write }
 
+// The two groups every resource has by default. A resource with no write
+// actions still renders a _read tool, and a resource that is entirely write
+// still renders only a _write tool: the suffix is a property of the actions,
+// not of whether a counterpart happens to exist. That uniformity is what lets a
+// grant be written as `*_read` on any client.
+const (
+	GroupRead  = "read"
+	GroupWrite = "write"
+)
+
 // ActionSet is a tool's action list.
 type ActionSet []Action
+
+// Groups returns the distinct groups in the set, in the order they first
+// appear. Declaration order is the advertised order, so a spec that lists
+// list, get, pause, create renders read, pause, write — reads first, the
+// gated tool last.
+func (as ActionSet) Groups() []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, 3)
+	for _, a := range as {
+		g := a.Group()
+		if !seen[g] {
+			seen[g] = true
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// InGroup returns the actions belonging to one group.
+func (as ActionSet) InGroup(group string) ActionSet {
+	out := make(ActionSet, 0, len(as))
+	for _, a := range as {
+		if a.Group() == group {
+			out = append(out, a)
+		}
+	}
+	return out
+}
 
 // Available returns the actions offered in this mode.
 func (as ActionSet) Available(writeEnabled bool) ActionSet {
@@ -142,10 +207,10 @@ type ToolSpec struct {
 // schema does not have it gives an agent two different answers depending on
 // where it looks, and the help topic is the more persuasive of the two. Both
 // call this rather than reading Props directly.
-func (spec ToolSpec) VisibleProps(writeEnabled bool) map[string]Prop {
+func (spec ToolSpec) VisibleProps(group string) map[string]Prop {
 	props := make(map[string]Prop, len(spec.Props))
 	for name, prop := range spec.Props {
-		if prop.Write && !writeEnabled {
+		if !prop.visibleIn(group) {
 			continue
 		}
 		props[name] = prop
@@ -153,12 +218,41 @@ func (spec ToolSpec) VisibleProps(writeEnabled bool) map[string]Prop {
 	return props
 }
 
+// visibleIn reports whether a property belongs on the tool for this group.
+func (p Prop) visibleIn(group string) bool {
+	if len(p.Only) > 0 {
+		for _, g := range p.Only {
+			if g == group {
+				return true
+			}
+		}
+		return false
+	}
+	if p.Write {
+		return group == GroupWrite
+	}
+	return true
+}
+
+// writeActionNames lists the gated actions, for the message that explains where
+// a write-only property belongs.
+func (spec ToolSpec) writeActionNames() []string {
+	out := make([]string, 0, len(spec.Actions))
+	for _, a := range spec.Actions {
+		if a.Write {
+			out = append(out, a.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Help renders a tool's help topic from its definition, so help cannot drift
 // from the schema the agent is actually given. available is the action set for
 // the current mode.
-func (spec ToolSpec) Help(srv *Server, available ActionSet) string {
+func (spec ToolSpec) Help(srv *Server, group string, available ActionSet) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n\n%s\n\nActions:\n", srv.ToolName(spec.Resource), spec.Summary)
+	fmt.Fprintf(&b, "%s\n\n%s\n\nActions:\n", srv.ToolName(spec.Resource)+"_"+group, spec.Summary)
 
 	width := 0
 	for _, a := range available {
@@ -170,11 +264,12 @@ func (spec ToolSpec) Help(srv *Server, available ActionSet) string {
 		fmt.Fprintf(&b, "  %-*s — %s\n", width, a.Name, a.Desc)
 	}
 
-	if hidden := spec.Actions.HasWrite() && !srv.WriteEnabled(); hidden {
-		fmt.Fprintf(&b, "\nFurther actions exist but are unavailable in read-only mode. See %s for how to enable them.\n", srv.HelpToolName())
+	if group != GroupWrite && spec.Actions.HasWrite() {
+		fmt.Fprintf(&b, "\nActions that create, change or delete live on %s, which this server registers only when started with --allow-write. See %s.\n",
+			srv.ToolName(spec.Resource)+"_"+GroupWrite, srv.HelpToolName())
 	}
 
-	visible := spec.VisibleProps(srv.WriteEnabled())
+	visible := spec.VisibleProps(group)
 	if len(visible) > 0 {
 		b.WriteString("\nParameters:\n")
 		names := make([]string, 0, len(visible))
@@ -211,65 +306,91 @@ func (spec ToolSpec) Help(srv *Server, available ActionSet) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// Define builds the tool definition for the current write mode. The bool is
-// false when the tool should not be registered at all.
+// Define builds this resource's tools for the current write mode — one per
+// action group, in declaration order.
 //
-// The schema is the primary gate: in read-only mode the write actions are
-// absent from the enum and from the description, so an agent is never told
-// about an action it cannot use. Tools whose every action is a write are not
-// registered at all rather than registered to always fail.
+// Before v3.0.0 this rendered a single tool whose action enum changed with the
+// mode. That could not be permissioned: MCP clients grant per tool NAME, with
+// no argument matching, so "let the agent read connections but ask before it
+// changes one" was inexpressible — allowing gateway_connections allowed delete.
+// Splitting by group makes the name the boundary, which is the only boundary
+// the protocol offers.
 //
-// THE INVARIANT: four things here depend on the mode and must agree — the
+// THE INVARIANT: four things here depend on the group and must agree — the
 // action enum, the properties, the description, and the annotations. Nothing in
 // the type system holds them together, and each has been wrong separately:
 // descriptions named actions the enum had dropped, and schemas offered
 // parameters belonging to actions that were not on offer. If you add another
-// mode-dependent field, add it to TestReadOnlyModeHidesWriteOnlyPropsAndProse
+// group-dependent field, add it to TestReadOnlyModeHidesWriteOnlyPropsAndProse
 // in pkg/gateway/mcp/server_test.go, which is what catches them drifting apart.
-func (spec ToolSpec) Define(srv *Server) (ToolDef, bool) {
-	available := spec.Actions.Available(srv.WriteEnabled())
-	if len(available) == 0 {
+//
+// A tool is omitted entirely rather than registered to always fail: the write
+// tool simply does not exist in read-only mode, and its absence from
+// tools/list is the signal.
+func (spec ToolSpec) Define(srv *Server) []ToolDef {
+	var defs []ToolDef
+	for _, group := range spec.Actions.Groups() {
+		if def, ok := spec.defineGroup(srv, group); ok {
+			defs = append(defs, def)
+		}
+	}
+	return defs
+}
+
+// defineGroup renders one group's tool.
+func (spec ToolSpec) defineGroup(srv *Server, group string) (ToolDef, bool) {
+	actions := spec.Actions.InGroup(group)
+	if len(actions) == 0 {
+		return ToolDef{}, false
+	}
+	// The gated group exists only in write mode. Every other group is present
+	// in both, byte for byte — that is what makes a grant on it durable.
+	if group == GroupWrite && !srv.WriteEnabled() {
 		return ToolDef{}, false
 	}
 
-	// Properties are filtered by mode for the same reason actions are: a
-	// read-only session offered `config` or `rules` has been shown an
-	// affordance it cannot use, and nothing in the schema says which action
-	// they belong to.
-	props := spec.VisibleProps(srv.WriteEnabled())
+	props := spec.VisibleProps(group)
 	props["action"] = Prop{
 		Type: "string",
-		Desc: "Action: " + available.Summary(),
-		Enum: available.Names(),
+		Desc: "Action: " + actions.Summary(),
+		Enum: actions.Names(),
 	}
 
-	description := spec.Summary + " Actions: " + available.Summary() + "."
-	if spec.Actions.HasWrite() && !srv.WriteEnabled() {
-		// The help tool name is sourced from the server rather than hardcoded,
-		// so each product points at its own help tool.
+	name := srv.ToolName(spec.Resource) + "_" + group
+	description := spec.Summary + " Actions: " + actions.Summary() + "."
+	if group != GroupWrite && spec.Actions.HasWrite() {
+		// Deliberately not conditioned on the mode. A read tool has to read
+		// identically in both, or a permission granted against it no longer
+		// describes the same thing after the server is restarted with
+		// --allow-write — which is the property the whole split exists to
+		// create. Pinned by TestReadToolsAreIdenticalInBothModes.
+		//
+		// The sentence is true either way: it says where those actions live and
+		// what the server needs to register them, not whether they are
+		// available right now.
 		description += fmt.Sprintf(
-			" This server is running in read-only mode, so only the actions listed above are available; see %s for how to enable the rest.",
-			srv.HelpToolName(),
+			" Actions that create, change or delete live on %s, which this server registers only when started with --allow-write; see %s.",
+			srv.ToolName(spec.Resource)+"_"+GroupWrite, srv.HelpToolName(),
 		)
 	}
 
-	destructive := available.HasDestructive()
+	// Both annotations are now honest without special-casing, because the enum
+	// is homogeneous. HasChanging, not HasWrite: an ungated mutation still
+	// changes state, so its tool must not claim to be a pure read — a client
+	// that auto-approves ReadOnlyHint would otherwise halt production delivery
+	// without asking anyone.
+	destructive := actions.HasDestructive()
 	return ToolDef{
 		Tool: &mcpsdk.Tool{
-			Name:        srv.ToolName(spec.Resource),
+			Name:        name,
 			Description: description,
 			InputSchema: Schema(props, append([]string{"action"}, spec.Required...)...),
 			Annotations: &mcpsdk.ToolAnnotations{
-				// HasChanging, not HasWrite: an action can change state and
-				// still be offered in read-only mode (connections pause). Using
-				// HasWrite here would tell a client this tool is a pure read
-				// while it can halt delivery. Pinned by "a tool offering pause
-				// is not annotated read-only" in pkg/gateway/mcp/write_mode_test.go.
-				ReadOnlyHint:    !available.HasChanging(),
+				ReadOnlyHint:    !actions.HasChanging(),
 				DestructiveHint: &destructive,
 			},
 		},
-		Handler: rejectUnknownArgs(srv, spec, props, spec.Handler(srv)),
+		Handler: rejectUnknownArgs(srv, spec, group, props, spec.Handler(srv)),
 	}, true
 }
 
@@ -382,7 +503,7 @@ func actionScopeHint(writeActions []string) string {
 	return "it belongs to " + strings.Join(writeActions, ", ")
 }
 
-func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
+func rejectUnknownArgs(srv *Server, spec ToolSpec, group string, visible map[string]Prop, next mcpsdk.ToolHandler) mcpsdk.ToolHandler {
 	return func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		if r := srv.RequireAuth(); r != nil {
 			return next(ctx, req)
@@ -395,11 +516,31 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next
 			return next(ctx, req)
 		}
 
-		// Only defer when the caller is reaching for an action this mode hides.
-		// On a visible action a hidden argument is just as ignorable as an
-		// invented one, and has to be rejected.
+		// Only defer when the caller is reaching for an action this tool does
+		// not carry. On an action this tool does have, a hidden argument is
+		// just as ignorable as an invented one, and has to be rejected.
 		requestedAction, haveAction := spec.Actions.Find(in.String("action"))
-		requestedHidden := haveAction && !requestedAction.Enabled(srv.WriteEnabled())
+		requestedHidden := haveAction && requestedAction.Group() != group
+
+		// An action that belongs to a sibling tool must never run here. The
+		// schema enum already omits it, but a client that does not validate
+		// against the schema would otherwise have the read tool perform a
+		// write once --allow-write was on — the split would be advisory.
+		//
+		// In read-only mode the write guard has the better message, so this
+		// defers to it: "restart with --allow-write" is what the caller needs,
+		// not the name of a tool that is not registered.
+		if requestedHidden {
+			sibling := srv.ToolName(spec.Resource) + "_" + requestedAction.Group()
+			if !(requestedAction.Write && !srv.WriteEnabled()) {
+				return ErrorResult(fmt.Sprintf(
+					"action %q is not available on this tool; it belongs to %s. "+
+						"This tool offers: %s.",
+					requestedAction.Name, sibling,
+					strings.Join(spec.Actions.InGroup(group).Names(), ", "),
+				)), nil
+			}
+		}
 
 		var unknown, wrongAction []string
 		for key := range in {
@@ -428,13 +569,7 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, visible map[string]Prop, next
 		}
 		if len(wrongAction) > 0 {
 			sort.Strings(wrongAction)
-			writeActions := make([]string, 0, len(spec.Actions))
-			for _, a := range spec.Actions {
-				if a.Write {
-					writeActions = append(writeActions, a.Name)
-				}
-			}
-			sort.Strings(writeActions)
+			writeActions := spec.writeActionNames()
 			return ErrorResult(fmt.Sprintf(
 				"%s cannot be used with action %q — %s. "+
 					"The action ignores it, so the result would have looked filtered without being filtered.",

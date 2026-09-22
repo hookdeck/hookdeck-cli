@@ -89,9 +89,9 @@ func toolDefs(srv *mcpcore.Server) []mcpcore.ToolDef {
 	defs := []mcpcore.ToolDef{srv.ProjectsToolDef(projectsToolDesc)}
 
 	for _, spec := range resourceSpecs() {
-		if def, ok := spec.Define(srv); ok {
-			defs = append(defs, def)
-		}
+		// Each group renders its own tool, read first and the gated one last,
+		// so the pairing is visible where an agent reads the tool list.
+		defs = append(defs, spec.Define(srv)...)
 	}
 
 	defs = append(defs,

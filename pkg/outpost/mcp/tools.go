@@ -85,17 +85,15 @@ func resourceSpecs() []mcpcore.ToolSpec {
 func toolDefs(srv *mcpcore.Server, opts ServerOptions) []mcpcore.ToolDef {
 	defs := []mcpcore.ToolDef{srv.ProjectsToolDef(projectsToolDesc)}
 	for _, spec := range resourceSpecs() {
-		if def, ok := spec.Define(srv); ok {
-			defs = append(defs, def)
-		}
+		// Each group renders its own tool, read first and the gated one last,
+		// so the pairing is visible where an agent reads the tool list.
+		defs = append(defs, spec.Define(srv)...)
 	}
 
 	// Publishing needs both write mode and a Project API key, so the tool is
 	// only offered when it can actually work. outpost_help explains its absence.
 	if srv.WriteEnabled() && opts.PublishAPIKey != "" {
-		if def, ok := publishSpec(opts.PublishAPIKey).Define(srv); ok {
-			defs = append(defs, def)
-		}
+		defs = append(defs, publishSpec(opts.PublishAPIKey).Define(srv)...)
 	}
 
 	defs = append(defs,

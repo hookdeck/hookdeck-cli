@@ -137,14 +137,22 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 
 	specs := resourceSpecs()
 	for _, spec := range specs {
-		available := spec.Actions.Available(srv.WriteEnabled())
-		if len(available) == 0 {
-			continue
+		for _, group := range spec.Actions.Groups() {
+			actions := spec.Actions.InGroup(group)
+			if len(actions) == 0 {
+				continue
+			}
+			// The gated tool is not registered in read-only mode, so a topic or
+			// an overview line for it would document something tools/list does
+			// not offer.
+			if group == mcpcore.GroupWrite && !srv.WriteEnabled() {
+				continue
+			}
+			entries = append(entries, entry{
+				name:    srv.ToolName(spec.Resource) + "_" + group,
+				summary: "Actions: " + strings.Join(actions.Names(), ", "),
+			})
 		}
-		entries = append(entries, entry{
-			name:    srv.ToolName(spec.Resource),
-			summary: "Actions: " + strings.Join(available.Names(), ", "),
-		})
 	}
 	if srv.WriteEnabled() && opts.PublishAPIKey != "" {
 		entries = append(entries, entry{srv.ToolName("publish"), "Publish an event (actions: publish)"})
@@ -213,11 +221,19 @@ Parameters:
 	// overview above reports its absence correctly; see #364.
 	specs := append(resourceSpecs(), publishSpec(""))
 	for _, spec := range specs {
-		available := spec.Actions.Available(srv.WriteEnabled())
-		if len(available) == 0 {
-			continue
+		for _, group := range spec.Actions.Groups() {
+			actions := spec.Actions.InGroup(group)
+			if len(actions) == 0 {
+				continue
+			}
+			// The gated tool is not registered in read-only mode, so a topic or
+			// an overview line for it would document something tools/list does
+			// not offer.
+			if group == mcpcore.GroupWrite && !srv.WriteEnabled() {
+				continue
+			}
+			topics[srv.ToolName(spec.Resource)+"_"+group] = spec.Help(srv, group, actions)
 		}
-		topics[srv.ToolName(spec.Resource)] = spec.Help(srv, available)
 	}
 
 	return topics

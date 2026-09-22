@@ -33,8 +33,8 @@ var connectionsActions = mcpcore.ActionSet{
 	// but they do change delivery, so this tool must not tell a client it is a
 	// pure read — a client that auto-approves ReadOnlyHint tools would otherwise
 	// halt production delivery without asking anyone.
-	{Name: "pause", Desc: "pause delivery on a connection; events are buffered, not dropped", Mutates: true},
-	{Name: "unpause", Desc: "resume delivery on a paused connection", Mutates: true},
+	{Name: "pause", Desc: "pause delivery on a connection; events are buffered, not dropped", Mutates: true, Tool: "pause"},
+	{Name: "unpause", Desc: "resume delivery on a paused connection", Mutates: true, Tool: "pause"},
 
 	{Name: "create", Desc: "create a connection between a source and a destination", Write: true},
 	{Name: "upsert", Desc: "create a connection or update the existing one with the same name", Write: true},
@@ -49,16 +49,16 @@ var connectionsSpec = mcpcore.ToolSpec{
 	Summary:  "Inspect and manage connections (routes linking sources to destinations). Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions:  connectionsActions,
 	Props: map[string]mcpcore.Prop{
-		"id":             {Type: "string", Desc: "Connection ID or name. Required for get/pause/unpause/update/delete/enable/disable."},
+		"id":             {Type: "string", Desc: "Connection ID or name. Required for every action except list."},
 		"name":           {Type: "string", Desc: "Connection name. Filters on list; names the connection on create/upsert/update."},
 		"description":    {Type: "string", Desc: "Connection description (create/upsert/update)", Write: true},
 		"source_id":      {Type: "string", Desc: "Source ID. Filters on list; links the source on create/upsert/update."},
 		"destination_id": {Type: "string", Desc: "Destination ID. Filters on list; links the destination on create/upsert/update."},
 		"rules":          {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset.", Items: &mcpcore.Prop{Type: "object"}, Write: true},
-		"disabled":       {Type: "boolean", Desc: "Filter disabled connections (list)"},
-		"limit":          {Type: "integer", Desc: "Max results (list)"},
-		"next":           {Type: "string", Desc: "Next page cursor"},
-		"prev":           {Type: "string", Desc: "Previous page cursor"},
+		"disabled":       {Type: "boolean", Desc: "Filter disabled connections (list)", Only: []string{mcpcore.GroupRead}},
+		"limit":          {Type: "integer", Desc: "Max results (list)", Only: []string{mcpcore.GroupRead}},
+		"next":           {Type: "string", Desc: "Next page cursor", Only: []string{mcpcore.GroupRead}},
+		"prev":           {Type: "string", Desc: "Previous page cursor", Only: []string{mcpcore.GroupRead}},
 	},
 	Handler: handleConnections,
 }

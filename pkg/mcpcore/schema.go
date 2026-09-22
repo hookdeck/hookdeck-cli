@@ -15,6 +15,18 @@ type Prop struct {
 	Items *Prop    `json:"items,omitempty"`
 	Write bool     `json:"-"`
 
+	// Only restricts the property to the named action groups. Empty means every
+	// group the resource renders.
+	//
+	// Filtering per group, not per mode, is the point: gateway_connections_pause
+	// takes an id and nothing else, so advertising the twenty list filters there
+	// shows a caller affordances that action cannot use — the same failure as
+	// showing a write-only property to a read-only session, one level down.
+	//
+	// Write is the common case of this and stays as its own flag: it means
+	// Only{GroupWrite}.
+	Only []string `json:"-"`
+
 	// JSONValue marks a property that accepts either a JSON object or a string
 	// containing JSON — the Hookdeck filter syntax, which the payload filters
 	// take in both forms.
