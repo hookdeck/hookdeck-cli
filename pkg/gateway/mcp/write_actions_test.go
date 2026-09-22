@@ -1453,6 +1453,9 @@ func coveredActions() map[string]map[string]bool {
 		},
 		"attempts": {"list": true, "get": true},
 		"issues":   {"list": true, "get": true, "update": true, "dismiss": true},
+		"bulk": {
+			"list": true, "get": true, "plan": true, "create": true, "cancel": true,
+		},
 		"metrics": {
 			"events": true, "requests": true, "attempts": true, "transformations": true,
 		},

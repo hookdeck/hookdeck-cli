@@ -162,6 +162,15 @@ func mockAPI(t *testing.T, handlers map[string]http.HandlerFunc) *httptest.Serve
 	return srv
 }
 
+// mockAPIWithClientWriteEnabled is mockAPIWithClient with --allow-write on.
+func mockAPIWithClientWriteEnabled(t *testing.T, handlers map[string]http.HandlerFunc) *mcpsdk.ClientSession {
+	t.Helper()
+	api := mockAPI(t, handlers)
+	client := newTestClient(api.URL, "test-key")
+	client.SuppressRateLimitErrors = true
+	return connectInMemoryWriteEnabled(t, client)
+}
+
 // mockAPIWithClient creates a mock API and returns both the server and a connected MCP session.
 func mockAPIWithClient(t *testing.T, handlers map[string]http.HandlerFunc) *mcpsdk.ClientSession {
 	t.Helper()

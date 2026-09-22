@@ -88,6 +88,7 @@ func resourceSpecs() []mcpcore.ToolSpec {
 		attemptsSpec,
 		issuesSpec,
 		metricsSpec,
+		bulkSpec,
 	}
 }
 
