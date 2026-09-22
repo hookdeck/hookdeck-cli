@@ -514,13 +514,16 @@ func TestMCPPlatformToolsAreReachable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
-	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
-	if cliKey == "" {
-		t.Skip("Skipping platform MCP test: HOOKDECK_CLI_TESTING_CLI_KEY must be set " +
-			"(the organization and project-listing routes need an account-wide key; " +
-			"project-scoped keys from hookdeck ci cannot reach them)")
+	// The organization routes need an ORGANIZATION API key. A CLI session can
+	// list projects and work inside one, and still gets a bare 401 here — the
+	// credential is the wrong kind, not invalid.
+	orgKey := os.Getenv("HOOKDECK_CLI_TESTING_ORG_API_KEY")
+	if orgKey == "" {
+		t.Skip("Skipping platform MCP test: HOOKDECK_CLI_TESTING_ORG_API_KEY must be set " +
+			"(the organization routes need an organization API key; CLI sessions and " +
+			"project-scoped keys cannot reach them)")
 	}
-	cli := NewCLIRunnerWithKey(t, cliKey)
+	cli := NewCLIRunnerWithKey(t, orgKey)
 
 	org := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_organization_read",
 		map[string]any{"action": "get"}, 20*time.Second)

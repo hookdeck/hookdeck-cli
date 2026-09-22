@@ -40,7 +40,7 @@ func (gc *orgGetCmd) runOrgGetCmd(cmd *cobra.Command, args []string) error {
 
 	org, err := Config.GetAPIClient().GetOrganization(context.Background())
 	if err != nil {
-		return err
+		return orgAuthError(err)
 	}
 
 	if gc.output == "json" {

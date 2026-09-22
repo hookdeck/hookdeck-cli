@@ -21,17 +21,21 @@ import (
 
 // accountRunner returns a runner with an account-wide credential, or skips.
 //
-// The suite's default key comes from `hookdeck ci` and is project-scoped: it
-// cannot read the organization, list projects or list API keys. Those are
-// account-level routes, and the CLI says so rather than failing obscurely.
+// The organization and API key routes need an ORGANIZATION API key — a distinct
+// credential class. A CLI session can list projects and work inside one and
+// still be refused here, because the credential is the wrong kind rather than
+// invalid. Verified against the live API: the same key that lists projects with
+// HTTP 200 gets 401 from /organizations/current.
 func accountRunner(t *testing.T) *CLIRunner {
 	t.Helper()
-	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
-	if cliKey == "" {
-		t.Skip("Skipping: HOOKDECK_CLI_TESTING_CLI_KEY must be set — the org, project-listing " +
-			"and API key routes need an account-wide key, which project-scoped keys are not")
+	orgKey := os.Getenv("HOOKDECK_CLI_TESTING_ORG_API_KEY")
+	if orgKey == "" {
+		t.Skip("Skipping: HOOKDECK_CLI_TESTING_ORG_API_KEY must be set — the organization and " +
+			"API key routes need an organization API key. A CLI session from `hookdeck login` " +
+			"can list projects and work inside one but cannot read the organization, and the " +
+			"API answers a bare 401 that reads as a bad key rather than the wrong kind")
 	}
-	return NewCLIRunnerWithKey(t, cliKey)
+	return NewCLIRunnerWithKey(t, orgKey)
 }
 
 func TestOrgGet(t *testing.T) {

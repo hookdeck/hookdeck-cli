@@ -37,7 +37,7 @@ func (lc *apiKeyListCmd) run(cmd *cobra.Command, args []string) error {
 	}
 	keys, err := Config.GetAPIClient().ListAPIKeys(apiKeyContext())
 	if err != nil {
-		return err
+		return orgAuthError(err)
 	}
 	return renderKeys(keys, lc.output)
 }
@@ -94,7 +94,7 @@ func (cc *apiKeyCreateCmd) run(cmd *cobra.Command, args []string) error {
 
 	key, err := Config.GetAPIClient().CreateAPIKey(apiKeyContext(), req)
 	if err != nil {
-		return err
+		return orgAuthError(err)
 	}
 	return printSecretOnce(key, cc.output)
 }
@@ -183,7 +183,7 @@ func (rc *apiKeyRollCmd) run(cmd *cobra.Command, args []string) error {
 
 	key, err := Config.GetAPIClient().RollAPIKey(apiKeyContext(), args[0], rc.delaySec)
 	if err != nil {
-		return err
+		return orgAuthError(err)
 	}
 	return printSecretOnce(key, rc.output)
 }
@@ -230,7 +230,7 @@ func (dc *apiKeyDeleteCmd) run(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := Config.GetAPIClient().DeleteAPIKey(apiKeyContext(), args[0]); err != nil {
-		return err
+		return orgAuthError(err)
 	}
 	fmt.Printf("✔ API key %s deleted\n", args[0])
 	return nil

@@ -26,6 +26,11 @@ func newOrgCmd() *orgCmd {
 		Short:   "Manage your organization [BETA]",
 		Long: `Read or rename the Hookdeck organization your credentials belong to, and manage its API keys.
 
+These commands need an ORGANIZATION API key. A CLI session from ` + "`hookdeck login`" + ` can list
+projects and work inside one, but cannot read the organization — the API answers a bare 401 that
+reads as a bad key rather than the wrong kind of key. Create an organization API key in the
+dashboard, then run ` + "`hookdeck ci --api-key <key>`" + ` or set HOOKDECK_API_KEY.
+
 The API acts on the current organization only, determined by the credential in use.
 There is no way to name another one; sign in with one of its credentials instead.`,
 	}

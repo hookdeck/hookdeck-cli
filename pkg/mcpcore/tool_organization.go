@@ -31,6 +31,9 @@ func (s *Server) OrganizationSpec() ToolSpec {
 		Resource: "organization",
 		Platform: true,
 		Summary: "Read or rename the Hookdeck organization this credential belongs to. " +
+			"REQUIRES AN ORGANIZATION API KEY — a CLI session from hookdeck login can list projects " +
+			"and work inside one, but cannot read the organization, and the API answers a bare 401 that " +
+			"reads as a bad key rather than the wrong kind. " +
 			"There is no organization ID: the API acts on the current organization only, " +
 			"determined by the credential in use. To act on a different organization, sign in with one of its credentials.",
 		Actions: organizationActions,
@@ -69,7 +72,7 @@ func handleOrganization(srv *Server) mcpsdk.ToolHandler {
 		if action == "get" {
 			org, err := srv.AccountClient().GetOrganization(ctx)
 			if err != nil {
-				return ErrorResult(TranslateAPIError(err)), nil
+				return ErrorResult(organizationFailureMessage(err)), nil
 			}
 			return JSONResultEnvelopeForClient(org, client)
 		}
@@ -81,7 +84,7 @@ func handleOrganization(srv *Server) mcpsdk.ToolHandler {
 		}
 		org, err := srv.AccountClient().UpdateOrganization(ctx, &hookdeck.OrganizationUpdateRequest{Name: name})
 		if err != nil {
-			return ErrorResult(TranslateAPIError(err)), nil
+			return ErrorResult(organizationFailureMessage(err)), nil
 		}
 		return JSONResultEnvelopeForClient(org, client)
 	}

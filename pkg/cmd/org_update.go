@@ -49,7 +49,7 @@ func (uc *orgUpdateCmd) runOrgUpdateCmd(cmd *cobra.Command, args []string) error
 	org, err := Config.GetAPIClient().UpdateOrganization(
 		context.Background(), &hookdeck.OrganizationUpdateRequest{Name: &uc.name})
 	if err != nil {
-		return err
+		return orgAuthError(err)
 	}
 
 	if uc.output == "json" {
