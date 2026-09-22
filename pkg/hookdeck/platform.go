@@ -226,3 +226,138 @@ func (c *Client) DeleteCustomDomain(ctx context.Context, projectID, domainID str
 	defer resp.Body.Close()
 	return nil
 }
+
+// APIKey is an organization or project API key.
+//
+// Key is the bearer secret and is returned on create and roll. Everywhere else
+// the non-secret KeyFingerprint is what identifies it — a renderer that prints
+// Key by habit leaks a live credential into a terminal, a log or a CI artifact.
+type APIKey struct {
+	ID             string              `json:"id"`
+	Label          string              `json:"label"`
+	Key            string              `json:"key,omitempty"`
+	TeamID         *string             `json:"team_id"`
+	OrganizationID string              `json:"organization_id"`
+	KeyFingerprint *string             `json:"key_fingerprint"`
+	Scopes         []string            `json:"scopes,omitempty"`
+	Grants         map[string]APIGrant `json:"grants,omitempty"`
+	ExpiresAt      *string             `json:"expires_at"`
+	UpdatedAt      string              `json:"updated_at,omitempty"`
+}
+
+// APIGrant is one entry of an API key's grants: the projects an organization
+// key is limited to, or the per-resource scope overrides of a project key.
+type APIGrant struct {
+	Scopes []string `json:"scopes,omitempty"`
+}
+
+// APIKeyCreateRequest is the body of POST /organizations/current/api-keys.
+//
+// Scopes are free-form: the OpenAPI document declares no enum for them, only
+// examples of the shape (gateway.events.read). There is nothing to validate
+// against locally, so they are passed through and the API is the authority.
+type APIKeyCreateRequest struct {
+	Label  string              `json:"label"`
+	Type   string              `json:"type"`
+	TeamID *string             `json:"team_id,omitempty"`
+	Scopes []string            `json:"scopes,omitempty"`
+	Grants map[string]APIGrant `json:"grants,omitempty"`
+}
+
+// APIKeyUpdateRequest changes an existing key's permissions. The secret is
+// unchanged.
+type APIKeyUpdateRequest struct {
+	Scopes []string            `json:"scopes,omitempty"`
+	Grants map[string]APIGrant `json:"grants,omitempty"`
+}
+
+// ListAPIKeys returns the organization and project keys of the current
+// organization.
+func (c *Client) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
+	resp, err := c.Get(ctx, APIPathPrefix+"/organizations/current/api-keys", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	keys := []APIKey{}
+	if _, err := postprocessJsonResponse(resp, &keys); err != nil {
+		return nil, fmt.Errorf("failed to parse API key list response: %w", err)
+	}
+	return keys, nil
+}
+
+// CreateAPIKey issues a key. The response carries the secret, once.
+func (c *Client) CreateAPIKey(ctx context.Context, req *APIKeyCreateRequest) (*APIKey, error) {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal API key request: %w", err)
+	}
+	resp, err := c.Post(ctx, APIPathPrefix+"/organizations/current/api-keys", data, nil)
+	if err != nil {
+		return nil, err
+	}
+	var key APIKey
+	if _, err := postprocessJsonResponse(resp, &key); err != nil {
+		return nil, fmt.Errorf("failed to parse API key response: %w", err)
+	}
+	return &key, nil
+}
+
+// UpdateAPIKey changes a key's scopes and grants, leaving the secret alone.
+func (c *Client) UpdateAPIKey(ctx context.Context, id string, req *APIKeyUpdateRequest) (*APIKey, error) {
+	path, err := apiPath("organizations", "current", "api-keys", id)
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal API key request: %w", err)
+	}
+	resp, err := c.Put(ctx, path, data, nil)
+	if err != nil {
+		return nil, err
+	}
+	var key APIKey
+	if _, err := postprocessJsonResponse(resp, &key); err != nil {
+		return nil, fmt.Errorf("failed to parse API key response: %w", err)
+	}
+	return &key, nil
+}
+
+// RollAPIKey returns a replacement key; the current one expires after delaySec.
+func (c *Client) RollAPIKey(ctx context.Context, id string, delaySec int) (*APIKey, error) {
+	path, err := apiPath("organizations", "current", "api-keys", id, "roll")
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(map[string]int{"delay_sec": delaySec})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal roll request: %w", err)
+	}
+	resp, err := c.Post(ctx, path, data, nil)
+	if err != nil {
+		return nil, err
+	}
+	var key APIKey
+	if _, err := postprocessJsonResponse(resp, &key); err != nil {
+		return nil, fmt.Errorf("failed to parse API key response: %w", err)
+	}
+	return &key, nil
+}
+
+// DeleteAPIKey removes a key. It stops authenticating immediately.
+func (c *Client) DeleteAPIKey(ctx context.Context, id string) error {
+	path, err := apiPath("organizations", "current", "api-keys", id)
+	if err != nil {
+		return err
+	}
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.PerformRequest(ctx, req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
