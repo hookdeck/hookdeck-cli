@@ -90,9 +90,11 @@ func TestPlatformCommandsRefuseEmptyChanges(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, stderr, err := cli.Run(tc.args...)
+			stdout, stderr, err := cli.Run(tc.args...)
 			require.Error(t, err, "the command should fail rather than do nothing")
-			assert.Contains(t, stderr, tc.want)
+			// The root error handler prints to stdout for non-MCP commands;
+			// stderr carries only the exit status.
+			assert.Contains(t, stdout+stderr, tc.want)
 		})
 	}
 }
@@ -112,11 +114,12 @@ func TestDestructiveCommandsRefuseWithoutATerminal(t *testing.T) {
 		{"project", "custom-domain", "remove", "tm_x", "dom_x"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			_, stderr, err := cli.Run(args...)
+			stdout, stderr, err := cli.Run(args...)
 			require.Error(t, err)
-			assert.Contains(t, stderr, "no terminal is attached",
+			out := stdout + stderr
+			assert.Contains(t, out, "no terminal is attached",
 				"a destructive command must not silently no-op without a terminal")
-			assert.Contains(t, stderr, "--force")
+			assert.Contains(t, out, "--force")
 		})
 	}
 }
