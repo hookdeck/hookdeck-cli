@@ -416,6 +416,22 @@ for the `list_ignored` guard, which the per-action work can reuse.
       incident-response action
 - [ ] `projects_use` — say it changes what every subsequent call targets
 
+### 4b. CLI platform commands
+
+- [ ] API client methods: organizations, projects CRUD, custom domains, API keys
+- [ ] `hookdeck org` group with `get` / `update`
+- [ ] `hookdeck org api-key` with `list` / `create` / `update` / `roll` / `delete`
+- [ ] `hookdeck project` gains `get` / `create` / `update` / `delete`
+- [ ] `hookdeck project custom-domain` with `list` / `add` / `remove`
+- [ ] `--project` resolves an id or a name, reusing the `project use` resolver
+- [ ] Destructive commands use the existing confirmation path (`project delete`,
+      `api-key delete`, `custom-domain remove`)
+- [ ] Secret handling: print `key` once on create/roll, never log it, never echo it in an error;
+      `list` renders `key_fingerprint`, never `key`
+- [ ] `--scope` documents that the API is the authority — no local validation, no hardcoded list
+- [ ] Acceptance tests for each new command, success and failure paths
+- [ ] `REFERENCE.md` regenerates cleanly and the new commands appear in the generated blocks
+
 ### 5. Docs and generated output
 
 - [~] `README.md`, `REFERENCE.md` — the events/requests tables and traversal prose are
@@ -675,13 +691,71 @@ Three facts from `test/openapi/openapi_2026-09-01.json` decide this:
 So a single family under `org`, with the project as a flag rather than a parent command:
 
 ```
-hookdeck org get | update
-hookdeck org api-key list
-hookdeck org api-key create --label "CI pipeline" [--project <id|name>] [--scope ...]
-hookdeck org api-key update <id> [--scope ...]
-hookdeck org api-key roll <id> --delay 3600
-hookdeck org api-key delete <id>
+hookdeck
+├── org                                  NEW — "Manage your organization [BETA]"
+│   ├── get                              GET  /organizations/current
+│   ├── update                           PUT  /organizations/current
+│   │     --name
+│   └── api-key                          one family, both key kinds
+│       ├── list                         GET    /organizations/current/api-keys
+│       ├── create                       POST   /organizations/current/api-keys
+│       │     --label          (required)
+│       │     --project <id|name>        omit -> org key; set -> project key (team_id)
+│       │     --scope          (repeatable, pass-through; API default ["*"])
+│       │     --grant          (repeatable, KEY=VALUE; meaning depends on key kind)
+│       ├── update <id>                  PUT    /organizations/current/api-keys/{id}
+│       │     --scope / --grant          secret unchanged
+│       ├── roll <id>                    POST   /organizations/current/api-keys/{id}/roll
+│       │     --delay          (required) old key expires after this
+│       └── delete <id>                  DELETE /organizations/current/api-keys/{id}
+│             confirmation — stops authenticating immediately
+│
+├── project                              EXTENDED
+│   ├── list                             existing
+│   ├── use                              existing
+│   ├── get <id>                         NEW  GET    /projects/{id}
+│   ├── create                           NEW  POST   /projects
+│   │     --name  --type <event_gateway|outpost>  --private  --org-id
+│   ├── update <id>                      NEW  PUT    /projects/{id}
+│   │     --name  --private  --domain  --headers-prefix
+│   │     --notification-method  --webhook-topic  --webhook-source-id
+│   │     --context / --context-file     (object — file, per the outpost precedent)
+│   ├── delete <id>                      NEW  DELETE /projects/{id}
+│   │     confirmation
+│   └── custom-domain                    NEW
+│       ├── list                         GET    /projects/{id}/custom_domains
+│       ├── add <hostname>               POST   /projects/{id}/custom_domains
+│       └── remove <domain-id>           DELETE /projects/{id}/custom_domains/{domain_id}
+│             confirmation
+│
+├── gateway ...                          unchanged
+├── outpost ...                          unchanged
+└── ci, listen, login, whoami, ...       unchanged
 ```
+
+**No `project api-key`, and that matches the API.** Verified against the document: the only
+api-key routes are the three under `/organizations/current/api-keys`, and the only routes nested
+under `/projects/{id}/` are `custom_domains`. Project scoping is the `team_id` *field* on the
+organization endpoint, not a nested route.
+
+`custom-domain` sits under `project` because the route does. It is **not** the same feature as
+`outpost config custom_domain`, which uses Outpost's own `/config/custom_domain`; keeping them
+under separate parents avoids implying they are one thing.
+
+`--project` should accept an id or a name, reusing the resolver `project use` already has.
+
+### Open, before building
+
+- **`POST /projects` declares no required fields** — `name`, `type`, `private`, `organization_id`
+  are all optional, so a bare `hookdeck project create` is a valid API call. The CLI should
+  probably require `--name` and `--type` anyway; a nameless project of unspecified type is
+  unlikely to be what anyone meant. Not yet decided.
+- **`--delay` on `roll` is `delay_sec`.** Accepting a duration (`--delay 1h`) is kinder than
+  making people compute 3600, but diverges from the API's own spelling. Not yet decided.
+- **Aliasing.** `hookdeck connection` already exists at top level *and* as
+  `hookdeck gateway connection`, so this CLI does alias. That weakens the argument for refusing a
+  `hookdeck project api-key` alias on principle — the case against it is still that it cannot
+  express an organization key, so an alias would cover only half the family.
 
 Omitting `--project` creates an organization key; passing it creates a project key. `hookdeck
 project api-key ...` was considered and rejected: it cannot express an organization-scoped key,
