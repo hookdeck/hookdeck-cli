@@ -407,19 +407,27 @@ for the `list_ignored` guard, which the per-action work can reuse.
 - [x] `transformations_read.run` — state explicitly that it persists nothing
 - [x] Port per-action argument scoping into `mcpcore` — `Prop.Actions`, declared on the property
       rather than in a parallel map, so there is one place to change when an action gains an argument
-- [ ] API client methods for all 19 `/bulk/` endpoints
-- [ ] `gateway_bulk_read` — `list`, `get`, `plan`
-- [ ] `gateway_bulk_write` — `create`, `cancel`
-- [ ] `operation` enum covering the five families
-- [ ] **Per-operation filter gating**, derived from the OpenAPI document, refusing any filter the
+- [x] `metrics_read` — distinguish `events` from `attempts` for delivery questions
+- [x] `request_write.retry` / `event_write.retry` — disambiguate from each other
+- [x] `connections_pause.pause` vs `connections_write.disable` — say which is the reversible
+      incident-response action
+- [x] `projects_use` — say it changes what every subsequent call targets
+
+### 4c. Bulk operations
+
+- [x] API client methods for all 19 `/bulk/` endpoints
+- [x] `gateway_bulk_read` — `list`, `get`, `plan`
+- [x] `gateway_bulk_write` — `create`, `cancel`
+- [x] `operation` enum covering the five families
+- [x] **Per-operation filter gating**, derived from the OpenAPI document, refusing any filter the
       chosen operation does not declare — `ignored_events_retry` accepts 3 where the event
       families accept 23
-- [ ] `target` accepted only on `requests_replay`, with the fan-out stated in its description
-- [ ] `{action:"cancel", operation:"events_cancel"}` refused, saying it cannot be stopped
-- [ ] `create` names `plan` as the thing to call first
-- [ ] `replay` descriptions distinguish it from `retry`: new request, new events, current config
+- [x] `target` accepted only on `requests_replay`, with the fan-out stated in its description
+- [x] `{action:"cancel", operation:"events_cancel"}` refused, saying it cannot be stopped
+- [x] `create` names `plan` as the thing to call first
+- [x] `replay` descriptions distinguish it from `retry`: new request, new events, current config
 - [ ] Acceptance tests, including `plan` working without `--allow-write`
-- [ ] A spec-conformance test that every advertised filter is declared for its operation
+- [x] A spec-conformance test that every advertised filter is declared for its operation
 
 ### 4b. CLI platform commands
 
