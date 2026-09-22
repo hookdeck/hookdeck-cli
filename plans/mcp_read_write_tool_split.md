@@ -462,16 +462,16 @@ for the `list_ignored` guard, which the per-action work can reuse.
 
 Update:
 
-- [ ] `pkg/gateway/mcp/write_mode_test.go` — `TestListTools_ReadOnlyMode`,
+- [x] `pkg/gateway/mcp/write_mode_test.go` — `TestListTools_ReadOnlyMode`,
       `TestListTools_WriteMode`, `TestWriteGuard_BlocksWriteActionsInReadOnlyMode`,
       `TestWriteGuard_PauseIsNotGated`, `TestWriteGuard_TransformationRunIsNotGated`,
       `TestWriteGuard_AllowsWriteActionsInWriteMode`, `TestWriteActions_RequireAnID`,
       `TestHelpReportsMode`
-- [ ] `pkg/gateway/mcp/write_actions_test.go`
-- [ ] `pkg/gateway/mcp/server_test.go` (`connectInMemoryWriteEnabled`)
-- [ ] `pkg/gateway/mcp/tool_help_test.go`
-- [ ] `pkg/outpost/mcp/tool_actions_test.go`, `pkg/outpost/mcp/projects_test.go`
-- [ ] `pkg/mcpcore/tool_projects_test.go`, `pkg/mcpcore/*_test.go`
+- [x] `pkg/gateway/mcp/write_actions_test.go`
+- [x] `pkg/gateway/mcp/server_test.go` (`connectInMemoryWriteEnabled`)
+- [x] `pkg/gateway/mcp/tool_help_test.go`
+- [x] `pkg/outpost/mcp/tool_actions_test.go`, `pkg/outpost/mcp/projects_test.go`
+- [x] `pkg/mcpcore/tool_projects_test.go`, `pkg/mcpcore/*_test.go`
 
 Add:
 
@@ -485,9 +485,9 @@ Add:
       "restart with `--allow-write`" guidance rather than an unknown-tool error.
 - [x] `pause`/`unpause` stay ungated
 - [x] `transformations/run` stays ungated
-- [ ] `projects use` stays ungated
-- [ ] Platform tool coverage: projects CRUD, organization
-- [ ] **No API key tool is registered on either server, in either mode**
+- [x] `projects use` stays ungated
+- [x] Platform tool coverage: projects CRUD, organization
+- [x] **No API key tool is registered on either server, in either mode**
 
 ### 7. Verification
 
@@ -500,7 +500,8 @@ Add:
       asserts it as a golden list, so any tool added, removed, renamed or re-annotated shows up
       as a diff a reviewer has to agree to. Verified by renaming an action and watching it fail.
 - [ ] Manual QA against a real project per `.agents/skills/` — platform writes especially
-- [ ] **Independent verification sweep on the `events`/`ignored_events` move** — an agent that did
+- [x] **Independent verification sweep on the `events`/`ignored_events` move** — done; it found
+      four regressions, fixed in 5c21412 — an agent that did
       not make the change confirms no filter, action or behaviour that worked in v2.6.0 was lost,
       checked against `main`'s shipped tool surface rather than against this branch's tests
 
