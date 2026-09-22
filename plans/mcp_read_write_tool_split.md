@@ -416,17 +416,21 @@ for the `list_ignored` guard, which the per-action work can reuse.
       incident-response action
 - [ ] `projects_use` — say it changes what every subsequent call targets
 
-### 4c. Replay
+### 4c. Bulk operations
 
-- [ ] API client methods for the six replay endpoints
-- [ ] `replay` action on `gateway_event_write` and `gateway_request_write`, with `source_id` /
-      `webhook_ids` targeting, and descriptions that distinguish it from `retry`
-- [ ] `gateway_bulk_replay_read` with `list`, `get`, `plan`
-- [ ] `gateway_bulk_replay_write` with `create`
-- [ ] `gateway_bulk_replay_cancel` — both modes, pending the decision above
-- [ ] `create`'s description names `plan` as the thing to call first, and states that a bare
-      `source_id` target fans out to every active connection on that source
-- [ ] Acceptance tests, including that `plan` works without `--allow-write`
+- [ ] API client methods for all 19 `/bulk/` endpoints
+- [ ] `gateway_bulk_read` — `list`, `get`, `plan`
+- [ ] `gateway_bulk_write` — `create`, `cancel`
+- [ ] `operation` enum covering the five families
+- [ ] **Per-operation filter gating**, derived from the OpenAPI document, refusing any filter the
+      chosen operation does not declare — `ignored_events_retry` accepts 3 where the event
+      families accept 23
+- [ ] `target` accepted only on `requests_replay`, with the fan-out stated in its description
+- [ ] `{action:"cancel", operation:"events_cancel"}` refused, saying it cannot be stopped
+- [ ] `create` names `plan` as the thing to call first
+- [ ] `replay` descriptions distinguish it from `retry`: new request, new events, current config
+- [ ] Acceptance tests, including `plan` working without `--allow-write`
+- [ ] A spec-conformance test that every advertised filter is declared for its operation
 
 ### 4b. CLI platform commands
 
@@ -657,80 +661,107 @@ version the committed document does not — would close that.
    projects, **and API keys**. Decided 2026-09-22. Scope and naming still to settle; see
    "CLI platform commands" below.
 
-## Decision: expose replay, including bulk replay
+## Decision: expose bulk operations
 
-Added 2026-09-22. The 2026-09-01 API shipped six replay endpoints that nothing in the CLI or MCP
-currently reaches.
+Decided 2026-09-22, **in beta.2**. Two tools, `cancel` on the write tool.
 
-### Replay is not retry
+### Scope: 19 endpoints, five families, none currently reachable
 
-The distinction matters and the names hide it:
+Nothing in the CLI or MCP touches any `/bulk/` path today. **Fifteen of the nineteen predate the
+v2.6.0 merge** — this is a standing gap, not a regression. Only the `requests/replay` family is new.
 
-| | What it does |
-|---|---|
-| **retry** (`/events/{id}/retry`, `/requests/{id}/retry`) | Another delivery attempt for the record you already have. |
-| **replay** (`/events/{id}/replay`, `/requests/{id}/replay`) | **Re-ingests the original request through the full pipeline, creating a new request and new events.** Transformations, filters and pipeline rules are re-evaluated against *current* configuration. The original is untouched. Optionally targets a different `source_id` / `webhook_ids`. |
+```
+/bulk/events/retry           + /plan  + /{id}  + /{id}/cancel
+/bulk/events/cancel          + /plan  + /{id}          (no job cancel — see below)
+/bulk/ignored-events/retry   + /plan  + /{id}  + /{id}/cancel
+/bulk/requests/retry         + /plan  + /{id}  + /{id}/cancel
+/bulk/requests/replay        + /plan  + /{id}  + /{id}/cancel      (new in 2026-09-01)
+```
 
-So replay is strictly the larger hammer: it manufactures new records, and it can route them somewhere
-the original never went. A caller reaching for "retry" and getting replay's behaviour would be
-badly surprised, so the two must not be collapsed into one action.
+Every family has the same shape — `POST {query: {...}}`, a `plan` that estimates before anything
+runs, a listing, a by-id fetch — so one tool pair covers all nineteen.
 
-### Bulk replay has a dry run, and that shapes the design
-
-`/bulk/requests/replay` takes a required `query` whose `target` selects where to replay — a
-`source_id` alone replays onto **all of that source's active connections, resolved as the replay
-runs**. That is the most side-effecting single call in the API.
-
-It also ships `GET /bulk/requests/replay/plan`, which "estimates the number of requests matched by
-the provided filter before creating a bulk replay" and takes the same `query` payload minus
-`target`. A built-in dry run is exactly what makes this safe to expose to an agent, and it is a
-read — it creates nothing.
-
-### Proposed shape
+### The tools
 
 | Tool | Actions | Mode |
 |---|---|---|
-| `gateway_event_write` | + `replay` | `--allow-write` |
-| `gateway_request_write` | + `replay` | `--allow-write` |
-| `gateway_bulk_replay_read` | `list`, `get`, `plan` | both |
-| `gateway_bulk_replay_cancel` | `cancel` | **both** — see below |
-| `gateway_bulk_replay_write` | `create` | `--allow-write` |
+| `gateway_bulk_read` | `list`, `get`, `plan` | both |
+| `gateway_bulk_write` | `create`, `cancel` | `--allow-write` |
 
-`plan` is a read and belongs on the read tool, which means **an agent can estimate the blast radius
-of a bulk replay without write mode at all.** `create`'s description must point at it.
+Both take `operation`, naming the family:
+`events_retry` | `events_cancel` | `ignored_events_retry` | `requests_retry` | `requests_replay`.
 
-**`cancel` on its own tool, available in both modes — recommended, needs confirming.** This is the
-`pause`/`unpause` argument again and, if anything, stronger: cancelling a pending or in-progress
-bulk replay is the stop-the-bleeding action for the most side-effecting operation the API has. A
-bulk replay flooding every destination in a project is precisely the moment nobody wants to be
-restarting an MCP server with a different flag. It changes state, so `ReadOnlyHint: false`; it
-stops work rather than destroying records, so `DestructiveHint: false`.
+**`cancel` is not ambiguous, because the API puts the two meanings at different levels and so does
+this.** `operation` says what kind of job; `action` says what you are doing to a job:
 
-The alternative is putting `cancel` on `_write`, which is more conventional and leaves the
-incident unreachable from a read-only session. Do not pick silently.
+| Call | Means | Endpoint |
+|---|---|---|
+| `{action:"create", operation:"events_cancel", ...}` | start a bulk cancellation of many events | `POST /bulk/events/cancel` |
+| `{action:"cancel", id:"bar_123"}` | stop a running bulk job | `POST /bulk/{family}/{id}/cancel` |
 
-### Should bulk replay be in MCP at all?
+Both words are the API's own. An earlier draft proposed renaming the job action to `stop` or
+`abort` to remove the collision; that was rejected, and rightly — a name that does not appear in
+the Hookdeck docs cannot be searched for, and the tool description can carry the distinction that
+a renamed action would only have hidden.
 
-Asked deliberately, because API key management was excluded on a similar-sounding concern, and the
-answer is different. A key crosses a credential boundary and lets an agent escalate past every
-other control in this plan. A bulk replay does not: it is a data operation, bounded by the
-project, gated behind `--allow-write`, reversible in the sense that it can be cancelled mid-flight,
-and it ships a dry run its own API documents as the thing to call first. **Recommended: expose it**,
-with `plan` reachable in read-only mode and `create` gated.
+**`plan` is a read**, so an agent can size the blast radius of any bulk operation with no
+`--allow-write` at all. `create`'s description must name it as the thing to call first.
 
-What it does deserve is the strongest description in the tool surface: that `source_id` alone fans
-out to every active connection on that source, and that `plan` should be called first.
+**`cancel` is on the write tool**, not a third tool of its own. The pause/unpause precedent was
+considered and does not carry: a read-only server cannot have started the job, so this would be
+stopping someone else's work — a different proposition from pausing a connection that is
+misbehaving regardless of who is looking at it.
+
+### The filter sets differ per operation, and that is the risk
+
+This is the `list_ignored` failure a third time, and it is worth stating plainly before it is
+built. The `query` each family accepts is **not** the same:
+
+| operation | `query` filters |
+|---|---|
+| `events_retry`, `events_cancel` | 23 — the full event filter set |
+| `requests_retry` | 16 — the request filter set |
+| `requests_replay` | those 16 **+ `target`** |
+| `ignored_events_retry` | **3** — `cause`, `webhook_id`, `transformation_id` |
+
+A flat schema advertising all of them would let `{operation:"ignored_events_retry", status:"FAILED"}`
+through, the API would ignore `status`, and the caller would get a bulk retry across a far wider
+set than they asked for — an unfiltered operation that reads as a filtered one, with real
+deliveries behind it.
+
+So: **the accepted filters must be gated per `operation`, verified against the OpenAPI document,
+and a filter the operation does not declare must be refused rather than dropped.** `internal/speccheck`
+already reads that document and `specGuard` already fails any test that sends an undeclared
+parameter, so the guard is enforceable the moment the tool exists.
+
+`target` deserves its own note: it appears only on `requests_replay`, and a bare `source_id` in it
+replays onto **every active connection on that source, resolved as the replay runs**.
+
+### `events_cancel` cannot be stopped once started
+
+It is the one family with no `/{id}/cancel`. `{action:"cancel"}` against it must be refused with
+that reason stated — which is information worth surfacing, and which a design that hid the
+asymmetry would have lost.
+
+### Retry is not replay
+
+Worth keeping straight, because the names do not say it:
+
+- **retry** — another delivery attempt for records that already exist.
+- **replay** — re-ingests through the full pipeline, creating a **new request and new events**,
+  re-evaluated against *current* configuration, optionally targeting connections the original
+  never went to. The original is untouched.
+
+Replay is the larger hammer, and `Destructive: false` does not capture it: it creates and destroys
+nothing, but it is the action most likely to be regretted. The description carries that weight.
 
 ### Consequences
 
-- Tool count: Gateway +3 (or +2 if `cancel` joins `_write`).
-- `Destructive` flags: `replay` creates and destroys nothing, so `Destructive: false` on both
-  singular tools — but it is the action most likely to be *regretted*, which the destructive hint
-  does not capture. The description carries that weight.
-- The CLI has no replay commands either. Whether they land in the same release is open; the MCP
-  side is the one users have asked for.
-- `plans/mcp_read_write_tool_split.md` previously listed these endpoints as out of scope. They are
-  now in scope; that line has been removed.
+- Gateway goes from 22 tools to **24**.
+- beta.2 now carries four workstreams: the read/write split, platform MCP tools, the CLI `org`
+  family, and bulk operations. Recorded as a deliberate choice — bulk operations depend on none of
+  the others, so they remain the cleanest thing to lift out if the release needs shrinking.
+- The CLI has no bulk commands either. Out of scope here; the gap will be noticed.
 
 ## CLI platform commands
 
