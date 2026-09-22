@@ -92,3 +92,63 @@ func TestPlatformPathsEscapeTheirIDs(t *testing.T) {
 		assert.NotContains(t, sawPath, "/../", "a traversal must not survive into the path")
 	}
 }
+
+// Account-level routes must not carry a project scope.
+//
+// ProjectID goes out as X-Team-ID / X-Project-ID. The organization and project
+// routes reject a project-scoped request with a bare 401 — which reads as a bad
+// credential, not a wrong scope, and cost an acceptance-test cycle to diagnose.
+func TestPlatformCallsDoNotCarryAProjectScope(t *testing.T) {
+	var sawTeam, sawProject string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawTeam = r.Header.Get("X-Team-ID")
+		sawProject = r.Header.Get("X-Project-ID")
+		// Two routes answer with a bare array, not an envelope.
+		if r.Method == http.MethodGet &&
+			(strings.HasSuffix(r.URL.Path, "/custom_domains") || strings.HasSuffix(r.URL.Path, "/api-keys")) {
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"x","name":"n"}`))
+	}))
+	defer server.Close()
+
+	base, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	// A client scoped to a project, as every MCP session is once a project is active.
+	client := &Client{BaseURL: base, APIKey: "k", ProjectID: "tm_scoped"}
+	ctx := context.Background()
+
+	calls := map[string]func() error{
+		"GetOrganization": func() error { _, e := client.GetOrganization(ctx); return e },
+		"UpdateOrganization": func() error {
+			n := "x"
+			_, e := client.UpdateOrganization(ctx, &OrganizationUpdateRequest{Name: &n})
+			return e
+		},
+		"GetProject":         func() error { _, e := client.GetProject(ctx, "tm_1"); return e },
+		"CreateProject":      func() error { _, e := client.CreateProject(ctx, &ProjectCreateRequest{}); return e },
+		"UpdateProject":      func() error { _, e := client.UpdateProject(ctx, "tm_1", &ProjectUpdateRequest{}); return e },
+		"DeleteProject":      func() error { return client.DeleteProject(ctx, "tm_1") },
+		"ListCustomDomains":  func() error { _, e := client.ListCustomDomains(ctx, "tm_1"); return e },
+		"AddCustomDomain":    func() error { _, e := client.AddCustomDomain(ctx, "tm_1", "h"); return e },
+		"DeleteCustomDomain": func() error { return client.DeleteCustomDomain(ctx, "tm_1", "dom_1") },
+		"ListAPIKeys":        func() error { _, e := client.ListAPIKeys(ctx); return e },
+		"CreateAPIKey": func() error {
+			_, e := client.CreateAPIKey(ctx, &APIKeyCreateRequest{Label: "l", Type: "organization"})
+			return e
+		},
+		"UpdateAPIKey": func() error { _, e := client.UpdateAPIKey(ctx, "apk_1", &APIKeyUpdateRequest{}); return e },
+		"RollAPIKey":   func() error { _, e := client.RollAPIKey(ctx, "apk_1", 60); return e },
+		"DeleteAPIKey": func() error { return client.DeleteAPIKey(ctx, "apk_1") },
+	}
+
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			sawTeam, sawProject = "", ""
+			require.NoError(t, call())
+			assert.Empty(t, sawTeam, "%s must not send X-Team-ID: it is an account-level route", name)
+			assert.Empty(t, sawProject, "%s must not send X-Project-ID", name)
+		})
+	}
+}

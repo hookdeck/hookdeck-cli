@@ -13,6 +13,11 @@ import (
 //
 // Every organization route is /organizations/current — the API offers no way to
 // name another, so there is no organization argument anywhere here.
+//
+// All of these are account-level, so every call goes through
+// withoutProjectScope: ProjectID is sent as X-Team-ID / X-Project-ID, and these
+// routes reject a project-scoped request with a bare 401 that reads as a bad
+// credential rather than a wrong scope.
 
 // Organization is the organization the current credential belongs to.
 type Organization struct {
@@ -59,7 +64,7 @@ type CustomDomain struct {
 
 // GetOrganization returns the organization the credential belongs to.
 func (c *Client) GetOrganization(ctx context.Context) (*Organization, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/organizations/current", "", nil)
+	resp, err := c.withoutProjectScope().Get(ctx, APIPathPrefix+"/organizations/current", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +81,7 @@ func (c *Client) UpdateOrganization(ctx context.Context, req *OrganizationUpdate
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal organization request: %w", err)
 	}
-	resp, err := c.Put(ctx, APIPathPrefix+"/organizations/current", data, nil)
+	resp, err := c.withoutProjectScope().Put(ctx, APIPathPrefix+"/organizations/current", data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +98,7 @@ func (c *Client) GetProject(ctx context.Context, id string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.Get(ctx, path, "", nil)
+	resp, err := c.withoutProjectScope().Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +115,7 @@ func (c *Client) CreateProject(ctx context.Context, req *ProjectCreateRequest) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal project request: %w", err)
 	}
-	resp, err := c.Post(ctx, APIPathPrefix+"/projects", data, nil)
+	resp, err := c.withoutProjectScope().Post(ctx, APIPathPrefix+"/projects", data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +136,7 @@ func (c *Client) UpdateProject(ctx context.Context, id string, req *ProjectUpdat
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal project request: %w", err)
 	}
-	resp, err := c.Put(ctx, path, data, nil)
+	resp, err := c.withoutProjectScope().Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -148,11 +153,11 @@ func (c *Client) DeleteProject(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	req, err := c.newRequest(ctx, "DELETE", path, nil)
+	req, err := c.withoutProjectScope().newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := c.PerformRequest(ctx, req)
+	resp, err := c.withoutProjectScope().PerformRequest(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -169,7 +174,7 @@ func (c *Client) ListCustomDomains(ctx context.Context, projectID string) ([]Cus
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.Get(ctx, path, "", nil)
+	resp, err := c.withoutProjectScope().Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +199,7 @@ func (c *Client) AddCustomDomain(ctx context.Context, projectID, hostname string
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal custom domain request: %w", err)
 	}
-	resp, err := c.Post(ctx, path, data, nil)
+	resp, err := c.withoutProjectScope().Post(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -215,11 +220,11 @@ func (c *Client) DeleteCustomDomain(ctx context.Context, projectID, domainID str
 	if err != nil {
 		return err
 	}
-	req, err := c.newRequest(ctx, "DELETE", path, nil)
+	req, err := c.withoutProjectScope().newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := c.PerformRequest(ctx, req)
+	resp, err := c.withoutProjectScope().PerformRequest(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -274,7 +279,7 @@ type APIKeyUpdateRequest struct {
 // ListAPIKeys returns the organization and project keys of the current
 // organization.
 func (c *Client) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/organizations/current/api-keys", "", nil)
+	resp, err := c.withoutProjectScope().Get(ctx, APIPathPrefix+"/organizations/current/api-keys", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +296,7 @@ func (c *Client) CreateAPIKey(ctx context.Context, req *APIKeyCreateRequest) (*A
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal API key request: %w", err)
 	}
-	resp, err := c.Post(ctx, APIPathPrefix+"/organizations/current/api-keys", data, nil)
+	resp, err := c.withoutProjectScope().Post(ctx, APIPathPrefix+"/organizations/current/api-keys", data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +317,7 @@ func (c *Client) UpdateAPIKey(ctx context.Context, id string, req *APIKeyUpdateR
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal API key request: %w", err)
 	}
-	resp, err := c.Put(ctx, path, data, nil)
+	resp, err := c.withoutProjectScope().Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +338,7 @@ func (c *Client) RollAPIKey(ctx context.Context, id string, delaySec int) (*APIK
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal roll request: %w", err)
 	}
-	resp, err := c.Post(ctx, path, data, nil)
+	resp, err := c.withoutProjectScope().Post(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -350,11 +355,11 @@ func (c *Client) DeleteAPIKey(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	req, err := c.newRequest(ctx, "DELETE", path, nil)
+	req, err := c.withoutProjectScope().newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := c.PerformRequest(ctx, req)
+	resp, err := c.withoutProjectScope().PerformRequest(ctx, req)
 	if err != nil {
 		return err
 	}
