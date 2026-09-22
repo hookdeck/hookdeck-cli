@@ -20,8 +20,9 @@ import (
 const organizationAuthHint = "This is most likely the wrong kind of credential rather than a bad one. " +
 	"The organization routes need an organization API key; a CLI session from `hookdeck login` " +
 	"can list projects and work inside one, but cannot read the organization. " +
-	"Create an organization API key in the Hookdeck dashboard, then use it with " +
-	"`hookdeck ci --api-key` or HOOKDECK_API_KEY."
+	"Create an organization API key in the Hookdeck dashboard, then start this server with " +
+	"`hookdeck --api-key <key> gateway mcp`. Note that `hookdeck ci --api-key` will not take " +
+	"one: that path wants a project key."
 
 // organizationFailureMessage renders an organization error, adding the hint
 // when the status says the credential was refused.

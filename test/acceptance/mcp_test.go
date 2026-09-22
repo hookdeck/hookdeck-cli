@@ -523,7 +523,7 @@ func TestMCPPlatformToolsAreReachable(t *testing.T) {
 			"(the organization routes need an organization API key; CLI sessions and " +
 			"project-scoped keys cannot reach them)")
 	}
-	cli := NewCLIRunnerWithKey(t, orgKey)
+	cli := NewCLIRunnerWithRootAPIKey(t, orgKey)
 
 	org := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_organization_read",
 		map[string]any{"action": "get"}, 20*time.Second)

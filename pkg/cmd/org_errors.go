@@ -24,9 +24,10 @@ func orgAuthError(err error) error {
 			"The organization commands need an organization API key; a CLI session from\n"+
 			"`hookdeck login` can list projects and work inside one, but cannot read the\n"+
 			"organization.\n\n"+
-			"Create an organization API key in the Hookdeck dashboard, then run\n"+
-			"  hookdeck ci --api-key <key>\n"+
-			"or set HOOKDECK_API_KEY.", err)
+			"Create an organization API key in the Hookdeck dashboard, then pass it with\n"+
+			"  hookdeck org --api-key <key> ...\n"+
+			"or set HOOKDECK_API_KEY. Note that `hookdeck ci --api-key` will not take one:\n"+
+			"that path wants a project key.", err)
 	}
 	return err
 }

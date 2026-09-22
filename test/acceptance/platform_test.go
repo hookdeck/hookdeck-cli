@@ -35,7 +35,7 @@ func accountRunner(t *testing.T) *CLIRunner {
 			"can list projects and work inside one but cannot read the organization, and the " +
 			"API answers a bare 401 that reads as a bad key rather than the wrong kind")
 	}
-	return NewCLIRunnerWithKey(t, orgKey)
+	return NewCLIRunnerWithRootAPIKey(t, orgKey)
 }
 
 func TestOrgGet(t *testing.T) {
