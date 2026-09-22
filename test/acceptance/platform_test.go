@@ -4,6 +4,7 @@ package acceptance
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -18,11 +19,26 @@ import (
 // organizations or API keys from a test suite is not worth the blast radius,
 // and the destructive commands are covered by their confirmation guard instead.
 
+// accountRunner returns a runner with an account-wide credential, or skips.
+//
+// The suite's default key comes from `hookdeck ci` and is project-scoped: it
+// cannot read the organization, list projects or list API keys. Those are
+// account-level routes, and the CLI says so rather than failing obscurely.
+func accountRunner(t *testing.T) *CLIRunner {
+	t.Helper()
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping: HOOKDECK_CLI_TESTING_CLI_KEY must be set — the org, project-listing " +
+			"and API key routes need an account-wide key, which project-scoped keys are not")
+	}
+	return NewCLIRunnerWithKey(t, cliKey)
+}
+
 func TestOrgGet(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
-	cli := NewCLIRunner(t)
+	cli := accountRunner(t)
 
 	stdout, stderr, err := cli.Run("org", "get")
 	require.NoError(t, err, "stderr: %s", stderr)
@@ -34,7 +50,7 @@ func TestOrgGetJSON(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
-	cli := NewCLIRunner(t)
+	cli := accountRunner(t)
 
 	stdout, stderr, err := cli.Run("org", "get", "--output", "json")
 	require.NoError(t, err, "stderr: %s", stderr)
@@ -50,7 +66,7 @@ func TestAPIKeyListNeverPrintsASecret(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
-	cli := NewCLIRunner(t)
+	cli := accountRunner(t)
 
 	stdout, stderr, err := cli.Run("org", "api-key", "list")
 	require.NoError(t, err, "stderr: %s", stderr)
@@ -129,7 +145,7 @@ func TestProjectGet(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
-	cli := NewCLIRunner(t)
+	cli := accountRunner(t)
 
 	list, _, err := cli.Run("project", "list", "--output", "json")
 	require.NoError(t, err)

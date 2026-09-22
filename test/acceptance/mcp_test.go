@@ -505,11 +505,22 @@ func TestMCPBulkRefusesAFilterTheOperationDoesNotDeclare(t *testing.T) {
 }
 
 // The platform tools reach the account API end to end.
+//
+// These need an account-wide credential. The suite's default key comes from
+// `hookdeck ci` and is project-scoped: it cannot read the organization and
+// cannot list projects, which the CLI reports clearly rather than failing
+// obscurely. Same requirement as the project list/use tests.
 func TestMCPPlatformToolsAreReachable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
 	}
-	cli := NewCLIRunner(t)
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping platform MCP test: HOOKDECK_CLI_TESTING_CLI_KEY must be set " +
+			"(the organization and project-listing routes need an account-wide key; " +
+			"project-scoped keys from hookdeck ci cannot reach them)")
+	}
+	cli := NewCLIRunnerWithKey(t, cliKey)
 
 	org := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_organization_read",
 		map[string]any{"action": "get"}, 20*time.Second)
