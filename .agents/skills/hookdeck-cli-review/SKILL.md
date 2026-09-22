@@ -157,10 +157,12 @@ A telemetry-tagged test added to a slice will not behave as intended.
 ## Credentials, and logs anyone can read
 
 This repository is public, so **every acceptance log is world-readable**.
-`.github/workflows/acceptance.yml` says so itself, which is why the test
-credentials have to belong to a test-only account rather than to a person: a key
-that reaches every org its owner belongs to must never be one a failing test can
-print.
+`.github/workflows/acceptance.yml` says so itself, next to
+`HOOKDECK_CLI_TESTING_CLI_KEY`: that key is account-wide, so it has to belong to
+the test-only account rather than to a person — a key that reaches every org its
+owner belongs to must never be one a failing test can print. The per-slice
+`HOOKDECK_CLI_TESTING_API_KEY*` secrets are project-scoped, but they go to the
+same public log.
 
 The question worth asking of a diff is therefore: **does this print or commit a
 credential?**
@@ -187,8 +189,9 @@ against real output, not against a fixture.
 
 ## Things that compile, pass, and are still broken
 
-Three surfaces in this repository have no test or CI job guarding them, so a
-green run means nothing about them.
+Two surfaces in this repository have no test or CI job guarding them, so a green
+run means nothing about them. A third is guarded — and the guard is what makes it
+dangerous.
 
 ### `REFERENCE.md` is generated
 
@@ -221,10 +224,22 @@ in the `X-Hookdeck-CLI-Telemetry` header. Its `json:"..."` tags —
 `command_path`, `invocation_id`, `command_flags`, `mcp_client` and the rest —
 are field names that Hookdeck's usage analytics query by name.
 
-Renaming a field compiles, passes unit tests, passes acceptance, and silently
-empties the dashboards built on the old name. Treat a change to those tags as a
-breaking change to a consumer outside this repository, and say so explicitly.
-Adding a field is safe; renaming or removing one is not.
+A rename does **not** pass silently. `pkg/hookdeck/telemetry_test.go` marshals
+the struct into a `map[string]interface{}` and asserts by literal key name —
+`TestTelemetryJSONSerialization` covers six of the eight tags,
+`TestTelemetryJSONWithGeneratedResource` covers `generated_resource`. Neither
+carries a build tag or a `testing.Short()` guard, so both run under the
+**required** `unit-test` check. The eighth, `command_flags`, is pinned only by
+the acceptance telemetry job (`test/acceptance/telemetry_test.go`), and
+`AssertTelemetryConsistent` separately pins `command_path` and `invocation_id`
+on the wire.
+
+The trap is the next move. The obvious way to get the build green again is to
+update the expected key in the test — which restores the signal while the
+dashboards built on the old name stay empty. **Treat a diff that edits both
+`telemetry.go` and its expected key names as a breaking change to a consumer
+outside this repository**, and say so explicitly. Adding a field is safe;
+renaming or removing one is not.
 
 ## Docs that move with the code
 
