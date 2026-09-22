@@ -650,21 +650,75 @@ paragraph first.
 
 `pkg/cmd/project.go` with `project_list.go` and `project_use.go`. No organization command group.
 
-### To settle before implementing
+### Decided
 
-- **Command naming.** `hookdeck organization` or `hookdeck org`? The API path is
-  `/organizations/current`; the CLI has no precedent either way.
-- **Where API keys live.** Under the organization group (`hookdeck organization api-keys ...`,
-  mirroring the API path) or as their own top-level group (`hookdeck api-key ...`, shorter and
-  more discoverable for the thing people actually reach for). The API scopes keys to an
-  organization, but a top-level group reads better and `--project` can scope it.
-- **Whether this ships in beta.2 at all.** beta.2 already carries the read/write split, the
-  platform MCP tools, and everything the merge added. Adding a CLI command family is a third
-  workstream. Splitting it into beta.3 would keep each reviewable; keeping it together means one
-  upgrade for users. Worth an explicit call rather than drifting into it.
-- **Destructive command confirmation.** `project delete` and `api-key delete` destroy access.
-  The CLI already has a confirmation path (`cannot confirm this action: no terminal is
-  attached`); these must use it.
+- **`hookdeck org`**, not `organization` — the long form reads badly at the depth these commands sit at.
+- **Ships in beta.2**, alongside the read/write split and the platform MCP tools.
+- **Destructive commands use the existing confirmation path**, the same one `outpost` commands use
+  ("cannot confirm this action: no terminal is attached"). `project delete` and `api-key delete`
+  both destroy access.
+
+### Command shape, settled against the spec
+
+Three facts from `test/openapi/openapi_2026-09-01.json` decide this:
+
+1. **There is no organization argument to pass.** Every key route is
+   `/organizations/current/api-keys` — "current" is the authenticated organization, and the API
+   offers no way to name another. A required org argument would have nothing to carry.
+2. **One endpoint serves both key kinds.** `type: organization | project` with `team_id` naming
+   the project; `GET` "lists the active organization and project API keys of the current
+   organization". Splitting the CLI by kind would split one endpoint across two command families.
+3. **`grants` is dual-purpose**: for an organization key it names the projects the key may reach;
+   for a project key it carries per-resource scope overrides. Same field, different meaning, keyed
+   off `type`.
+
+So a single family under `org`, with the project as a flag rather than a parent command:
+
+```
+hookdeck org get | update
+hookdeck org api-key list
+hookdeck org api-key create --label "CI pipeline" [--project <id|name>] [--scope ...]
+hookdeck org api-key update <id> [--scope ...]
+hookdeck org api-key roll <id> --delay 3600
+hookdeck org api-key delete <id>
+```
+
+Omitting `--project` creates an organization key; passing it creates a project key. `hookdeck
+project api-key ...` was considered and rejected: it cannot express an organization-scoped key,
+which is half the feature, so it would need a second family under `org` anyway and the listing
+would have to be duplicated or arbitrarily assigned to one of them.
+
+If `org api-key` proves undiscoverable for people who only ever want a project key, an alias under
+`project` is cheap to add later. Adding it now would mean two paths to one endpoint before anyone
+has asked.
+
+### Project type does not enter into it
+
+Checked directly, because it is the obvious thing to assume: **the `ApiKey` schema carries no
+project type and no type-dependent fields** — `id`, `label`, `key`, `team_id`, `organization_id`,
+`key_fingerprint`, `scopes`, `grants`, `expires_at`. Nothing varies with `event_gateway` vs
+`outpost`.
+
+### Scopes cannot be validated locally, and that is a real constraint
+
+**The document declares no scope enum.** `scopes` is a free-form `[]string`; the only values
+anywhere in the spec are three examples — `gateway.sources.read`, `gateway.events.read`,
+`gateway.events.write` — and `["*"]` is the documented default for full access.
+
+The `<product>.<resource>.<verb>` shape implies an `outpost.*` namespace, but the spec never names
+one. So `--scope` cannot offer completion or client-side validation without a list the API does
+not publish. Options, none free: hardcode a list (drifts silently, the failure this repo keeps
+finding), pass through and let the API's 4xx be the validator (honest, worse UX), or ask for a
+scopes endpoint. **Recommended: pass through**, and say plainly in `--help` that the API is the
+authority on what a scope may be. Revisit if a scopes endpoint appears.
+
+### Secret handling
+
+`POST` returns `key`, the bearer secret, and `roll` returns a replacement. `key_fingerprint` is
+the non-secret identifier for everything else. The CLI must print the secret once, never log it,
+and never echo it in an error. AGENTS.md already carries the rule — the config file is
+single-quoted TOML and a redaction pattern matching only double quotes prints the key verbatim.
+`list` returns `key` too, so the list renderer must show the fingerprint, not the secret.
 
 ## Out of scope
 
