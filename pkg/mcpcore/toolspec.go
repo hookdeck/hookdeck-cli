@@ -195,10 +195,30 @@ type ToolSpec struct {
 	Required []string
 	Handler  func(*Server) mcpsdk.ToolHandler
 
+	// Platform names this tool with the platform prefix (hookdeck_) rather than
+	// the product one. Logging in, switching project and managing organizations
+	// are Hookdeck operations, not Gateway or Outpost ones, so both servers
+	// expose them under the same name — which is correct, and what a client
+	// with both configured needs to see.
+	Platform bool
+
 	// Notes is hand-written guidance appended to the generated help topic:
 	// worked examples, filter-syntax mappings, anything that cannot be derived
 	// from the actions and props. Optional.
 	Notes string
+}
+
+// ToolName is this resource's base tool name, before the group suffix.
+func (spec ToolSpec) ToolName(srv *Server) string {
+	if spec.Platform {
+		return srv.platformToolName(spec.Resource)
+	}
+	return srv.ToolName(spec.Resource)
+}
+
+// GroupToolName is the full name of one group's tool.
+func (spec ToolSpec) GroupToolName(srv *Server, group string) string {
+	return spec.ToolName(srv) + "_" + group
 }
 
 // VisibleProps returns the properties a tool advertises in this mode.
@@ -252,7 +272,7 @@ func (spec ToolSpec) writeActionNames() []string {
 // the current mode.
 func (spec ToolSpec) Help(srv *Server, group string, available ActionSet) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n\n%s\n\nActions:\n", srv.ToolName(spec.Resource)+"_"+group, spec.Summary)
+	fmt.Fprintf(&b, "%s\n\n%s\n\nActions:\n", spec.GroupToolName(srv, group), spec.Summary)
 
 	width := 0
 	for _, a := range available {
@@ -266,7 +286,7 @@ func (spec ToolSpec) Help(srv *Server, group string, available ActionSet) string
 
 	if group != GroupWrite && spec.Actions.HasWrite() {
 		fmt.Fprintf(&b, "\nActions that create, change or delete live on %s, which this server registers only when started with --allow-write. See %s.\n",
-			srv.ToolName(spec.Resource)+"_"+GroupWrite, srv.HelpToolName())
+			spec.GroupToolName(srv, GroupWrite), srv.HelpToolName())
 	}
 
 	visible := spec.VisibleProps(group)
@@ -356,7 +376,7 @@ func (spec ToolSpec) defineGroup(srv *Server, group string) (ToolDef, bool) {
 		Enum: actions.Names(),
 	}
 
-	name := srv.ToolName(spec.Resource) + "_" + group
+	name := spec.GroupToolName(srv, group)
 	description := spec.Summary + " Actions: " + actions.Summary() + "."
 	if group != GroupWrite && spec.Actions.HasWrite() {
 		// Deliberately not conditioned on the mode. A read tool has to read
@@ -370,7 +390,7 @@ func (spec ToolSpec) defineGroup(srv *Server, group string) (ToolDef, bool) {
 		// available right now.
 		description += fmt.Sprintf(
 			" Actions that create, change or delete live on %s, which this server registers only when started with --allow-write; see %s.",
-			srv.ToolName(spec.Resource)+"_"+GroupWrite, srv.HelpToolName(),
+			spec.GroupToolName(srv, GroupWrite), srv.HelpToolName(),
 		)
 	}
 
@@ -531,7 +551,7 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, group string, visible map[str
 		// defers to it: "restart with --allow-write" is what the caller needs,
 		// not the name of a tool that is not registered.
 		if requestedHidden {
-			sibling := srv.ToolName(spec.Resource) + "_" + requestedAction.Group()
+			sibling := spec.GroupToolName(srv, requestedAction.Group())
 			if !(requestedAction.Write && !srv.WriteEnabled()) {
 				return ErrorResult(fmt.Sprintf(
 					"action %q is not available on this tool; it belongs to %s. "+
