@@ -23,7 +23,7 @@ var configSpec = mcpcore.ToolSpec{
 	Summary:  "Read and change this project's Outpost configuration. These settings apply to the whole project — every tenant and every destination — so a change here affects all delivery, and takes a short while to reach the deployment (check outpost_status_read). Some keys are managed for you and are rejected if set directly.",
 	Actions:  configActions,
 	Props: map[string]mcpcore.Prop{
-		"key":      {Type: "string", Desc: "A single configuration key to read (get). Omit to read everything that is set."},
+		"key":      {Type: "string", Desc: "A single configuration key to read (get). Omit to read everything that is set.", Actions: []string{"get"}},
 		"values":   {Type: "object", Desc: `Configuration values to set, as {"KEY": "value"} (set). Only the keys given are changed.`, Write: true},
 		"unset":    {Type: "array", Desc: "Configuration keys to return to their default (set).", Items: &mcpcore.Prop{Type: "string"}, Write: true},
 		"hostname": {Type: "string", Desc: "Hostname to serve the tenant portal from (required for custom_domain_set).", Write: true},

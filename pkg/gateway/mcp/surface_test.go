@@ -207,3 +207,31 @@ func TestAgentFacingTextNamesOnlyRealTools(t *testing.T) {
 		check(t, "gateway_help topic="+name, topic)
 	}
 }
+
+// A write tool must not advertise parameters only its read sibling can use.
+//
+// limit, next and prev are declared Actions: ["list"], and list lives on the
+// _read tool — but prop scoping honoured Only and Write while ignoring Actions,
+// so every _write tool advertised the pagination arguments too. Dead
+// parameters an agent can be led into passing.
+func TestWriteToolsDoNotAdvertiseReadOnlyParameters(t *testing.T) {
+	tools := listTools(t, connectInMemoryWithMode(t, &hookdeck.Client{APIKey: "k"}, true))
+
+	readOnly := []string{"limit", "next", "prev"}
+	for name, tool := range tools {
+		if !strings.HasSuffix(name, "_"+mcpcore.GroupWrite) {
+			continue
+		}
+		raw, err := json.Marshal(tool.InputSchema)
+		require.NoError(t, err)
+		var schema struct {
+			Properties map[string]any `json:"properties"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &schema))
+
+		for _, prop := range readOnly {
+			assert.NotContains(t, schema.Properties, prop,
+				"%s advertises %q, which only the list action uses and list is not on this tool", name, prop)
+		}
+	}
+}

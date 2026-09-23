@@ -837,15 +837,31 @@ func TestReadOnlyPropSurface(t *testing.T) {
 	}
 }
 
-// Write-only properties must reappear once write mode is on, or the tools that
-// need them cannot be called.
-func TestWriteModeRestoresTheHiddenProps(t *testing.T) {
+// Every declared property must be advertised by at least one of the tools the
+// spec splits into, or it is unreachable: a handler reads it and no caller can
+// ever be told to send it.
+//
+// This used to assert that the write group advertised every property and never
+// had fewer than the read group. That held when a single tool hid its write
+// properties until --allow-write, but the split made read and write separate
+// tools with different jobs, and property scoping now honours Actions as well.
+// gateway_destinations_write legitimately drops limit, next and prev: list
+// lives on its read sibling. Comparing the two counts stopped meaning anything;
+// what still matters is that nothing falls through the gap between them.
+func TestEveryPropertyIsAdvertisedBySomeTool(t *testing.T) {
 	for _, spec := range resourceSpecs() {
-		readOnly := len(spec.VisibleProps(mcpcore.GroupRead))
-		writeMode := len(spec.VisibleProps(mcpcore.GroupWrite))
-		assert.GreaterOrEqual(t, writeMode, readOnly,
-			"%s must not lose properties in write mode", spec.Resource)
-		assert.Equal(t, len(spec.Props), writeMode,
-			"%s must advertise every property in write mode", spec.Resource)
+		t.Run(spec.Resource, func(t *testing.T) {
+			advertised := map[string]bool{}
+			for _, group := range spec.Actions.Groups() {
+				for name := range spec.VisibleProps(group) {
+					advertised[name] = true
+				}
+			}
+			for name := range spec.Props {
+				assert.True(t, advertised[name],
+					"%s declares %q but no tool advertises it, so nothing can send it",
+					spec.Resource, name)
+			}
+		})
 	}
 }

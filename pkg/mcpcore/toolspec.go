@@ -228,9 +228,25 @@ func (spec ToolSpec) GroupToolName(srv *Server, group string) string {
 // where it looks, and the help topic is the more persuasive of the two. Both
 // call this rather than reading Props directly.
 func (spec ToolSpec) VisibleProps(group string) map[string]Prop {
+	// Which actions this group actually offers. A property scoped to actions
+	// none of them include has nothing to act on here.
+	inGroup := map[string]bool{}
+	for _, a := range spec.Actions.InGroup(group) {
+		inGroup[a.Name] = true
+	}
+
 	props := make(map[string]Prop, len(spec.Props))
 	for name, prop := range spec.Props {
 		if !prop.visibleIn(group) {
+			continue
+		}
+		// Honour Actions as well as Only and Write. Without this a property
+		// declared Actions: ["list"] was still advertised on the _write tool,
+		// which has no list: gateway_destinations_write offered limit, next
+		// and prev, and outpost_config_write offered a key described as "a
+		// single configuration key to read (get)" on a tool with no get.
+		// Dead parameters an agent can be led into passing.
+		if len(prop.Actions) > 0 && !prop.usableBy(inGroup) {
 			continue
 		}
 		props[name] = prop
@@ -239,6 +255,17 @@ func (spec ToolSpec) VisibleProps(group string) map[string]Prop {
 }
 
 // visibleIn reports whether a property belongs on the tool for this group.
+// usableBy reports whether any action this property is scoped to is offered by
+// the group being built.
+func (p Prop) usableBy(groupActions map[string]bool) bool {
+	for _, a := range p.Actions {
+		if groupActions[a] {
+			return true
+		}
+	}
+	return false
+}
+
 func (p Prop) visibleIn(group string) bool {
 	if len(p.Only) > 0 {
 		for _, g := range p.Only {

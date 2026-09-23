@@ -55,11 +55,11 @@ var eventsSpec = mcpcore.ToolSpec{
 		"parsed_query":        {Type: "string", JSONValue: true, Desc: "Filter by parsed query as JSON. " + descJSONFilter},
 		"path":                {Type: "string", Desc: descPathFilter},
 		"search_term":         {Type: "string", Desc: descSearchTerm},
-		"limit":               {Type: "integer", Desc: "Max results"},
+		"limit":               {Type: "integer", Desc: "Max results", Actions: []string{"list", "list_ignored"}},
 		"order_by":            {Type: "string", Desc: "Sort field"},
 		"dir":                 {Type: "string", Desc: "Sort direction: asc or desc"},
-		"next":                {Type: "string", Desc: "Next page cursor"},
-		"prev":                {Type: "string", Desc: "Previous page cursor"},
+		"next":                {Type: "string", Desc: "Next page cursor", Actions: []string{"list", "list_ignored"}},
+		"prev":                {Type: "string", Desc: "Previous page cursor", Actions: []string{"list", "list_ignored"}},
 	},
 	Notes: `Plural vs singular — which of the two event tools to use:
   ` + eventsToolName + ` (this tool, plural) — you have filters and want to find matching events.

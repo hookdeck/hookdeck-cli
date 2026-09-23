@@ -26,10 +26,10 @@ var tenantsSpec = mcpcore.ToolSpec{
 		"id":       {Type: "string", Desc: "Tenant ID. Required for get/upsert/delete/token/portal. On list, filters by tenant ID(s). " + descListValue},
 		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata wholesale — pass every key you want to keep, and note that omitting this argument clears any metadata the tenant already had.", Write: true},
 		"theme":    {Type: "string", Desc: "Portal colour scheme: light or dark (portal).", Write: true},
-		"limit":    {Type: "integer", Desc: "Max results (list)"},
+		"limit":    {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
 		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)"},
-		"next":     {Type: "string", Desc: "Next page cursor (list)"},
-		"prev":     {Type: "string", Desc: "Previous page cursor (list)"},
+		"next":     {Type: "string", Desc: "Next page cursor (list)", Actions: []string{"list"}},
+		"prev":     {Type: "string", Desc: "Previous page cursor (list)", Actions: []string{"list"}},
 	},
 	Handler: handleTenants,
 }

@@ -48,9 +48,9 @@ var requestsSpec = mcpcore.ToolSpec{
 		"cli_events_count": {Type: "string", Desc: "Filter by count of events delivered to a CLI listen session. " + descCountFilter},
 		"order_by":         {Type: "string", Desc: "Sort field, e.g. created_at"},
 		"dir":              {Type: "string", Desc: "Sort direction: asc or desc"},
-		"limit":            {Type: "integer", Desc: "Max results"},
-		"next":             {Type: "string", Desc: "Next page cursor"},
-		"prev":             {Type: "string", Desc: "Previous page cursor"},
+		"limit":            {Type: "integer", Desc: "Max results", Actions: []string{"list"}},
+		"next":             {Type: "string", Desc: "Next page cursor", Actions: []string{"list"}},
+		"prev":             {Type: "string", Desc: "Previous page cursor", Actions: []string{"list"}},
 	},
 	Notes: `Plural vs singular — which of the two request tools to use:
   ` + requestsToolName + ` (this tool, plural) — you have filters and want to find matching requests.

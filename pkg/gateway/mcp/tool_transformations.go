@@ -46,9 +46,9 @@ var transformationsSpec = mcpcore.ToolSpec{
 		"env":           {Type: "object", Desc: "Environment variables as a JSON object of string values (create/upsert/update/run)"},
 		"connection_id": {Type: "string", Desc: "Connection to run against (run, maps to webhook_id)"},
 		"request":       {Type: "object", Desc: "Sample request for run: { headers, body, path, query, parsed_query }. headers is required by the API and may be an empty object."},
-		"limit":         {Type: "integer", Desc: "Max results (list)"},
-		"next":          {Type: "string", Desc: "Next page cursor"},
-		"prev":          {Type: "string", Desc: "Previous page cursor"},
+		"limit":         {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
+		"next":          {Type: "string", Desc: "Next page cursor", Actions: []string{"list"}},
+		"prev":          {Type: "string", Desc: "Previous page cursor", Actions: []string{"list"}},
 	},
 	Handler: handleTransformations,
 }
