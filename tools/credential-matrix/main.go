@@ -58,6 +58,8 @@ func main() {
 		"do not create a temporary project API key, even when an organization key is available")
 	flag.Parse()
 
+	loadDotEnv()
+
 	creds := loadCredentials()
 
 	// An organization key can mint a project key — "Organization API keys can
@@ -200,6 +202,40 @@ func firstProjectID(baseURL string, org credential) (string, error) {
 		return "", fmt.Errorf("the organization has no projects to scope a key to")
 	}
 	return projects[0].ID, nil
+}
+
+// dotEnvPaths are searched in order; the first that exists is loaded.
+//
+// test/acceptance/.env comes first because the other Hookdeck credentials
+// already live there and it is gitignored, so there is one place to put a key
+// rather than two. Values already in the environment win, so an export still
+// overrides the file.
+var dotEnvPaths = []string{"test/acceptance/.env", ".env"}
+
+func loadDotEnv() {
+	for _, path := range dotEnvPaths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(raw), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			key, value, ok := strings.Cut(line, "=")
+			if !ok {
+				continue
+			}
+			key = strings.TrimSpace(strings.TrimPrefix(key, "export "))
+			value = strings.Trim(strings.TrimSpace(value), `"'`)
+			if _, already := os.LookupEnv(key); !already {
+				_ = os.Setenv(key, value)
+			}
+		}
+		fmt.Printf("Loaded credentials from %s\n", path)
+		return
+	}
 }
 
 func credentialSpecs() []credential {
