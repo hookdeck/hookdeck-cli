@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -144,4 +145,30 @@ func captureStdout(t *testing.T, fn func()) string {
 	fn()
 	require.NoError(t, w.Close())
 	return <-done
+}
+
+// The org auth hint has to survive Execute's error handling.
+//
+// Execute rewrites any 401 into "your API key is invalid or expired" unless the
+// error says it carries its own guidance. The first version of orgAuthError
+// returned a plain wrapped error, so the hint was built and then thrown away —
+// what a user actually saw was the generic message, which is the opposite of
+// what the hint exists to prevent.
+func TestOrgAuthErrorIsActionable(t *testing.T) {
+	wrapped := orgAuthError(&hookdeck.APIError{StatusCode: 401, Message: "Unauthorized"})
+
+	var actionable *actionableError
+	require.True(t, errors.As(wrapped, &actionable),
+		"the hint must be marked actionable, or Execute replaces it with the generic 401 text")
+
+	assert.Contains(t, wrapped.Error(), "organization API key")
+	assert.Contains(t, wrapped.Error(), "--api-key")
+
+	// Still recognisably a 401 underneath, so nothing else stops matching it.
+	assert.True(t, hookdeck.IsUnauthorizedError(wrapped))
+
+	// A non-auth failure is passed through untouched: the hint would be wrong.
+	plain := orgAuthError(&hookdeck.APIError{StatusCode: 500, Message: "boom"})
+	assert.False(t, errors.As(plain, &actionable))
+	assert.NotContains(t, plain.Error(), "organization API key")
 }

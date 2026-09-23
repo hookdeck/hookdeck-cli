@@ -19,7 +19,12 @@ func orgAuthError(err error) error {
 	var apiErr *hookdeck.APIError
 	if errors.As(err, &apiErr) &&
 		(apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
-		return fmt.Errorf("%w\n\n"+
+		// newActionableError, not a bare wrap: Execute rewrites any 401 into
+		// the generic "your API key is invalid or expired" unless the error
+		// says it carries its own guidance. Without this the hint below is
+		// built and then thrown away, which is what happened when it was first
+		// added — the message a user saw was the generic one.
+		return newActionableError(fmt.Errorf("%w\n\n"+
 			"This is most likely the wrong kind of credential rather than a bad one.\n"+
 			"The organization commands need an organization API key; a CLI session from\n"+
 			"`hookdeck login` can list projects and work inside one, but cannot read the\n"+
@@ -27,7 +32,7 @@ func orgAuthError(err error) error {
 			"Create an organization API key in the Hookdeck dashboard, then pass it with\n"+
 			"  hookdeck org --api-key <key> ...\n"+
 			"or set HOOKDECK_API_KEY. Note that `hookdeck ci --api-key` will not take one:\n"+
-			"that path wants a project key.", err)
+			"that path wants a project key.", err))
 	}
 	return err
 }
