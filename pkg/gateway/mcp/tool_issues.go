@@ -21,7 +21,9 @@ var issuesSpec = mcpcore.ToolSpec{
 	Summary:  "Inspect and triage Hookdeck issues — aggregated failure signals such as repeated delivery failures, transformation errors, and backpressure alerts. Use this to identify systemic problems across your event pipeline. Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions:  issuesActions,
 	Props: map[string]mcpcore.Prop{
-		"id":               {Type: "string", Desc: "Issue ID. Required for get/update/dismiss.", Actions: []string{"get", "update", "dismiss"}},
+		"id": {Type: "string", Desc: "Issue ID.", Actions: []string{"get", "update", "dismiss"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "update", "dismiss"}, Text: "Required for %s."},
+		}},
 		"status":           {Type: "string", Desc: "New status for update: OPENED, IGNORED, ACKNOWLEDGED or RESOLVED", Enum: []string{"OPENED", "IGNORED", "ACKNOWLEDGED", "RESOLVED"}, Write: true, Actions: []string{"update"}},
 		"type":             {Type: "string", Desc: "Filter: delivery, transformation, or backpressure (list)", Actions: []string{"list"}},
 		"filter_status":    {Type: "string", Desc: "Filter by status (list)", Actions: []string{"list"}},

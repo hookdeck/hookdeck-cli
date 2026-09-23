@@ -25,7 +25,10 @@ var tenantsSpec = mcpcore.ToolSpec{
 	Props: map[string]mcpcore.Prop{
 		// Deliberately unscoped: every action reads it — list as a filter, the
 		// rest to address one tenant.
-		"id":       {Type: "string", Desc: "Tenant ID. Required for get/upsert/delete/token/portal. On list, filters by tenant ID(s). " + descListValue},
+		"id": {Type: "string", Desc: "Tenant ID.", ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "upsert", "delete", "token", "portal"}, Text: "Required for %s."},
+			{On: []string{"list"}, Text: "On list, filters by tenant ID(s). " + descListValue},
+		}},
 		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata wholesale — pass every key you want to keep, and note that omitting this argument clears any metadata the tenant already had.", Write: true, Actions: []string{"upsert"}},
 		// The enum is what makes the description enforceable. Without it MCP
 		// minted a portal URL for theme "purple" while

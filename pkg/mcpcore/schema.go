@@ -1,6 +1,10 @@
 package mcpcore
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 // Prop describes a single JSON Schema property.
 //
@@ -51,6 +55,76 @@ type Prop struct {
 	// the schema was told something the tool did not mean, and a strict client
 	// would have rejected the documented usage.
 	JSONValue bool `json:"-"`
+
+	// ActionNotes are clauses appended to Desc, each rendered only on the tools
+	// that carry at least one of the actions it names.
+	//
+	// A property shared by a resource's read and write tools had one
+	// description, written when the resource was one tool, and it went on
+	// naming every action after the split. outpost_tenants_write said its id
+	// "On list, filters by tenant ID(s)" and gateway_connections_write said its
+	// destination_id "Filters on list" — on tools with no list action;
+	// outpost_events_read said its id was "Required for get/retry" with no
+	// retry to be found. Prose describing a call the tool will refuse.
+	//
+	// Per-tool wording rather than deletion, because the clauses are true on
+	// the sibling. Writing it as notes rather than as a description per group
+	// keeps it derived: a note cannot name an action the tool does not have,
+	// and an action moved between groups takes its clause with it.
+	ActionNotes []ActionNote `json:"-"`
+}
+
+// ActionNote is one clause of a property description, scoped to the actions it
+// is about. See Prop.ActionNotes.
+type ActionNote struct {
+	// On names the actions the clause describes.
+	On []string
+
+	// Text is the clause. A %s in it is filled with the actions from On that
+	// the tool being rendered actually offers, joined with "/", so
+	// "Required for %s." reads "Required for get." on the read tool and
+	// "Required for upsert/delete/token/portal." on the write one.
+	Text string
+}
+
+// namesIn returns the note's actions that this action set offers, in the order
+// the note lists them.
+func (n ActionNote) namesIn(actions ActionSet) []string {
+	var names []string
+	for _, name := range n.On {
+		if _, ok := actions.Find(name); ok {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// renderFor resolves a property's ActionNotes against the actions one tool
+// offers, leaving a plain description behind.
+func (p Prop) renderFor(actions ActionSet) Prop {
+	if len(p.ActionNotes) == 0 {
+		return p
+	}
+	parts := make([]string, 0, len(p.ActionNotes)+1)
+	if desc := strings.TrimSpace(p.Desc); desc != "" {
+		parts = append(parts, desc)
+	}
+	for _, note := range p.ActionNotes {
+		names := note.namesIn(actions)
+		if len(names) == 0 {
+			continue
+		}
+		text := note.Text
+		if strings.Contains(text, "%s") {
+			text = fmt.Sprintf(text, strings.Join(names, "/"))
+		}
+		if text = strings.TrimSpace(text); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	p.Desc = strings.Join(parts, " ")
+	p.ActionNotes = nil
+	return p
 }
 
 // MarshalJSON emits the property as JSON Schema.

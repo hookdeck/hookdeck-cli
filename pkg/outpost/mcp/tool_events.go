@@ -23,17 +23,23 @@ var eventsSpec = mcpcore.ToolSpec{
 	Props: map[string]mcpcore.Prop{
 		// Deliberately unscoped: list filters on it, get and retry address one
 		// event by it.
-		"id":             {Type: "string", Desc: "Event ID. Required for get/retry. On list, filters by event ID(s). " + descListValue},
-		"tenant_id":      {Type: "string", Desc: "Tenant ID. Filters on list; optional on get. " + descListValue, Actions: []string{"list", "get"}},
-		"destination_id": {Type: "string", Desc: "Destination to deliver to (required for retry). On list, filters by matched destination(s). " + descListValue, Actions: []string{"list", "retry"}},
-		"topic":          {Type: "string", Desc: "Filter by topic(s) (list). " + descListValue, Actions: []string{"list"}},
-		"time_after":     {Type: "string", Desc: descTimeAfter + " (list)", Actions: []string{"list"}},
-		"time_before":    {Type: "string", Desc: descTimeBefore + " (list)", Actions: []string{"list"}},
-		"limit":          {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
-		"order_by":       {Type: "string", Desc: "Sort field: time (list)", Actions: []string{"list"}},
-		"dir":            {Type: "string", Desc: "Sort direction: asc or desc (list)", Actions: []string{"list"}},
-		"next":           {Type: "string", Desc: "Next page cursor (list)", Actions: []string{"list"}},
-		"prev":           {Type: "string", Desc: "Previous page cursor (list)", Actions: []string{"list"}},
+		"id": {Type: "string", Desc: "Event ID.", ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "retry"}, Text: "Required for %s."},
+			{On: []string{"list"}, Text: "On list, filters by event ID(s). " + descListValue},
+		}},
+		"tenant_id": {Type: "string", Desc: "Tenant ID. Filters on list; optional on get. " + descListValue, Actions: []string{"list", "get"}},
+		"destination_id": {Type: "string", Desc: "Destination ID.", Actions: []string{"list", "retry"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"retry"}, Text: "Required for %s — the destination to deliver to."},
+			{On: []string{"list"}, Text: "On list, filters by matched destination(s). " + descListValue},
+		}},
+		"topic":       {Type: "string", Desc: "Filter by topic(s) (list). " + descListValue, Actions: []string{"list"}},
+		"time_after":  {Type: "string", Desc: descTimeAfter + " (list)", Actions: []string{"list"}},
+		"time_before": {Type: "string", Desc: descTimeBefore + " (list)", Actions: []string{"list"}},
+		"limit":       {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
+		"order_by":    {Type: "string", Desc: "Sort field: time (list)", Actions: []string{"list"}},
+		"dir":         {Type: "string", Desc: "Sort direction: asc or desc (list)", Actions: []string{"list"}},
+		"next":        {Type: "string", Desc: "Next page cursor (list)", Actions: []string{"list"}},
+		"prev":        {Type: "string", Desc: "Previous page cursor (list)", Actions: []string{"list"}},
 	},
 	Handler: handleEvents,
 }

@@ -43,7 +43,9 @@ var bulkSpec = mcpcore.ToolSpec{
 		"operation": {Type: "string", Desc: "Which bulk operation: " + strings.Join(hookdeck.BulkFamilies(), ", ") +
 			". Each accepts a different filter set — see the query description.",
 			Enum: hookdeck.BulkFamilies()},
-		"id": {Type: "string", Desc: "Bulk job ID (get, cancel).", Actions: []string{"get", "cancel"}},
+		"id": {Type: "string", Desc: "Bulk job ID.", Actions: []string{"get", "cancel"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "cancel"}, Text: "Required for %s."},
+		}},
 		"query": {Type: "string", JSONValue: true, Actions: []string{"plan", "create"},
 			Desc: "Filters selecting what to act on, as a JSON object. " +
 				"THE FILTERS DIFFER PER OPERATION: the event operations take the full event filter set (status, connection_id, source_id, created_at, body, …); " +

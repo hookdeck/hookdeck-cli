@@ -252,7 +252,9 @@ func (spec ToolSpec) VisibleProps(group string) map[string]Prop {
 		if len(prop.Actions) > 0 && !prop.usableBy(inGroup) {
 			continue
 		}
-		props[name] = prop
+		// Resolve here rather than in Define, so the help topic and the schema
+		// get the same sentence — the invariant this function exists for.
+		props[name] = prop.renderFor(spec.Actions.InGroup(group))
 	}
 	return props
 }

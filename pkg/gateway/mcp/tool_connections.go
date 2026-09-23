@@ -52,19 +52,30 @@ var connectionsSpec = mcpcore.ToolSpec{
 		// Every action that addresses one existing connection reads this through
 		// connectionRef. list filters on name rather than id, and create and
 		// upsert key on name, so neither reads it.
-		"id": {Type: "string", Desc: "Connection ID or name. Required for get, pause, unpause, update, delete, enable and disable.", Actions: []string{"get", "pause", "unpause", "update", "delete", "enable", "disable"}},
+		"id": {Type: "string", Desc: "Connection ID or name.", Actions: []string{"get", "pause", "unpause", "update", "delete", "enable", "disable"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "pause", "unpause", "update", "delete", "enable", "disable"}, Text: "Required for %s."},
+		}},
 		// Read by every action: list filters on it, create/upsert/update set it,
 		// and connectionRef accepts it in place of id everywhere else. Left
 		// unscoped because scoping it to all of them says the same thing.
-		"name":           {Type: "string", Desc: "Connection name. Filters on list; names the connection on create/upsert/update; accepted in place of id on the actions that address one connection."},
-		"description":    {Type: "string", Desc: "Connection description (create/upsert/update)", Write: true, Actions: []string{"create", "upsert", "update"}},
-		"source_id":      {Type: "string", Desc: "Source ID. Filters on list; links the source on create/upsert/update.", Actions: []string{"list", "create", "upsert", "update"}},
-		"destination_id": {Type: "string", Desc: "Destination ID. Filters on list; links the destination on create/upsert/update.", Actions: []string{"list", "create", "upsert", "update"}},
-		"rules":          {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset.", Items: &mcpcore.Prop{Type: "object"}, Write: true, Actions: []string{"create", "upsert", "update"}},
-		"disabled":       {Type: "boolean", Desc: "Filter disabled connections (list)", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
-		"limit":          {Type: "integer", Desc: "Max results (list)", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
-		"next":           {Type: "string", Desc: "Next page cursor", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
-		"prev":           {Type: "string", Desc: "Previous page cursor", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
+		"name": {Type: "string", Desc: "Connection name; accepted in place of id on the actions that address one connection.", ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"list"}, Text: "Filters on %s."},
+			{On: []string{"create", "upsert", "update"}, Text: "Names the connection on %s."},
+		}},
+		"description": {Type: "string", Desc: "Connection description (create/upsert/update)", Write: true, Actions: []string{"create", "upsert", "update"}},
+		"source_id": {Type: "string", Desc: "Source ID.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"list"}, Text: "Filters on %s."},
+			{On: []string{"create", "upsert", "update"}, Text: "Links the source on %s."},
+		}},
+		"destination_id": {Type: "string", Desc: "Destination ID.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"list"}, Text: "Filters on %s."},
+			{On: []string{"create", "upsert", "update"}, Text: "Links the destination on %s."},
+		}},
+		"rules":    {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset.", Items: &mcpcore.Prop{Type: "object"}, Write: true, Actions: []string{"create", "upsert", "update"}},
+		"disabled": {Type: "boolean", Desc: "Filter disabled connections (list)", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
+		"limit":    {Type: "integer", Desc: "Max results (list)", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
+		"next":     {Type: "string", Desc: "Next page cursor", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
+		"prev":     {Type: "string", Desc: "Previous page cursor", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
 	},
 	Handler: handleConnections,
 }

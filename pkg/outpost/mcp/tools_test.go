@@ -689,9 +689,14 @@ func TestHelpTopic(t *testing.T) {
 		assert.Contains(t, text, "--allow-write")
 	})
 
+	// It asked for the _read topic and passed on the strength of that tool's id
+	// description, which named "get/upsert/delete/token/portal" on a tool with
+	// none of the last four. The assertions were about the write tool, so they
+	// now read the write topic; the read topic proving the write actions was
+	// the defect, not the test.
 	t.Run("write topics document the write actions", func(t *testing.T) {
 		session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
-		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": "outpost_tenants_read"}))
+		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": "outpost_tenants_write"}))
 		assert.Contains(t, text, "delete")
 		assert.Contains(t, text, "token")
 	})

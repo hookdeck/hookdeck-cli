@@ -30,7 +30,11 @@ var eventSpec = mcpcore.ToolSpec{
 	Actions:  eventActions,
 	Required: []string{"id"},
 	Props: map[string]mcpcore.Prop{
-		"id": {Type: "string", Desc: "Event ID (required, one event). Get one from " + eventsToolName + " list, or from a request's events action on " + requestToolName + "."},
+		// It used to point at "a request's events action on gateway_request_read",
+		// an action that tool has never had. The route from a request to its
+		// events is the request_id filter on the events tool, which is where
+		// this now sends the reader.
+		"id": {Type: "string", Desc: "Event ID (required, one event). Get one from " + eventsToolName + " list — pass request_id there to list the events one request produced."},
 	},
 	Notes: `Plural vs singular — which of the two event tools to use:
   ` + eventToolName + `  (this tool, singular) — you already have an event ID and want to read or act on it.

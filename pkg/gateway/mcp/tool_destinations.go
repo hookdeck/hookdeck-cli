@@ -25,8 +25,14 @@ var destinationsSpec = mcpcore.ToolSpec{
 	Summary:  "Inspect and manage delivery destinations where events are sent. Destination types include HTTP endpoints, CLI (local development), and MOCK_API (testing). Configuration covers the URL, authentication, and rate limiting.",
 	Actions:  destinationsActions,
 	Props: map[string]mcpcore.Prop{
-		"id":          {Type: "string", Desc: "Destination ID. Required for get/update/delete/enable/disable.", Actions: []string{"get", "update", "delete", "enable", "disable"}},
-		"name":        {Type: "string", Desc: "Destination name. Filters on list; required on create/upsert; renames on update.", Actions: []string{"list", "create", "upsert", "update"}},
+		"id": {Type: "string", Desc: "Destination ID.", Actions: []string{"get", "update", "delete", "enable", "disable"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "update", "delete", "enable", "disable"}, Text: "Required for %s."},
+		}},
+		"name": {Type: "string", Desc: "Destination name.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"list"}, Text: "Filters on %s."},
+			{On: []string{"create", "upsert"}, Text: "Required on %s."},
+			{On: []string{"update"}, Text: "Renames on %s."},
+		}},
 		"type":        {Type: "string", Desc: "Destination type, e.g. HTTP, CLI, MOCK_API (create/upsert/update)", Write: true, Actions: []string{"create", "upsert", "update"}},
 		"description": {Type: "string", Desc: "Destination description (create/upsert/update)", Write: true, Actions: []string{"create", "upsert", "update"}},
 		"config":      {Type: "object", Desc: "Type-specific configuration: url, auth, rate limiting (create/upsert/update). Replaces the stored config.", Write: true, Actions: []string{"create", "upsert", "update"}},

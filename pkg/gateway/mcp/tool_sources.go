@@ -25,8 +25,14 @@ var sourcesSpec = mcpcore.ToolSpec{
 	Summary:  "Inspect and manage inbound sources (HTTP endpoints that receive events). Source configuration covers the URL, verification settings, and allowed HTTP methods.",
 	Actions:  sourcesActions,
 	Props: map[string]mcpcore.Prop{
-		"id":          {Type: "string", Desc: "Source ID. Required for get/update/delete/enable/disable.", Actions: []string{"get", "update", "delete", "enable", "disable"}},
-		"name":        {Type: "string", Desc: "Source name. Filters on list; required on create/upsert; renames on update.", Actions: []string{"list", "create", "upsert", "update"}},
+		"id": {Type: "string", Desc: "Source ID.", Actions: []string{"get", "update", "delete", "enable", "disable"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "update", "delete", "enable", "disable"}, Text: "Required for %s."},
+		}},
+		"name": {Type: "string", Desc: "Source name.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"list"}, Text: "Filters on %s."},
+			{On: []string{"create", "upsert"}, Text: "Required on %s."},
+			{On: []string{"update"}, Text: "Renames on %s."},
+		}},
 		"type":        {Type: "string", Desc: "Source type, e.g. STRIPE, GITHUB, HTTP (create/upsert/update)", Write: true, Actions: []string{"create", "upsert", "update"}},
 		"description": {Type: "string", Desc: "Source description (create/upsert/update)", Write: true, Actions: []string{"create", "upsert", "update"}},
 		"config":      {Type: "object", Desc: "Type-specific configuration, including verification settings (create/upsert/update). Replaces the stored config.", Write: true, Actions: []string{"create", "upsert", "update"}},

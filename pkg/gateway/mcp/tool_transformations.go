@@ -40,10 +40,22 @@ var transformationsSpec = mcpcore.ToolSpec{
 	Summary:  "Inspect and manage JavaScript transformations applied to event payloads, and try code out against a sample request before saving it.",
 	Actions:  transformationsActions,
 	Props: map[string]mcpcore.Prop{
-		"id":            {Type: "string", Desc: "Transformation ID. Required for get/update/delete; optional on run to execute a stored transformation.", Actions: []string{"get", "update", "delete", "run"}},
-		"name":          {Type: "string", Desc: "Transformation name. Filters on list; required on create/upsert; renames on update.", Actions: []string{"list", "create", "upsert", "update"}},
-		"code":          {Type: "string", Desc: "JavaScript source (create/upsert/update, or run to execute unsaved code)", Actions: []string{"create", "upsert", "update", "run"}},
-		"env":           {Type: "object", Desc: "Environment variables as a JSON object of string values (create/upsert/update/run)", Actions: []string{"create", "upsert", "update", "run"}},
+		"id": {Type: "string", Desc: "Transformation ID.", Actions: []string{"get", "update", "delete", "run"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"get", "update", "delete"}, Text: "Required for %s."},
+			{On: []string{"run"}, Text: "Optional on run, to execute a stored transformation."},
+		}},
+		"name": {Type: "string", Desc: "Transformation name.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"list"}, Text: "Filters on %s."},
+			{On: []string{"create", "upsert"}, Text: "Required on %s."},
+			{On: []string{"update"}, Text: "Renames on %s."},
+		}},
+		"code": {Type: "string", Desc: "JavaScript source.", Actions: []string{"create", "upsert", "update", "run"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"create", "upsert", "update"}, Text: "Stored by %s."},
+			{On: []string{"run"}, Text: "On run, executes this unsaved code."},
+		}},
+		"env": {Type: "object", Desc: "Environment variables as a JSON object of string values.", Actions: []string{"create", "upsert", "update", "run"}, ActionNotes: []mcpcore.ActionNote{
+			{On: []string{"create", "upsert", "update", "run"}, Text: "Read by %s."},
+		}},
 		"connection_id": {Type: "string", Desc: "Connection to run against (run, maps to webhook_id)", Actions: []string{"run"}},
 		"request":       {Type: "object", Desc: "Sample request for run: { headers, body, path, query, parsed_query }. headers is required by the API and may be an empty object.", Actions: []string{"run"}},
 		"limit":         {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},

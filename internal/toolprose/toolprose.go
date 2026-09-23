@@ -85,6 +85,68 @@ func UnknownActionMentions(text string, offered, vocabulary []string) []string {
 	return unknown
 }
 
+// namedTool matches a tool name as the servers spell it in prose.
+var namedTool = `(?:gateway|hookdeck|outpost)_[a-z_]+`
+
+var (
+	// toolThenAction matches "gateway_events_read list" — a tool named
+	// alongside the action to call on it.
+	toolThenAction = regexp.MustCompile(`\b(` + namedTool + `)\s+([a-z_]+)\b`)
+
+	// actionThenTool matches "a request's events action on gateway_request_read".
+	actionThenTool = regexp.MustCompile(`\b([a-z_]+)\s+action\s+on\s+(` + namedTool + `)\b`)
+)
+
+// CrossToolActionMentions reports prose that sends a caller to an action the
+// tool it names does not have.
+//
+// The sibling of UnknownActionMentions, for a mention aimed at another tool
+// rather than at this one: gateway_event_read said to get an id "from a
+// request's events action on gateway_request_read", and gateway_request_read
+// has get, raw_body and retry — no events. The same dead end as naming a tool
+// that does not exist, which TestAgentFacingTextNamesOnlyRealTools already
+// guards.
+//
+// actions maps every tool name the server advertises to the actions it offers.
+func CrossToolActionMentions(text string, actions map[string][]string) []string {
+	anyAction := map[string]bool{}
+	for _, names := range actions {
+		for _, name := range names {
+			anyAction[name] = true
+		}
+	}
+
+	// requireKnownWord distinguishes the two forms. "X action on <tool>" says
+	// outright that X is an action, so it is checked whatever X is. A bare
+	// "<tool> X" only looks like one, so X has to be an action somewhere before
+	// it is treated as a claim — otherwise "use gateway_event_read instead"
+	// reads as a demand for an action called "instead".
+	report := func(problems []string, tool, action string, requireKnownWord bool) []string {
+		offered, known := actions[tool]
+		if !known || (requireKnownWord && !anyAction[action]) {
+			return problems
+		}
+		for _, name := range offered {
+			if name == action {
+				return problems
+			}
+		}
+		return append(problems, fmt.Sprintf(
+			"names the %q action on %s, which offers: %s",
+			action, tool, strings.Join(offered, ", ")))
+	}
+
+	var problems []string
+	for _, m := range toolThenAction.FindAllStringSubmatch(text, -1) {
+		problems = report(problems, m[1], m[2], true)
+	}
+	for _, m := range actionThenTool.FindAllStringSubmatch(text, -1) {
+		problems = report(problems, m[2], m[1], false)
+	}
+	sort.Strings(problems)
+	return problems
+}
+
 var (
 	// parenthesised captures "(list)", "(create/upsert/update)", "(get, cancel)",
 	// "(required for create)" — the trailing action scope this codebase writes.

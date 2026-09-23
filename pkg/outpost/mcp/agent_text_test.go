@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,6 +97,69 @@ func TestToolPropertiesDoNotPromiseArrays(t *testing.T) {
 			for _, problem := range toolprose.ArrayPromises(spec.VisibleProps(group)) {
 				assert.Fail(t, "description offers a shape the validator refuses",
 					"%s_%s: %s", spec.Resource, group, problem)
+			}
+		}
+	}
+}
+
+// TestAgentFacingTextNamesOnlyRealActions is the action-name half of
+// TestAgentFacingTextNamesOnlyRealTools above.
+//
+// Splitting each tool into _read and _write left the shared property
+// descriptions naming the whole original action list, so outpost_tenants_write
+// said its id "On list, filters by tenant ID(s)" and outpost_destinations_write
+// said its type filters "On list" — on tools with no list action. Same failure
+// as naming a tool that does not exist, one level down: the text describes a
+// call the tool will refuse.
+func TestAgentFacingTextNamesOnlyRealActions(t *testing.T) {
+	for _, spec := range allSpecs(t) {
+		vocabulary := spec.Actions.Names()
+		for _, group := range spec.Actions.Groups() {
+			offered := spec.Actions.InGroup(group).Names()
+			where := spec.Resource + "_" + group
+
+			check := func(what, text string) {
+				for _, name := range toolprose.UnknownActionMentions(text, offered, vocabulary) {
+					assert.Fail(t, "prose names an action the tool does not offer",
+						"%s: %s names %q; this tool offers: %s",
+						where, what, name, strings.Join(offered, ", "))
+				}
+			}
+
+			check("the summary", spec.Summary)
+			check("the notes", spec.Notes)
+			for name, prop := range spec.VisibleProps(group) {
+				check("the description of "+name, prop.Desc)
+			}
+		}
+	}
+}
+
+// TestAgentFacingTextNamesOnlyRealToolActions is the cross-tool half: prose
+// that points a caller at another tool's action has to name an action that
+// tool has. gateway_event_read sent callers to "a request's events action on
+// gateway_request_read", which offers get, raw_body and retry.
+func TestAgentFacingTextNamesOnlyRealToolActions(t *testing.T) {
+	srv := NewServer(ServerOptions{Config: &config.Config{}, WriteEnabled: true, PublishAPIKey: "pk"})
+	actions := map[string][]string{}
+	for _, spec := range allSpecs(t) {
+		for _, group := range spec.Actions.Groups() {
+			actions[spec.GroupToolName(srv, group)] = spec.Actions.InGroup(group).Names()
+		}
+	}
+
+	for _, spec := range allSpecs(t) {
+		for _, group := range spec.Actions.Groups() {
+			where := spec.GroupToolName(srv, group)
+			texts := map[string]string{"the summary": spec.Summary, "the notes": spec.Notes}
+			for name, prop := range spec.VisibleProps(group) {
+				texts["the description of "+name] = prop.Desc
+			}
+			for what, text := range texts {
+				for _, problem := range toolprose.CrossToolActionMentions(text, actions) {
+					assert.Fail(t, "prose points at an action another tool does not have",
+						"%s: %s %s", where, what, problem)
+				}
 			}
 		}
 	}
