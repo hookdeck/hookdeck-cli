@@ -228,14 +228,31 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 	portalEventually := func(t *testing.T, args ...string) string {
 		t.Helper()
 		var out string
+		// What the last attempt actually said. Without this the failure reads
+		// "the portal never became available" and nothing else: the error and
+		// both streams were discarded, so a CI failure could not be told apart
+		// from a propagation delay, an auth problem, or the API refusing the
+		// domain outright. Eighteen attempts producing no evidence is worse
+		// than one attempt producing some.
+		var attempts int
+		var lastErr error
+		var lastStdout, lastStderr string
 		require.Eventually(t, func() bool {
-			stdout, _, err := cli.Run(append([]string{"outpost", "tenant", "portal"}, args...)...)
+			attempts++
+			stdout, stderr, err := cli.Run(append([]string{"outpost", "tenant", "portal"}, args...)...)
+			lastErr, lastStdout, lastStderr = err, strings.TrimSpace(stdout), strings.TrimSpace(stderr)
 			if err != nil {
 				return false
 			}
 			out = strings.TrimSpace(stdout)
 			return out != ""
-		}, 90*time.Second, 5*time.Second, "the portal never became available after setting a custom domain")
+		}, 90*time.Second, 5*time.Second,
+			"the portal never became available after setting a custom domain.\n"+
+				"attempts: %d\nlast error: %v\nlast stdout: %q\nlast stderr: %q\n"+
+				"the domain this test set is never DNS-validated, so if the deployment "+
+				"has started requiring a validated domain before serving the portal, "+
+				"this can no longer pass — check the last error before widening the window",
+			attempts, lastErr, lastStdout, lastStderr)
 		return out
 	}
 
