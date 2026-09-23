@@ -12,15 +12,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Balanced against measured per-tag runtime, not guesswork. Slice 0
+          # had carried eleven tags and ran 22 minutes while slices 1 and 2
+          # finished in ~5, because `mcp` alone is 10 minutes of live API calls
+          # and that cost was invisible while those tests were failing fast on
+          # stale tool names. Slice 3 cannot take any of the overflow: its key
+          # is an Outpost project, which the Gateway tests cannot run against.
+          #
+          # Measured minutes per tag: mcp 10.3, connection 3.8, listen 2.9,
+          # connection_upsert 2.2, source 0.8, connection_update 0.4,
+          # connection_list 0.4, basic 0.4, connection_oauth_aws 0.3,
+          # project_use 0.3, connection_error_hints 0.1, guest 0.0.
+          # Re-measure before moving tags again: extract `--- PASS: Name (Ns)`
+          # from a green run and group by each test file's build tag.
           - slice: "0"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY
-            tags: "basic guest connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
+            tags: "basic guest mcp project_use"
           - slice: "1"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_2
-            tags: "request event"
+            tags: "request event connection connection_list connection_update connection_oauth_aws connection_error_hints"
           - slice: "2"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_3
-            tags: "attempt metrics issue transformation destination gateway"
+            tags: "attempt metrics issue transformation destination gateway listen source connection_upsert"
           # Outpost needs its own project: every `hookdeck outpost` command
           # requires an Outpost project, which the Gateway keys above cannot
           # satisfy. The key is a Project API key, used both to authenticate via
