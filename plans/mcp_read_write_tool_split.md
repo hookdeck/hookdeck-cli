@@ -545,8 +545,16 @@ Add:
       `TestToolSurfaceIsWhatWeThinkItIs` renders the whole advertised surface in both modes and
       asserts it as a golden list, so any tool added, removed, renamed or re-annotated shows up
       as a diff a reviewer has to agree to. Verified by renaming an action and watching it fail.
+- [x] **MCP acceptance tests migrated to the split names (2026-09-23).** Section 6 was ticked, but
+      only the unit tests had been migrated: `test/acceptance/mcp_test.go` and
+      `outpost_mcp_test.go` still called the compound names, so eleven tests had been failing with
+      `unknown tool "gateway_events"` since the split, and CI slice 0 was red. An earlier pass read
+      the 429s in that run as the cause and moved on; they were not. Both files now also assert the
+      compound names are **absent**, which catches the reverse failure — a tool still answering to a
+      name that `*_read` would not match. `-tags=mcp` green, all four CI slices vet clean.
 - [ ] Manual QA against a real project per `.agents/skills/` — the gated write tools especially
-      (platform writes are no longer in scope; they left with the parking)
+      (platform writes are no longer in scope; they left with the parking). **Needs a human with a
+      real project; it is the last open item in this plan.**
 - [x] **Independent verification sweep on the `events`/`ignored_events` move** — done; it found
       four regressions, fixed in 5c21412 — an agent that did
       not make the change confirms no filter, action or behaviour that worked in v2.6.0 was lost,
