@@ -30,8 +30,9 @@ func organizationFailureMessage(err error) string {
 	base := TranslateAPIError(err)
 
 	var apiErr *hookdeck.APIError
-	if errors.As(err, &apiErr) &&
-		(apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
+	// 401 only — a 403 means the credential was accepted and the operation is
+	// not permitted for it, which the API explains precisely on its own.
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized {
 		return base + "\n\n" + organizationAuthHint
 	}
 	return base

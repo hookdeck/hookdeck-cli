@@ -171,4 +171,16 @@ func TestOrgAuthErrorIsActionable(t *testing.T) {
 	plain := orgAuthError(&hookdeck.APIError{StatusCode: 500, Message: "boom"})
 	assert.False(t, errors.As(plain, &actionable))
 	assert.NotContains(t, plain.Error(), "organization API key")
+
+	// So is a 403. The credential was accepted; the operation is not permitted
+	// for it — "API keys cannot create organization API keys" needs an admin
+	// session, not a different key, and the API says so precisely. Adding
+	// "wrong kind of credential" on top would contradict it.
+	forbidden := orgAuthError(&hookdeck.APIError{
+		StatusCode: 403,
+		Message:    "API keys cannot create organization API keys",
+	})
+	assert.False(t, errors.As(forbidden, &actionable),
+		"a 403 carries its own accurate reason; the hint must not override it")
+	assert.NotContains(t, forbidden.Error(), "wrong kind of credential")
 }

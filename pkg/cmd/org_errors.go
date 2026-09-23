@@ -17,8 +17,12 @@ import (
 // a key that is working perfectly.
 func orgAuthError(err error) error {
 	var apiErr *hookdeck.APIError
-	if errors.As(err, &apiErr) &&
-		(apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
+	// 401 only. A 403 from these routes means the credential was accepted and
+	// the operation is not permitted for it — "API keys cannot create
+	// organization API keys", for instance, which needs an admin session rather
+	// than a different key. The API's own message is precise there, and adding
+	// "this is the wrong kind of credential" on top of it contradicts it.
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized {
 		// newActionableError, not a bare wrap: Execute rewrites any 401 into
 		// the generic "your API key is invalid or expired" unless the error
 		// says it carries its own guidance. Without this the hint below is
