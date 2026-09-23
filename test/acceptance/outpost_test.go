@@ -234,26 +234,51 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 		// from a propagation delay, an auth problem, or the API refusing the
 		// domain outright. Eighteen attempts producing no evidence is worse
 		// than one attempt producing some.
+		// Polled by hand rather than with require.Eventually, because that
+		// evaluates its message arguments at call time — before the condition
+		// has ever run — so the counters below rendered as "attempts: 0,
+		// last error: <nil>" after a full 90 seconds of polling. A failure
+		// message has to be built when it fails.
 		var attempts int
 		var lastErr error
 		var lastStdout, lastStderr string
-		require.Eventually(t, func() bool {
+		// Five minutes, measured rather than guessed. The window was 90
+		// seconds and the test failed in CI while passing when run on its own.
+		// Instrumenting the poll showed why: the first portal call after
+		// setting a custom domain took 40 attempts, about 195 seconds. Run
+		// alone it had come back at roughly 85, which is why 90 looked
+		// sufficient and why it failed as soon as anything ran before it.
+		// Once the portal answers once, every later call is immediate.
+		deadline := time.Now().Add(5 * time.Minute)
+		for {
 			attempts++
 			stdout, stderr, err := cli.Run(append([]string{"outpost", "tenant", "portal"}, args...)...)
 			lastErr, lastStdout, lastStderr = err, strings.TrimSpace(stdout), strings.TrimSpace(stderr)
-			if err != nil {
-				return false
+			if err == nil && lastStdout != "" {
+				out = lastStdout
+				return out
 			}
-			out = strings.TrimSpace(stdout)
-			return out != ""
-		}, 90*time.Second, 5*time.Second,
-			"the portal never became available after setting a custom domain.\n"+
-				"attempts: %d\nlast error: %v\nlast stdout: %q\nlast stderr: %q\n"+
-				"the domain this test set is never DNS-validated, so if the deployment "+
-				"has started requiring a validated domain before serving the portal, "+
-				"this can no longer pass — check the last error before widening the window",
-			attempts, lastErr, lastStdout, lastStderr)
-		return out
+			if !time.Now().Before(deadline) {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+		// What the project's domain looks like at the moment it failed. Set
+		// standalone, this portal answers on the first attempt; in the full
+		// suite it 404s eighteen times. The difference is something earlier in
+		// the run, so the domain state at failure is the evidence that
+		// distinguishes "never reached the deployment" from "was removed by
+		// something else".
+		domainNow, domainErr, _ := cli.Run("outpost", "config", "custom-domain", "get")
+		t.Fatalf("the portal never became available after setting a custom domain.\n"+
+			"attempts: %d over %s\nlast error: %v\nlast stdout: %q\nlast stderr: %q\n"+
+			"hostname this test set: %q\ndomain now: %q (err %v)\n"+
+			"the domain this test sets is never DNS-validated, so if the deployment "+
+			"has started requiring a validated domain before serving the portal, no "+
+			"window is long enough — check the last error before widening this one",
+			attempts, 5*time.Minute, lastErr, lastStdout, lastStderr,
+			hostname, strings.TrimSpace(domainNow), domainErr)
+		return ""
 	}
 
 	portalURL := portalEventually(t, tenantID)
