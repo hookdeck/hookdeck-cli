@@ -34,10 +34,52 @@ const defaultBaseURL = "https://api.hookdeck.com/2026-09-01"
 
 // credential is one class of key to test.
 type credential struct {
-	name   string
-	envVar string
-	value  string
-	note   string
+	name     string
+	envVar   string
+	value    string
+	note     string
+	identity string // what /cli-auth/validate says this key is
+}
+
+// describe asks the API what a credential is, so the run reports the classes it
+// actually tested rather than the labels someone typed.
+//
+// user_id is the field that separates them: a user-associated credential has
+// one and can move between organizations; a project-bound key returns null.
+func describe(baseURL string, c credential) string {
+	out := call(baseURL, c, probe{method: "GET", path: "/cli-auth/validate"})
+	if out.err != nil {
+		return "identity unknown: " + out.err.Error()
+	}
+	if out.status == 401 {
+		return "-> /cli-auth/validate rejects it (401): not a CLI-session credential"
+	}
+	if out.status < 200 || out.status >= 300 {
+		return fmt.Sprintf("-> /cli-auth/validate returned %d: %s", out.status, out.message)
+	}
+
+	var v struct {
+		UserID           string `json:"user_id"`
+		UserEmail        string `json:"user_email"`
+		OrganizationName string `json:"organization_name"`
+		ProjectID        string `json:"team_id"`
+		ProjectName      string `json:"team_name_no_org"`
+	}
+	if err := json.Unmarshal(out.raw, &v); err != nil {
+		return "-> /cli-auth/validate returned an unreadable body"
+	}
+
+	switch {
+	case v.UserID != "" && v.ProjectID == "":
+		return fmt.Sprintf("-> USER-bound (%s), no project pinned — can move between organizations", v.UserEmail)
+	case v.UserID != "":
+		return fmt.Sprintf("-> USER-bound (%s), pinned to project %s in %s",
+			v.UserEmail, v.ProjectName, v.OrganizationName)
+	case v.ProjectID != "":
+		return fmt.Sprintf("-> PROJECT-bound (no user_id), project %s in %s", v.ProjectName, v.OrganizationName)
+	default:
+		return "-> accepted by /cli-auth/validate but neither user nor project identified"
+	}
 }
 
 // probe is one request to make.
@@ -86,10 +128,17 @@ func main() {
 	}
 
 	fmt.Printf("Base URL: %s\n", *baseURL)
-	fmt.Printf("Credentials under test: %d\n", len(creds))
-	for _, c := range creds {
+	fmt.Printf("Credentials under test: %d\n\n", len(creds))
+	for i := range creds {
 		// Never print a key. A fingerprint is enough to tell two apart.
-		fmt.Printf("  %-22s %s (len %d, %s…)\n", c.name, c.envVar, len(c.value), safePrefix(c.value))
+		fmt.Printf("  %-22s %s (len %d, %s…)\n", creds[i].name, creds[i].envVar, len(creds[i].value), safePrefix(creds[i].value))
+		// Say what the credential actually IS, rather than trusting the name it
+		// was given. Which class a key belongs to is the whole question here,
+		// and it is easy to supply the wrong one: `hookdeck login --api-key`
+		// yields a project-bound key, where `hookdeck login` in a browser
+		// yields a user-bound one that can move between organizations.
+		creds[i].identity = describe(*baseURL, creds[i])
+		fmt.Printf("  %-22s %s\n\n", "", creds[i].identity)
 	}
 	if *destructive {
 		fmt.Println("\n!! --destructive: creates and deletes real records. Throwaway org only.")
