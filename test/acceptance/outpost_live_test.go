@@ -377,7 +377,7 @@ func TestLiveOutpostSeededReadWrite(t *testing.T) {
 		resp, err := client.PublishOutpostEvent(ctx, apiKey, &hookdeck.OutpostPublishRequest{
 			TenantID: tenantID,
 			Topic:    topic,
-			Data:     map[string]interface{}{"source": "hookdeck-cli-live-test"},
+			Data:     hookdeck.OutpostObjectPatch(map[string]interface{}{"source": "hookdeck-cli-live-test"}),
 			Metadata: map[string]string{"origin": "cli-test"},
 		})
 		require.NoError(t, err)
