@@ -442,21 +442,49 @@ func TestRequestListWithEventsCount(t *testing.T) {
 	}
 
 	cli := NewCLIRunner(t)
-	connID, _ := createConnectionAndTriggerEvent(t, cli)
+	connID, eventID := createConnectionAndTriggerEvent(t, cli)
 	t.Cleanup(func() { deleteConnection(t, cli, connID) })
 
 	type RequestListResponse struct {
 		Models []Request `json:"models"`
 	}
 
+	// The request that produced the event just triggered. Anchoring on a known
+	// id is what makes this test able to fail: asserting only that every
+	// returned row matches the filter passes trivially when the page is empty,
+	// so a filter that was dropped entirely — the failure worth catching —
+	// looked identical to one that worked.
+	var ev struct {
+		RequestID string `json:"request_id"`
+	}
+	require.NoError(t, cli.RunJSON(&ev, "gateway", "event", "get", eventID))
+	require.NotEmpty(t, ev.RequestID, "the event must name the request that produced it")
+
+	ids := func(models []Request) []string {
+		out := make([]string, 0, len(models))
+		for _, r := range models {
+			out = append(out, r.ID)
+		}
+		return out
+	}
+
 	var withEvents RequestListResponse
-	require.NoError(t, cli.RunJSON(&withEvents, "gateway", "request", "list", "--events-count", "1", "--limit", "5"))
+	require.NoError(t, cli.RunJSON(&withEvents, "gateway", "request", "list", "--events-count", "1", "--limit", "50"))
+	require.NotEmpty(t, withEvents.Models,
+		"a request that produced exactly one event was just created, so this page cannot be empty")
+	assert.Contains(t, ids(withEvents.Models), ev.RequestID,
+		"--events-count 1 must return the request known to have produced one event")
 	for _, r := range withEvents.Models {
 		assert.Equal(t, 1, r.EventsCount, "--events-count 1 must only return requests with one event")
 	}
 
 	var withoutEvents RequestListResponse
-	require.NoError(t, cli.RunJSON(&withoutEvents, "gateway", "request", "list", "--events-count", "0", "--limit", "5"))
+	require.NoError(t, cli.RunJSON(&withoutEvents, "gateway", "request", "list", "--events-count", "0", "--limit", "50"))
+	// The boundary case. If the filter were ignored the API would return every
+	// request, this one among them, so its absence is what proves the filter
+	// reached the endpoint rather than being silently dropped.
+	assert.NotContains(t, ids(withoutEvents.Models), ev.RequestID,
+		"--events-count 0 must not return a request that produced an event")
 	for _, r := range withoutEvents.Models {
 		assert.Equal(t, 0, r.EventsCount, "--events-count 0 must only return requests with no events")
 	}
