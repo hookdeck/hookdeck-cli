@@ -329,7 +329,7 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 				// For now, just log and continue.
 			} else {
 				req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-				logFields["body"] = redactRequestBodyForLog(string(bodyBytes))
+				logFields["body"] = redactBodyForLog(string(bodyBytes))
 			}
 		}
 		log.WithFields(logFields).Debug("Performing request")
@@ -376,16 +376,21 @@ func (c *Client) PerformRequest(ctx context.Context, req *http.Request) (*http.R
 	}
 
 	if ctx != nil {
+		// Responses carry credentials as often as requests do: an API key
+		// create returns the secret, a tenant token response is nothing but a
+		// token, and a webhook destination comes back with its signing secret.
+		// Logging them verbatim wrote reusable credentials to disk for anyone
+		// who had turned debug output on.
 		logFields := log.Fields{
 			"prefix":     "client.Client.PerformRequest",
 			"statusCode": resp.StatusCode,
-			"headers":    resp.Header,
+			"headers":    redactHeadersForLog(resp.Header),
 		}
 
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err == nil {
 			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-			logFields["body"] = string(bodyBytes)
+			logFields["body"] = redactBodyForLog(string(bodyBytes))
 		}
 
 		log.WithFields(logFields).Debug("Received response")
