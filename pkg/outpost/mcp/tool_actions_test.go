@@ -847,3 +847,42 @@ func TestEveryActionHasBeenCalledSuccessfully(t *testing.T) {
 		}
 	}
 }
+
+// TestMultiValueFiltersTakeCommaSeparatedNotArrays pins what the descListValue
+// properties actually accept.
+//
+// Their descriptions promised "an array of strings or a comma-separated
+// string", but all thirteen declare "type": "string" and
+// mcpcore.checkArgumentTypes refuses an array for a scalar property — so half
+// of what the description offered was answered with an error. The descriptions
+// now promise only the comma-separated form; this is the test that says the
+// promise is the true one.
+func TestMultiValueFiltersTakeCommaSeparatedNotArrays(t *testing.T) {
+	t.Run("comma-separated reaches the API as several values", func(t *testing.T) {
+		var got captured
+		api := mockAPI(t, map[string]http.HandlerFunc{
+			"GET /2026-09-01/events": recordJSON(&got, http.StatusOK, map[string]any{
+				"models": []map[string]any{}, "pagination": map[string]any{},
+			}),
+		})
+		session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
+
+		result := callTool(t, session, "outpost_events_read", map[string]any{
+			"action": "list", "topic": "user.created,user.updated",
+		})
+		require.False(t, result.IsError, resultText(t, result))
+		assert.Contains(t, got.query, "topic%5B0%5D=user.created")
+		assert.Contains(t, got.query, "topic%5B1%5D=user.updated")
+	})
+
+	t.Run("an array is refused", func(t *testing.T) {
+		api := mockAPI(t, nil)
+		session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
+
+		result := callTool(t, session, "outpost_events_read", map[string]any{
+			"action": "list", "topic": []any{"user.created", "user.updated"},
+		})
+		require.True(t, result.IsError)
+		assert.Contains(t, resultText(t, result), "topic takes a single value, not an array")
+	})
+}

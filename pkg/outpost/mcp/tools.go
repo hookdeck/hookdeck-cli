@@ -124,5 +124,23 @@ func toolDefs(srv *mcpcore.Server, opts ServerOptions) []mcpcore.ToolDef {
 const (
 	descTimeAfter  = "Only records at or after this ISO 8601 datetime."
 	descTimeBefore = "Only records at or before this ISO 8601 datetime."
-	descListValue  = "Accepts an array of strings or a comma-separated string."
+
+	// descListValue marks a single-valued property that also accepts several
+	// values at once.
+	//
+	// It used to read "Accepts an array of strings or a comma-separated
+	// string", on thirteen properties every one of which declares
+	// "type": "string". mcpcore.checkArgumentTypes refuses an array for a
+	// scalar property — deliberately, because nothing downstream can consume
+	// one — so {"action":"list","topic":["user.created","user.updated"]} was
+	// answered with "topic takes a single value, not an array". The schema and
+	// the description disagreed, and the description was the one an agent read
+	// first.
+	//
+	// The comma-separated form is the one that works, it is what these
+	// properties' Event Gateway equivalents already promise, and it is what the
+	// handlers' StringList splits. Widening the schema instead would mean a new
+	// multi-type declaration and a hole in a validator both servers share, for
+	// a spelling that is already available.
+	descListValue = "Pass several as a comma-separated string."
 )

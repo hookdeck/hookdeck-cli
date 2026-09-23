@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hookdeck/hookdeck-cli/internal/toolprose"
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
@@ -205,6 +207,32 @@ func TestAgentFacingTextNamesOnlyRealTools(t *testing.T) {
 	for name := range tools {
 		topic := textContent(t, callTool(t, session, "gateway_help", map[string]any{"topic": name}))
 		check(t, "gateway_help topic="+name, topic)
+	}
+}
+
+// allSpecs is every ToolSpec this server can render, platform tools included.
+func allSpecs(t *testing.T) []mcpcore.ToolSpec {
+	t.Helper()
+	srv := NewServer(ServerOptions{Config: &config.Config{}, WriteEnabled: true})
+	return append(srv.PlatformSpecs(projectsToolDesc), resourceSpecs()...)
+}
+
+// TestToolPropertiesDoNotPromiseArrays is the sibling of
+// TestAgentFacingTextNamesOnlyRealTools for schema shape rather than tool names.
+//
+// mcpcore.checkArgumentTypes refuses an array for a property declared as a
+// single value, so a description offering one documents a call that cannot
+// succeed. Thirteen Outpost properties did exactly that; the Event Gateway's
+// equivalents promise only the comma-separated form, and this is what keeps
+// them that way.
+func TestToolPropertiesDoNotPromiseArrays(t *testing.T) {
+	for _, spec := range allSpecs(t) {
+		for _, group := range spec.Actions.Groups() {
+			for _, problem := range toolprose.ArrayPromises(spec.VisibleProps(group)) {
+				assert.Fail(t, "description offers a shape the validator refuses",
+					"%s_%s: %s", spec.Resource, group, problem)
+			}
+		}
 	}
 }
 

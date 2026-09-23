@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hookdeck/hookdeck-cli/internal/toolprose"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
 // TestAgentFacingTextNamesOnlyRealTools mirrors the Event Gateway guard.
@@ -65,5 +67,36 @@ func TestAgentFacingTextNamesOnlyRealTools(t *testing.T) {
 	for name := range tools {
 		check("outpost_help topic="+name,
 			resultText(t, callTool(t, session, "outpost_help", map[string]any{"topic": name})))
+	}
+}
+
+// allSpecs is every ToolSpec this server can render, including the two platform
+// tools and the publish tool that only exists with a publish key.
+func allSpecs(t *testing.T) []mcpcore.ToolSpec {
+	t.Helper()
+	srv := NewServer(ServerOptions{Config: &config.Config{}, WriteEnabled: true, PublishAPIKey: "pk"})
+	specs := append([]mcpcore.ToolSpec{}, srv.PlatformSpecs(projectsToolDesc)...)
+	specs = append(specs, resourceSpecs()...)
+	specs = append(specs, publishSpec("pk"))
+	return specs
+}
+
+// TestToolPropertiesDoNotPromiseArrays is the sibling of
+// TestAgentFacingTextNamesOnlyRealTools for schema shape rather than tool names.
+//
+// Thirteen properties said "Accepts an array of strings or a comma-separated
+// string" over "type": "string", and mcpcore.checkArgumentTypes refuses an
+// array for a scalar property — so outpost_events_read with
+// topic: ["user.created", "user.updated"] was answered with "topic takes a
+// single value, not an array". An agent that reads the description before the
+// schema is led straight into that.
+func TestToolPropertiesDoNotPromiseArrays(t *testing.T) {
+	for _, spec := range allSpecs(t) {
+		for _, group := range spec.Actions.Groups() {
+			for _, problem := range toolprose.ArrayPromises(spec.VisibleProps(group)) {
+				assert.Fail(t, "description offers a shape the validator refuses",
+					"%s_%s: %s", spec.Resource, group, problem)
+			}
+		}
 	}
 }
