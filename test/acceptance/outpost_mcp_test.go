@@ -85,23 +85,31 @@ func TestOutpostMCPStdio_ReadOnlyByDefault(t *testing.T) {
 	// Platform tools keep the hookdeck_ prefix in every server: you log in to
 	// Hookdeck and switch a Hookdeck project, whichever product you are using.
 	for _, name := range []string{
-		"hookdeck_projects", "hookdeck_login",
-		"outpost_help", "outpost_tenants",
-		"outpost_destinations", "outpost_events", "outpost_attempts",
-		"outpost_topics", "outpost_destination_types", "outpost_metrics",
-		"outpost_config", "outpost_status",
+		"hookdeck_projects_read", "hookdeck_projects_use", "hookdeck_login",
+		"outpost_help", "outpost_tenants_read",
+		"outpost_destinations_read", "outpost_events_read", "outpost_attempts_read",
+		"outpost_topics_read", "outpost_destination_types_read", "outpost_metrics_read",
+		"outpost_config_read", "outpost_status_read",
 	} {
 		assert.Contains(t, tools, name)
 	}
 	for _, name := range []string{"outpost_login", "outpost_projects"} {
 		assert.NotContains(t, tools, name, "platform tools must not carry the product prefix")
 	}
+	// The compound names the split replaced.
+	for _, name := range []string{
+		"outpost_tenants", "outpost_destinations", "outpost_events", "outpost_config",
+		"hookdeck_projects",
+	} {
+		assert.NotContains(t, tools, name, "the compound tool names were split in v3.0.0-beta.2")
+	}
 
 	// Nothing that changes data, and nothing that hands back a credential.
-	assert.NotContains(t, tools, "outpost_publish")
-	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["outpost_tenants"]))
-	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["outpost_destinations"]))
-	assert.Equal(t, []string{"get", "custom_domain_get"}, MCPToolActionEnum(t, tools["outpost_config"]))
+	assert.NotContains(t, tools, "outpost_publish_write")
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["outpost_tenants_read"]))
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["outpost_destinations_read"]))
+	assert.Equal(t, []string{"get", "custom_domain_get"},
+		MCPToolActionEnum(t, tools["outpost_config_read"]))
 }
 
 func TestOutpostMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
@@ -114,12 +122,15 @@ func TestOutpostMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
 	tools, stdout, _ := ListMCPTools(t, cli.projectRoot, cli.configPath, command, 10*time.Second)
 	assertMCPStdoutIsJSONRPCOnly(t, stdout)
 
-	tenantActions := MCPToolActionEnum(t, tools["outpost_tenants"])
+	tenantActions := MCPToolActionEnum(t, tools["outpost_tenants_write"])
 	for _, want := range []string{"upsert", "delete", "token", "portal"} {
 		assert.Contains(t, tenantActions, want)
 	}
-	assert.Contains(t, MCPToolActionEnum(t, tools["outpost_events"]), "retry")
-	assert.Contains(t, MCPToolActionEnum(t, tools["outpost_config"]), "set")
+	assert.Contains(t, MCPToolActionEnum(t, tools["outpost_events_write"]), "retry")
+	assert.Contains(t, MCPToolActionEnum(t, tools["outpost_config_write"]), "set")
+
+	// Read tools are byte-identical in both modes.
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["outpost_tenants_read"]))
 }
 
 func TestOutpostMCPStdio_ReadOnlyRefusesWriteAction(t *testing.T) {
@@ -129,7 +140,7 @@ func TestOutpostMCPStdio_ReadOnlyRefusesWriteAction(t *testing.T) {
 	cli := NewOutpostCLIRunner(t)
 	tenantID := uniqueTenantID(t)
 
-	result := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_tenants", map[string]any{
+	result := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_tenants_read", map[string]any{
 		"action": "upsert",
 		"id":     tenantID,
 	}, 20*time.Second)
@@ -150,7 +161,7 @@ func TestOutpostMCPTool_TenantsList(t *testing.T) {
 	cli := NewOutpostCLIRunner(t)
 	tenantID := createTestTenant(t, cli)
 
-	result := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_tenants", map[string]any{
+	result := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_tenants_read", map[string]any{
 		"action": "list",
 		"limit":  50,
 	}, 20*time.Second)
@@ -167,13 +178,13 @@ func TestOutpostMCPTool_TopicsAndStatus(t *testing.T) {
 	}
 	cli := NewOutpostCLIRunner(t)
 
-	topics := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_topics", map[string]any{
+	topics := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_topics_read", map[string]any{
 		"action": "list",
 	}, 20*time.Second)
 	require.False(t, topics.IsError, "tool error: %s", topics.Text)
 	assert.Contains(t, topics.Text, `"topics"`)
 
-	status := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_status", map[string]any{
+	status := CallOutpostMCPTool(t, cli.projectRoot, cli.configPath, nil, "outpost_status_read", map[string]any{
 		"action": "get",
 	}, 20*time.Second)
 	require.False(t, status.IsError, "tool error: %s", status.Text)

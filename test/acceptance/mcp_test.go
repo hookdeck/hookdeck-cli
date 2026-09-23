@@ -105,7 +105,7 @@ func TestMCPEventsList_DateRangeAndBodyFilter(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
 		"action":         "list",
 		"created_after":  "2020-01-01T00:00:00Z",
 		"created_before": "2030-01-01T00:00:00Z",
@@ -123,7 +123,7 @@ func TestMCPRequestsList_DateRangeAndBodyFilter(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests_read", map[string]any{
 		"action":         "list",
 		"ingested_after": "2020-01-01T00:00:00Z",
 		"created_before": "2030-01-01T00:00:00Z",
@@ -146,8 +146,8 @@ func TestMCPSingularToolsAreReachable(t *testing.T) {
 	cli := NewCLIRunner(t)
 
 	cases := []struct{ tool, id string }{
-		{"gateway_event", "evt_does_not_exist"},
-		{"gateway_request", "req_does_not_exist"},
+		{"gateway_event_read", "evt_does_not_exist"},
+		{"gateway_request_read", "req_does_not_exist"},
 	}
 
 	for _, tc := range cases {
@@ -199,12 +199,12 @@ func TestGatewayMCPStdio_ReadOnlyByDefault(t *testing.T) {
 	// hookdeck_, because you log in to Hookdeck and switch a Hookdeck project
 	// whichever product's server you are in.
 	for _, name := range []string{
-		"hookdeck_projects", "hookdeck_login",
-		"gateway_help", "gateway_connections", "gateway_sources",
-		"gateway_destinations", "gateway_transformations",
-		"gateway_requests", "gateway_request",
-		"gateway_events", "gateway_event",
-		"gateway_attempts", "gateway_issues", "gateway_metrics",
+		"hookdeck_projects_read", "hookdeck_projects_use", "hookdeck_login",
+		"gateway_help", "gateway_connections_read", "gateway_connections_pause",
+		"gateway_sources_read", "gateway_destinations_read", "gateway_transformations_read",
+		"gateway_requests_read", "gateway_request_read",
+		"gateway_events_read", "gateway_event_read",
+		"gateway_attempts_read", "gateway_issues_read", "gateway_metrics_read",
 	} {
 		assert.Contains(t, tools, name)
 	}
@@ -214,18 +214,31 @@ func TestGatewayMCPStdio_ReadOnlyByDefault(t *testing.T) {
 	for _, name := range []string{"hookdeck_connections", "hookdeck_events", "hookdeck_help"} {
 		assert.NotContains(t, tools, name, "product tools were renamed to gateway_ in v3")
 	}
+	// The compound names the split replaced. A client granting `*_read` would
+	// silently miss a tool that still answered to one of these.
+	for _, name := range []string{
+		"gateway_connections", "gateway_sources", "gateway_events", "gateway_event",
+		"gateway_requests", "gateway_request", "hookdeck_projects",
+	} {
+		assert.NotContains(t, tools, name, "the compound tool names were split in v3.0.0-beta.2")
+	}
 
-	// Nothing that creates, changes or deletes.
-	assert.Equal(t, []string{"list", "get", "pause", "unpause"},
-		MCPToolActionEnum(t, tools["gateway_connections"]))
-	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_sources"]))
+	// Nothing that creates, changes or deletes — except pause, which keeps its
+	// own tool precisely so it can stay available here.
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_connections_read"]))
+	assert.Equal(t, []string{"pause", "unpause"},
+		MCPToolActionEnum(t, tools["gateway_connections_pause"]))
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_sources_read"]))
 	// Events and requests are split plural/singular: the plural tools search,
-	// the singular ones act on one record by id.
-	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_events"]))
-	assert.Equal(t, []string{"get", "raw_body"}, MCPToolActionEnum(t, tools["gateway_event"]))
-	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests"]))
-	assert.Equal(t, []string{"get", "raw_body", "events", "ignored_events"},
-		MCPToolActionEnum(t, tools["gateway_request"]))
+	// the singular ones act on one record by id. Request-scoped event listings
+	// moved onto the events tool in v3.0.0-beta.2, which is why list_ignored is
+	// here and ignored_events is no longer on the singular request tool.
+	assert.Equal(t, []string{"list", "list_ignored"},
+		MCPToolActionEnum(t, tools["gateway_events_read"]))
+	assert.Equal(t, []string{"get", "raw_body"}, MCPToolActionEnum(t, tools["gateway_event_read"]))
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests_read"]))
+	assert.Equal(t, []string{"get", "raw_body"},
+		MCPToolActionEnum(t, tools["gateway_request_read"]))
 }
 
 func TestGatewayMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
@@ -238,19 +251,22 @@ func TestGatewayMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
 	tools, stdout, stderr := ListMCPTools(t, cli.projectRoot, cli.configPath, command, 10*time.Second)
 	assertGatewayMCPStdioHygiene(t, stdout, stderr)
 
-	// retry lives on the singular tools, and stays off the plural ones.
-	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_event"]), "retry")
-	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_request"]), "retry")
-	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_events"]))
-	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests"]))
+	// retry lives on the singular write tools, and stays off the plural reads.
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_event_write"]), "retry")
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_request_write"]), "retry")
+	assert.Equal(t, []string{"list", "list_ignored"},
+		MCPToolActionEnum(t, tools["gateway_events_read"]))
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests_read"]))
 	for _, want := range []string{"create", "upsert", "update", "delete", "enable", "disable"} {
-		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_connections"]), want)
-		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_sources"]), want)
+		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_connections_write"]), want)
+		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_sources_write"]), want)
 	}
-	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_issues"]), "dismiss")
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_issues_write"]), "dismiss")
 
-	// Read-only tools stay read-only in write mode.
-	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_attempts"]))
+	// Read tools are byte-identical in both modes: write mode adds tools, it
+	// never grows an existing read tool's actions.
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_attempts_read"]))
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_connections_read"]))
 }
 
 func TestGatewayMCPStdio_ReadOnlyRefusesWriteAction(t *testing.T) {
@@ -259,7 +275,7 @@ func TestGatewayMCPStdio_ReadOnlyRefusesWriteAction(t *testing.T) {
 	}
 	cli := NewCLIRunner(t)
 
-	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_sources", map[string]any{
+	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_sources_read", map[string]any{
 		"action": "delete",
 		"id":     "src_does_not_exist",
 	}, 20*time.Second)
@@ -279,7 +295,7 @@ func TestGatewayMCPStdio_PauseStaysAvailableReadOnly(t *testing.T) {
 	}
 	cli := NewCLIRunner(t)
 
-	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_connections", map[string]any{
+	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_connections_pause", map[string]any{
 		"action": "pause",
 		"id":     "conn_does_not_exist",
 	}, 20*time.Second)
@@ -312,7 +328,7 @@ func TestGatewayMCPTool_HelpReportsMode(t *testing.T) {
 // firstRequestID returns a request id from the live project, or skips.
 func firstRequestID(t *testing.T, cli *CLIRunner) string {
 	t.Helper()
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests_read", map[string]any{
 		"action": "list",
 		"limit":  1,
 	}, 20*time.Second)
@@ -336,7 +352,7 @@ func TestMCPEventsScopedToARequest(t *testing.T) {
 	cli := NewCLIRunner(t)
 	requestID := firstRequestID(t, cli)
 
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
 		"action":         "list",
 		"request_id":     requestID,
 		"created_after":  "2020-01-01T00:00:00Z",
@@ -357,7 +373,7 @@ func TestMCPEventsIgnoredScopedToARequest(t *testing.T) {
 	cli := NewCLIRunner(t)
 	requestID := firstRequestID(t, cli)
 
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
 		"action":     "list_ignored",
 		"request_id": requestID,
 		"limit":      5,
@@ -377,7 +393,7 @@ func TestMCPEventsIgnoredRefusesUndeclaredFilters(t *testing.T) {
 	}
 	cli := NewCLIRunner(t)
 
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
 		"action":     "list_ignored",
 		"request_id": "req_does_not_matter",
 		"status":     "FAILED",
@@ -398,7 +414,7 @@ func TestMCPEventsStatusIsCanonicalisedAgainstTheLiveAPI(t *testing.T) {
 
 	for _, spelling := range []string{"FAILED", "failed", "Failed"} {
 		t.Run(spelling, func(t *testing.T) {
-			result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events", map[string]any{
+			result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
 				"action": "list",
 				"status": spelling,
 				"limit":  1,
