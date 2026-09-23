@@ -1451,22 +1451,11 @@ func TestProjectsTool_UnknownAction(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
 
-	// "create" used to be the example here, back when this tool had only list
-	// and use. It is a real action now, so the example has to be one that is
-	// genuinely not an action — otherwise the test asserts nothing.
+	// The example has to be something that is genuinely not an action on any
+	// projects tool — otherwise the test asserts nothing.
 	result := callTool(t, session, "hookdeck_projects_read", map[string]any{"action": "archive"})
 	assert.True(t, result.IsError)
 	assert.Contains(t, textContent(t, result), "unknown action")
-}
-
-// A gated action asked for on the read tool gets the mode message, not
-// "unknown action" — it exists, it is just not registered here.
-func TestProjectsTool_GatedActionNamesTheFlag(t *testing.T) {
-	client := newTestClient("https://api.hookdeck.com", "test-key")
-	session := connectInMemory(t, client)
-	result := callTool(t, session, "hookdeck_projects_read", map[string]any{"action": "delete", "project_id": "tm_1"})
-	require.True(t, result.IsError)
-	assert.Contains(t, textContent(t, result), "--allow-write")
 }
 
 // ---------------------------------------------------------------------------

@@ -651,9 +651,8 @@ Product tools are prefixed `gateway_`. Signing in and switching project are Hook
 
 | Read tool (both modes) | Actions | Write tool (`--allow-write` only) | Actions |
 |---|---|---|---|
-| `hookdeck_projects_read` | list, get | `hookdeck_projects_write` | create, update, delete |
+| `hookdeck_projects_read` | list | — | — |
 | `hookdeck_projects_use` | use | — | — |
-| `hookdeck_organization_read` | get | `hookdeck_organization_write` | update |
 | `hookdeck_login` | (sign in) | — | — |
 | `gateway_connections_read` | list, get | `gateway_connections_write` | create, upsert, update, delete, enable, disable |
 | `gateway_connections_pause` | pause, unpause | — | — |
@@ -685,8 +684,8 @@ without running it — so the blast radius of a bulk retry or replay can be size
 access at all.
 
 API key management is deliberately **not** exposed to MCP in any form. A key is a credential, and
-an agent able to mint one could grant itself access this server would otherwise refuse. Use
-`hookdeck org api-key` or the dashboard.
+an agent able to mint one could grant itself access this server would otherwise refuse. Use the
+Hookdeck dashboard.
 
 `transformations run` executes code without storing anything, but it is gated as a write: a read-only session should not be able to run caller-supplied code.
 
@@ -833,8 +832,7 @@ Publishing needs a Hookdeck **Project API key**, which the credentials stored by
 | Tool | Description |
 |------|-------------|
 | `hookdeck_login` | Sign in via the browser |
-| `hookdeck_projects_read` / `_use` / `_write` | List or read projects, switch the active one, create and change them |
-| `hookdeck_organization_read` / `_write` | Read or rename the organization |
+| `hookdeck_projects_read` / `_use` | List the projects this credential can see, and switch the active one |
 | `outpost_tenants_read` / `_write` | Inspect tenants (list, get); manage them (upsert, delete, token, portal) |
 | `outpost_destinations_read` / `_write` | Inspect a tenant's destinations (list, get); manage them (create, update, delete, enable, disable) |
 | `outpost_events_read` / `_write` | Query published events (list, get); retry delivery |

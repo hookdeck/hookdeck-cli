@@ -504,37 +504,6 @@ func TestMCPBulkRefusesAFilterTheOperationDoesNotDeclare(t *testing.T) {
 	assert.Contains(t, result.Text, "cause", "the message should name what it does take")
 }
 
-// The platform tools reach the account API end to end.
-//
-// These need an account-wide credential. The suite's default key comes from
-// `hookdeck ci` and is project-scoped: it cannot read the organization and
-// cannot list projects, which the CLI reports clearly rather than failing
-// obscurely. Same requirement as the project list/use tests.
-func TestMCPPlatformToolsAreReachable(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	// The organization routes need an ORGANIZATION API key. A CLI session can
-	// list projects and work inside one, and still gets a bare 401 here — the
-	// credential is the wrong kind, not invalid.
-	orgKey := os.Getenv("HOOKDECK_CLI_TESTING_ORG_API_KEY")
-	if orgKey == "" {
-		t.Skip("Skipping platform MCP test: HOOKDECK_CLI_TESTING_ORG_API_KEY must be set " +
-			"(the organization routes need an organization API key; CLI sessions and " +
-			"project-scoped keys cannot reach them)")
-	}
-	cli := NewCLIRunnerWithRootAPIKey(t, orgKey)
-
-	org := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_organization_read",
-		map[string]any{"action": "get"}, 20*time.Second)
-	assert.False(t, org.IsError, "organization read failed: %s", org.Text)
-
-	projects := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_projects_read",
-		map[string]any{"action": "list"}, 20*time.Second)
-	assert.False(t, projects.IsError, "projects list failed: %s", projects.Text)
-	assert.Contains(t, projects.Text, "projects")
-}
-
 // API key management must not be reachable from MCP in any form. Asserted over
 // the advertised list rather than by calling names we hope do not exist.
 func TestMCPExposesNoAPIKeyTool(t *testing.T) {

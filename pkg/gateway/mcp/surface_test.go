@@ -40,8 +40,7 @@ gateway_requests_read           ro  .  [list]
 gateway_sources_read            ro  .  [list get]
 gateway_transformations_read    ro  .  [list get run]
 hookdeck_login                  rw  .  []
-hookdeck_organization_read      ro  .  [get]
-hookdeck_projects_read          ro  .  [list get]
+hookdeck_projects_read          ro  .  [list]
 hookdeck_projects_use           rw  .  [use]`,
 
 		true: `gateway_attempts_read           ro  .  [list get]
@@ -67,11 +66,8 @@ gateway_sources_write           rw  D  [create upsert update delete enable disab
 gateway_transformations_read    ro  .  [list get run]
 gateway_transformations_write   rw  D  [create upsert update delete]
 hookdeck_login                  rw  .  []
-hookdeck_organization_read      ro  .  [get]
-hookdeck_organization_write     rw  .  [update]
-hookdeck_projects_read          ro  .  [list get]
-hookdeck_projects_use           rw  .  [use]
-hookdeck_projects_write         rw  D  [create update delete]`,
+hookdeck_projects_read          ro  .  [list]
+hookdeck_projects_use           rw  .  [use]`,
 	}
 
 	for _, writeEnabled := range []bool{false, true} {

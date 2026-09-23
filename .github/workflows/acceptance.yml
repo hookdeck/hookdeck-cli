@@ -14,10 +14,7 @@ jobs:
         include:
           - slice: "0"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY
-            # platform rides in slice 0 because it needs account-level access —
-            # org get and project list — and this is the slice wired with the
-            # account-wide CLI key.
-            tags: "basic guest connection source mcp listen project_use platform connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
+            tags: "basic guest connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
           - slice: "1"
             api_key_secret: HOOKDECK_CLI_TESTING_API_KEY_2
             tags: "request event"
@@ -47,11 +44,6 @@ jobs:
       # not to echo a project listing, but the account is the real control:
       # scoped to its own org, a disclosure is worth nothing.
       HOOKDECK_CLI_TESTING_CLI_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_CLI_KEY }}
-      # Organization API key, used only by the platform tests. The organization
-      # routes are a distinct credential class: a CLI session can list projects
-      # and work inside one and still gets a 401 here, so neither key above can
-      # substitute. Without it those tests skip rather than fail.
-      HOOKDECK_CLI_TESTING_ORG_API_KEY: ${{ secrets.HOOKDECK_CLI_TESTING_ORG_API_KEY }}
       HOOKDECK_CLI_TELEMETRY_DISABLED: "1"
     steps:
       - name: Check out code

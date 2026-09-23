@@ -185,8 +185,8 @@ func (s *Server) platformToolName(resource string) string {
 //
 // They live here rather than in either product because they are the same
 // operation whichever product's server you are in — you log in to Hookdeck, you
-// switch a Hookdeck project, you rename a Hookdeck organization. A client with
-// both servers configured should see one name for each.
+// switch a Hookdeck project. A client with both servers configured should see
+// one name for each.
 //
 // summary is the product's own wording for the projects tool, which differs
 // because the surrounding advice does (which tools to call next, and why the
@@ -194,7 +194,6 @@ func (s *Server) platformToolName(resource string) string {
 func (s *Server) PlatformSpecs(projectsSummary string) []ToolSpec {
 	return []ToolSpec{
 		s.ProjectsSpec(projectsSummary),
-		s.OrganizationSpec(),
 	}
 }
 

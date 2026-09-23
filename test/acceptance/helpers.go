@@ -383,12 +383,6 @@ type CLIRunner struct {
 	projectRoot string
 	configPath  string // when set (ACCEPTANCE_SLICE), HOOKDECK_CONFIG_FILE is set so each slice uses its own config file
 
-	// rootAPIKey, when set, is passed as --api-key on every command instead of
-	// relying on a stored session. Organization API keys work this way: they
-	// are a distinct credential class that neither `login --api-key` nor
-	// `ci --api-key` accepts.
-	rootAPIKey string
-
 	// tracker records the gateway resources commands run through this runner
 	// created, so anything the test does not delete itself is deleted when the
 	// test ends. See resource_cleanup.go. Nil for runners that are not pointed
@@ -548,30 +542,6 @@ func NewCLIRunnerWithKey(t *testing.T, apiKey string) *CLIRunner {
 	return runner
 }
 
-// NewCLIRunnerWithRootAPIKey returns a runner that passes --api-key on every
-// command rather than exchanging the key for a stored session.
-//
-// Organization API keys are a distinct credential class: they reach
-// /organizations/current, which a CLI session cannot, and neither
-// `login --api-key` (the CLI-key path) nor `ci --api-key` (which wants a
-// project key) accepts one. The root --api-key flag sets the profile key
-// directly, which is how these keys are used.
-func NewCLIRunnerWithRootAPIKey(t *testing.T, apiKey string) *CLIRunner {
-	t.Helper()
-	require.NotEmpty(t, apiKey, "api key must be non-empty for NewCLIRunnerWithRootAPIKey")
-
-	projectRoot, err := filepath.Abs("../..")
-	require.NoError(t, err, "Failed to get project root path")
-
-	return &CLIRunner{
-		t:           t,
-		apiKey:      apiKey,
-		projectRoot: projectRoot,
-		configPath:  getAcceptanceConfigPath(),
-		rootAPIKey:  apiKey,
-	}
-}
-
 // getAcceptanceConfigPath returns a per-slice config path when ACCEPTANCE_SLICE is set,
 // so parallel runs do not overwrite the same config file. Empty when not in sliced mode.
 func getAcceptanceConfigPath() string {
@@ -621,12 +591,6 @@ func NewManualCLIRunner(t *testing.T) *CLIRunner {
 // When configPath is set (parallel slice mode), HOOKDECK_CONFIG_FILE env is set so each slice uses its own config file.
 func (r *CLIRunner) Run(args ...string) (stdout, stderr string, err error) {
 	r.t.Helper()
-
-	// A root --api-key runner passes the credential on every command rather
-	// than relying on a stored session, which organization keys cannot create.
-	if r.rootAPIKey != "" {
-		args = append([]string{"--api-key", r.rootAPIKey}, args...)
-	}
 
 	summary := commandSummaryFor502Log(args)
 	return r.runWithHTTP502Retry(summary, args, func() (string, string, error) {
