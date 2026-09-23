@@ -703,7 +703,15 @@ version the committed document does not — would close that.
 `CHANGELOG.md` is unmaintained and points at GitHub Releases, so this is the text to lift when
 cutting the tag rather than a file to edit.
 
-### Breaking: every MCP tool has been renamed
+### Two breaking changes
+
+v3.0.0 carries two, and they affect different people. The MCP rename affects anyone who has
+granted tool permissions to an agent. The config-path change affects anyone who passes
+`--hookdeck-config` from a directory that happens to contain `.hookdeck/config.toml` — which
+includes most scripts and test harnesses, since that flag is how you keep a command off your own
+configuration.
+
+### Breaking 1: every MCP tool has been renamed
 
 v3.0.0 already renamed the Event Gateway tools from `hookdeck_*` to `gateway_*`. beta.2 goes
 further and splits each one by what it does:
@@ -725,6 +733,52 @@ both `list` and `delete` had to be allowed or denied whole.
 Both renames land in one upgrade deliberately. Splitting after GA would have meant a second
 re-grant.
 
+**Arguments an action ignores are now refused.** Part of the same change and worth calling out,
+because it is the one piece a client can notice at runtime rather than at grant time. Every tool
+property is now scoped to the actions whose handler reads it, so a call like
+`{"action": "get", "order_by": "created_at"}` returns an error naming the argument instead of
+succeeding and silently dropping it. That was the point of the split: an ignored filter makes a
+result look filtered when it is not. Calls that previously "worked" while discarding an argument
+now fail, and the error says which action does accept it.
+
+### Breaking 2: `--hookdeck-config` writes the file it names
+
+Previously the flag was honoured for reads and ignored for writes. Run from any directory
+containing `.hookdeck/config.toml`, `hookdeck project use` wrote to **that** file rather than the
+one the flag named, reported success, and the next command with the same flag disagreed:
+
+```
+$ hookdeck --hookdeck-config ./explicit.toml project use "Acme" "Second project"
+Successfully set active project to: Acme / Second project
+Updated: ./.hookdeck/config.toml          # not the file named by the flag
+
+$ hookdeck --hookdeck-config ./explicit.toml whoami
+Logged in as ... on project First project  # disagrees with the line above
+```
+
+Precedence is now explicit and applies to reads and writes alike:
+
+| Given | File used |
+|---|---|
+| `--hookdeck-config <path>` | exactly that file. A cwd-local `.hookdeck/config.toml` is never touched |
+| `--local` | `./.hookdeck/config.toml` |
+| neither | cwd-local if it exists, otherwise the global config |
+| both | an error, as before |
+
+`HOOKDECK_CONFIG_FILE` has the same effect as `--hookdeck-config`, and the flag wins if both are
+set. One asymmetry is deliberate and documented in `REFERENCE.md`: only the *flag* is rejected
+alongside `--local`. With the environment variable set, `--local` still writes
+`./.hookdeck/config.toml` — the acceptance harness sets that variable globally and also exercises
+`--local`, so rejecting the combination there would have made the two untestable together.
+
+**Who this affects:** anyone passing `--hookdeck-config` from a directory containing
+`.hookdeck/config.toml`. The local file used to be written and the named file left alone; now the
+named file is written. Scripts and test tooling that depended on the old behaviour will see a
+different file change. `--hookdeck-config` is how you keep a command off your own configuration,
+and it now actually does that.
+
+Fixes #424.
+
 ### New
 
 - `gateway_bulk_read` / `_write` — bulk retry, cancel and replay across five operations. `plan`
@@ -732,6 +786,28 @@ re-grant.
   radius can be sized without `--allow-write`.
 - `hookdeck_projects` split into `_read` (`list`) and `_use` (`use`), following the same naming
   rule as everything else.
+
+### Fixed
+
+- **Debug logs no longer persist credentials.** Redaction matched one top-level field and did not
+  run over responses at all, so an Outpost destination's nested `credentials`, an API key create's
+  secret, a tenant token and a webhook signing secret were all written verbatim to disk for anyone
+  running with debug output on. Redaction is now recursive by field name and covers responses and
+  response headers as well as requests.
+- **`gateway_connections_write` could not create a connection without an explicit `rules` array**,
+  the most obvious first call against the new write tool. #425
+- **MCP help text and error hints named tools that no longer exist** after the split, so following
+  the help returned `unknown tool`. #426
+- **Bulk queries now take `connection_id`**, like every other tool, instead of the API's
+  `webhook_id`. #427
+- **A browser login can no longer attach a server to a project of the wrong product.** An Outpost
+  MCP server could complete login on a Gateway project and adopt it, after which every call
+  reached the wrong product and returned 404 — data that reads as missing rather than a project
+  that was never right.
+- **`outpost_events_write` accepted `tenant_id` on `retry` and issued the retry anyway**, while the
+  caller believed it was tenant-scoped. Found by scoping properties to their actions.
+- **The `mcp --help` smoke-test example now works** on both servers. #428
+- **Write tools no longer advertise read-only parameters** such as `limit`/`next`/`prev`. See #363.
 
 ### Deliberately not included
 
