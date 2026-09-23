@@ -28,6 +28,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/useragent"
 )
 
 const defaultBaseURL = "https://api.hookdeck.com/2026-09-01"
@@ -390,6 +392,16 @@ func call(baseURL string, c credential, p probe) outcome {
 	// Basic auth with the key as the username is how the CLI authenticates.
 	req.SetBasicAuth(c.value, "")
 	req.Header.Set("Content-Type", "application/json")
+
+	// The User-Agent is load-bearing, not cosmetic. A CLI session key is
+	// rejected with 401 when the request does not identify itself as the CLI —
+	// the same key and URL returns 200 with this header and 401 with
+	// Go-http-client/2.0. Without it every CLI-key column reads as "rejected",
+	// which is a false negative that looks exactly like a real finding.
+	//
+	// Taken from the package the CLI itself uses, so the two cannot drift.
+	req.Header.Set("User-Agent", useragent.GetEncodedUserAgent())
+	req.Header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
 
 	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
 	if err != nil {
