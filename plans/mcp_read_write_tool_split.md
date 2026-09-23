@@ -1,24 +1,55 @@
 ---
-name: MCP read/write tool split and platform tools
-overview: "Split the embedded MCP servers so read actions and gated write actions live on separate tool names, and add platform-level tools (organization, projects, API keys) now that the Hookdeck API exposes them. Ships as v3.0.0-beta.2. Tool names change because MCP clients grant permission per tool name and the current compound pattern makes 'allow reads, prompt on writes' inexpressible; platform tools arrive in the same beta so the naming rule is applied once, across everything, before GA."
+name: MCP read/write tool split (platform tools parked)
+overview: "Split the embedded MCP servers so read actions and gated write actions live on separate tool names. Ships as v3.0.0-beta.2. Tool names change because MCP clients grant permission per tool name and the compound pattern that preceded them made 'allow reads, prompt on writes' inexpressible. Platform tools (organization, projects, custom domains) were built under the same naming rule and then PARKED on 2026-09-23: probing the live API proved every platform route requires an organization API key, so the surface was unusable by the credential a CLI user actually holds. That work is preserved on branch `platform-api` pending a permissions decision."
 ---
 
-# MCP read/write tool split and platform tools
+# MCP read/write tool split (platform tools parked)
 
-**Status:** in progress
+**Status:** read/write split complete and shipping; platform tools built, then parked
 **Target:** `v3.0.0-beta.2`, branch `release/v3.0.0`
 **Baseline:** `v3.0.0-beta.1`
-**Blocked on:** merging `main` (v2.6.0) — see checklist step 0
 
-Two workstreams ship together:
+Two workstreams were planned to ship together:
 
-1. **Tool naming** — split every resource tool into `_read` / `_write` halves.
+1. **Tool naming** — split every resource tool into `_read` / `_write` halves. **Shipping.**
 2. **Platform tools** — expose the organization, projects and API key endpoints the API
-   now offers, named under the same rule from the start.
+   now offers, named under the same rule from the start. **Parked — see below.**
 
-They ship together because the naming rule should be applied once, to the whole surface. Adding
-platform tools after the rename would mean naming them under a convention that had just changed,
-or changing them again later.
+They were planned together because the naming rule should be applied once, to the whole surface.
+That reasoning still holds, and is why the platform work was built to the same convention: if it
+returns, it returns already named correctly and costs no second re-grant.
+
+---
+
+## Update 2026-09-23: the platform half is parked
+
+**Built, tested, and then removed from the release.** Preserved on branch `platform-api` at
+`d0bbc0f`. Removed from `release/v3.0.0` in `4857985`.
+
+**Why.** Before shipping, every platform route was probed directly with all four Hookdeck
+credentials (`tools/credential-matrix`, committed). The result: **every platform route requires an
+organization API key.** A user CLI session key — what `hookdeck login` stores, and what the MCP
+servers are handed — gets `401` on all of them, *including reading the project it is currently
+pinned to*. A project API key can read itself and nothing else. The only platform route any CLI
+credential reaches is `GET /projects`.
+
+These are `401` at the auth layer, not `403 INSUFFICIENT_SCOPE`. The route refuses the credential
+for what it is, before authorization runs, so no scope grant changes the outcome.
+
+That makes the whole surface below unusable by the credential its users hold. Shipping it would
+have meant publishing a command tree and five MCP tools that answer "Unauthorized" to everyone not
+carrying an org key — a credential most CLI users neither have nor should be pasting into an agent.
+
+**What unblocks it is a product decision, not code:** should a CLI session inherit the permissions
+of the dashboard user who created it? Put to the team in
+[Platform APIs: what each credential can actually do](https://app.notion.com/p/3e4783a05de28139a18ac475d3d5fc1a?pvs=204).
+That discussion also identified a prerequisite: **users cannot currently list or revoke their own
+CLI keys**, which has to be solved before a CLI key is given more power.
+
+**How to read the rest of this document.** Everything about the read/write split stands and
+shipped. Platform sections are marked **PARKED** and describe `platform-api`, not the release.
+Their checklists are left ticked on purpose — the work was genuinely done, and the ticks record
+what exists on that branch.
 
 ---
 
@@ -55,6 +86,10 @@ v3.0.0 already renames every Gateway tool from `hookdeck_*` to `gateway_*`. Per-
 `allowedTools` entries do not survive a rename, so every user re-grants on upgrade regardless.
 Splitting after GA would force a second re-grant. This is the last point where the naming
 change, the platform additions, and the existing rename all cost one disruption instead of three.
+
+*Partly overtaken by events:* the platform additions are parked, so this release spends the one
+disruption on the split and the rename. The argument is why the platform tools were built to the
+new convention before being shelved — if they return, they cost no further re-grant.
 
 ---
 
@@ -135,7 +170,9 @@ carve-out goes the other way on a deliberate product judgement about incident re
 
 ---
 
-## Decision: platform tools
+## Decision: platform tools — PARKED
+
+> Built as specified, then parked. See "Update 2026-09-23" at the top.
 
 ### What the API now offers
 
@@ -217,15 +254,21 @@ an agent to supply a value it has no way to infer.
 
 ### Tool count
 
-| Server | Today | After split | After platform |
-|---|---|---|---|
-| Event Gateway | 14 | 22 | **26** |
-| Outpost | 11 | 16 | **20** |
+> **Superseded by the parking.** The "After platform" column never shipped.
 
-Five platform tools replace today's single `hookdeck_projects`, so +4 per server. Inside the
-30-50 band section 2 of `hookdeck_mcp_buildout_plan_v2.md` protects, though Gateway at 26 has
-limited headroom. The two servers are normally configured separately, so the per-server number
-is the relevant one.
+| Server | Today | After split | After platform *(parked)* |
+|---|---|---|---|
+| Event Gateway | 14 | 22 | ~~26~~ |
+| Outpost | 11 | 16 | ~~20~~ |
+
+Five platform tools would have replaced today's single `hookdeck_projects`, so +4 per server.
+
+**What actually ships** on Event Gateway is **17** tools read-only and **25** with
+`--allow-write`, per the golden list in `TestToolSurfaceIsWhatWeThinkItIs`, which is the
+authority on the surface — not this table. Comfortably inside the 30-50 band section 2 of
+`hookdeck_mcp_buildout_plan_v2.md` protects, and parking the platform tools restored the headroom
+Gateway had been about to spend. The two servers are normally configured separately, so the
+per-server number is the relevant one.
 
 ---
 
@@ -290,7 +333,9 @@ Worth revisiting separately: that plan's "accuracy degrades above 30-50 tools" i
 the compound pattern exists to respect, and it is unverified here. Servers shipping today run
 well above it (Riverside 68 tools, n8n 54, GitHub ~90 across toolsets). Observing that vendors
 ship those counts is not the same as measuring accuracy at them. Re-test before the next MCP
-expansion — and note the platform additions put Gateway at 28, so the next expansion is close.
+expansion. The platform additions would have put Gateway at 28; parking them leaves it at **25**
+in write mode, so there is more headroom than this section originally assumed — but the re-test is
+still owed before spending it.
 
 **Server-level split** (a separate write-only instance, so the server name is the boundary).
 Deferred. Write mode is currently additive, so a second instance would expose reads twice and
@@ -392,7 +437,7 @@ for the `list_ignored` guard, which the per-action work can reuse.
 - [x] Tool descriptions: drop "only the actions listed above are available; see help for how to
       enable the rest" from read tools. The reads are all that tool ever offers, in either mode.
 
-### 3. Platform tools
+### 3. Platform tools — PARKED (done on `platform-api`)
 
 - [x] API client methods for organizations, projects CRUD (no API keys, by decision)
 - [x] `hookdeck_projects_read` (`list`, `get`) — replaces today's `hookdeck_projects`
@@ -429,7 +474,7 @@ for the `list_ignored` guard, which the per-action work can reuse.
 - [x] Acceptance tests, including `plan` working without `--allow-write`
 - [x] A spec-conformance test that every advertised filter is declared for its operation
 
-### 4b. CLI platform commands
+### 4b. CLI platform commands — PARKED (done on `platform-api`)
 
 - [x] API client methods: organizations, projects CRUD, custom domains, API keys
 - [x] `hookdeck org` group with `get` / `update`
@@ -500,7 +545,8 @@ Add:
       `TestToolSurfaceIsWhatWeThinkItIs` renders the whole advertised surface in both modes and
       asserts it as a golden list, so any tool added, removed, renamed or re-annotated shows up
       as a diff a reviewer has to agree to. Verified by renaming an action and watching it fail.
-- [ ] Manual QA against a real project per `.agents/skills/` — platform writes especially
+- [ ] Manual QA against a real project per `.agents/skills/` — the gated write tools especially
+      (platform writes are no longer in scope; they left with the parking)
 - [x] **Independent verification sweep on the `events`/`ignored_events` move** — done; it found
       four regressions, fixed in 5c21412 — an agent that did
       not make the change confirms no filter, action or behaviour that worked in v2.6.0 was lost,
@@ -673,19 +719,24 @@ re-grant.
 
 ### New
 
-- `hookdeck_organization_read` / `_write`, and `hookdeck_projects` split into `_read`, `_use` and
-  `_write` — projects can now be created, renamed and deleted, not just listed and switched to.
 - `gateway_bulk_read` / `_write` — bulk retry, cancel and replay across five operations. `plan`
   estimates what a bulk operation would touch **without running it**, and is a read, so the blast
   radius can be sized without `--allow-write`.
-- `hookdeck org` and `hookdeck project` CLI commands: organization get/update, API key
-  management, project CRUD, and project custom domains.
+- `hookdeck_projects` split into `_read` (`list`) and `_use` (`use`), following the same naming
+  rule as everything else.
 
 ### Deliberately not included
 
+**Platform tools and CLI commands are not in this release.** Organization get/update, project
+CRUD, custom domains and API key management were built and then parked: every platform API route
+requires an organization API key, so these would answer "Unauthorized" to anyone using an ordinary
+CLI session. Preserved on branch `platform-api`; see "Update 2026-09-23" at the top of this
+document. **`hookdeck project list` and `hookdeck project use` are unaffected** and work exactly as
+before.
+
 **API key management is not available through MCP, in any form.** A key is a credential; an agent
-able to mint one could grant itself access the server would otherwise refuse. Use
-`hookdeck org api-key` or the dashboard.
+able to mint one could grant itself access the server would otherwise refuse. Use the dashboard.
+(This decision stands independently of the parking, and applies whenever platform work resumes.)
 
 ## Open questions
 
@@ -699,12 +750,19 @@ able to mint one could grant itself access the server would otherwise refuse. Us
 3. ~~**Do platform tools belong on both servers?**~~ **Resolved: yes, both.** Matches
    `hookdeck_projects` today. A user running both servers sees them twice and grants them twice,
    which is the lesser cost: platform tools on Gateway only would leave Outpost-only users unable
-   to switch project. Decided 2026-09-22.
+   to switch project. Decided 2026-09-22. **Superseded 2026-09-23** — platform tools are parked;
+   the question returns only if the permissions model changes.
 
 4. ~~**Does `hookdeck project` (the CLI command tree) grow to match?**~~ **Resolved: yes, and
    further than MCP goes.** The CLI gains commands for the platform APIs — organizations,
-   projects, **and API keys**. Decided 2026-09-22. Scope and naming still to settle; see
-   "CLI platform commands" below.
+   projects, **and API keys**. Decided 2026-09-22. **Superseded 2026-09-23** — built, then parked
+   with the rest of the platform work. See "CLI platform commands — PARKED" below.
+
+5. **Should a CLI session inherit the dashboard user's permissions?** **Open — with the team.**
+   This is the decision the platform work is waiting on. See "Update 2026-09-23" at the top.
+
+6. **CLI key management.** Users cannot list or revoke their own CLI keys. Identified as a
+   prerequisite to giving CLI keys more power. **Open.**
 
 ## Decision: expose bulk operations
 
@@ -803,12 +861,15 @@ nothing, but it is the action most likely to be regretted. The description carri
 ### Consequences
 
 - Gateway goes from 22 tools to **24**.
-- beta.2 now carries four workstreams: the read/write split, platform MCP tools, the CLI `org`
-  family, and bulk operations. Recorded as a deliberate choice — bulk operations depend on none of
+- beta.2 was to carry four workstreams: the read/write split, platform MCP tools, the CLI `org`
+  family, and bulk operations. **It ships two** — the split and bulk operations; the two platform
+  workstreams are parked. Recorded as a deliberate choice — bulk operations depend on none of
   the others, so they remain the cleanest thing to lift out if the release needs shrinking.
 - The CLI has no bulk commands either. Out of scope here; the gap will be noticed.
 
-## CLI platform commands
+## CLI platform commands — PARKED
+
+> Built as specified, then parked. See "Update 2026-09-23" at the top.
 
 Decided 2026-09-22: the CLI grows commands for the platform APIs, covering organizations,
 projects and API keys.
@@ -832,7 +893,8 @@ paragraph first.
 ### Decided
 
 - **`hookdeck org`**, not `organization` — the long form reads badly at the depth these commands sit at.
-- **Ships in beta.2**, alongside the read/write split and the platform MCP tools.
+- ~~**Ships in beta.2**, alongside the read/write split and the platform MCP tools.~~
+  **Reversed 2026-09-23** — parked with the platform MCP tools. See "Update 2026-09-23" at the top.
 - **Destructive commands use the existing confirmation path**, the same one `outpost` commands use
   ("cannot confirm this action: no terminal is attached"). `project delete` and `api-key delete`
   both destroy access.

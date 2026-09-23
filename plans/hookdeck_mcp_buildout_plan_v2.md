@@ -5,6 +5,13 @@ overview: "Build plan for the Hookdeck MCP server reflecting the revised scope: 
 
 # Hookdeck MCP — Build-Out Plan v2: Investigation and Operations First
 
+> **Historical — tool names have changed.** This document was written before v3.0.0 and uses the
+> original `hookdeck_*` tool names with the compound `action` pattern. v3.0.0 renamed the Event
+> Gateway tools to `gateway_*` and split each one into `_read` / `_write` halves. The design
+> reasoning here still holds; the names do not. For the current surface see the golden list in
+> `TestToolSurfaceIsWhatWeThinkItIs`, and for why the names changed see
+> `plans/mcp_read_write_tool_split.md`.
+
 **Who this is for:** Implementers building the MCP server, PMs reviewing scope, and reviewers giving feedback. **MCP (Model Context Protocol)** is a protocol that lets AI tools call servers for tools and resources. This plan defines a server that runs as `hookdeck gateway mcp` (stdio) inside the Hookdeck CLI so agents can query production event data, investigate failures, and monitor pipeline health without opening the Dashboard.
 
 ---
