@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -171,7 +172,11 @@ func Execute() {
 	mcpGroup := argvMCPGroup(os.Args)
 	isMCP := mcpGroup != ""
 	mcpLoginTool := mcpLoginToolName()
-	if err := rootCmd.Execute(); err != nil {
+	// ExecuteC, not Execute, for the command that actually failed: an unknown
+	// subcommand of a group is rejected by the group, and the message has to
+	// name that group rather than the root. See unknownCommandMessage.
+	failed, err := rootCmd.ExecuteC()
+	if err != nil {
 		errString := err.Error()
 		isLoginRequiredError := errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error()
 
@@ -205,16 +210,7 @@ func Execute() {
 			}
 
 		case strings.Contains(errString, "unknown command"):
-			suggStr := "\nS"
-
-			suggestions := rootCmd.SuggestionsFor(os.Args[1])
-			if len(suggestions) > 0 {
-				suggStr = fmt.Sprintf(" Did you mean \"%s\"?\nIf not, s", suggestions[0])
-			}
-
-			msg := fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
-				"ee \"hookdeck --help\" for a list of available commands.",
-				os.Args[1], rootCmd.CommandPath(), suggStr)
+			msg := unknownCommandMessage(failed, errString)
 			if isMCP {
 				fmt.Fprintln(os.Stderr, msg)
 			} else {
@@ -424,6 +420,90 @@ func init() {
 	rootCmd.AddCommand(newTelemetryCmd().cmd)
 	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
 	addConnectionCmdTo(rootCmd)
+
+	// Must stay last: it walks the assembled tree. See markGroupCommands.
+	markGroupCommands(rootCmd)
+}
+
+// unknownCommandPattern matches the wording cobra uses for an unknown
+// subcommand, from legacyArgs at the root and from cobra.NoArgs on a group
+// command. Capturing the two names from the message rather than from os.Args is
+// what makes the message correct at any depth: os.Args[1] is the *group* when
+// the unknown word is a subcommand of one, so `hookdeck project create` used to
+// report `Unknown command "project" for "hookdeck". Did you mean "project"?`.
+var unknownCommandPattern = regexp.MustCompile(`unknown command "([^"]*)" for "([^"]*)"`)
+
+// unknownCommandMessage renders the recovery text for an unknown (sub)command.
+// failed is the command that rejected it, used only for spelling suggestions.
+func unknownCommandMessage(failed *cobra.Command, errString string) string {
+	name, parent := "", rootCmd.CommandPath()
+	if m := unknownCommandPattern.FindStringSubmatch(errString); m != nil {
+		name, parent = m[1], m[2]
+	} else if len(os.Args) > 1 {
+		name = os.Args[1]
+	}
+
+	suggStr := "\nS"
+	if failed != nil {
+		// cobra only defaults this inside findSuggestions, which cobra.NoArgs
+		// does not call — so without it a group command offers no spelling
+		// suggestions at all, while the root (which goes through legacyArgs)
+		// does.
+		if failed.SuggestionsMinimumDistance <= 0 {
+			failed.SuggestionsMinimumDistance = 2
+		}
+		if best := closestSuggestion(name, failed.SuggestionsFor(name)); best != "" {
+			suggStr = fmt.Sprintf(" Did you mean \"%s\"?\nIf not, s", best)
+		}
+	}
+
+	return fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
+		"ee \"%s --help\" for a list of available commands.",
+		name, parent, suggStr, parent)
+}
+
+// closestSuggestion picks the likeliest of cobra's candidates.
+//
+// SuggestionsFor returns them in registration order, not in order of
+// similarity, and the message only has room for one. Taking the first gave
+// `hookdeck outpost tenant lst` → `Did you mean "get"?` while "list" was in the
+// same list, because "get" happened to be registered earlier and is also two
+// edits away. A prefix match wins outright; otherwise the fewest edits does.
+func closestSuggestion(typed string, candidates []string) string {
+	best, bestScore := "", 0
+	for _, candidate := range candidates {
+		score := editDistance(typed, candidate)
+		if strings.HasPrefix(strings.ToLower(candidate), strings.ToLower(typed)) {
+			score = -1
+		}
+		if best == "" || score < bestScore {
+			best, bestScore = candidate, score
+		}
+	}
+	return best
+}
+
+// editDistance is the Levenshtein distance between two strings, case-folded.
+// cobra computes this internally but does not expose it.
+func editDistance(a, b string) int {
+	ar, br := []rune(strings.ToLower(a)), []rune(strings.ToLower(b))
+	prev := make([]int, len(br)+1)
+	curr := make([]int, len(br)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ar); i++ {
+		curr[0] = i
+		for j := 1; j <= len(br); j++ {
+			cost := 1
+			if ar[i-1] == br[j-1] {
+				cost = 0
+			}
+			curr[j] = min(prev[j]+1, min(curr[j-1]+1, prev[j-1]+cost))
+		}
+		prev, curr = curr, prev
+	}
+	return prev[len(br)]
 }
 
 // unauthorizedServerMessage returns the API's own explanation for a 401, if it

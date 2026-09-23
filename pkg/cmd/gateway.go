@@ -25,6 +25,12 @@ func isGatewayMCPLeafCommand(cmd *cobra.Command) bool {
 // same Gateway project rules as other gateway commands.
 func gatewayPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	initTelemetry(cmd)
+	// A group command only prints its own help, which needs no project — and
+	// before group commands became runnable this hook did not run for them at
+	// all. See markGroupCommands.
+	if isGroupCommand(cmd) {
+		return nil
+	}
 	if isGatewayMCPLeafCommand(cmd) {
 		if err := Config.Profile.ValidateAPIKey(); err != nil {
 			return nil

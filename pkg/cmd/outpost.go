@@ -25,6 +25,12 @@ func isOutpostMCPLeafCommand(cmd *cobra.Command) bool {
 // chain PersistentPreRun, so initTelemetry must be called here explicitly.
 func outpostPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	initTelemetry(cmd)
+	// A group command only prints its own help, which needs no project — and
+	// before group commands became runnable this hook did not run for them at
+	// all. See markGroupCommands.
+	if isGroupCommand(cmd) {
+		return nil
+	}
 	if isOutpostMCPLeafCommand(cmd) {
 		if err := Config.Profile.ValidateAPIKey(); err != nil {
 			return nil
