@@ -1364,6 +1364,27 @@ func triggerTestEvent(t *testing.T, sourceURL string) {
 		"POST to source URL returned %d", resp.StatusCode)
 }
 
+// propagationAttempts and propagationInterval bound every "wait for the API to
+// catch up" poll below.
+//
+// Sixty seconds, not twenty. Twenty was set from a quiet machine and held until
+// it did not: TestEventMute waited the whole window out in CI while its two
+// neighbours, calling this same helper seconds earlier, returned in about seven.
+// The same assumption has now been wrong three times on this branch — a derived
+// counter read immediately after its event existed, and a tenant portal that
+// took 195 seconds against a 90-second window.
+//
+// Widening costs nothing on the happy path: every loop below returns as soon as
+// the record appears, so a test that took 7 seconds still takes 7. What it buys
+// is that 48 call sites stop resting on a 20-second guess.
+//
+// If one of these starts timing out consistently, that is a real change in the
+// API's behaviour and wants measuring, not another doubling.
+const (
+	propagationAttempts = 30
+	propagationInterval = 2 * time.Second
+)
+
 // createConnectionAndTriggerEvent creates a test connection with a MOCK_API destination (so events
 // are generated without a live CLI), triggers one request via the source URL, then polls for the
 // event to appear. Returns connection ID and event ID. Caller should cleanup with deleteConnection(t, cli, connID).
@@ -1385,15 +1406,17 @@ func createConnectionAndTriggerEvent(t *testing.T, cli *CLIRunner) (connID, even
 	type EventListResponse struct {
 		Models []Event `json:"models"`
 	}
-	for i := 0; i < 10; i++ {
-		time.Sleep(2 * time.Second)
+	for i := 0; i < propagationAttempts; i++ {
+		time.Sleep(propagationInterval)
 		var resp EventListResponse
 		require.NoError(t, cli.RunJSON(&resp, "gateway", "event", "list", "--connection-id", connID, "--limit", "1"))
 		if len(resp.Models) > 0 {
 			return connID, resp.Models[0].ID
 		}
 	}
-	require.Fail(t, "expected at least one event after trigger (waited ~20s)")
+	require.Failf(t, "no event appeared",
+		"expected at least one event after trigger; polled %d times over %s and saw none",
+		propagationAttempts, propagationAttempts*propagationInterval)
 	return "", ""
 }
 
@@ -1405,15 +1428,17 @@ func pollForRequestsBySourceID(t *testing.T, cli *CLIRunner, sourceID string) []
 	type RequestListResponse struct {
 		Models []Request `json:"models"`
 	}
-	for i := 0; i < 10; i++ {
-		time.Sleep(2 * time.Second)
+	for i := 0; i < propagationAttempts; i++ {
+		time.Sleep(propagationInterval)
 		var resp RequestListResponse
 		require.NoError(t, cli.RunJSON(&resp, "gateway", "request", "list", "--source-id", sourceID, "--limit", "5"))
 		if len(resp.Models) > 0 {
 			return resp.Models
 		}
 	}
-	require.Fail(t, "expected at least one request after trigger (waited ~20s)")
+	require.Failf(t, "no request appeared",
+		"expected at least one request after trigger; polled %d times over %s and saw none",
+		propagationAttempts, propagationAttempts*propagationInterval)
 	return nil
 }
 
@@ -1425,15 +1450,17 @@ func pollForAttemptsByEventID(t *testing.T, cli *CLIRunner, eventID string) []At
 	type AttemptListResponse struct {
 		Models []Attempt `json:"models"`
 	}
-	for i := 0; i < 10; i++ {
-		time.Sleep(2 * time.Second)
+	for i := 0; i < propagationAttempts; i++ {
+		time.Sleep(propagationInterval)
 		var resp AttemptListResponse
 		require.NoError(t, cli.RunJSON(&resp, "gateway", "attempt", "list", "--event-id", eventID, "--limit", "5"))
 		if len(resp.Models) > 0 {
 			return resp.Models
 		}
 	}
-	require.Fail(t, "expected at least one attempt after trigger (waited ~20s)")
+	require.Failf(t, "no attempt appeared",
+		"expected at least one attempt after trigger; polled %d times over %s and saw none",
+		propagationAttempts, propagationAttempts*propagationInterval)
 	return nil
 }
 
