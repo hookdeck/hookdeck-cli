@@ -206,11 +206,19 @@ func firstProjectID(baseURL string, org credential) (string, error) {
 
 // dotEnvPaths are searched in order; the first that exists is loaded.
 //
-// test/acceptance/.env comes first because the other Hookdeck credentials
-// already live there and it is gitignored, so there is one place to put a key
-// rather than two. Values already in the environment win, so an export still
+// The tool's own directory comes first: these credentials belong to whatever
+// throwaway organization this is pointed at, and keeping them beside the tool
+// stops them being confused with the acceptance suite's keys, which belong to a
+// different account and are used for something else.
+//
+// Both spellings are listed because `go run ./tools/credential-matrix` runs
+// from the repository root while running the built binary from the tool's own
+// directory does not. Values already in the environment win, so an export still
 // overrides the file.
-var dotEnvPaths = []string{"test/acceptance/.env", ".env"}
+var dotEnvPaths = []string{
+	"tools/credential-matrix/.env",
+	".env",
+}
 
 func loadDotEnv() {
 	for _, path := range dotEnvPaths {
