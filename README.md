@@ -1010,11 +1010,22 @@ Updated: .hookdeck/config.toml
 
 **Smart default behavior:**
 
-When you run `project use` without `--local`:
+When you run `project use` with neither `--local` nor `--hookdeck-config`:
 - **If `.hookdeck/config.toml` exists**: Updates the local config
 - **Otherwise**: Updates the global config
 
 This ensures your directory-specific configuration is preserved when it exists.
+
+An explicit flag always beats this discovery. With `--hookdeck-config <path>`, that file is
+the one read and the one written, even when the working directory contains
+`.hookdeck/config.toml`:
+
+```sh
+$ cd ~/repo-with-local-config  # has .hookdeck/config.toml
+$ hookdeck --hookdeck-config ~/ci.toml project use my-org my-project
+Successfully set active project to: my-org / my-project
+Saved to: ~/ci.toml            # the local config is untouched
+```
 
 **Flag validation:**
 
@@ -1379,6 +1390,11 @@ The CLI will look for the configuration file in the following order:
 2. The `HOOKDECK_CONFIG_FILE` environment variable (path to the config file).
 3. The local directory `.hookdeck/config.toml`.
 4. The default global configuration file location.
+
+The file chosen this way is the file the CLI reads **and** writes. An explicit path beats
+discovery: pass `--hookdeck-config <path>` and no other configuration file is touched, whatever
+the working directory contains. `--local` (on `login`, `ci` and `project use`) instead pins both
+to `./.hookdeck/config.toml`, and cannot be combined with `--hookdeck-config`.
 
 ### Default configuration Location
 

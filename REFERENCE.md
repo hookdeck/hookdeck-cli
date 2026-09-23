@@ -32,13 +32,23 @@ All commands support these global options:
 |------|------|-------------|
 | `--color` | `string` | turn on/off color output (on, off, auto) |
 | `--device-name` | `string` | device name |
-| `--hookdeck-config` | `string` | path to CLI config file (default is $HOME/.config/hookdeck/config.toml) |
+| `--hookdeck-config` | `string` | path to the CLI config file to read and write. Overrides config discovery: without it the CLI uses ./.hookdeck/config.toml when that exists, otherwise $HOME/.config/hookdeck/config.toml |
 | `--insecure` | `bool` | Allow invalid TLS certificates |
 | `--log-level` | `string` | log level (debug, info, warn, error) (default "info") |
 | `-p, --profile` | `string` | profile name (default "default") |
 | `-v, --version` | `bool` | Get the version of the Hookdeck CLI |
 
 <!-- GENERATE_END -->
+### Which config file is used
+
+Every command reads and writes the same config file. An explicit choice always wins over discovery:
+
+1. `--hookdeck-config <path>` — exactly that file, for reads and writes. A `.hookdeck/config.toml` in the working directory is ignored.
+2. `--local` (on `login`, `ci` and `project use`) — `./.hookdeck/config.toml` in the current directory.
+3. Neither — `./.hookdeck/config.toml` if it exists, otherwise `$HOME/.config/hookdeck/config.toml`.
+
+`--local` and `--hookdeck-config` cannot be combined: they name different files, so the CLI returns an error rather than picking one. The `HOOKDECK_CONFIG_FILE` environment variable has the same effect as `--hookdeck-config`, and the flag wins if both are set. Only the flag is rejected alongside `--local`; with the environment variable set, `--local` still writes `./.hookdeck/config.toml`.
+
 ## Authentication
 
 <!-- GENERATE:login|logout|whoami:START -->
@@ -70,7 +80,7 @@ hookdeck login [flags]
 |------|------|-------------|
 | `--cli-key` | `string` | CLI key from Hookdeck dashboard onboarding |
 | `-i, --interactive` | `bool` | Run interactive configuration mode if you cannot open a browser |
-| `--local` | `bool` | Save credentials to current directory (.hookdeck/config.toml) |
+| `--local` | `bool` | Save credentials to ./.hookdeck/config.toml in the current directory. Cannot be combined with `--hookdeck-config`, which takes the path to write instead. |
 
 **Examples:**
 
@@ -165,7 +175,7 @@ hookdeck project use [<organization_name> [<project_name>]] [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--local` | `bool` | Save project to current directory (.hookdeck/config.toml) |
+| `--local` | `bool` | Save the project to ./.hookdeck/config.toml in the current directory. Cannot be combined with `--hookdeck-config`, which takes the path to write instead. |
 
 **Examples:**
 
@@ -3245,7 +3255,7 @@ hookdeck ci [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--api-key` | `string` | Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided. |
-| `--local` | `bool` | Save credentials to current directory (.hookdeck/config.toml) |
+| `--local` | `bool` | Save credentials to ./.hookdeck/config.toml in the current directory. Cannot be combined with `--hookdeck-config`, which takes the path to write instead. |
 | `--name` | `string` | Name of the CI run (ex: GITHUB_REF) for identification in the dashboard |
 
 **Examples:**

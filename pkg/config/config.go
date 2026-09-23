@@ -192,15 +192,27 @@ func (c *Config) InitConfig() {
 	log.SetFormatter(logFormatter)
 }
 
-// UseProject selects the active project. projectType is the API project type;
-// display labels and legacy mode values are still accepted for compatibility.
+// UseProject selects the active project and persists it to the config file this
+// Config was loaded from — the file getConfigPath resolved, so the write lands
+// wherever the reads came from. That is the only correct target for every
+// command except one explicitly given --local: callers must not re-derive a
+// path of their own (see #424).
+//
+// projectType is the API project type; display labels and legacy mode values
+// are still accepted for compatibility.
 func (c *Config) UseProject(projectId string, projectType string) error {
 	c.setProjectIdentity(projectId, projectType)
 	return c.Profile.SaveProfile()
 }
 
-// UseProjectLocal selects the active project to be used in local config
-// Returns true if a new file was created, false if existing file was updated
+// UseProjectLocal selects the active project and writes it to
+// ./.hookdeck/config.toml in the current working directory, creating the file
+// and its directory if needed. Returns true if a new file was created, false if
+// an existing file was updated.
+//
+// This ignores the resolved config path on purpose, so it is only correct for
+// commands run with --local — which is why --local and --hookdeck-config are
+// rejected together. Anything else must go through UseProject.
 func (c *Config) UseProjectLocal(projectId string, projectType string) (bool, error) {
 	// Get current working directory
 	workingDir, err := os.Getwd()
@@ -503,12 +515,18 @@ func (c *Config) SaveActiveProfileAfterLogin() {
 	}
 }
 
-// getConfigPath returns the path for the config file.
-// Precedence:
+// getConfigPath returns the path for the config file. It is the single
+// authority on where configuration lives: the file it returns is the file every
+// command reads AND writes, so an explicit path is honoured end to end rather
+// than only on the way in (#424). The one exception is --local, which pins the
+// write to ./.hookdeck/config.toml via UseProjectLocal.
+//
+// Precedence — explicit beats implicit:
 // - path (if path is provided, e.g. from --hookdeck-config flag)
 // - HOOKDECK_CONFIG_FILE env var (for acceptance tests / parallel runs; avoids flag collision with subcommand JSON --config)
-// - `${PWD}/.hookdeck/config.toml`
+// - `${PWD}/.hookdeck/config.toml`, if it exists
 // - `${HOME}/.config/hookdeck/config.toml`
+//
 // Returns the path string and a boolean indicating whether it's the global default path.
 func (c *Config) getConfigPath(path string) (string, bool) {
 	workspaceFolder, err := os.Getwd()

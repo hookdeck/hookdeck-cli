@@ -53,7 +53,7 @@ Events • [↑↓] Navigate ─────────────────
 	// generator reads flag defaults too.
 	lc.cmd.Flags().StringVar(&lc.apiKey, "api-key", "", "Your Hookdeck Project API key. The CLI reads from HOOKDECK_API_KEY if not provided.")
 	lc.cmd.Flags().StringVar(&lc.name, "name", "", "Name of the CI run (ex: GITHUB_REF) for identification in the dashboard")
-	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to current directory (.hookdeck/config.toml)")
+	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to ./.hookdeck/config.toml in the current directory. Cannot be combined with --hookdeck-config, which takes the path to write instead.")
 
 	return lc
 }

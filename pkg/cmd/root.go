@@ -386,7 +386,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
 
-	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "hookdeck-config", "", "path to CLI config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "hookdeck-config", "", "path to the CLI config file to read and write. Overrides config discovery: without it the CLI uses ./.hookdeck/config.toml when that exists, otherwise $HOME/.config/hookdeck/config.toml")
 
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
 
