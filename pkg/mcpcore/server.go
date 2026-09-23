@@ -161,8 +161,23 @@ func (s *Server) HelpToolName() string { return s.ToolName("help") }
 // Hookdeck and switch Hookdeck projects, whichever product's server you are in.
 const DefaultPlatformPrefix = "hookdeck"
 
-// ProjectsToolName returns the name of this server's projects tool.
-func (s *Server) ProjectsToolName() string { return s.platformToolName("projects") }
+// ProjectsReadToolName and ProjectsUseToolName name the two halves the projects
+// tool was split into.
+//
+// There is deliberately no single ProjectsToolName. It used to return
+// "hookdeck_projects", which stopped existing when the tool was split, and
+// because it was a helper rather than a literal the stale name propagated
+// silently into help text, tool descriptions and error hints — all of which
+// then told agents to call a tool that answers "unknown tool". Forcing the
+// caller to say which half it means is what stops that recurring.
+func (s *Server) ProjectsReadToolName() string {
+	return s.platformToolName("projects") + "_" + GroupRead
+}
+
+// ProjectsUseToolName names the tool that switches the active project.
+func (s *Server) ProjectsUseToolName() string {
+	return s.platformToolName("projects") + "_use"
+}
 
 // platformToolName names a tool that belongs to the Hookdeck platform rather
 // than to one product.
@@ -170,7 +185,7 @@ func (s *Server) ProjectsToolName() string { return s.platformToolName("projects
 // Logging in and switching projects are Hookdeck operations, not Gateway or
 // Outpost ones, so they keep the platform prefix in every server. Product tools
 // (ToolName) take the product's own prefix. Both servers therefore expose the
-// same hookdeck_login and hookdeck_projects, which is correct: it is the same
+// same hookdeck_login and hookdeck_projects_* tools, which is correct: it is the same
 // operation, and a client that has both configured sees one consistent name for
 // it.
 func (s *Server) platformToolName(resource string) string {

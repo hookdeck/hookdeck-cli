@@ -165,6 +165,52 @@ func TestConnectionsCreate(t *testing.T) {
 	assert.Equal(t, []any{map[string]any{"type": "retry", "count": float64(3)}}, body["rules"])
 }
 
+// An omitted ruleset must be omitted from the body, not sent as null.
+//
+// Every other test here spells out "rules", which is exactly why this shipped
+// broken: the builder took the address of a nil slice unconditionally, so a
+// create without rules put "rules": null on the wire and the API answered
+// "rules must be an array". Creating a connection without mentioning rules is
+// the most obvious first call an agent makes against this tool, and it failed.
+func TestConnectionsCreateOmitsAnUnmentionedRuleset(t *testing.T) {
+	var got wireRequest
+	session := writeSession(t, map[string]http.HandlerFunc{
+		"POST /2026-09-01/connections": ok(&got, connectionBody()),
+	})
+
+	succeeds(t, session, "gateway_connections_write", map[string]any{
+		"action":         "create",
+		"name":           "no-rules",
+		"source_id":      "src_1",
+		"destination_id": "des_1",
+	})
+
+	body := got.decodeBody(t)
+	_, present := body["rules"]
+	assert.False(t, present, "an unmentioned ruleset must be absent from the body, not null: %v", body)
+}
+
+// An explicit empty array is how a ruleset gets cleared, so it must survive as
+// [] rather than being dropped alongside the absent case.
+func TestConnectionsUpdateSendsAnExplicitlyEmptyRuleset(t *testing.T) {
+	var resolve, got wireRequest
+	session := writeSession(t, map[string]http.HandlerFunc{
+		"GET /2026-09-01/connections/web_1": ok(&resolve, connectionBody()),
+		"PUT /2026-09-01/connections/web_1": ok(&got, connectionBody()),
+	})
+
+	succeeds(t, session, "gateway_connections_write", map[string]any{
+		"action": "update",
+		"id":     "web_1",
+		"rules":  []any{},
+	})
+
+	body := got.decodeBody(t)
+	rules, present := body["rules"]
+	require.True(t, present, "an explicit empty ruleset must reach the API to clear it: %v", body)
+	assert.Equal(t, []any{}, rules)
+}
+
 // Upsert keys on the name, so it goes to the collection rather than to an id,
 // and a POST here would create a duplicate on every call.
 func TestConnectionsUpsertIsAPutToTheCollection(t *testing.T) {

@@ -20,7 +20,7 @@ var configActions = mcpcore.ActionSet{
 
 var configSpec = mcpcore.ToolSpec{
 	Resource: "config",
-	Summary:  "Read and change this project's Outpost configuration. These settings apply to the whole project — every tenant and every destination — so a change here affects all delivery, and takes a short while to reach the deployment (check outpost_status). Some keys are managed for you and are rejected if set directly.",
+	Summary:  "Read and change this project's Outpost configuration. These settings apply to the whole project — every tenant and every destination — so a change here affects all delivery, and takes a short while to reach the deployment (check outpost_status_read). Some keys are managed for you and are rejected if set directly.",
 	Actions:  configActions,
 	Props: map[string]mcpcore.Prop{
 		"key":      {Type: "string", Desc: "A single configuration key to read (get). Omit to read everything that is set."},
@@ -127,6 +127,6 @@ func configSet(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (
 	return mcpcore.JSONResultEnvelopeForClient(map[string]any{
 		"config":  updated,
 		"changed": len(update),
-		"note":    "Changes take a short while to reach the deployment. Check outpost_status.",
+		"note":    "Changes take a short while to reach the deployment. Check outpost_status_read.",
 	}, client)
 }

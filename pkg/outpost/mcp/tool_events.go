@@ -18,7 +18,7 @@ var eventsActions = mcpcore.ActionSet{
 
 var eventsSpec = mcpcore.ToolSpec{
 	Resource: "events",
-	Summary:  "Query published events. An event is one publish, fanned out to every destination whose topic subscription matched it. Use outpost_attempts to see how delivery of an event actually went.",
+	Summary:  "Query published events. An event is one publish, fanned out to every destination whose topic subscription matched it. Use outpost_attempts_read to see how delivery of an event actually went.",
 	Actions:  eventsActions,
 	Props: map[string]mcpcore.Prop{
 		"id":             {Type: "string", Desc: "Event ID. Required for get/retry. On list, filters by event ID(s). " + descListValue},

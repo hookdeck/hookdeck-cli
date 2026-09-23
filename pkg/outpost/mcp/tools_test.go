@@ -646,7 +646,7 @@ func TestHelpOverview_ReadOnlyMode(t *testing.T) {
 	// like a bug.
 	assert.Contains(t, text, "token")
 	assert.Contains(t, text, "portal")
-	assert.Contains(t, text, "outpost_publish is not registered")
+	assert.Contains(t, text, "outpost_publish_write is not registered")
 	assert.Contains(t, text, "proj_outpost")
 }
 
@@ -666,7 +666,7 @@ func TestHelpOverview_WriteMode(t *testing.T) {
 		session := connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
 		text := resultText(t, callTool(t, session, "outpost_help", map[string]any{}))
 		assert.Contains(t, text, "Mode: write enabled")
-		assert.Contains(t, text, "outpost_publish is not registered")
+		assert.Contains(t, text, "outpost_publish_write is not registered")
 		assert.Contains(t, text, "HOOKDECK_OUTPOST_PUBLISH_API_KEY")
 		// HOOKDECK_API_KEY means "exchange this for CLI credentials" elsewhere in
 		// the CLI and is commonly exported for CI. Naming it here would suggest an
@@ -731,7 +731,8 @@ func TestServerIdentity(t *testing.T) {
 
 	// The Outpost server must only ever serve Outpost projects.
 	assert.Equal(t, config.ProjectTypeOutpost, srv.ProjectFilter())
-	assert.Equal(t, "hookdeck_projects", srv.ProjectsToolName())
+	assert.Equal(t, "hookdeck_projects_read", srv.ProjectsReadToolName())
+	assert.Equal(t, "hookdeck_projects_use", srv.ProjectsUseToolName())
 	assert.Equal(t, "hookdeck_login", srv.LoginToolName())
 
 	var _ *mcpcore.Server = srv

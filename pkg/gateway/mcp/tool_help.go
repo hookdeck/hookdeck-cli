@@ -57,7 +57,7 @@ const mcpJSONSuccessResponseHelp = `Common JSON response shape (all resource too
 Successful tool calls that return JSON share one envelope. Parse the tool result body as JSON:
 
   • "data" — Domain payload for this tool and action (same shapes as Hookdeck list/get APIs,
-    or { "raw_body": "..." } for raw_body actions, or { "projects": [...] } for hookdeck_projects list).
+    or { "raw_body": "..." } for raw_body actions, or { "projects": [...] } for hookdeck_projects_read list).
   • "meta" — Cross-cutting fields. When a Hookdeck project is in scope: "active_project_id" (string)
     and "active_project_name" (string, short name without org) are always present; name may be "" if
     unresolved. "active_project_org" (string) is included when known; omitted when empty.
@@ -98,7 +98,8 @@ func toolSummaryLines(srv *mcpcore.Server) []string {
 	}
 
 	entries := []entry{
-		{srv.ProjectsToolName(), "List or switch the active project (actions: list, use)"},
+		{srv.ProjectsReadToolName(), "List the projects this credential can see"},
+		{srv.ProjectsUseToolName(), "Switch the active project; every later call is scoped to it"},
 		{srv.LoginToolName(), "Sign in, or reauth: true for a fresh browser session when listing projects fails"},
 	}
 
@@ -151,8 +152,8 @@ Current project: %s
 
 %s
 
-All tools operate on the active project. Call %s first when the user references a project by
-name, or when unsure which project is active.
+All tools operate on the active project. Call %s to find a project when the user references one
+by name, and %s to switch to it.
 
 %s
 Use %s with topic="<tool_name>" for detailed help on a specific tool; each topic
@@ -160,7 +161,8 @@ repeats the common JSON response shape above for convenience.`,
 		formatCurrentProject(client),
 		modeHelp(srv),
 		mcpJSONSuccessResponseHelp,
-		srv.ProjectsToolName(),
+		srv.ProjectsReadToolName(),
+		srv.ProjectsUseToolName(),
 		tools.String(),
 		srv.HelpToolName(),
 	)
@@ -180,19 +182,22 @@ When not authenticated: returns a URL the user opens in a browser; poll by calli
 
 Parameters:
   reauth  (boolean) — If true, clears stored credentials and starts a new browser login. Use when
-                      hookdeck_projects list fails and the key may be a single-project or dashboard
+                      hookdeck_projects_read list fails and the key may be a single-project or dashboard
                       API key that cannot list teams.`,
 
 		srv.HelpToolName(): fmt.Sprintf(`%s — Overview of the Event Gateway tools, or detailed help for one
 
 The overview reports the current mode (read-only or write) and which actions are registered.
 
-Note: all tools operate on the active project — use %s to verify or switch project
-context before querying.
+Note: all tools operate on the active project — use %s to list projects and %s to switch
+the active one before querying.
 
 Parameters:
   topic  (string) — Tool name for detailed help (e.g. "%s"). Omit for the overview.`,
-			srv.HelpToolName(), srv.ProjectsToolName(), srv.ToolName("events")),
+			srv.HelpToolName(), srv.ProjectsReadToolName(), srv.ProjectsUseToolName(),
+			// A real tool name: ToolName alone returns the pre-split
+			// "gateway_events", which no longer exists.
+			srv.ToolName("events")+"_"+mcpcore.GroupRead),
 	}
 
 	for _, spec := range append(srv.PlatformSpecs(projectsToolDesc), resourceSpecs()...) {

@@ -39,7 +39,7 @@ reversible: pausing buffers delivery rather than dropping events.
 Product tools are prefixed gateway_, so this server and 'hookdeck outpost mcp'
 can be configured in the same client. Signing in and switching project are
 Hookdeck operations rather than Event Gateway ones, so they keep the platform
-prefix: hookdeck_login and hookdeck_projects.
+prefix: hookdeck_login, hookdeck_projects_read and hookdeck_projects_use.
 
 If the CLI is already authenticated, all tools are available immediately.
 If not, gateway MCP still starts: project selection is skipped until you

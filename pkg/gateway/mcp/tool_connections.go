@@ -117,7 +117,21 @@ func connectionRequest(in mcpcore.Input) (*hookdeck.ConnectionCreateRequest, err
 	if err != nil {
 		return nil, err
 	}
-	req.Rules = &rules
+	// Keyed off whether the caller mentioned rules at all, not off whether any
+	// came back, matching `connection update`'s handling of its --rules flag.
+	//
+	// An explicit [] has to reach the API to clear the ruleset. An absent key
+	// has to be omitted entirely: assigning unconditionally took the address of
+	// a nil slice, which marshalled as "rules": null, and the API rejects that
+	// with "rules must be an array". Every create, upsert and update that did
+	// not spell out a ruleset failed — which is the first call an agent is
+	// likely to make against this tool.
+	if _, mentioned := in["rules"]; mentioned {
+		if rules == nil {
+			rules = []hookdeck.Rule{}
+		}
+		req.Rules = &rules
+	}
 	return req, nil
 }
 

@@ -22,7 +22,7 @@ var destinationsActions = mcpcore.ActionSet{
 
 var destinationsSpec = mcpcore.ToolSpec{
 	Resource: "destinations",
-	Summary:  "Inspect and manage the destinations events are delivered to. Every destination belongs to a tenant, so tenant_id is always required. Config and credentials are specific to the destination type — call outpost_destination_types to see the fields a type accepts before creating or updating one. Destinations have no name: identify one to a human by its type and target (for example \"webhook -> https://example.com/hooks\"), not by its id, which means nothing on its own.",
+	Summary:  "Inspect and manage the destinations events are delivered to. Every destination belongs to a tenant, so tenant_id is always required. Config and credentials are specific to the destination type — call outpost_destination_types_read to see the fields a type accepts before creating or updating one. Destinations have no name: identify one to a human by its type and target (for example \"webhook -> https://example.com/hooks\"), not by its id, which means nothing on its own.",
 	Actions:  destinationsActions,
 	Required: []string{"tenant_id"},
 	Props: map[string]mcpcore.Prop{

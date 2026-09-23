@@ -15,7 +15,7 @@ const listProjectsReauthHintFormat = `This may happen if the stored key is a das
 func listProjectsFailureMessage(srv *Server, err error) string {
 	base := TranslateAPIError(err)
 	if shouldSuggestReauthAfterListProjectsFailure(err) {
-		hint := fmt.Sprintf(listProjectsReauthHintFormat, srv.LoginToolName(), srv.ProjectsToolName())
+		hint := fmt.Sprintf(listProjectsReauthHintFormat, srv.LoginToolName(), srv.ProjectsReadToolName())
 		return base + "\n\n" + hint
 	}
 	return base

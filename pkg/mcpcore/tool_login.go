@@ -51,7 +51,7 @@ func (s *Server) LoginToolDef(description string) ToolDef {
 			Name:        s.LoginToolName(),
 			Description: description,
 			InputSchema: Schema(map[string]Prop{
-				"reauth": {Type: "boolean", Desc: fmt.Sprintf("If true, clear stored credentials and start a new browser login. Use when project listing fails — complete login in the browser, then retry %s.", s.ProjectsToolName())},
+				"reauth": {Type: "boolean", Desc: fmt.Sprintf("If true, clear stored credentials and start a new browser login. Use when project listing fails — complete login in the browser, then retry %s.", s.ProjectsReadToolName())},
 			}),
 			// Stated rather than left to the default. An unset ReadOnlyHint
 			// reads as false, which happens to be right here — signing in

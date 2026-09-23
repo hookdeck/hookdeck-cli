@@ -17,7 +17,7 @@ import (
 // shared documentation such as the JSON response shape.
 func HelpTopic(prefix string, topics map[string]string, topic, suffix string) *mcpsdk.CallToolResult {
 	// An exact tool name always wins. Platform tools (hookdeck_login,
-	// hookdeck_projects) do not carry the product prefix, so prepending it
+	// hookdeck_projects_*) do not carry the product prefix, so prepending it
 	// unconditionally would turn a valid topic into a miss.
 	//
 	// A bare resource ("events", "projects") is qualified by trying the

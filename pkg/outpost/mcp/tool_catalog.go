@@ -18,7 +18,7 @@ var topicsActions = mcpcore.ActionSet{
 
 var topicsSpec = mcpcore.ToolSpec{
 	Resource: "topics",
-	Summary:  "List the topics destinations can subscribe to and events can be published on. Topics are project configuration rather than a resource, so they are changed with outpost_config, not created here.",
+	Summary:  "List the topics destinations can subscribe to and events can be published on. Topics are project configuration rather than a resource, so they are changed with outpost_config_write, not created here.",
 	Actions:  topicsActions,
 	Handler:  handleTopics,
 }
@@ -52,7 +52,7 @@ var destinationTypesActions = mcpcore.ActionSet{
 
 var destinationTypesSpec = mcpcore.ToolSpec{
 	Resource: "destination_types",
-	Summary:  "Describe the destination types available in this project and the config and credential fields each one accepts. Call this before outpost_destinations create or update so the payload matches the type's schema.",
+	Summary:  "Describe the destination types available in this project and the config and credential fields each one accepts. Call this before outpost_destinations_write create or update so the payload matches the type's schema.",
 	Actions:  destinationTypesActions,
 	Props: map[string]mcpcore.Prop{
 		"type":               {Type: "string", Desc: "Destination type, e.g. webhook (required for get)."},
@@ -119,7 +119,7 @@ var statusActions = mcpcore.ActionSet{
 
 var statusSpec = mcpcore.ToolSpec{
 	Resource: "status",
-	Summary:  "Report the state of this project's Outpost deployment, including the portal hostname. Configuration changes take a short while to reach the deployment, so check here after outpost_config set.",
+	Summary:  "Report the state of this project's Outpost deployment, including the portal hostname. Configuration changes take a short while to reach the deployment, so check here after outpost_config_write set.",
 	Actions:  statusActions,
 	Handler:  handleStatus,
 }

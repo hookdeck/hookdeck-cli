@@ -109,7 +109,11 @@ func TestProjectsTool_ToolNamesFollowThePrefix(t *testing.T) {
 	api := projectsAPI(t)
 	srv, _ := newProjectsServer(t, api, config.ProjectTypeOutpost)
 
-	assert.Equal(t, "hookdeck_projects", srv.ProjectsToolName())
+	// The two halves the projects tool split into. There is no combined
+	// accessor: one used to exist and quietly fed "hookdeck_projects" into
+	// help text and error hints after the name stopped existing.
+	assert.Equal(t, "hookdeck_projects_read", srv.ProjectsReadToolName())
+	assert.Equal(t, "hookdeck_projects_use", srv.ProjectsUseToolName())
 	assert.Equal(t, "hookdeck_login", srv.LoginToolName())
 	assert.Equal(t, "outpost_events", srv.ToolName("events"))
 	assert.Equal(t, "outpost_", srv.ToolPrefix())

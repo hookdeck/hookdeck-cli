@@ -23,12 +23,12 @@ var publishActions = mcpcore.ActionSet{
 func publishSpec(apiKey string) mcpcore.ToolSpec {
 	return mcpcore.ToolSpec{
 		Resource: "publish",
-		Summary:  "Publish an event to a topic, for delivery to a tenant's matching destinations. Publishing is asynchronous: a successful response means the event was accepted, not that it has been delivered — check outpost_attempts for that. This delivers real events to real destinations.",
+		Summary:  "Publish an event to a topic, for delivery to a tenant's matching destinations. Publishing is asynchronous: a successful response means the event was accepted, not that it has been delivered — check outpost_attempts_read for that. This delivers real events to real destinations.",
 		Actions:  publishActions,
 		Required: []string{"tenant_id", "topic"},
 		Props: map[string]mcpcore.Prop{
 			"tenant_id":          {Type: "string", Desc: "Tenant to publish for (required)."},
-			"topic":              {Type: "string", Desc: "Topic to publish on (required). Must be one of the project's topics — see outpost_topics."},
+			"topic":              {Type: "string", Desc: "Topic to publish on (required). Must be one of the project's topics — see outpost_topics_read."},
 			"data":               {Type: "object", Desc: "Event payload as a JSON object."},
 			"destination_id":     {Type: "string", Desc: "Deliver only to this destination instead of every matching one."},
 			"event_id":           {Type: "string", Desc: "Event ID, for idempotent publishing. Republishing the same ID reports a duplicate instead of creating a second event."},
@@ -75,7 +75,7 @@ func handlePublish(srv *mcpcore.Server, apiKey string) mcpsdk.ToolHandler {
 
 		// Publishing follows the credential, not the active project, and the two
 		// can disagree: the credential is fixed at startup while the active
-		// project moves with hookdeck_projects use. When they disagree the event
+		// project moves with hookdeck_projects_use. When they disagree the event
 		// is accepted, matches nothing, and leaves no trace — a success response
 		// for something that never happened.
 		//

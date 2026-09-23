@@ -3135,8 +3135,8 @@ server and 'hookdeck gateway mcp' can be configured in the same client.
 The server starts read-only: tools advertise only the actions that read data,
 so an agent is never offered an action it cannot perform. Pass `--allow-write` to
 enable creating, changing and deleting. Two reads count as writes and are also
-gated, because both return a reusable credential: 'outpost_tenants token' mints
-a tenant-scoped access token, and 'outpost_tenants portal' returns a URL
+gated, because both return a reusable credential: 'outpost_tenants_write token' mints
+a tenant-scoped access token, and 'outpost_tenants_write portal' returns a URL
 granting access to a tenant's portal.
 
 Publishing needs a Hookdeck Project API key, which the credentials stored by

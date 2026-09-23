@@ -75,7 +75,7 @@ func modeHelp(srv *mcpcore.Server, opts ServerOptions) string {
 		text := `Mode: write enabled. The ` + "`_write`" + ` tools are registered alongside the ` + "`_read`" + ` ones, so every action below is available, including the ones that create,
 change or delete data. Destructive actions (delete, config set, publish) are real and immediate.`
 		if opts.PublishAPIKey == "" {
-			text += "\n\noutpost_publish is not registered in this session: publishing needs a Hookdeck Project API key,\n" +
+			text += "\n\noutpost_publish_write is not registered in this session: publishing needs a Hookdeck Project API key,\n" +
 				"which the credentials stored by 'hookdeck login' cannot substitute for. Restart the server with\n" +
 				"--publish-api-key <project-api-key>, or set HOOKDECK_OUTPOST_PUBLISH_API_KEY, to publish."
 		}
@@ -84,9 +84,9 @@ change or delete data. Destructive actions (delete, config set, publish) are rea
 
 	return `Mode: read-only. The tools that create, change or delete data are unavailable in read-only mode: each resource has a ` + "`_write`" + ` tool and none is registered. The tools above list only
 the actions this session can perform. Two reads are treated as writes and are also unavailable:
-outpost_tenants token mints a tenant-scoped access token, and outpost_tenants portal returns a URL
+outpost_tenants_write token mints a tenant-scoped access token, and outpost_tenants_write portal returns a URL
 granting access to a tenant's portal — both hand back reusable credentials, so a read-only session
-must not be able to produce them. outpost_publish is not registered at all.
+must not be able to produce them. outpost_publish_write is not registered at all.
 
 To enable everything, restart the server with --allow-write, or set HOOKDECK_MCP_ALLOW_WRITE=true
 (the flag wins). Publishing additionally needs a Hookdeck Project API key via --publish-api-key or
@@ -108,7 +108,7 @@ Current project: %s
 
 %s
 
-All tools operate on the active project, which must be an Outpost project. Call hookdeck_projects
+All tools operate on the active project, which must be an Outpost project. Call hookdeck_projects_use
 first when the user references a project by name, or when unsure which project is active.
 
 %s
@@ -131,7 +131,8 @@ func toolSummaryLines(srv *mcpcore.Server, opts ServerOptions) []string {
 	}
 
 	entries := []entry{
-		{srv.ProjectsToolName(), "List or switch the active Outpost project (actions: list, use)"},
+		{srv.ProjectsReadToolName(), "List the projects this credential can see"},
+		{srv.ProjectsUseToolName(), "Switch the active project; it must be an Outpost project"},
 		{srv.LoginToolName(), "Sign in, or reauth: true for a fresh browser session when listing projects fails"},
 	}
 
@@ -183,11 +184,11 @@ func toolHelp(srv *mcpcore.Server) map[string]string {
 Without arguments when already authenticated: confirms the session is active.
 When not authenticated: returns a URL the user opens in a browser; poll by calling this tool again.
 
-Note: signing in here does not supply a Project API key, which outpost_publish needs separately.
+Note: signing in here does not supply a Project API key, which outpost_publish_write needs separately.
 
 Parameters:
   reauth  (boolean) — If true, clears stored credentials and starts a new browser login. Use when
-                      hookdeck_projects list fails and the key may be a single-project or dashboard
+                      hookdeck_projects_read list fails and the key may be a single-project or dashboard
                       API key that cannot list projects.`,
 
 		helpToolName: `outpost_help — Overview of the Outpost tools, or detailed help for one
@@ -195,7 +196,7 @@ Parameters:
 The overview reports the current mode (read-only or write) and which tools are registered.
 
 Parameters:
-  topic  (string) — Tool name for detailed help (e.g. "outpost_events"). Omit for the overview.`,
+  topic  (string) — Tool name for detailed help (e.g. "outpost_events_read"). Omit for the overview.`,
 	}
 
 	// publish is appended unconditionally, so a topic lookup describes it even
