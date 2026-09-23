@@ -313,3 +313,32 @@ func TestDestinationPayloadArgumentsBelongToCreateAndUpdate(t *testing.T) {
 		assert.Equal(t, "webhook", got.decodeBody(t)["type"])
 	})
 }
+
+// type filters nothing on list: handleDestinationTypes reads it only for get.
+// Unscoped it was accepted on list and ignored, so a type-filtered list came
+// back holding every type and read as though the filter had applied.
+func TestDestinationTypeBelongsToGet(t *testing.T) {
+	api := mockAPI(t, nil)
+	session := connect(t, ServerOptions{Client: newTestClient(t, api.URL)})
+
+	t.Run("rejected on list", func(t *testing.T) {
+		result := callTool(t, session, "outpost_destination_types_read",
+			map[string]any{"action": "list", "type": "webhook"})
+		require.True(t, result.IsError,
+			"list ignores type; the page would read as type-filtered")
+		// Asserted on the guard's own wording, not merely on IsError: the stub
+		// API answers list with an error anyway, so checking only that the call
+		// failed passed just as well without the scope — a vacuous test that
+		// proved nothing.
+		assert.Contains(t, resultText(t, result), "cannot be used with action",
+			"it must be refused by the argument guard, not by the API")
+		assert.Contains(t, resultText(t, result), "type")
+	})
+
+	t.Run("accepted on get", func(t *testing.T) {
+		result := callTool(t, session, "outpost_destination_types_read",
+			map[string]any{"action": "get", "type": "webhook"})
+		assert.NotContains(t, resultText(t, result), "cannot be used with action",
+			"get requires type, so it must not be rejected there")
+	})
+}

@@ -55,7 +55,7 @@ var destinationTypesSpec = mcpcore.ToolSpec{
 	Summary:  "Describe the destination types available in this project and the config and credential fields each one accepts. Call this before outpost_destinations_write create or update so the payload matches the type's schema.",
 	Actions:  destinationTypesActions,
 	Props: map[string]mcpcore.Prop{
-		"type":               {Type: "string", Desc: "Destination type, e.g. webhook (required for get)."},
+		"type":               {Type: "string", Desc: "Destination type, e.g. webhook (required for get).", Actions: []string{"get"}},
 		"include_setup_docs": {Type: "boolean", Desc: "Include the provider setup instructions and icon. These are long and meant for rendering a setup UI, so they are omitted by default."},
 	},
 	Handler: handleDestinationTypes,

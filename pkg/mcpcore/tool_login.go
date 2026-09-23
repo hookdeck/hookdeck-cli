@@ -13,6 +13,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/project"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
@@ -66,6 +67,38 @@ func (s *Server) LoginToolDef(description string) ToolDef {
 		},
 		Handler: handleLogin(s),
 	}
+}
+
+// loginProjectMismatch reports why a completed login cannot be adopted by this
+// server, or nil when it can.
+//
+// Kept apart from the polling goroutine so the decision can be tested without
+// standing up a browser flow: it is the whole of the rule, and the caller does
+// nothing but persist or refuse on the back of it.
+func loginProjectMismatch(filter string, response *hookdeck.PollAPIKeyResponse, loginTool string) error {
+	if filter == "" {
+		return nil
+	}
+	got := config.NormalizeProjectType(response.ProjectType)
+	if got == filter {
+		return nil
+	}
+	return fmt.Errorf(
+		"signed in as %s, but the browser selected project %q, which is %s; this server only serves %s projects. "+
+			"Nothing was saved. Switch to a %s project in the dashboard and run %s again",
+		response.UserName, response.ProjectName,
+		describeProjectType(got), config.ProjectTypeToJSON(filter),
+		config.ProjectTypeToJSON(filter), loginTool,
+	)
+}
+
+// describeProjectType renders a project type for an error message, including
+// the case where the API returned one this build does not recognise.
+func describeProjectType(projectType string) string {
+	if projectType == "" {
+		return "of an unrecognised type"
+	}
+	return "a " + config.ProjectTypeToJSON(projectType) + " project"
 }
 
 func handleLogin(srv *Server) mcpsdk.ToolHandler {
@@ -210,6 +243,22 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 
 			if err := validators.APIKey(response.APIKey); err != nil {
 				s.err = fmt.Errorf("received invalid API key: %s", err)
+				return
+			}
+
+			// The browser flow lands on whichever project the user was last in,
+			// which need not be one this server can serve. ProjectFilter is
+			// enforced by the projects tools alone — resource handlers only
+			// check RequireAuth — so adopting a Gateway project here would
+			// point the Outpost client at it and every later call would come
+			// back 404: data that reads as missing rather than a project that
+			// was never right.
+			//
+			// Rejected before anything is persisted rather than after. Writing
+			// the mismatched project would also leave a config the next server
+			// start refuses, turning one wrong answer into a broken session.
+			if err := loginProjectMismatch(srv.ProjectFilter(), response, srv.LoginToolName()); err != nil {
+				s.err = err
 				return
 			}
 

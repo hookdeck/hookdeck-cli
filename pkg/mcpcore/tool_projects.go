@@ -39,7 +39,7 @@ func (s *Server) ProjectsSpec(summary string) ToolSpec {
 		Summary:  summary,
 		Actions:  projectsActions,
 		Props: map[string]Prop{
-			"project_id": {Type: "string", Desc: "Project ID. Required for use."},
+			"project_id": {Type: "string", Desc: "Project ID. Required for use.", Actions: []string{"use"}},
 		},
 		Handler: handleProjects,
 	}
