@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -468,12 +469,28 @@ func TestRequestListWithEventsCount(t *testing.T) {
 		return out
 	}
 
+	// events_count is derived and settles after the event itself exists. The
+	// setup waits for the event, not the counter, so querying immediately can
+	// legitimately miss the request — which is how the first version of this
+	// test failed in CI at 6 seconds while passing locally at 33.
+	//
+	// Polled by hand rather than with require.Eventually, which evaluates its
+	// message arguments before the condition has run and would report an empty
+	// list whatever actually came back.
 	var withEvents RequestListResponse
-	require.NoError(t, cli.RunJSON(&withEvents, "gateway", "request", "list", "--events-count", "1", "--limit", "50"))
-	require.NotEmpty(t, withEvents.Models,
-		"a request that produced exactly one event was just created, so this page cannot be empty")
-	assert.Contains(t, ids(withEvents.Models), ev.RequestID,
-		"--events-count 1 must return the request known to have produced one event")
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		require.NoError(t, cli.RunJSON(&withEvents, "gateway", "request", "list", "--events-count", "1", "--limit", "50"))
+		if slices.Contains(ids(withEvents.Models), ev.RequestID) {
+			break
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("--events-count 1 never returned %s, the request known to have produced one event, "+
+				"within 60s; the page held %d request(s): %v",
+				ev.RequestID, len(withEvents.Models), ids(withEvents.Models))
+		}
+		time.Sleep(3 * time.Second)
+	}
 	for _, r := range withEvents.Models {
 		assert.Equal(t, 1, r.EventsCount, "--events-count 1 must only return requests with one event")
 	}
