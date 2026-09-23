@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"testing"
 
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
@@ -885,4 +887,62 @@ func TestMultiValueFiltersTakeCommaSeparatedNotArrays(t *testing.T) {
 		require.True(t, result.IsError)
 		assert.Contains(t, resultText(t, result), "topic takes a single value, not an array")
 	})
+}
+
+// TestPortalThemeIsValidatedTheSameWayAsTheCLI is the regression test for two
+// surfaces answering the same question differently.
+//
+//	CLI : hookdeck outpost tenant portal <t> --theme purple -> exit 1
+//	MCP : {"action":"portal","id":"<t>","theme":"purple"}    -> a portal URL
+//
+// The schema had no enum for theme, and an enum was not enforced anyway, so the
+// MCP side had nothing to check against. Both halves are fixed: the enum is
+// declared from the same hookdeck.OutpostPortalThemes the CLI validates
+// against, and mcpcore now rejects a value outside a declared enum.
+func TestPortalThemeIsValidatedTheSameWayAsTheCLI(t *testing.T) {
+	newSession := func(t *testing.T, got *captured) *mcpsdk.ClientSession {
+		api := mockAPI(t, map[string]http.HandlerFunc{
+			"GET /2026-09-01/tenants/acme/portal": recordJSON(got, http.StatusOK, map[string]any{
+				"redirect_url": "https://portal.example.test/s/abc",
+			}),
+		})
+		return connect(t, ServerOptions{Client: newTestClient(t, api.URL), WriteEnabled: true})
+	}
+
+	t.Run("the schema declares the themes the CLI accepts", func(t *testing.T) {
+		var got captured
+		tools := listTools(t, newSession(t, &got))
+		raw, err := json.Marshal(tools["outpost_tenants_write"].InputSchema)
+		require.NoError(t, err)
+		var schema struct {
+			Properties map[string]struct {
+				Enum []string `json:"enum"`
+			} `json:"properties"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &schema))
+		assert.Equal(t, hookdeck.OutpostPortalThemes, schema.Properties["theme"].Enum)
+	})
+
+	t.Run("an unknown theme is refused, not sent", func(t *testing.T) {
+		var got captured
+		session := newSession(t, &got)
+		result := callTool(t, session, "outpost_tenants_write", map[string]any{
+			"action": "portal", "id": "acme", "theme": "purple",
+		})
+		require.True(t, result.IsError, "purple is not a theme; the CLI exits 1 for it")
+		assert.Contains(t, resultText(t, result), "theme must be one of: light, dark")
+		assert.Empty(t, got.path, "the call must not reach the API")
+	})
+
+	for _, theme := range hookdeck.OutpostPortalThemes {
+		t.Run("a declared theme still works: "+theme, func(t *testing.T) {
+			var got captured
+			session := newSession(t, &got)
+			result := callTool(t, session, "outpost_tenants_write", map[string]any{
+				"action": "portal", "id": "acme", "theme": theme,
+			})
+			require.False(t, result.IsError, resultText(t, result))
+			assert.Contains(t, got.query, "theme="+theme)
+		})
+	}
 }

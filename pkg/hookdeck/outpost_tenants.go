@@ -167,8 +167,16 @@ func (c *Client) GetOutpostTenantToken(ctx context.Context, tenantID string) (*O
 	return &token, nil
 }
 
+// OutpostPortalThemes are the colour schemes the tenant portal accepts.
+//
+// Declared once so the CLI flag and the MCP schema cannot disagree: the CLI
+// refused `--theme purple` while outpost_tenants_write happily minted a portal
+// URL for it, because each surface had its own idea of the valid values and one
+// of them had none.
+var OutpostPortalThemes = []string{"light", "dark"}
+
 // GetOutpostTenantPortalURL returns a redirect URL for the tenant's portal.
-// theme is optional and accepts "light" or "dark".
+// theme is optional and must be one of OutpostPortalThemes.
 func (c *Client) GetOutpostTenantPortalURL(ctx context.Context, tenantID, theme string) (*OutpostTenantPortalURL, error) {
 	path, err := apiPath("tenants", tenantID, "portal")
 	if err != nil {

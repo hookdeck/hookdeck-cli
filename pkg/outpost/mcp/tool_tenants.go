@@ -27,11 +27,15 @@ var tenantsSpec = mcpcore.ToolSpec{
 		// rest to address one tenant.
 		"id":       {Type: "string", Desc: "Tenant ID. Required for get/upsert/delete/token/portal. On list, filters by tenant ID(s). " + descListValue},
 		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata wholesale — pass every key you want to keep, and note that omitting this argument clears any metadata the tenant already had.", Write: true, Actions: []string{"upsert"}},
-		"theme":    {Type: "string", Desc: "Portal colour scheme: light or dark (portal).", Write: true, Actions: []string{"portal"}},
-		"limit":    {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
-		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)", Actions: []string{"list"}},
-		"next":     {Type: "string", Desc: "Next page cursor (list)", Actions: []string{"list"}},
-		"prev":     {Type: "string", Desc: "Previous page cursor (list)", Actions: []string{"list"}},
+		// The enum is what makes the description enforceable. Without it MCP
+		// minted a portal URL for theme "purple" while
+		// `hookdeck outpost tenant portal <t> --theme purple` refused it — the
+		// same operation, answered two different ways depending on the surface.
+		"theme": {Type: "string", Desc: "Portal colour scheme: light or dark (portal).", Enum: hookdeck.OutpostPortalThemes, Write: true, Actions: []string{"portal"}},
+		"limit": {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
+		"dir":   {Type: "string", Desc: "Sort direction: asc or desc (list)", Actions: []string{"list"}},
+		"next":  {Type: "string", Desc: "Next page cursor (list)", Actions: []string{"list"}},
+		"prev":  {Type: "string", Desc: "Previous page cursor (list)", Actions: []string{"list"}},
 	},
 	Handler: handleTenants,
 }

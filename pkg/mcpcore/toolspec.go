@@ -80,6 +80,9 @@ const (
 	GroupWrite = "write"
 )
 
+// actionArgName is the argument every product tool dispatches on.
+const actionArgName = "action"
+
 // ActionSet is a tool's action list.
 type ActionSet []Action
 
@@ -426,7 +429,7 @@ func (spec ToolSpec) defineGroup(srv *Server, group string) (ToolDef, bool) {
 	}
 
 	props := spec.VisibleProps(group)
-	props["action"] = Prop{
+	props[actionArgName] = Prop{
 		Type: "string",
 		Desc: "Action: " + actions.Summary(),
 		Enum: actions.Names(),
@@ -460,7 +463,7 @@ func (spec ToolSpec) defineGroup(srv *Server, group string) (ToolDef, bool) {
 		Tool: &mcpsdk.Tool{
 			Name:        name,
 			Description: description,
-			InputSchema: Schema(props, append([]string{"action"}, spec.Required...)...),
+			InputSchema: Schema(props, append([]string{actionArgName}, spec.Required...)...),
 			Annotations: &mcpsdk.ToolAnnotations{
 				ReadOnlyHint:    !actions.HasChanging(),
 				DestructiveHint: &destructive,
@@ -515,8 +518,14 @@ func (spec ToolSpec) defineGroup(srv *Server, group string) (ToolDef, bool) {
 // accepted where an array is declared, and numbers and booleans are accepted as
 // strings (NumberOrString, BoolOrString). Enforcing the declared type strictly
 // would reject callers those helpers exist to support. What is rejected is only
-// what nothing can consume: a non-string inside a string array, and an array or
-// object where a single value belongs.
+// what nothing can consume: a non-string inside a string array, an array or
+// object where a single value belongs, and a value outside a declared enum.
+//
+// The enum check is the same failure as the rest. An enum in the schema is a
+// claim about what the tool accepts, and nothing was checking it, so
+// outpost_tenants_write minted a portal URL for theme "purple" while
+// `hookdeck outpost tenant portal <t> --theme purple` — the same operation on
+// the other surface — refused it. A declared enum is now enforced on both.
 func checkArgumentTypes(visible map[string]Prop, in Input) []string {
 	var problems []string
 
@@ -561,14 +570,42 @@ func checkArgumentTypes(visible map[string]Prop, in Input) []string {
 			switch value.(type) {
 			case []interface{}:
 				problems = append(problems, fmt.Sprintf("%s takes a single value, not an array", key))
+				continue
 			case map[string]interface{}:
 				problems = append(problems, fmt.Sprintf("%s takes a single value, not an object", key))
+				continue
+			}
+			if problem := checkEnum(key, prop, value); problem != "" {
+				problems = append(problems, problem)
 			}
 		}
 	}
 
 	sort.Strings(problems)
 	return problems
+}
+
+// checkEnum reports a value outside the property's declared enum.
+//
+// "action" is left alone: Dispatch already rejects an unknown action, with the
+// better message — it names the actions available in the current mode and can
+// point at the sibling tool that carries the one the caller reached for.
+func checkEnum(key string, prop Prop, value interface{}) string {
+	if key == actionArgName || len(prop.Enum) == 0 {
+		return ""
+	}
+	// Only a string can be compared against the enum; a number or boolean where
+	// one belongs is the input helpers' business, not this check's.
+	given, isString := value.(string)
+	if !isString || given == "" {
+		return ""
+	}
+	for _, allowed := range prop.Enum {
+		if given == allowed {
+			return ""
+		}
+	}
+	return fmt.Sprintf("%s must be one of: %s", key, strings.Join(prop.Enum, ", "))
 }
 
 // actionScopeHint names the actions a write-only property belongs to.

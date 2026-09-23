@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -49,7 +51,7 @@ This requires a portal custom domain to be configured for the project; see
 		},
 	}
 
-	tc.cmd.Flags().StringVar(&tc.theme, "theme", "", "Portal theme (light, dark)")
+	tc.cmd.Flags().StringVar(&tc.theme, "theme", "", "Portal theme ("+strings.Join(hookdeck.OutpostPortalThemes, ", ")+")")
 	tc.cmd.Flags().BoolVar(&tc.open, "open", false, "Open the portal URL in your browser")
 	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
 
@@ -60,8 +62,8 @@ func (tc *outpostTenantPortalCmd) validateFlags(cmd *cobra.Command, args []strin
 	if err := rejectEmptyFlags(cmd); err != nil {
 		return err
 	}
-	if tc.theme != "" && tc.theme != "light" && tc.theme != "dark" {
-		return fmt.Errorf("--theme must be either light or dark")
+	if tc.theme != "" && !slices.Contains(hookdeck.OutpostPortalThemes, tc.theme) {
+		return fmt.Errorf("--theme must be either %s", strings.Join(hookdeck.OutpostPortalThemes, " or "))
 	}
 	return nil
 }

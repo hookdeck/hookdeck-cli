@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 // Unit coverage for the outpost commands' RunE against a stub Outpost API.
@@ -399,6 +400,23 @@ func TestOutpostTenantPortal(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--theme must be either light or dark")
 		assert.Empty(t, *requests)
+	})
+
+	// The CLI and outpost_tenants_write now validate against the same list, so
+	// "purple" cannot be refused on one surface and accepted on the other.
+	// Whichever themes that list holds, the CLI has to take all of them.
+	t.Run("every declared theme is accepted", func(t *testing.T) {
+		for _, theme := range hookdeck.OutpostPortalThemes {
+			requests := stubOutpostAPI(t, map[string]http.HandlerFunc{
+				"GET /2026-09-01/tenants/acme/portal": jsonResponse(http.StatusOK, map[string]any{
+					"redirect_url": "https://portal.example.com/s/abc",
+				}),
+			})
+			_, err := runCommand(t, newOutpostTenantPortalCmd().cmd, "acme", "--theme", theme)
+			require.NoError(t, err, "theme %q is declared but the CLI refuses it", theme)
+			require.Len(t, *requests, 1)
+			assert.Equal(t, "theme="+theme, (*requests)[0].query)
+		}
 	})
 }
 
