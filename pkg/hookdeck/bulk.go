@@ -132,6 +132,14 @@ func RejectUnsupportedBulkFilters(family string, query map[string]interface{}) e
 	if len(bad) == 0 {
 		return nil
 	}
+	// Both halves render in the caller's spelling, not the API's. The rejected
+	// names go through CanonicalBulkQuery on the way in, so reporting them raw
+	// told someone who typed connection_id that "webhook_id is not a filter" —
+	// a token they never used, and on the request operations neither name is
+	// valid, so there was nothing to connect it to.
+	for i, b := range bad {
+		bad[i] = DimensionName(b)
+	}
 	sort.Strings(bad)
 	sorted := append([]string{}, allowed...)
 	sort.Strings(sorted)

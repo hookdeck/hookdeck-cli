@@ -182,3 +182,20 @@ func TestBulkQueryTakesConnectionIDLikeEveryOtherTool(t *testing.T) {
 		assert.NotContains(t, err.Error(), "webhook_id")
 	})
 }
+
+// A refusal must name the filter the caller actually typed.
+//
+// connection_id is canonicalised to webhook_id before validation, so reporting
+// the rejected key raw told someone who typed connection_id that "webhook_id is
+// not a filter" — and on the request operations neither name is valid, so there
+// was nothing to connect the message to.
+func TestBulkRefusalNamesTheFilterTheCallerTyped(t *testing.T) {
+	query := CanonicalBulkQuery(map[string]interface{}{"connection_id": "web_1"})
+	err := RejectUnsupportedBulkFilters(BulkRequestsRetry, query)
+
+	require.Error(t, err, "the request operations take no connection filter at all")
+	assert.Contains(t, err.Error(), "connection_id",
+		"the refusal must name what the caller typed")
+	assert.NotContains(t, err.Error(), "webhook_id",
+		"webhook_id is the wire name; the caller never used it")
+}
