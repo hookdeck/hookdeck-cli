@@ -26,14 +26,16 @@ var destinationsSpec = mcpcore.ToolSpec{
 	Actions:  destinationsActions,
 	Required: []string{"tenant_id"},
 	Props: map[string]mcpcore.Prop{
+		// Deliberately unscoped: handleDestinations requires it before it
+		// dispatches, so every action reads it.
 		"tenant_id":   {Type: "string", Desc: "Tenant the destination belongs to (required for every action)."},
-		"id":          {Type: "string", Desc: "Destination ID. Required for get/update/delete/enable/disable."},
-		"type":        {Type: "string", Desc: "Destination type, e.g. webhook (required for create). On list, filters by type(s). " + descListValue},
-		"topics":      {Type: "array", Desc: `Topics to subscribe to, or ["*"] for all. On create, defaults to ["*"] when omitted, because the API requires topics. On update, omitting it leaves the current topics unchanged. On list, filters by topic(s).`, Items: &mcpcore.Prop{Type: "string"}},
-		"config":      {Type: "object", Desc: "Type-specific configuration, e.g. {\"url\": \"https://example.com/hooks\"} for a webhook (create/update).", Write: true},
-		"credentials": {Type: "object", Desc: "Type-specific credentials (create/update). Values are write-only; the API does not return them.", Write: true},
-		"filter":      {Type: "object", Desc: "Delivery filter (create/update). Replaced wholesale on update, not merged.", Write: true},
-		"metadata":    {Type: "object", Desc: "Destination metadata as a JSON object of string values (create/update).", Write: true},
+		"id":          {Type: "string", Desc: "Destination ID. Required for get/update/delete/enable/disable.", Actions: []string{"get", "update", "delete", "enable", "disable"}},
+		"type":        {Type: "string", Desc: "Destination type, e.g. webhook (required for create). On list, filters by type(s). A destination's type cannot be changed, so update does not take it. " + descListValue, Actions: []string{"list", "create"}},
+		"topics":      {Type: "array", Desc: `Topics to subscribe to, or ["*"] for all. On create, defaults to ["*"] when omitted, because the API requires topics. On update, omitting it leaves the current topics unchanged. On list, filters by topic(s).`, Items: &mcpcore.Prop{Type: "string"}, Actions: []string{"list", "create", "update"}},
+		"config":      {Type: "object", Desc: "Type-specific configuration, e.g. {\"url\": \"https://example.com/hooks\"} for a webhook (create/update).", Write: true, Actions: []string{"create", "update"}},
+		"credentials": {Type: "object", Desc: "Type-specific credentials (create/update). Credentials you supply are write-only — the API masks them on read. Credentials the platform generates for you are not: a webhook destination's signing secret is returned so you can verify signatures with it.", Write: true, Actions: []string{"create", "update"}},
+		"filter":      {Type: "object", Desc: "Delivery filter (create/update). Replaced wholesale on update, not merged.", Write: true, Actions: []string{"create", "update"}},
+		"metadata":    {Type: "object", Desc: "Destination metadata as a JSON object of string values (create/update).", Write: true, Actions: []string{"create", "update"}},
 	},
 	Handler: handleDestinations,
 }

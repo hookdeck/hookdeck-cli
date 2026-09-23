@@ -23,11 +23,13 @@ var tenantsSpec = mcpcore.ToolSpec{
 	Summary:  "Inspect and manage tenants — the end customers whose destinations events are delivered to. Tenant IDs are chosen by the operator, not generated, so upsert is the way to create one — which also means the id is usually meaningful to a human and worth quoting directly.",
 	Actions:  tenantsActions,
 	Props: map[string]mcpcore.Prop{
+		// Deliberately unscoped: every action reads it — list as a filter, the
+		// rest to address one tenant.
 		"id":       {Type: "string", Desc: "Tenant ID. Required for get/upsert/delete/token/portal. On list, filters by tenant ID(s). " + descListValue},
-		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata wholesale — pass every key you want to keep, and note that omitting this argument clears any metadata the tenant already had.", Write: true},
-		"theme":    {Type: "string", Desc: "Portal colour scheme: light or dark (portal).", Write: true},
+		"metadata": {Type: "object", Desc: "Tenant metadata as a JSON object of string values (upsert). Replaces the stored metadata wholesale — pass every key you want to keep, and note that omitting this argument clears any metadata the tenant already had.", Write: true, Actions: []string{"upsert"}},
+		"theme":    {Type: "string", Desc: "Portal colour scheme: light or dark (portal).", Write: true, Actions: []string{"portal"}},
 		"limit":    {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
-		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)"},
+		"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)", Actions: []string{"list"}},
 		"next":     {Type: "string", Desc: "Next page cursor (list)", Actions: []string{"list"}},
 		"prev":     {Type: "string", Desc: "Previous page cursor (list)", Actions: []string{"list"}},
 	},
