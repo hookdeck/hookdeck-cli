@@ -55,8 +55,9 @@ to replace credentials (e.g. when project listing fails with a narrow API key).`
   # Allow tools that change data
   hookdeck gateway mcp --allow-write
 
-  # Pipe a JSON-RPC initialize request for testing
-  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}' | hookdeck gateway mcp`,
+  # Pipe a JSON-RPC initialize request for testing. Keep stdin open:
+  # the server exits on EOF, and a bare echo closes it before the reply lands.
+  { echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}'; sleep 1; } | hookdeck gateway mcp`,
 		RunE: mc.runMCPCmd,
 	}
 

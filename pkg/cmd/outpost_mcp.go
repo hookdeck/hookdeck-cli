@@ -70,8 +70,9 @@ before the server runs go to stderr.`),
   # Allow writes, including publishing events
   hookdeck outpost mcp --allow-write --publish-api-key $HOOKDECK_OUTPOST_PUBLISH_API_KEY
 
-  # Pipe a JSON-RPC initialize request for testing
-  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}' | hookdeck outpost mcp`,
+  # Pipe a JSON-RPC initialize request for testing. Keep stdin open:
+  # the server exits on EOF, and a bare echo closes it before the reply lands.
+  { echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}'; sleep 1; } | hookdeck outpost mcp`,
 		RunE: mc.runOutpostMCPCmd,
 	}
 
