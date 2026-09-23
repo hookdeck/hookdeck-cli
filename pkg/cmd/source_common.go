@@ -261,7 +261,16 @@ func validateSourceAuthFromSpec(sourceType string, configSet bool, auth sourceAu
 	}
 	sourceTypes, err := sources.FetchSourceTypes()
 	if err != nil {
-		fmt.Printf("Warning: could not fetch source types for validation: %v\n", err)
+		// stderr, not stdout. This is advisory — validation is skipped and the
+		// API still checks — but on stdout it lands ahead of the command's own
+		// output, and `--output json` stops being parseable:
+		//
+		//   failed to unmarshal JSON output: invalid character 'W' looking for
+		//   beginning of value
+		//
+		// The spec fetch fails only intermittently, so this broke scripts at
+		// random rather than consistently.
+		fmt.Fprintf(os.Stderr, "Warning: could not fetch source types for validation: %v\n", err)
 		return nil
 	}
 	st, ok := sourceTypes[strings.ToUpper(sourceType)]
