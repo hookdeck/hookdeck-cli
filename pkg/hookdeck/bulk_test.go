@@ -144,3 +144,41 @@ func TestBulkQueryEncodesNestedAndListValues(t *testing.T) {
 	assert.Contains(t, got, "query%5Bid%5D%5B%5D=evt_1")
 	assert.Contains(t, got, "query%5Bid%5D%5B%5D=evt_2")
 }
+
+// The connection dimension is webhook_id on the wire and connection_id
+// everywhere a caller types it. Bulk was the one surface that leaked the wire
+// name, so an agent had to spell it connection_id for every other tool and
+// webhook_id only here.
+func TestBulkQueryTakesConnectionIDLikeEveryOtherTool(t *testing.T) {
+	t.Run("connection_id is rewritten to the API's spelling", func(t *testing.T) {
+		got := CanonicalBulkQuery(map[string]interface{}{
+			"connection_id": "web_1",
+			"status":        "FAILED",
+		})
+		assert.Equal(t, map[string]interface{}{
+			"webhook_id": "web_1",
+			"status":     "FAILED",
+		}, got)
+	})
+
+	t.Run("webhook_id still works", func(t *testing.T) {
+		got := CanonicalBulkQuery(map[string]interface{}{"webhook_id": "web_1"})
+		assert.Equal(t, map[string]interface{}{"webhook_id": "web_1"}, got)
+	})
+
+	t.Run("connection_id passes validation once canonicalised", func(t *testing.T) {
+		query := CanonicalBulkQuery(map[string]interface{}{"connection_id": "web_1"})
+		assert.NoError(t, RejectUnsupportedBulkFilters(BulkIgnoredEventsRetry, query))
+	})
+
+	// The refusal has to advertise the spelling the caller is told to use
+	// everywhere else, or it names a filter they were never offered.
+	t.Run("the refusal names connection_id, not webhook_id", func(t *testing.T) {
+		err := RejectUnsupportedBulkFilters(
+			BulkIgnoredEventsRetry,
+			map[string]interface{}{"status": "FAILED"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "connection_id")
+		assert.NotContains(t, err.Error(), "webhook_id")
+	})
+}

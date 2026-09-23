@@ -46,8 +46,8 @@ var bulkSpec = mcpcore.ToolSpec{
 		"id": {Type: "string", Desc: "Bulk job ID (get, cancel).", Actions: []string{"get", "cancel"}},
 		"query": {Type: "string", JSONValue: true, Actions: []string{"plan", "create"},
 			Desc: "Filters selecting what to act on, as a JSON object. " +
-				"THE FILTERS DIFFER PER OPERATION: the event operations take the full event filter set (status, webhook_id, source_id, created_at, body, …); " +
-				"the request operations take the request filter set; ignored_events_retry takes only cause, webhook_id and transformation_id. " +
+				"THE FILTERS DIFFER PER OPERATION: the event operations take the full event filter set (status, connection_id, source_id, created_at, body, …); " +
+				"the request operations take the request filter set; ignored_events_retry takes only cause, connection_id and transformation_id. " +
 				"A filter the operation does not declare is refused here rather than sent, because the API would ignore it and run across everything the rest matched. " +
 				"requests_replay also takes target, which selects where to replay: a bare source_id there replays onto EVERY active connection on that source, resolved as the replay runs."},
 		"limit": {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
@@ -127,6 +127,10 @@ func bulkQuery(in mcpcore.Input, family string) (map[string]interface{}, *mcpsdk
 			return nil, mcpcore.ErrorResult("query must be a JSON object: " + err.Error())
 		}
 	}
+	// connection_id is what every other tool takes; webhook_id is what the API
+	// calls it. Canonicalise before validating, or the refusal names a filter
+	// the caller never typed.
+	query = hookdeck.CanonicalBulkQuery(query)
 	if err := hookdeck.RejectUnsupportedBulkFilters(family, query); err != nil {
 		return nil, mcpcore.ErrorResult(err.Error())
 	}

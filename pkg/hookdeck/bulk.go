@@ -88,6 +88,30 @@ func BulkCancellable(family string) bool {
 }
 
 // RejectUnsupportedBulkFilters reports the filters this family does not declare.
+// CanonicalBulkQuery rewrites the caller's spelling of a filter into the API's.
+//
+// The connection dimension is webhook_id on the wire and connection_id
+// everywhere a person or an agent types it — the same mapping the CLI commands
+// and the metrics tools already apply on the way in. Bulk was the one surface
+// that leaked the wire name, so an agent had to type connection_id for every
+// other tool and webhook_id only here.
+//
+// webhook_id still works: it is what the API calls the field, and refusing it
+// would be a second inconsistency rather than a fix.
+func CanonicalBulkQuery(query map[string]interface{}) map[string]interface{} {
+	if query == nil {
+		return nil
+	}
+	out := make(map[string]interface{}, len(query))
+	for k, v := range query {
+		if k == "connection_id" {
+			k = "webhook_id"
+		}
+		out[k] = v
+	}
+	return out
+}
+
 func RejectUnsupportedBulkFilters(family string, query map[string]interface{}) error {
 	allowed, ok := BulkFilters[family]
 	if !ok {
@@ -111,10 +135,13 @@ func RejectUnsupportedBulkFilters(family string, query map[string]interface{}) e
 	sort.Strings(bad)
 	sorted := append([]string{}, allowed...)
 	sort.Strings(sorted)
+	// Rendered in the caller's spelling, not the API's: the allowed list holds
+	// webhook_id, and naming it raw would advertise a filter the caller is told
+	// to spell connection_id everywhere else.
 	return fmt.Errorf(
 		"%s is not a filter of the %s operation; it accepts: %s. "+
 			"The API would ignore it and run across everything the remaining filters match",
-		strings.Join(bad, ", "), family, strings.Join(sorted, ", "))
+		strings.Join(bad, ", "), family, DimensionList(sorted))
 }
 
 // BulkJob is a bulk operation, running or finished.
