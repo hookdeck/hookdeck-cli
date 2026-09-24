@@ -113,11 +113,18 @@ func discoverCommaSeparatedFlags() map[string]bool {
 	found := map[string]bool{}
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
-		c.LocalFlags().VisitAll(func(f *pflag.Flag) {
+		// Flags() and PersistentFlags(), not LocalFlags(): LocalFlags merges
+		// every parent's persistent flags into the command as a side effect,
+		// which mutates the shared rootCmd for every later test in the package.
+		// It put root's hidden --api-key onto outpost mcp and failed
+		// TestOutpostMCPCommandIsRegistered.
+		visit := func(f *pflag.Flag) {
 			if commaSeparated.MatchString(f.Usage) {
 				found[c.CommandPath()+" --"+f.Name] = true
 			}
-		})
+		}
+		c.Flags().VisitAll(visit)
+		c.PersistentFlags().VisitAll(visit)
 		for _, sub := range c.Commands() {
 			walk(sub)
 		}
