@@ -86,18 +86,10 @@ func rejectDimensions(params hookdeck.MetricsQueryParams, allowed []string, rout
 // mapDimensions rewrites connection_id to the webhook_id the API expects. The
 // tool schema tells callers connection_id "maps to webhook_id", which was true
 // of the filter and not of the dimension.
+// mapDimensions delegates to the shared pair in pkg/hookdeck so the outbound
+// rewrite and the inbound one in RestoreDimensionNames cannot drift. See #442.
 func mapDimensions(dimensions []string) []string {
-	if len(dimensions) == 0 {
-		return dimensions
-	}
-	out := make([]string, 0, len(dimensions))
-	for _, d := range dimensions {
-		if d == "connection_id" {
-			d = "webhook_id"
-		}
-		out = append(out, d)
-	}
-	return out
+	return hookdeck.MapDimensionsToAPI(dimensions)
 }
 
 func buildMetricsParams(in mcpcore.Input) (hookdeck.MetricsQueryParams, error) {
@@ -226,7 +218,7 @@ func metricsEvents(ctx context.Context, client *hookdeck.Client, in mcpcore.Inpu
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return mcpcore.JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(hookdeck.RestoreDimensionNames(result), client)
 }
 
 func metricsRequests(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
@@ -244,7 +236,7 @@ func metricsRequests(ctx context.Context, client *hookdeck.Client, in mcpcore.In
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return mcpcore.JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(hookdeck.RestoreDimensionNames(result), client)
 }
 
 func metricsAttempts(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
@@ -262,7 +254,7 @@ func metricsAttempts(ctx context.Context, client *hookdeck.Client, in mcpcore.In
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return mcpcore.JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(hookdeck.RestoreDimensionNames(result), client)
 }
 
 func metricsTransformations(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
@@ -280,5 +272,5 @@ func metricsTransformations(ctx context.Context, client *hookdeck.Client, in mcp
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
-	return mcpcore.JSONResultEnvelopeForClient(result, client)
+	return mcpcore.JSONResultEnvelopeForClient(hookdeck.RestoreDimensionNames(result), client)
 }

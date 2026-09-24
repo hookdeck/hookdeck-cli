@@ -12,7 +12,13 @@ import (
 )
 
 // printMetricsResponse prints data as JSON or a human-readable table.
+//
+// Dimension keys are translated back to the caller's vocabulary first: the API
+// answers with webhook_id, and a user who asked for connection_id should not
+// have to know the internal name to read their own result (#442). Every metrics
+// command prints through here, so this is the one place it has to happen.
 func printMetricsResponse(data hookdeck.MetricsResponse, output string) error {
+	data = hookdeck.RestoreDimensionNames(data)
 	if output == "json" {
 		bytes, err := json.MarshalIndent(data, "", "  ")
 		if err != nil {
@@ -127,13 +133,17 @@ func metricsParamsFromFlags(f *metricsCommonFlags) hookdeck.MetricsQueryParams {
 	if f.dimensions != "" {
 		for _, s := range strings.Split(f.dimensions, ",") {
 			if t := strings.TrimSpace(s); t != "" {
-				// API expects webhook_id for connection dimension; CLI accepts connection_id/connection-id for consistency.
-				if t == "connection_id" || t == "connection-id" {
-					t = "webhook_id"
+				// The API spells this webhook_id; the CLI accepts the
+				// user-facing connection_id (and the flag-style spelling) and
+				// translates. printMetricsResponse translates the response keys
+				// back, so the answer uses the name that was asked for (#442).
+				if t == "connection-id" {
+					t = hookdeck.ConnectionDimension
 				}
 				dimensions = append(dimensions, t)
 			}
 		}
+		dimensions = hookdeck.MapDimensionsToAPI(dimensions)
 	}
 	return hookdeck.MetricsQueryParams{
 		Start:         f.start,

@@ -20,6 +20,60 @@ type MetricDataPoint struct {
 // MetricsResponse is the response from any of the metrics GET endpoints.
 type MetricsResponse = []MetricDataPoint
 
+// The API spells the connection dimension webhook_id. "connection" is the
+// user-facing noun everywhere else in this CLI, so both surfaces accept
+// connection_id and translate it on the way out to the API.
+//
+// The translation used to be one-way: a caller asked for connection_id and got
+// results keyed webhook_id, so they had to know an internal name they never
+// used in order to read their own answer. For an agent that is worse than
+// untidy -- it looks for the key it asked for, does not find it, and cannot
+// learn that webhook_id means the same thing. See #442.
+//
+// Both directions live here, next to each other and shared by the MCP tool and
+// the CLI, so neither half can drift from the other.
+const (
+	ConnectionDimension    = "connection_id"
+	APIConnectionDimension = "webhook_id"
+)
+
+// MapDimensionsToAPI rewrites caller-facing dimension names to the API's.
+func MapDimensionsToAPI(dimensions []string) []string {
+	if len(dimensions) == 0 {
+		return dimensions
+	}
+	out := make([]string, 0, len(dimensions))
+	for _, d := range dimensions {
+		if d == ConnectionDimension {
+			d = APIConnectionDimension
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// RestoreDimensionNames rewrites the API's dimension keys back to the ones the
+// caller used, in place, so a response answers in the vocabulary of its query.
+func RestoreDimensionNames(points MetricsResponse) MetricsResponse {
+	for i := range points {
+		d := points[i].Dimensions
+		if d == nil {
+			continue
+		}
+		v, ok := d[APIConnectionDimension]
+		if !ok {
+			continue
+		}
+		// Never clobber a connection_id the API itself returned.
+		if _, exists := d[ConnectionDimension]; exists {
+			continue
+		}
+		d[ConnectionDimension] = v
+		delete(d, APIConnectionDimension)
+	}
+	return points
+}
+
 // MetricsQueryParams holds shared query parameters for all metrics endpoints.
 // Start and End are required (ISO 8601 date-time).
 // ConnectionID is mapped to API webhook_id in the CLI layer.
