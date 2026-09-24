@@ -30,6 +30,7 @@ Follow **in order**. Treat items with **gate** as blocking unless the maintainer
 - [ ] **Release notes:** Draft complete (see **Drafting release notes** and [references/release-notes-template.md](references/release-notes-template.md)); includes **Full Changelog** compare link; **contributor shout-outs only when warranted** (see that section).
 - [ ] **CI gate:** Latest commit on the **target branch** has **green** GitHub checks (mandatory for GA on `main`; required for betas on the branch being tagged).
 - [ ] **Approval:** Maintainer signed off on tag name, notes, and branch — no unilateral surprise tags.
+- [ ] **Acceptance group is idle (gate):** no acceptance run in progress or queued — `gh run list --workflow=test-acceptance.yml --status in_progress` and `--status queued` both empty. The release gate shares the `acceptance-suite` concurrency group, which keeps only one *pending* run: if the release's acceptance run is left pending, a pull request pushed behind it cancels it, and the builds and npm publish that depend on it never run. Don't open or push PRs while a release is building.
 - [ ] **Publish:** Write notes to a **temporary file**, run **`gh release create`** (see **Publish with GitHub CLI (`gh`)**), then **`rm`** the temp file. Use `--prerelease` for betas. (Humans may still use the GitHub UI per README.)
 - [ ] **Post-publish (optional):** Confirm the **`release`** workflow in Actions completed successfully for the new tag.
 

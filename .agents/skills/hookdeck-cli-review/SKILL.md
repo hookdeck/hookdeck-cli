@@ -66,6 +66,41 @@ than the colour:
 gh run view --job=<id> --log | grep -E -- '--- (SKIP|PASS): <TestName>'
 ```
 
+### A cancelled acceptance run is not a run either
+
+Every acceptance run shares one concurrency group, `acceptance-suite`, so runs
+against the same test projects cannot collide. The group holds **one running
+run and one pending run**. When a third joins, the older *pending* one is
+cancelled; `cancel-in-progress: false` protects only the one that is running.
+
+So when several pull requests are opened or pushed close together, every one
+but the newest can end with all five acceptance jobs `CANCELLED`. That happened
+to four v3.0.2 PRs in one afternoon. It is not a failure, and because
+acceptance is not a required check, the merge button stays green.
+
+**Read `CANCELLED` as "never ran", and re-run it — one at a time.** Re-running
+two together puts both in the single pending slot and cancels one again. Queue
+the next only once the previous has started running:
+
+```
+gh run rerun <run-id>
+gh run view <run-id> --json status -q .status   # wait for in_progress, then the next
+```
+
+The release gate lives in the same group. A release whose acceptance run is
+*pending* is cancelled by a pull request that joins behind it, and the builds
+and npm publish that depend on it never run. Before a release, check that no
+acceptance run is in progress or queued:
+
+```
+gh run list --workflow=test-acceptance.yml --status in_progress
+gh run list --workflow=test-acceptance.yml --status queued
+```
+
+And if a workflow change is in the diff: opening that pull request triggers
+acceptance too (`.github/workflows/**` is in the path allowlist), so it can
+cancel someone else's pending run.
+
 ### The one case where it genuinely does not run
 
 `pull_request` does not fire when a pull request's head branch is updated by

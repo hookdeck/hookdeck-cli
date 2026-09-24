@@ -16,14 +16,28 @@ on:
 # The failure is nasty because it does not look like rate limiting. It surfaces
 # as ordinary assertion failures in whichever slice lost the race -- a config
 # that came back empty, a filter that returned nothing -- sending whoever reads
-# it hunting for a regression that does not exist. It has happened twice: once
-# as four jobs timing out with zero assertion failures, and once as a single
-# named test failing while a release ran concurrently.
+# it hunting for a regression that does not exist. The clear case on record is
+# four jobs timing out with zero assertion failures.
 #
-# cancel-in-progress is deliberately false. Cancelling would be faster, but the
-# release workflow calls this as its publish gate, and killing that run to make
-# room for a pull request is the wrong trade. Queueing costs wall-clock and
-# nothing else.
+# (A red TestOutpostTenantPortalAndCustomDomain during a concurrent release was
+# once blamed on this too. It was not: the custom-domain API can return a 500
+# after the domain is already created, and the retry then gets a 409 for the
+# test's own hostname. Not every red run during an overlap is the overlap.)
+#
+# cancel-in-progress is deliberately false, so a RUNNING run is never killed to
+# make room for another -- the release gate included.
+#
+# But this is not a queue. A concurrency group holds at most one running run and
+# ONE pending run. When another run joins, the older pending run is CANCELLED.
+# So several pull requests opened or pushed in a burst leave all but the newest
+# with acceptance "CANCELLED": not a failure, but not coverage either, and since
+# acceptance is not a required check nothing blocks the merge. Re-run them one
+# at a time -- re-running two at once cancels one of them again.
+#
+# The same applies to the release gate when it is pending rather than running:
+# a pull-request run joining the group cancels it, and the builds and npm
+# publish that `need` it never run. Before `gh release create`, make sure no
+# acceptance run is in progress or queued.
 concurrency:
   group: acceptance-suite
   cancel-in-progress: false

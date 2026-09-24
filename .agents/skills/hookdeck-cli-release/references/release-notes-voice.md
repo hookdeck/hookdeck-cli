@@ -52,31 +52,47 @@ Always end with the compare link:
 
 `**Full Changelog**: https://github.com/hookdeck/hookdeck-cli/compare/<prev>...<new>`
 
+## Factual, not editorial
+
+A release note says what was wrong, what the CLI does now, and what the reader has to do, if
+anything. It does not interpret, characterise or narrate.
+
+| Editorial — cut it | Factual — write this |
+|---|---|
+| "The one to act on:" | "If you have used `--hookdeck-config` with v3.0.0 or v3.0.1, run `chmod 600` on that file." |
+| "The other three share a shape — an argument you supplied did not survive the round trip." | *(nothing — the bullets already say what each fix is)* |
+| "so a script filtering by a list of ids was told they did not exist" | "returned no results for `--id a,b`" |
+| "an internal name, so an agent looking for the key it requested did not find it" | "returned `webhook_id` when `connection_id` was requested" |
+
+The test for each clause: is it a fact about the software, or an instruction? If it is a reading of
+the facts — why it mattered, what it felt like, what it has in common with something else — cut it.
+The issue link carries the reasoning for anyone who wants it.
+
 ## Summary
 
-Two to four short paragraphs. Lead with the capability or the theme, then the shape of the rest.
-**Name the shared shape when fixes rhyme** — often one defect wearing different clothes, and saying
-so is worth more than the list:
-
-> Alongside that is a long list of fixes sharing one shape — the CLI reported success while doing
-> something other than what you asked.
+One or two sentences: what the release contains, and any action a reader must take. A GA release
+names its headline capability; a patch names what it fixes. No theme, no framing.
 
 ## Entries
 
 **Second person.** "your project", "your scripts" — never "the user".
 
-**Lead with the fix, bolded, in the reader's terms.** Then the consequence. Then the link.
+**Lead with the fix, bolded, in the reader's terms.** Then what was wrong, stated as behaviour.
+Then the link.
 
 > - **`hookdeck ci --local` and `hookdeck login --local` no longer rewrite your global config.**
->   `--local` added a second write rather than redirecting the first, so it silently switched the
->   active project for every other `hookdeck` command on the machine — the opposite of what the flag
->   is for. ([#332](https://github.com/hookdeck/hookdeck-cli/issues/332))
+>   `--local` added a second write rather than redirecting the first, so it also switched the
+>   active project for every other `hookdeck` command on the machine.
+>   ([#332](https://github.com/hookdeck/hookdeck-cli/issues/332))
 
-That entry is 52 words and explains a subtle bug completely. Match that density.
+That entry states the fix, the mechanism and the effect, with nothing else. (The v2.6.0 original
+ended "— the opposite of what the flag is for"; that clause is commentary and is cut here.)
 
-**Make the damage concrete, and bold it where it is the point.**
+**State the wrong behaviour precisely** — the command, the input, the output. That is concrete
+without being editorial:
 
-> returned **unfiltered totals formatted as if filtered**
+> `gateway event list`, `gateway request list` and `gateway transformation list` returned no results
+> for `--id a,b`.
 
 **Show a command only when it earns the space** — a new flag people will copy, or output that makes
 a failure obvious. Not one per entry.
@@ -141,6 +157,7 @@ The reader stops looking for a workaround.
 ## What this voice avoids
 
 - **Verbosity.** See the table. This is the failure mode.
+- **Editorial framing.** Interpretation, characterisation, narrative. See *Factual, not editorial*.
 - **Marketing register.** No "we're excited", "powerful", "seamless".
 - **Hedging.** "may", "should" — say what it does.
 - **Labels that categorise the reader** ("who it reaches", "for advanced users").
