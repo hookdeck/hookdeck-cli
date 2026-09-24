@@ -256,7 +256,7 @@ go test -race ./...
 
 **Whenever you change Go code in this repo, run tests from the repository root** and treat the run as failed if compilation or any test fails.
 
-**Before every push — required:**
+**Before pushing a code change — required** (a docs-only change needs none of this):
 
 - **Unit tests must pass.** Run `go test ./...` (and `go vet ./...`). A unit test should never fail first in CI; if one does, it was not run, or its result was not read.
 - **Judge the result by the exit code, never by filtered output.** `go test ./... > /tmp/t.log 2>&1; echo exit=$?`. Tests that mock failing API calls log `level=error` lines, and piping through `head` can push the `FAIL` line out of view — a failure on your screen that you never see.
