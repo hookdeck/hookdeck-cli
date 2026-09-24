@@ -144,7 +144,11 @@ The user may suggest a tag (e.g. `v2.0.1`). **Always sanity-check it** against w
 
 ## Drafting release notes (user-centric)
 
-Use **[references/release-notes-template.md](references/release-notes-template.md)** as a starting skeleton.
+Use **[references/release-notes-template.md](references/release-notes-template.md)** for the
+skeleton and **[references/release-notes-voice.md](references/release-notes-voice.md)** for how to
+write the prose — second person, lead with the fix then explain the defect, state the consequence
+concretely, no tables, issues linked in full. Read one recent GA release in full (v2.5.0 or
+v2.6.0) before drafting; they are the specification the voice file summarises.
 
 **Sections:** Include only headings that have real content — **omit** empty sections (e.g. do not add “Breaking changes” with “None”).
 

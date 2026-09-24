@@ -704,6 +704,11 @@ Lifted out to [`v3.0.0-release-notes.md`](./v3.0.0-release-notes.md), which is t
 into the GitHub Release. They were the one part of this document with a life after the release,
 and they were hard to find at the bottom of a planning doc.
 
+Rewritten there in the voice the last several releases use — see
+`.agents/skills/hookdeck-cli-release/references/release-notes-voice.md`. The draft that lived here
+was written like a plan: a table categorising readers, and a note about what had *not* changed.
+Neither belongs in a release note.
+
 ## Open questions
 
 1. ~~**Should API key management be in MCP at all?**~~ **Resolved: no.** Not exposed in any
