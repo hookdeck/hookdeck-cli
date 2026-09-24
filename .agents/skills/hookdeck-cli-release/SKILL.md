@@ -4,8 +4,8 @@ description: >-
   Guides maintainers through Hookdeck CLI releases (stable GA, beta from main,
   beta from feature branches) and user-centric GitHub release notes. Validates
   proposed versions against SemVer from the actual change set (e.g. breaking
-  changes require a major bump). Use when cutting a release, publishing a tag,
-  drafting release notes, choosing vMAJOR.MINOR.PATCH, GoReleaser, npm publish,
+  changes require a major bump). Use when cutting a release, drafting release
+  notes, choosing vMAJOR.MINOR.PATCH, GoReleaser, npm publish,
   pre-releases, following the release checklist, or `gh release create`.
 ---
 
@@ -38,7 +38,12 @@ For commit-level detail while working through the checklist, use the **Research 
 ## What triggers a release?
 
 - **[.github/workflows/release.yml](../../../.github/workflows/release.yml)** runs on **`push` of tags** matching `v*` (not on ordinary branch pushes).
-- Publishing a release in the GitHub UI (with a new tag) or `git push origin vX.Y.Z` both create that tag push and start the workflow.
+- **We release by creating a GitHub Release**, which creates the tag as a side effect and starts
+  the workflow. `gh release create` (below) or the GitHub UI both do this.
+- Pushing a bare `git tag` *also* starts the workflow, and that is exactly why you must not do
+  it. It publishes to npm, Homebrew, Scoop and Docker off a release whose notes are empty, and
+  npm will not let you republish the version. **Never push a `v*` tag by hand — not to cut a
+  release, and never as a bookmark.**
 
 ## What the workflow does (high level)
 
@@ -79,7 +84,9 @@ For commit-level detail while working through the checklist, use the **Research 
 
 ## Publish with GitHub CLI (`gh`)
 
-**Agents should create the release with `gh`**, not only push a bare tag. That creates the GitHub Release (with notes) and the tag together, which matches how maintainers expect the **`release`** workflow to run.
+**Create the release with `gh` — do not push a tag.** `gh release create` publishes the GitHub
+Release *with its notes* and creates the tag in one step, in that order, so the workflow never
+runs against an empty release. This is the team's process, not a convenience.
 
 1. **Create a temp file for notes** (never commit it). Register cleanup so the file is removed even if `gh` fails:
 
@@ -108,17 +115,13 @@ For commit-level detail while working through the checklist, use the **Research 
 
 **Requirements:** `gh` installed and authenticated (`gh auth login`). Do not put secrets in the notes file.
 
-### Fallback: tag without `gh`
+### Fallback: the GitHub UI
 
-If `gh` is unavailable, a maintainer may use **README** flow (UI) or:
+If `gh` is unavailable, use the **README** flow: GitHub Releases → Draft a new release → create the
+tag from the target branch → paste the notes → Publish. Same outcome, same order.
 
-```bash
-git checkout <branch>
-git tag vX.Y.Z[-beta.N]
-git push origin vX.Y.Z[-beta.N]
-```
-
-Then **edit the GitHub release** to add notes, or create the release in the UI so assets and changelog align with team practice.
+There is no `git tag` fallback. A hand-pushed tag starts the same publish pipeline from a release
+that has no notes, and the npm version it burns cannot be reused.
 
 ## SemVer: validate the proposed version
 

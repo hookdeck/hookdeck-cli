@@ -1723,12 +1723,14 @@ The GitHub Actions workflow will automatically:
   - Scoop: `hookdeck` package
   - Docker: Updates both the version tag and `latest`
 
+> **Do not push a bare `git tag`.** Any `v*` tag starts the release pipeline, so a hand-pushed tag
+> publishes to npm, Homebrew, Scoop and Docker from a release with no notes — and npm will not let
+> you republish that version. Always create the release (UI or `gh`), which makes the tag for you.
+> Never use a `v*` tag as a bookmark.
+
 **Alternative (Command Line):**
 ```bash
-git checkout main
-git tag v1.3.0
-git push origin v1.3.0
-# Then create release notes on GitHub Releases page
+gh release create v1.3.0 --target main --title "v1.3.0" --notes-file notes.md
 ```
 
 ### Pre-release from Main (General Beta Testing)
@@ -1747,9 +1749,8 @@ For general beta testing of features that have been merged to `main`:
 
 **Alternative (Command Line):**
 ```bash
-git checkout main
-git tag v1.3.0-beta.1
-git push origin v1.3.0-beta.1
+gh release create v1.3.0-beta.1 --target main --prerelease \
+  --title "v1.3.0-beta.1" --notes-file notes.md
 ```
 
 **Installing beta releases:**
@@ -1788,10 +1789,8 @@ For testing a specific feature in isolation before merging to main:
 
 **Alternative (Command Line):**
 ```bash
-git checkout feat/my-feature
-git tag v1.3.0-beta.1
-git push origin v1.3.0-beta.1
-# Then create release notes on GitHub Releases page
+gh release create v1.3.0-beta.1 --target feat/my-feature --prerelease \
+  --title "v1.3.0-beta.1" --notes-file notes.md
 ```
 
 **Installing beta releases:**
