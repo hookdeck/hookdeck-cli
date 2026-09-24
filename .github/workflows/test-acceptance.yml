@@ -14,9 +14,10 @@ on:
     # fails the other way -- it runs everything until someone remembers to add
     # an exclusion.
     #
-    # Skipping is safe here because `unit-test` (in test.yml, which has no path
-    # filters) is the only required status check on main's ruleset, so a PR that
-    # skips acceptance is not left permanently pending.
+    # Skipping is safe here because main's required status checks are
+    # unit-test, build-linux, build-mac and build-windows -- all four in
+    # test.yml, which has no path filters. Acceptance is not among them, so a
+    # PR that skips it is not left permanently pending.
     paths:
       # The binary under test: acceptance helpers run `go build -o <tmp> .` and
       # `go run main.go`, so the entrypoint, every package and the module graph
