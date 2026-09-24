@@ -14,6 +14,15 @@ python3 $QA --config "$HD_CONFIG" --server gateway --allow-write --list
 The MCP surface is where defects hide, because no human reads its output. A
 wrong answer here is consumed directly by an agent that will act on it.
 
+This is the checklist. [choosing-what-to-test.md](choosing-what-to-test.md) is
+how to decide where to aim it, and which of the items below are now pinned by
+tests — the golden tool surface in both modes, annotations matching contents,
+the write guard, prose naming only tools and actions that exist, enum
+enforcement, and properties scoped to the actions that read them. Re-running
+those by hand proves CI works. Spend the pass on what no guard can assert:
+whether the descriptions are *true*, whether the two surfaces behave the same on
+the same input, and what comes back on the failure path.
+
 ## Mode gating
 
 - [ ] **Read-only is the default.** With no flag, `tools/list` advertises no

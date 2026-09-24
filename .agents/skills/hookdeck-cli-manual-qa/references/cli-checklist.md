@@ -12,6 +12,10 @@ Two projects, two credentials:
 
 This is a checklist of **surfaces**, not a script. The value is in what you try
 against each one, so vary it between runs rather than replaying the same calls.
+[choosing-what-to-test.md](choosing-what-to-test.md) is how to decide what to
+try, and lists what is now pinned by a test — diagnostics staying off stdout,
+unknown subcommands exiting non-zero, `--hookdeck-config` governing writes, and
+`REFERENCE.md` examples naming real commands. Do not spend a pass on those.
 
 ## Gateway resources
 

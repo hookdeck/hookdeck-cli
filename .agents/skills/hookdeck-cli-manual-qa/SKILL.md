@@ -4,9 +4,10 @@ description: >-
   Runs exploratory manual QA of the Hookdeck CLI and its MCP servers against
   real acceptance-test projects, safely. Provides a credential guard that keeps
   destructive commands off any project not named up front and never touches the
-  operator's own login, an MCP stdio driver, and per-surface checklists. Use
-  when manually testing CLI commands or MCP tools, exercising write paths,
-  validating a release candidate, or reproducing a defect against the live API.
+  operator's own login, an MCP stdio driver, per-surface checklists, and how to
+  choose what to test when nobody hands you a list. Use when manually testing
+  CLI commands or MCP tools, exercising write paths, validating a release
+  candidate, or reproducing a defect against the live API.
 ---
 
 # Hookdeck CLI — manual QA
@@ -43,6 +44,35 @@ one cheap line and it catches a config swapped or a project switched mid-run.
 If the guard refuses, **stop and read the message**. It fails closed on purpose;
 working around it defeats the point.
 
+### Record every config file before you start, and check them at the end
+
+The two rules above protect the config the guard hands you. They cannot protect
+a config the guard does not know about, and in pass 1 that gap cost the operator
+a working config: `hookdeck project use` honoured `--hookdeck-config` for reads
+but re-derived its own write target, so it overwrote the `.hookdeck/config.toml`
+that happened to be in the working directory and lost its contents (#424).
+
+Take the before state, and compare it after:
+
+```bash
+BEFORE="${TMPDIR:-/tmp}/hd-qa-configs.before"
+for c in .hookdeck/config.toml "$HOME/.config/hookdeck/config.toml"; do
+  [ -f "$c" ] && printf '%s  %s\n' "$(md5 -q "$c")" "$c"
+done | tee "$BEFORE"
+ls -l .hookdeck/config.toml "$HOME/.config/hookdeck/config.toml" 2>/dev/null
+```
+
+Re-run the same block at the end and diff it against `$BEFORE`; that is what let
+pass 2 state "nothing outside the guarded config was touched" as evidence rather
+than as a hope. **Compare hashes; never `cat` a config** — the CLI writes
+single-quoted TOML, so a redaction pattern matching only double quotes prints
+the key verbatim.
+
+The underlying bug is fixed on this branch (#424, commit `3fc8124`), so
+`--hookdeck-config` can now be trusted for writes as well as reads and
+`pkg/cmd/project_use_config_target_test.go` keeps it that way. Do the check
+anyway: two lines, and the next such bug will not announce itself either.
+
 ### Setup
 
 ```bash
@@ -78,35 +108,27 @@ python3 .agents/skills/hookdeck-cli-manual-qa/scripts/mcp-call.py \
   --config "$HD_CONFIG" --server gateway --list
 ```
 
-## What to look for
+## What to look for, and how to choose it
 
-Ordinary "does it work" testing finds little at this point. These are the
-patterns that have actually yielded defects:
+Ordinary "does it work" testing finds little at this point, and a pass steered
+by a list of recently-changed areas only looks where somebody already suspected
+a problem. [references/choosing-what-to-test.md](references/choosing-what-to-test.md)
+is how to pick targets from the product itself. It carries, with the evidence
+from every pass so far:
 
-- **Does the message match the state?** Run the command, then read the resource
-  back independently. `enable` printing "enabled" proves nothing; a subsequent
-  `get` showing it enabled does. Several commands announced the verb they were
-  asked to perform rather than the state the API returned.
-- **Does an omitted flag mean what the help says?** Documented defaults are not
-  necessarily sent. A destination type whose schema says `tls` defaults to on
-  was being created with `tls` unset.
-- **Can you undo it?** Setting a value is usually tested; clearing it is not.
-  `--filter '{}'` reported success and changed nothing because `omitempty`
-  dropped it before it reached the wire.
-- **Does an error exit non-zero?** An endpoint that answers `200` with
-  `{"success": false}`, or a body carrying its own status field, will be
-  reported as success by anything that only checks the HTTP status.
-- **Does a filter actually filter?** Pass one and confirm the result set
-  narrows. A silently ignored filter returns plausible data that is wrong.
-- **Do the read and write paths agree?** A fix applied to a CLI command and not
-  its MCP sibling leaves the defect open on the surface with no human watching.
-  Check both.
+- the eight defect **shapes** that have actually yielded findings — a capability
+  diverging across the CLI and MCP; prose promising what the code does not do;
+  the failure and empty paths; the argument you did not pass; an input accepted
+  and then dropped; machine-readable output polluted by human text; an exit code
+  that does not match what happened; state verbs with unrecorded side effects —
+  and how to go looking for each;
+- a **routine** that produces targets with nobody handing you a list;
+- **what manual QA catches that the acceptance suite structurally cannot**, and
+  where that boundary honestly sits;
+- **what is now guarded by a test**, so a pass does not spend itself
+  rediscovering findings that have already become CI failures.
 
-When something looks wrong, **verify it against the live API before reporting
-it** — construct the minimal call that distinguishes the two explanations. A
-report that says "verified: log_level is severity, not a completion flag, here
-are the five cases" is actionable; "this looks suspicious" costs someone else
-the same investigation.
+Read it before planning a pass, not after.
 
 ## Smoke-testing a published release
 
@@ -170,9 +192,48 @@ Acceptance-test projects accumulate resources fast, and a QA pass adds to it.
 
 ## Reporting
 
-Return findings ranked by severity, each with: what you ran, what you expected,
-what happened, and the evidence. Separate **confirmed defects** from **things
+Return findings ranked by severity. Separate **confirmed defects** from **things
 worth a look** — mixing them makes the confirmed ones cheaper to ignore.
+
+Every finding carries five things, and is not worth filing without them:
+
+1. **The exact command or tool call**, arguments included, as run — not a
+   paraphrase of it.
+2. **The exact output**, including the **exit code**. `echo $?`.
+3. **What you expected instead, and why**: the help text, the schema, the
+   sibling surface, the documented default. A finding with no stated expectation
+   is an opinion.
+4. **The minimal reproduction** — the shortest call that still shows it, with
+   the incidental arguments removed one at a time.
+5. **Whether you ruled out the environment**, and how. Say which explanation you
+   eliminated, not just that you are confident.
+
+### Rule out the environment before you call it a defect
+
+Two things were nearly reported as product defects in one day: a CI slice
+failing with 429s, where the rate limiting was noise and the real cause was
+eleven acceptance tests still calling pre-split tool names (an earlier pass read
+the 429s as the cause and moved on — `plans/mcp_read_write_tool_split.md` §7);
+and a project-list test that fails intermittently on list ordering (#409), which
+is a test defect, not a product one. What separates the two, cheapest first:
+
+- **Rebuild.** A stale binary reports the old behaviour convincingly.
+- **Run it again, and run it alone.** Anything that passes on a second run, or
+  passes outside its suite, is a flake or an ordering dependency until proven
+  otherwise.
+- **Read the status code.** A 429 or a 502 is the environment unless a single
+  call reproduces it deterministically.
+- **Find where the behaviour originates.** #431 was confirmed as server-side by
+  noticing the CLI calls the dedicated pause endpoint rather than sending the
+  field — which changed the report from "our bug" into "confirm the intent with
+  the API team", a different and more useful ask.
+- **Construct the minimal call that distinguishes the two explanations.** A
+  report that says "verified: `log_level` is severity, not a completion flag,
+  here are the five cases" is actionable; "this looks suspicious" costs someone
+  else the same investigation.
+
+If you cannot decide, file it as **worth a look**, and say in one line exactly
+what you could not rule out.
 
 State plainly what you did **not** cover. A pass that reports only successes is
 usually a pass that did not go looking.
