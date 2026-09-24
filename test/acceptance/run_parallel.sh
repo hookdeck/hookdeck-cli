@@ -33,9 +33,9 @@ SLICE2_LOG="$LOG_DIR/slice2.log"
 SLICE3_LOG="$LOG_DIR/slice3.log"
 TELEMETRY_LOG="$LOG_DIR/telemetry.log"
 
-SLICE0_TAGS="basic guest connection source mcp listen project_use connection_list connection_upsert connection_error_hints connection_oauth_aws connection_update"
-SLICE1_TAGS="request event"
-SLICE2_TAGS="attempt metrics issue transformation destination gateway"
+SLICE0_TAGS="basic guest mcp project_use"
+SLICE1_TAGS="request event connection connection_list connection_update connection_oauth_aws connection_error_hints"
+SLICE2_TAGS="attempt metrics issue transformation destination gateway listen source connection_upsert"
 SLICE3_TAGS="outpost"
 
 run_slice0() {
