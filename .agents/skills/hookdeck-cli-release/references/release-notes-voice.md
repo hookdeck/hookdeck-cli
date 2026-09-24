@@ -112,6 +112,32 @@ three tools that keep the `hookdeck_` prefix (losing it made the rename claim fa
 the `--allow-write` flag, and the example under "and the next command disagreed", without which the
 phrase means nothing.
 
+## Verify every claim against the built binary, not the commit log
+
+The v3.0.0 notes said `gateway_metrics_read` now accepted `"measures": "count"`.
+It did not. The fix was real (`7dae336`), and a later merge reverted it
+(`b0b5710`) — so the commit log said "fixed" while the shipped artifact said
+`measures is required`. The claim was published, and a user hit it the first
+time they used the release.
+
+**A commit is evidence that a fix was written. Only the binary is evidence that
+it shipped.** Before a bullet goes in, exercise the behaviour on a build of the
+tag:
+
+```sh
+go build -o /tmp/hd-check . && /tmp/hd-check <the command the bullet describes>
+```
+
+For MCP behaviour, drive the built server over stdio and call the tool. It takes
+a minute per bullet and it is the difference between a release note and a guess.
+
+This matters most for a **long-lived release branch that has taken merges from
+`main`** — exactly the shape where a fix gets quietly undone. `git log -S` will
+not show you the revert; it skips merges. Use `git log --full-history -m -S`.
+
+A note that claims a fix the release does not contain is worse than omitting it.
+The reader stops looking for a workaround.
+
 ## What this voice avoids
 
 - **Verbosity.** See the table. This is the failure mode.

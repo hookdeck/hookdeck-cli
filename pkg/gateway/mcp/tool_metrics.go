@@ -106,7 +106,17 @@ func buildMetricsParams(in mcpcore.Input) (hookdeck.MetricsQueryParams, error) {
 	if start == "" || end == "" {
 		return hookdeck.MetricsQueryParams{}, fmt.Errorf("start and end are required (ISO 8601 datetime)")
 	}
-	measures := in.StringSlice("measures")
+	// StringList, not StringSlice: every other tool on this surface accepts a
+	// comma-separated string wherever it declares an array, because models
+	// routinely send one. StringSlice returns nil for anything that is not a
+	// JSON array, so "count" was dropped and the caller was told the argument
+	// was missing for an argument they had just supplied.
+	//
+	// This fix landed in 7dae336 and was reverted by the b0b5710 merge, then
+	// shipped broken in v3.0.0 and v3.0.1. See #440. The tests below cover the
+	// string form specifically -- the pre-existing tests all pass an array, so
+	// they pass against the reverted code too and did not catch it.
+	measures := mcpcore.StringList(in, "measures")
 	if len(measures) == 0 {
 		return hookdeck.MetricsQueryParams{}, fmt.Errorf("measures is required (e.g. [\"count\"], [\"successful_count\", \"failed_count\"])")
 	}
@@ -116,7 +126,7 @@ func buildMetricsParams(in mcpcore.Input) (hookdeck.MetricsQueryParams, error) {
 		End:           end,
 		Granularity:   in.String("granularity"),
 		Measures:      measures,
-		Dimensions:    mapDimensions(in.StringSlice("dimensions")),
+		Dimensions:    mapDimensions(mcpcore.StringList(in, "dimensions")),
 		SourceID:      in.String("source_id"),
 		DestinationID: in.String("destination_id"),
 		DeliveryGroup: in.String("delivery_group"),

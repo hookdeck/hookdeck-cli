@@ -179,6 +179,67 @@ What is worth checking on a published artifact, none of which a local build can 
 Remove the prefix when finished — it is around 90 MB, because the package ships
 binaries for every platform.
 
+### One complete journey beats twenty surface checks
+
+The v3.0.0 pass checked tool counts, `--allow-write` gating, exit codes and
+`[BETA]` markers. All real, all passed, and it shipped with `hookdeck login`
+broken for every new user. The pass had verified that the parts existed, never
+that a person could get a job done with them.
+
+**Finish a pass by doing one whole task, start to finish, on the installed
+artifact**, and follow it wherever it goes:
+
+1. **Sign in** — not with a key you already have. See below.
+2. **Find out where you are** — list projects, select one.
+3. **Ask the product a real question** — "how much traffic did this project take
+   this fortnight, and did anything fail?" Use the tools an agent would.
+4. **Follow one answer down a level** — a spike, a failure, an open issue.
+
+Every one of those steps is a place a release can be broken while every
+individual check still passes. The v3.0.0 metrics bug (#440) surfaced within
+minutes of the first time anyone asked the product a question rather than
+inventorying it.
+
+### Do not skip login. It is the most-run command in the product
+
+A QA brief that says "prefer read-only operations" or "do not mint credentials"
+reads as prudent and excludes the single path every new user takes. That
+exclusion is exactly how #438 shipped.
+
+Sign in for real, with the isolation the guard above already gives you:
+
+```bash
+"$HD" login --hookdeck-config "$HD_CONFIG"     # browser flow, needs a real TTY
+```
+
+Three things make this safe rather than reckless, and they are the point:
+
+- **`--hookdeck-config` decides where the credential is written** (v3.0.0
+  onwards — before that the flag was honoured for reads and ignored for writes).
+  The operator's `~/.config/hookdeck/config.toml` is never touched, and you
+  verify that with the checksum you already recorded.
+- **Start from a config that does not exist.** With a key already in the file,
+  `login` validates it instead of signing in, and a valid-but-wrong-class key
+  dead-ends without falling back to the browser.
+- **`hookdeck_login` over MCP is the friendlier route and tests the same code
+  path.** It returns the browser URL immediately and polls in the background, so
+  it needs no TTY. Prefer it when driving the MCP server — but the server's
+  stdin must stay open across the user's click, which means a fifo with its own
+  holder process, not a batched heredoc:
+
+  ```bash
+  mkfifo "$F"; nohup sleep 3600 > "$F" &        # holder keeps the write end open
+  nohup "$HD" gateway mcp --hookdeck-config "$HD_CONFIG" < "$F" > "$OUT" &
+  ```
+
+  Without the holder, the session ends when your shell exits and the background
+  poll is cancelled with `login cancelled: MCP session closed` — after the user
+  has already clicked the link.
+
+If the account you can sign into is one you must not disturb, ask for a
+throwaway. "We could not test login safely" is a reason to get a safer account,
+not a reason to ship login untested.
+
 ## Clean up
 
 Acceptance-test projects accumulate resources fast, and a QA pass adds to it.
