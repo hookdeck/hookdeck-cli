@@ -90,9 +90,30 @@ type Client struct {
 	// TelemetryDisabled mirrors the config-based telemetry opt-out flag.
 	TelemetryDisabled bool
 
+	// PathPrefix restricts every request this client sends to one subtree,
+	// overriding the default APIPathPrefix.
+	//
+	// Login polling needs this. The poll URL is handed to us by the server in
+	// the response to POST /cli-auth, and it is not under APIPathPrefix -- so
+	// checking it against that constant rejects a URL the API itself told us to
+	// call. The guard still has to apply, because the value is remote input, so
+	// the poll client pins this to the exact path it was given rather than
+	// switching the check off.
+	//
+	// Empty means APIPathPrefix, which is what every other client wants.
+	PathPrefix string
+
 	// Cached HTTP client, lazily created the first time the Client is used to
 	// send a request.
 	httpClient *http.Client
+}
+
+// allowedPathPrefix is the subtree this client's requests must stay inside.
+func (c *Client) allowedPathPrefix() string {
+	if c.PathPrefix != "" {
+		return c.PathPrefix
+	}
+	return APIPathPrefix
 }
 
 // WithTelemetry returns a shallow clone of the client with the given
@@ -415,7 +436,7 @@ func (c *Client) resolveRequestURL(path string) (*url.URL, error) {
 
 	resolved := c.BaseURL.ResolveReference(ref)
 
-	if err := checkResolvedPath(c.BaseURL, ref, resolved); err != nil {
+	if err := checkResolvedPath(c.BaseURL, ref, resolved, c.allowedPathPrefix()); err != nil {
 		return nil, err
 	}
 
@@ -431,7 +452,7 @@ func (c *Client) resolveRequestURL(path string) (*url.URL, error) {
 // reporting the id it was given. Call sites build their paths with apiPath,
 // which rejects those values; this check exists so that a call site which does
 // not still cannot send the request.
-func checkResolvedPath(base, ref, resolved *url.URL) error {
+func checkResolvedPath(base, ref, resolved *url.URL, prefix string) error {
 	// The host comes first, because every check below it is about paths and a
 	// reference carrying its own authority keeps a path that passes all of them.
 	// "//evil.example.com/<prefix>/sources" resolves to a different host with an
@@ -446,8 +467,8 @@ func checkResolvedPath(base, ref, resolved *url.URL) error {
 
 	got := resolved.EscapedPath()
 
-	if got != APIPathPrefix && !strings.HasPrefix(got, APIPathPrefix+"/") {
-		return fmt.Errorf("%w: %q does not address the %s API", ErrRequestPathRejected, got, APIPathPrefix)
+	if got != prefix && !strings.HasPrefix(got, prefix+"/") {
+		return fmt.Errorf("%w: %q does not address the %s API", ErrRequestPathRejected, got, prefix)
 	}
 
 	// Every path this package sends is built by apiPath, which joins non-empty
@@ -467,7 +488,7 @@ func checkResolvedPath(base, ref, resolved *url.URL) error {
 	// unchecked; they are now resolved against the prefix and compared the same way.
 	want := ref.EscapedPath()
 	if !strings.HasPrefix(want, "/") {
-		want = APIPathPrefix + "/" + want
+		want = prefix + "/" + want
 	}
 	if want != got {
 		return fmt.Errorf("%w: %q would have been sent as %q", ErrRequestPathRejected, want, got)

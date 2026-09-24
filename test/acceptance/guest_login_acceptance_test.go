@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -70,7 +69,12 @@ func newGuestLoginMock(t *testing.T, assertBody func(map[string]interface{}), br
 			var payload map[string]interface{}
 			require.NoError(t, json.Unmarshal(raw, &payload))
 			assertBody(payload)
-			pollURL := serverURL + hookdeck.APIPathPrefix + "/cli-auth/poll?key=pollkey"
+			// The real API answers POST /cli-auth with an UNVERSIONED poll_url --
+			// no APIPathPrefix. Building the mock's poll_url with the prefix is
+			// what let #438 ship: the client-side path guard rejected the real
+			// server's URL while this test kept passing. Keep it unversioned so
+			// the mock matches production.
+			pollURL := serverURL + "/cli-auth/poll?key=pollkey"
 			respBody, encErr := json.Marshal(map[string]string{
 				"browser_url": browserURL,
 				"poll_url":    pollURL,
