@@ -624,6 +624,14 @@ Each slice's key belongs to a **different project**, which is why tests must use
 
 ---
 
+## Issues and findings
+
+- **Do not open a GitHub issue unless asked to.** The tracker is public. A finding you are fixing belongs in the pull request description; findings from one QA or review pass go in one pull request, and anything deferred in a single tracking issue.
+- **Anything security-relevant never goes in a public issue**, pull request title or commit subject that describes the exposure: credentials, file permissions, secrets in logs, access across projects. Say so to whoever asked, and route it to a private advisory ([SECURITY.md](SECURITY.md)).
+- Everything else follows **[CONTRIBUTING.md § Maintainers: where a finding goes](CONTRIBUTING.md#maintainers-where-a-finding-goes)**.
+
+---
+
 ## Agent skills
 
 - **Location:** Repo-specific agent skills live under **`.agents/skills/`** (e.g. `.agents/skills/hookdeck-cli-release/`). This is the cross-harness location: it is not tied to any one tool, so every agent reads the same tree.
