@@ -83,6 +83,27 @@ is not a fix** — it is part of shipping the feature, and belongs in New featur
 Betas do not count as shipped. Check the previous GA *tag*, not the commit log: a long-lived branch
 means reachability does not imply the change is new. Build the tag if that is what it takes.
 
+**Name a fixed thing by the name the reader has, not the one it is getting.** In a release that
+renames things, a fix entry describes a defect in the *old* surface, so the old name is what a
+reader recognises — give the new name after it:
+
+> **`hookdeck_connections` accepted a `disabled` filter it could not honour** — now
+> `gateway_connections_read`. …
+
+Getting this backwards sends someone looking for a tool they have never had, in a bug report about
+software they have been running for weeks.
+
+## Cutting to length: what is safe to remove
+
+Length is a real constraint, but three separate errors in the v3.0.0 draft came from a compression
+pass, not from the first draft: the detail that three tools keep the `hookdeck_` prefix (which made
+the rename claim false), the name of the `--allow-write` flag on the Outpost server, and the worked
+example under "and the next command disagreed", which left the phrase meaningless.
+
+**Cut padding. Never cut a qualification, or the example a claim rests on.** If an entry cannot
+reach the word target without losing one of those, it is a long entry — take the words. Length is
+the default, accuracy is the constraint.
+
 ## What this voice avoids
 
 - **Verbosity.** See the table. This is the failure mode.
