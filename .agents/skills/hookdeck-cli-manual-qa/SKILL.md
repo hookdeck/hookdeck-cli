@@ -298,3 +298,19 @@ what you could not rule out.
 
 State plainly what you did **not** cover. A pass that reports only successes is
 usually a pass that did not go looking.
+
+### Where findings go
+
+Report to whoever asked for the pass. **Do not open GitHub issues** unless they
+ask you to: the tracker is public, and one pass once produced fourteen issues in
+a day, most closed within the hour by the pull requests that fixed them.
+
+- **Fixing them now:** one branch, one commit per finding, one pull request whose
+  description carries each finding's five things above. No issues.
+- **Deferring some:** one tracking issue with a checklist for the pass, not one
+  issue per finding.
+- **Security-relevant** (a readable credential file, a key or listing in a log,
+  access to the wrong project): never public. Flag it separately in your report
+  and point at [SECURITY.md](../../../SECURITY.md).
+
+The full routing table is in [CONTRIBUTING.md](../../../CONTRIBUTING.md#maintainers-where-a-finding-goes).
