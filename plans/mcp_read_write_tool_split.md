@@ -698,23 +698,28 @@ Follow-up worth taking: the spec file is a committed copy, so it can drift from 
 A check that re-fetches and diffs it — or a CI step that fails when `APIPathPrefix` names a
 version the committed document does not — would close that.
 
-## Release notes for v3.0.0-beta.2
+## Release notes for v3.0.0
 
 `CHANGELOG.md` is unmaintained and points at GitHub Releases, so this is the text to lift when
 cutting the tag rather than a file to edit.
 
-### Two breaking changes
+### Three breaking changes
 
-v3.0.0 carries two, and they affect different people. The MCP rename affects anyone who has
-granted tool permissions to an agent. The config-path change affects anyone who passes
-`--hookdeck-config` from a directory that happens to contain `.hookdeck/config.toml` — which
-includes most scripts and test harnesses, since that flag is how you keep a command off your own
-configuration.
+They affect different people:
+
+| | Who it reaches |
+|---|---|
+| **1. Every MCP tool renamed and split** | anyone who has granted tool permissions to an agent |
+| **2. `--hookdeck-config` writes the file it names** | scripts and test harnesses — that flag is how you keep a command off your own configuration |
+| **3. An unknown subcommand now fails** | anything that ran a mistyped or non-existent subcommand and got away with it |
+
+Nothing that shipped in v2.6.0 has been removed. The platform commands discussed below were built
+and parked before release, so they were never publicly available to depend on.
 
 ### Breaking 1: every MCP tool has been renamed
 
-v3.0.0 already renamed the Event Gateway tools from `hookdeck_*` to `gateway_*`. beta.2 goes
-further and splits each one by what it does:
+Two changes land together. The Event Gateway product tools move from the `hookdeck_*` prefix to
+`gateway_*`, and each tool is then split by what it does:
 
 ```
 gateway_connections   ->  gateway_connections_read    list, get
@@ -730,8 +735,7 @@ is now one rule**, `mcp__hookdeck-gateway__*_read`, where before it could not be
 Clients grant permission per tool name and cannot match on arguments, so a single tool carrying
 both `list` and `delete` had to be allowed or denied whole.
 
-Both renames land in one upgrade deliberately. Splitting after GA would have meant a second
-re-grant.
+Both land in one upgrade deliberately. Splitting later would have meant a second re-grant.
 
 **Arguments an action ignores are now refused.** Part of the same change and worth calling out,
 because it is the one piece a client can notice at runtime rather than at grant time. Every tool
@@ -740,6 +744,10 @@ property is now scoped to the actions whose handler reads it, so a call like
 succeeding and silently dropping it. That was the point of the split: an ignored filter makes a
 result look filtered when it is not. Calls that previously "worked" while discarding an argument
 now fail, and the error says which action does accept it.
+
+**Declared enums are now enforced.** They never were: a value outside a property's declared set
+went straight to the API. An invalid value that previously reached the server and 4xx'd there is
+now refused locally, naming the accepted values.
 
 ### Breaking 2: `--hookdeck-config` writes the file it names
 
@@ -779,6 +787,33 @@ and it now actually does that.
 
 Fixes #424.
 
+### Breaking 3: an unknown subcommand now fails
+
+An unknown subcommand of a group command printed that group's help and exited **0**:
+
+```
+$ hookdeck gateway connection lst
+<prints `hookdeck gateway connection` help>
+$ echo $?
+0
+```
+
+It now names the command and exits 1:
+
+```
+$ hookdeck gateway connection lst
+Unknown command "lst" for "hookdeck gateway connection". Did you mean "list"?
+$ echo $?
+1
+```
+
+**Who this affects:** any script that ran a mistyped or non-existent subcommand was getting a
+success code and no error, so the failure surfaced later as missing work rather than at the call.
+Only the root command reported unknown commands before; this now applies to all 23 group commands.
+
+A bare group command — `hookdeck project`, `hookdeck outpost tenant` — still prints its help and
+exits 0. Only an *unknown* subcommand fails.
+
 ### New
 
 - `gateway_bulk_read` / `_write` — bulk retry, cancel and replay across five operations. `plan`
@@ -808,6 +843,22 @@ Fixes #424.
   caller believed it was tenant-scoped. Found by scoping properties to their actions.
 - **The `mcp --help` smoke-test example now works** on both servers. #428
 - **Write tools no longer advertise read-only parameters** such as `limit`/`next`/`prev`. See #363.
+- **A warning could corrupt `--output json`.** Source validation warned on **stdout** when the
+  OpenAPI spec fetch failed, so the warning landed ahead of the JSON and consumers got
+  `invalid character 'W' looking for beginning of value`. The fetch fails only intermittently, so
+  this broke scripts at random rather than consistently. Warnings now go to stderr.
+- **A refused bulk filter named the wire name, not yours.** Passing the documented `connection_id`
+  to a request bulk operation was refused as `webhook_id is not a filter` — a token the caller
+  never typed. Both halves of that message now render in the caller's spelling.
+- **Outpost tool descriptions promised arrays the validator refuses.** Thirteen properties said
+  they accepted an array or a comma-separated string while the schema declared a string, so the
+  documented array form was rejected. The descriptions now match what is accepted, consistent with
+  the Gateway tools.
+- **`outpost_tenants_write theme` was validated on the CLI but not over MCP.** The two surfaces now
+  agree, via a single list of accepted themes.
+- **Property descriptions named actions their tool does not have** — 91 of them, left over from the
+  read/write split, such as a `_write` tool describing "On list, filters by…". Each description now
+  mentions only the actions of the tool it appears on.
 
 ### Deliberately not included
 
