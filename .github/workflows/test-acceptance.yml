@@ -5,7 +5,65 @@ on:
     branches:
       - next
       - main
+    # Only run when a change could actually affect what the suite tests. See #240.
+    #
+    # This is an allowlist, not a paths-ignore denylist, and deliberately so: a
+    # new top-level directory nobody thought about simply does not trigger the
+    # suite, and the omission is visible (the run is missing) rather than
+    # silently burning three API-key-backed slots on every docs PR. A denylist
+    # fails the other way -- it runs everything until someone remembers to add
+    # an exclusion.
+    #
+    # Skipping is safe here because main's required status checks are
+    # unit-test, build-linux, build-mac and build-windows -- all four in
+    # test.yml, which has no path filters. Acceptance is not among them, so a
+    # PR that skips it is not left permanently pending.
+    paths:
+      # The binary under test: acceptance helpers run `go build -o <tmp> .` and
+      # `go run main.go`, so the entrypoint, every package and the module graph
+      # are what that build resolves.
+      - "main.go"
+      - "go.mod"
+      - "go.sum"
+      - "pkg/**"
+      # The tests and their helpers. test/ holds only test/acceptance.
+      - "test/**"
+      # The reference generator gates on `--help` text, so a change here can
+      # move output the tests assert on.
+      - "tools/**"
+      # A workflow change can break the run itself, and the acceptance run is a
+      # two-file chain (test-acceptance.yml -> acceptance.yml). Matching the
+      # whole directory means adding another reusable workflow to that chain
+      # does not require remembering to extend this list.
+      - ".github/workflows/**"
+  # Run on merge to main so the merged result is tested, not just each PR
+  # branch in isolation -- the same reasoning test.yml already applies to the
+  # unit and build jobs. A PR based on stale main can merge into a combination
+  # no PR run exercised, and a merge commit is strictly a commit nothing ran
+  # acceptance against.
+  #
+  # This closes a real gap: merging a PR into another PR's head branch fires no
+  # pull_request event, so a release branch can reach main carrying changes its
+  # last acceptance run never saw.
+  #
+  # Same paths filter as above, so a docs merge does not spend a full suite run.
+  push:
+    branches:
+      - main
+    paths:
+      - "main.go"
+      - "go.mod"
+      - "go.sum"
+      - "pkg/**"
+      - "test/**"
+      - "tools/**"
+      - ".github/workflows/**"
+
   # Allow running the acceptance suite against any branch by hand.
+  #
+  # workflow_dispatch takes no paths filter, by design: it is the escape hatch
+  # for exactly the case the filter above creates, so it must fire regardless of
+  # what changed.
   #
   # The pull_request trigger above does not fire when a PR's head branch is
   # updated by merging another PR into it, so a stacked release branch can end

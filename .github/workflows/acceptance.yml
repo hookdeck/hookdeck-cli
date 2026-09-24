@@ -6,6 +6,28 @@ name: Acceptance Tests
 on:
   workflow_call:
 
+# Serialise every acceptance run repo-wide.
+#
+# All callers -- pull requests, merges to main, manual dispatch, and the release
+# gate -- exercise the SAME three Hookdeck projects using the same three API
+# keys. The API allows 240 requests/minute and a full slice makes thousands of
+# calls, so two runs overlapping exhaust the limit and both degrade.
+#
+# The failure is nasty because it does not look like rate limiting. It surfaces
+# as ordinary assertion failures in whichever slice lost the race -- a config
+# that came back empty, a filter that returned nothing -- sending whoever reads
+# it hunting for a regression that does not exist. It has happened twice: once
+# as four jobs timing out with zero assertion failures, and once as a single
+# named test failing while a release ran concurrently.
+#
+# cancel-in-progress is deliberately false. Cancelling would be faster, but the
+# release workflow calls this as its publish gate, and killing that run to make
+# room for a pull request is the wrong trade. Queueing costs wall-clock and
+# nothing else.
+concurrency:
+  group: acceptance-suite
+  cancel-in-progress: false
+
 jobs:
   acceptance:
     strategy:
