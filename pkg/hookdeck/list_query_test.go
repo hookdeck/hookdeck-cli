@@ -68,3 +68,38 @@ func TestListEventsSendsIDsAsAList(t *testing.T) {
 	assert.Equal(t, []string{"evt_A", "evt_B"}, got["id[]"])
 	assert.Empty(t, got["id"])
 }
+
+// delivery_group is declared exactly like id in the API -- a single value or an
+// array, no comma splitting -- so "a,b" as one value matched nothing and
+// --delivery-group a,b returned zero rows with exit 0, the #411 shape. Found by
+// the guard over flags documented as comma-separated.
+func TestListQueryExpandsCommaSeparatedDeliveryGroups(t *testing.T) {
+	q := listQuery(map[string]string{"delivery_group": "cus_1,cus_2"})
+	assert.Equal(t, []string{"cus_1", "cus_2"}, q["delivery_group[]"])
+	assert.Empty(t, q["delivery_group"])
+}
+
+// GetRequestEvents built its own query and so was missed by the #411 fix. This
+// covers it using the shared builder, for both list-valued filters.
+func TestGetRequestEventsSendsListValuedFiltersAsLists(t *testing.T) {
+	var got url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.Query()
+		_ = json.NewEncoder(w).Encode(map[string]any{"models": []any{}, "pagination": map[string]any{}})
+	}))
+	defer srv.Close()
+
+	base, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	c := &Client{BaseURL: base}
+
+	_, err = c.GetRequestEvents(context.Background(), "req_1", map[string]string{
+		"id":             "evt_A,evt_B",
+		"delivery_group": "cus_1,cus_2",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"evt_A", "evt_B"}, got["id[]"])
+	assert.Equal(t, []string{"cus_1", "cus_2"}, got["delivery_group[]"])
+	assert.Empty(t, got["delivery_group"])
+}

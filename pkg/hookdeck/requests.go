@@ -133,13 +133,12 @@ func (c *Client) GetRequestEvents(ctx context.Context, requestID string, params 
 	if err != nil {
 		return nil, err
 	}
+	// Through listQuery like the other event lists, so a comma-separated
+	// list-valued filter is sent as a list. This built its own query and was
+	// missed by #411, so --delivery-group a,b still went out as one value.
 	queryStr := ""
 	if len(params) > 0 {
-		q := url.Values{}
-		for k, v := range params {
-			q.Add(k, v)
-		}
-		queryStr = q.Encode()
+		queryStr = listQuery(params).Encode()
 	}
 	resp, err := c.Get(ctx, path, queryStr, nil)
 	if err != nil {
