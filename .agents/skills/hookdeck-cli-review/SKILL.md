@@ -286,6 +286,74 @@ A change to a command's surface is incomplete without:
   v2.5.0 and earlier" with no resolution tells users to keep working around
   something that no longer exists.
 
+## Tests that pass and prove nothing
+
+Three bugs shipped in v3.0.0 with tests covering them. The tests passed. Read this
+section before concluding that a diff is "covered".
+
+### A mock is an assumption about a system you do not control
+
+`hookdeck login` was broken for every new user in v3.0.0 (#438), while three
+acceptance tests drove the whole browser device flow and passed on every run.
+They passed because their mocks built the poll URL as:
+
+```go
+pollURL := serverURL + hookdeck.APIPathPrefix + "/cli-auth/poll?key=pollkey"
+```
+
+The real API returns that URL **without** the prefix. The mock described a
+server that does not exist, so the suite certified a path production did not
+have. That is worse than no test: a gap is greppable, a wrong mock is
+reassuring.
+
+**So when a diff adds or changes a mocked response, ask where the shape came
+from.** A recorded real response, or someone's memory of one? If nothing ties
+the fixture to the real API, say so — that is the finding.
+
+### A test that passes both ways is not a test
+
+`gateway_metrics_read` rejected `"measures": "count"` (#440) with five-plus unit
+tests on that tool. Every one of them passes `[]any{"count"}` — the form the
+author already knew worked. All of them pass against the broken code *and* the
+fixed code.
+
+**For a test guarding a fix, ask: would this fail without the fix?** The cheapest
+possible check answers it:
+
+```
+git checkout <base> -- <the fixed file>   # keep the new test
+go test ./<pkg>/ -run <TestName>          # must be RED
+git checkout <branch> -- <the fixed file> # must be GREEN
+```
+
+A regression test nobody has seen fail is a guess. Ask for that evidence in
+review, and do it yourself before claiming a fix is covered.
+
+Related and specific to this repository: wherever an MCP property is declared as
+an array, **models send a bare string or a comma-separated one**. That is why
+`mcpcore.StringList` exists, and why `Input.StringSlice` (array-only, silently
+nil otherwise) is the wrong reader for a caller-supplied argument. A test that
+only sends the canonical shape tests nothing about the shape that actually
+arrives.
+
+### A merge can revert a fix, and nothing will tell you
+
+`7dae336` fixed #440 on 21 Aug. The merge `b0b5710` on 22 Sep — "Merge branch
+main (v2.6.0) into release/v3.0.0" — resolved a conflict in favour of the
+pre-fix side and put the bug back. No test failed. It then shipped in two GA
+releases.
+
+The trap is that the usual history search cannot see it:
+
+```
+git log -S '<the reverted expression>' -- <file>     # shows the FIX, not the revert
+git log --full-history -m -S '<expr>' -- <file>      # shows the merge that undid it
+```
+
+`-S` skips merge commits by default. **On a long-lived release branch that has
+taken merges from `main`, spot-check that the branch's own fixes survived**, and
+reach for `--full-history -m` when a fix seems to have vanished.
+
 ## What not to raise
 
 - **A `CHANGELOG.md` entry.** The file states plainly that it is no longer

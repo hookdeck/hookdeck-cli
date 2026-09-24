@@ -243,3 +243,76 @@ func TestMetricsToolKeepsFiltersTheEventsRouteHonours(t *testing.T) {
 		})
 	}
 }
+
+// Models routinely send a scalar where an array is declared, which is exactly
+// why mcpcore.StringList exists and why every other tool on this surface uses
+// it. This tool read `measures` with StringSlice, which returns nil for a
+// non-array, so "count" was dropped and the caller was told the argument was
+// missing for an argument they had just supplied — the same silent-drop family
+// the rest of this file guards.
+//
+// Every pre-existing test here passes `[]any{"count"}`, so all of them pass
+// against the broken code as well. That is why the revert in b0b5710 shipped in
+// v3.0.0 and v3.0.1 unnoticed. These cases pass the string form on purpose.
+// See #440.
+func TestMetricsToolAcceptsMeasuresAndDimensionsAsStrings(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		measures       any
+		dimensions     any
+		wantMeasures   []string
+		wantDimensions []string
+	}{
+		{
+			name: "single measure as a bare string", measures: "count",
+			wantMeasures: []string{"count"},
+		},
+		{
+			name: "comma-separated measures", measures: "successful_count,failed_count",
+			wantMeasures: []string{"successful_count", "failed_count"},
+		},
+		{
+			name: "comma-separated with spaces", measures: "successful_count, failed_count",
+			wantMeasures: []string{"successful_count", "failed_count"},
+		},
+		{
+			name: "dimensions as a bare string", measures: []any{"count"},
+			dimensions:   "connection_id",
+			wantMeasures: []string{"count"}, wantDimensions: []string{"webhook_id"},
+		},
+		{
+			name: "array form still works", measures: []any{"count"},
+			wantMeasures: []string{"count"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var sawMeasures, sawDimensions []string
+			session := mockAPIWithClient(t, map[string]http.HandlerFunc{
+				hookdeck.APIPathPrefix + "/metrics/events": func(w http.ResponseWriter, r *http.Request) {
+					sawMeasures = r.URL.Query()["measures[]"]
+					sawDimensions = r.URL.Query()["dimensions[]"]
+					_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+				},
+			})
+
+			args := map[string]any{
+				"action":   "events",
+				"start":    "2025-01-01T00:00:00Z",
+				"end":      "2025-01-02T00:00:00Z",
+				"measures": tt.measures,
+			}
+			if tt.dimensions != nil {
+				args["dimensions"] = tt.dimensions
+			}
+			result := callTool(t, session, "gateway_metrics_read", args)
+
+			assert.False(t, result.IsError,
+				"a measures value the caller supplied must not be reported as missing: %s",
+				textContent(t, result))
+			assert.Equal(t, tt.wantMeasures, sawMeasures, "measures must reach the API")
+			if tt.wantDimensions != nil {
+				assert.Equal(t, tt.wantDimensions, sawDimensions, "dimensions must reach the API")
+			}
+		})
+	}
+}

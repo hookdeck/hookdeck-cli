@@ -24,6 +24,10 @@ const ColorOff = "off"
 const ColorAuto = "auto"
 
 // Config handles all overall configuration for the CLI
+
+// configFileMode is owner read/write only. The config holds the CLI key.
+const configFileMode = os.FileMode(0600)
+
 type Config struct {
 	Profile    Profile
 	Color      string
@@ -115,11 +119,17 @@ func (c *Config) InitConfig() {
 	c.viper.SetConfigType("toml")
 	c.viper.SetConfigFile(c.configFile)
 
+	// The config holds the CLI key, which can be account-wide, so every config
+	// file this CLI creates or writes is owner-only -- not just the global one.
+	// This used to be applied only when isGlobalConfig, so a --hookdeck-config
+	// path was created 0644 and a later login wrote the key into a file other
+	// local users could read (#445).
+	c.viper.SetConfigPermissions(configFileMode)
+
 	if isGlobalConfig {
 		// Try to change permissions manually, because we used to create files
 		// with default permissions (0644)
-		c.viper.SetConfigPermissions(os.FileMode(0600))
-		err := os.Chmod(c.configFile, os.FileMode(0600))
+		err := os.Chmod(c.configFile, configFileMode)
 		if err != nil && !os.IsNotExist(err) {
 			log.Fatalf("%s", err)
 		}
@@ -140,17 +150,17 @@ func (c *Config) InitConfig() {
 			log.Fatalf("Error creating directory for config file %s: %v", c.configFile, createErr)
 		}
 
-		file, createErr := os.Create(c.configFile)
+		// Created owner-only from the start, whatever the path: os.Create would
+		// take its mode from the umask (0644 under the usual 022).
+		file, createErr := os.OpenFile(c.configFile, os.O_RDWR|os.O_CREATE, configFileMode)
 		if createErr != nil {
 			log.Fatalf("Error creating new config file %s: %v", c.configFile, createErr)
 		}
 		file.Close() // Immediately close the newly created file
 
-		if isGlobalConfig {
-			permErr := os.Chmod(c.configFile, os.FileMode(0600))
-			if permErr != nil {
-				log.Fatalf("Error setting permissions for new config file %s: %v", c.configFile, permErr)
-			}
+		// OpenFile's mode is still filtered by the umask, so set it explicitly.
+		if permErr := os.Chmod(c.configFile, configFileMode); permErr != nil {
+			log.Fatalf("Error setting permissions for new config file %s: %v", c.configFile, permErr)
 		}
 	}
 
@@ -376,7 +386,14 @@ func (c *Config) writeConfig() error {
 		"path":   c.viper.ConfigFileUsed(),
 	}).Debug("Writing config")
 
-	return c.viper.WriteConfig()
+	if err := c.viper.WriteConfig(); err != nil {
+		return err
+	}
+
+	// viper applies its configured permissions only when it creates a file, so
+	// a file that already existed keeps whatever mode it had. A key is about
+	// to be in it, so make it owner-only regardless of how it got here (#445).
+	return os.Chmod(c.viper.ConfigFileUsed(), configFileMode)
 }
 
 // Construct the config struct from flags > local config > global config
