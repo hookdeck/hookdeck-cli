@@ -700,14 +700,13 @@ version the committed document does not — would close that.
 
 ## Release notes for v3.0.0
 
-Lifted out to [`v3.0.0-release-notes.md`](./v3.0.0-release-notes.md), which is the copy to paste
-into the GitHub Release. They were the one part of this document with a life after the release,
-and they were hard to find at the bottom of a planning doc.
+Published on the [GitHub Release](https://github.com/hookdeck/hookdeck-cli/releases/tag/v3.0.0),
+which is the record. They are drafted in `plans/v3.0.0-release-notes.md`, which is gitignored: a
+committed copy would only drift from the Release once anyone edited it there.
 
-Rewritten there in the voice the last several releases use — see
-`.agents/skills/hookdeck-cli-release/references/release-notes-voice.md`. The draft that lived here
-was written like a plan: a table categorising readers, and a note about what had *not* changed.
-Neither belongs in a release note.
+How to write them is in `.agents/skills/hookdeck-cli-release/references/release-notes-voice.md`.
+The draft that lived in this section was written like a plan — a table categorising readers, and a
+note about what had *not* changed — which is what prompted that guide.
 
 ## Open questions
 

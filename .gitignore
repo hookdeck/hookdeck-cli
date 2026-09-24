@@ -25,3 +25,7 @@ test-scripts/.install-test/
 # Claude Code temporary worktrees
 .claude/worktrees/
 .worktrees/
+
+# Release notes are drafted here and pasted into the GitHub Release.
+# The Release is the record; a committed copy only drifts from it.
+plans/*-release-notes.md

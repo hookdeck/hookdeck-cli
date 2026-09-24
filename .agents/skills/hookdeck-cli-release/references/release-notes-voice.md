@@ -5,7 +5,11 @@ Structure is in [release-notes-template.md](release-notes-template.md). This fil
 Read [v2.6.0](https://github.com/hookdeck/hookdeck-cli/releases/tag/v2.6.0) in full before
 drafting. It is the specification; this is the summary.
 
-## Length is the rule people get wrong
+Draft wherever you like — `plans/*-release-notes.md` is gitignored for this — but **do not commit
+the notes.** The GitHub Release is the record. A copy in the repo drifts the moment anyone edits
+the Release, and `CHANGELOG.md` already points at Releases for exactly this reason.
+
+## Length
 
 Measured across the last three GA releases:
 
@@ -22,8 +26,7 @@ release note — cut it, do not justify it.
 A bullet is **two to three sentences**: what changed, then the consequence that made it matter. The
 longest bullet in any recent release is about 120 words, and that is the ceiling, not the aim.
 
-**Link out for the rest.** The reader who wants the mechanism follows the issue or PR. That is what
-the links are for, and it is why an entry does not need to carry the full story.
+**Link out for the rest.** The reader who wants the mechanism follows the issue or PR.
 
 Re-measure before publishing:
 
@@ -93,16 +96,15 @@ reader recognises — give the new name after it:
 Getting this backwards sends someone looking for a tool they have never had, in a bug report about
 software they have been running for weeks.
 
-## Cutting to length: what is safe to remove
+## Cutting to length
 
-Length is a real constraint, but three separate errors in the v3.0.0 draft came from a compression
-pass, not from the first draft: the detail that three tools keep the `hookdeck_` prefix (which made
-the rename claim false), the name of the `--allow-write` flag on the Outpost server, and the worked
-example under "and the next command disagreed", which left the phrase meaningless.
+**Cut padding. Never cut a qualification, or the example a claim rests on.** Where the word target
+and accuracy conflict, accuracy wins and the entry is long.
 
-**Cut padding. Never cut a qualification, or the example a claim rests on.** If an entry cannot
-reach the word target without losing one of those, it is a long entry — take the words. Length is
-the default, accuracy is the constraint.
+Compressing the v3.0.0 draft broke three things, each a qualification that looked like padding: the
+three tools that keep the `hookdeck_` prefix (losing it made the rename claim false), the name of
+the `--allow-write` flag, and the example under "and the next command disagreed", without which the
+phrase means nothing.
 
 ## What this voice avoids
 
@@ -113,5 +115,5 @@ the default, accuracy is the constraint.
 - **Bare negatives.** "Nothing was removed" gives the reader nothing to do. v2.5.0 turns the same
   thought into: "Nothing was removed or renamed, but if you have automation that depended on the
   old behaviour, these are the ones to check."
-- **Tables.** No recent release uses one.
+- **Tables in a release note.** No recent release uses one. (This file is not a release note.)
 - **Restating the commit.** The reader does not care which function moved.
