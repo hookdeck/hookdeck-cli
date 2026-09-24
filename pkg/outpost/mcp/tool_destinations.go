@@ -2,6 +2,9 @@ package mcp
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -155,6 +158,10 @@ func destinationsCreate(ctx context.Context, client *hookdeck.Client, in mcpcore
 	//
 	// Create only, for the same reason as the CLI: update is a merge patch where
 	// an omitted key means "leave this alone".
+	if msg := rejectUnknownDestinationFields(ctx, client, destinationType, cfg, credentials); msg != "" {
+		return mcpcore.ErrorResult(msg), nil
+	}
+
 	cfg, _ = outposttypes.ApplyDefaultsForType(ctx, client, destinationType, cfg)
 
 	return destinationResult(client)(client.CreateOutpostDestination(ctx, tenantID, &hookdeck.OutpostDestinationCreateRequest{
@@ -171,6 +178,16 @@ func destinationsUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore
 	cfg, credentials, filter, metadata, err := destinationPayload(in)
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
+	}
+	// Update does not take a type, so read it from the destination. If that
+	// read fails, send the update anyway: the API is the authority, and it
+	// reports a missing destination better than a guess here would.
+	if len(cfg) > 0 || len(credentials) > 0 {
+		if existing, getErr := client.GetOutpostDestination(ctx, tenantID, id); getErr == nil && existing != nil {
+			if msg := rejectUnknownDestinationFields(ctx, client, existing.Type, cfg, credentials); msg != "" {
+				return mcpcore.ErrorResult(msg), nil
+			}
+		}
 	}
 	return destinationResult(client)(client.UpdateOutpostDestination(ctx, tenantID, id, &hookdeck.OutpostDestinationUpdateRequest{
 		Topics:      hookdeck.OutpostTopics(mcpcore.StringList(in, "topics")),
@@ -196,4 +213,47 @@ func destinationPayload(in mcpcore.Input) (cfg, credentials, filter map[string]i
 		return nil, nil, nil, nil, err
 	}
 	return cfg, credentials, filter, metadata, nil
+}
+
+// rejectUnknownDestinationFields refuses config and credential keys the
+// destination type does not declare, and returns "" when there are none.
+//
+// The CLI has always rejected them. This tool accepted them: an unknown config
+// key was stored and an unknown credential was dropped, both reported as a
+// success, so a misspelled optional field -- custom_header for custom_headers --
+// looked applied and never took effect (#447).
+//
+// Only unknown keys are checked here. Required fields, allowed values and
+// formats are enforced by the API on both surfaces, and the CLI's messages for
+// those are phrased as flags. A schema that cannot be fetched does not block the
+// request, matching the CLI: the API is the authority.
+func rejectUnknownDestinationFields(ctx context.Context, client *hookdeck.Client, destinationType string, cfg, credentials map[string]interface{}) string {
+	schemas, err := outposttypes.FetchDestinationTypes(ctx, client)
+	if err != nil {
+		return ""
+	}
+	schema, found := outposttypes.Find(schemas, destinationType)
+	if !found {
+		return ""
+	}
+
+	var problems []string
+	if unknown := outposttypes.UnknownFields(schema.ConfigFields, cfg); len(unknown) > 0 {
+		problems = append(problems, fmt.Sprintf("config has fields the %s type does not accept: %s", destinationType, quoteAll(unknown)))
+	}
+	if unknown := outposttypes.UnknownFields(schema.CredentialFields, credentials); len(unknown) > 0 {
+		problems = append(problems, fmt.Sprintf("credentials has fields the %s type does not accept: %s", destinationType, quoteAll(unknown)))
+	}
+	if len(problems) == 0 {
+		return ""
+	}
+	return strings.Join(problems, "; ") + ". Call outpost_destination_types_read to see the fields this type accepts."
+}
+
+func quoteAll(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = strconv.Quote(v)
+	}
+	return strings.Join(quoted, ", ")
 }
