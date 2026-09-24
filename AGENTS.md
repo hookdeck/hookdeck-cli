@@ -334,6 +334,22 @@ go run . login --help
 
 ## 6. Documentation Standards
 
+### Spelling: British prose, literal identifiers
+
+Prose uses **British** spelling — `behaviour`, `honoured`, `recognise`, `colour`, `initialise`.
+That is what the codebase already does (behaviour 19 to behavior 5, honoured 10 to 0) and what the
+release notes lean towards, though they are inconsistent because this was never written down:
+v2.6.0 used "behavior" and "honoured" in the same document.
+
+**Identifiers keep their real spelling**, always. A flag, environment variable, API field, struct
+tag or library symbol is a literal, not prose:
+
+- `--color`, `NO_COLOR`, `ansi.Color()` — never `--colour`
+- an API field named `behavior` stays `behavior` when quoted as a field
+
+So a sentence can legitimately carry both: "`--color off` also suppresses the colour in piped
+output." Check whether the word is something the reader types before you change its spelling.
+
 ### Command help text (Short and Long)
 
 Use the shared helpers in **`pkg/cmd/helptext.go`** for resource commands so Short and the common part of Long are defined once and stay consistent across sources, connections, and any future resources.

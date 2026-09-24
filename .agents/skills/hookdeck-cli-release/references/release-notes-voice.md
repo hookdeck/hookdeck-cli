@@ -35,6 +35,12 @@ gh release view v2.6.0 --json body -q .body | wc -w    # ~1438
 wc -w <your-draft.md>
 ```
 
+## Spelling
+
+British in prose, literal for identifiers — `--color` stays `--color` while the colour it prints is
+spelled the British way. The rule and the reasoning are in **AGENTS.md § 6**; recent notes are
+inconsistent because it was not written down until now.
+
 ## Structure
 
 `## Summary`, then only the sections with content: `New features`, `Fixes`,
