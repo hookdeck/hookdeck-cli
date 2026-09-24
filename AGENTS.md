@@ -256,6 +256,14 @@ go test -race ./...
 
 **Whenever you change Go code in this repo, run tests from the repository root** and treat the run as failed if compilation or any test fails.
 
+**Before every push — required:**
+
+- **Unit tests must pass.** Run `go test ./...` (and `go vet ./...`). A unit test should never fail first in CI; if one does, it was not run, or its result was not read.
+- **Judge the result by the exit code, never by filtered output.** `go test ./... > /tmp/t.log 2>&1; echo exit=$?`. Tests that mock failing API calls log `level=error` lines, and piping through `head` can push the `FAIL` line out of view — a failure on your screen that you never see.
+- **Run the acceptance tests for what you changed**, by tag, per `test/acceptance/README.md` — not the full suite. The full suite runs in CI; running it locally on every change is not needed.
+
+Tests in `pkg/cmd` share the package-level `rootCmd`. Do not call cobra's `LocalFlags()` or `InheritedFlags()` from a test: both merge parents' persistent flags into the command as a side effect, and the next test in the package sees flags that are not really there. Walk `Flags()` and `PersistentFlags()` instead.
+
 **Recommended command in Cursor (module cache + full permissions):**
 
 ```bash
