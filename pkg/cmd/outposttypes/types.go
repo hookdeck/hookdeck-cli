@@ -167,6 +167,32 @@ func ApplyDefaults(fields []Field, values map[string]interface{}) (map[string]in
 // Unknown keys, option sets and patterns are checked either way: those are
 // wrong however the request is shaped, and the message is more useful than the
 // API's.
+// UnknownFields returns the supplied keys the schema does not declare, sorted.
+//
+// A nested value is skipped, for the same reason validateFields skips it: the
+// schema describes flat fields, so it cannot say whether a nested shape is
+// valid, and the API is the authority.
+//
+// The MCP destination tools use this on its own rather than the full
+// validation, whose messages are phrased as CLI flags (#447).
+func UnknownFields(fields []Field, values map[string]interface{}) []string {
+	known := make(map[string]bool, len(fields))
+	for _, field := range fields {
+		known[field.Key] = true
+	}
+	var unknown []string
+	for key, value := range values {
+		if _, nested := value.(map[string]interface{}); nested {
+			continue
+		}
+		if !known[key] {
+			unknown = append(unknown, key)
+		}
+	}
+	sort.Strings(unknown)
+	return unknown
+}
+
 func ValidateSuppliedFields(fields []Field, values map[string]interface{}, kind string) error {
 	return validateFields(fields, values, kind, false)
 }
