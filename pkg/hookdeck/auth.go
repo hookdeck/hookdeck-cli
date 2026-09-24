@@ -216,6 +216,11 @@ func pollForAPIKey(pollURL string, interval time.Duration, maxAttempts int) (*Po
 	client := &Client{
 		BaseURL:                 baseURL,
 		SuppressRateLimitErrors: true, // Rate limiting is expected during polling
+		// The server chooses this URL, and it is not under APIPathPrefix: the
+		// real API answers POST /cli-auth with an unversioned poll_url. Pin the
+		// guard to the exact path we were handed, so the request still cannot be
+		// retargeted anywhere else, and a versioned poll_url keeps working too.
+		PathPrefix: parsedURL.EscapedPath(),
 	}
 
 	var count = 0

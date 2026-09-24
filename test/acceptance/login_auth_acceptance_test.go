@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +46,12 @@ api_key = "hk_test_stale_accept01"
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte("Unauthorized"))
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/cli-auth"):
-			pollURL := serverURL + hookdeck.APIPathPrefix + "/cli-auth/poll?key=pollkey"
+			// The real API answers POST /cli-auth with an UNVERSIONED poll_url --
+			// no APIPathPrefix. Building the mock's poll_url with the prefix is
+			// what let #438 ship: the client-side path guard rejected the real
+			// server's URL while this test kept passing. Keep it unversioned so
+			// the mock matches production.
+			pollURL := serverURL + "/cli-auth/poll?key=pollkey"
 			body, encErr := json.Marshal(map[string]string{
 				"browser_url": "https://example.test/auth",
 				"poll_url":    pollURL,
