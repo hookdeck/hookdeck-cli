@@ -149,10 +149,7 @@ type TransformationExecutionListResponse struct {
 
 // ListTransformations retrieves a list of transformations with optional filters
 func (c *Client) ListTransformations(ctx context.Context, params map[string]string) (*TransformationListResponse, error) {
-	queryParams := url.Values{}
-	for k, v := range params {
-		queryParams.Add(k, v)
-	}
+	queryParams := listQuery(params)
 
 	resp, err := c.Get(ctx, APIPathPrefix+"/transformations", queryParams.Encode(), nil)
 	if err != nil {

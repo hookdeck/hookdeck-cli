@@ -47,10 +47,7 @@ type RequestRetryRequest struct {
 
 // ListRequests retrieves requests with optional filters
 func (c *Client) ListRequests(ctx context.Context, params map[string]string) (*RequestListResponse, error) {
-	queryParams := url.Values{}
-	for k, v := range params {
-		queryParams.Add(k, v)
-	}
+	queryParams := listQuery(params)
 	resp, err := c.Get(ctx, APIPathPrefix+"/requests", queryParams.Encode(), nil)
 	if err != nil {
 		return nil, err

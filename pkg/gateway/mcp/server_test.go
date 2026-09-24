@@ -1014,7 +1014,14 @@ func TestEventsList_PayloadFilters(t *testing.T) {
 func TestEventsList_MetadataFilters(t *testing.T) {
 	session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 		hookdeck.APIPathPrefix + "/events": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "evt_1,evt_2", r.URL.Query().Get("id"))
+			// This assertion used to be `"evt_1,evt_2" == Get("id")` -- the
+			// comma-joined scalar. That is the wire format of bug #411: sent to
+			// the live API it matches nothing and returns zero rows, where the
+			// repeated id[] form returns both. So the test was certifying the
+			// bug rather than guarding against it. Verified against the real API
+			// on event, request and transformation list before changing it.
+			assert.Equal(t, []string{"evt_1", "evt_2"}, r.URL.Query()["id[]"])
+			assert.Empty(t, r.URL.Query().Get("id"), "the comma-joined scalar matches nothing")
 			assert.Equal(t, "3", r.URL.Query().Get("attempts"))
 			assert.Equal(t, "cli_abc", r.URL.Query().Get("cli_id"))
 			assert.Equal(t, "cus_123", r.URL.Query().Get("delivery_group"))

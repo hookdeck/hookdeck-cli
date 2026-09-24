@@ -48,10 +48,7 @@ type EventListResponse struct {
 
 // ListEvents retrieves events with optional filters (params: webhook_id, status, source_id, destination_id, limit, order_by, dir, next, prev, etc.)
 func (c *Client) ListEvents(ctx context.Context, params map[string]string) (*EventListResponse, error) {
-	queryParams := url.Values{}
-	for k, v := range params {
-		queryParams.Add(k, v)
-	}
+	queryParams := listQuery(params)
 	resp, err := c.Get(ctx, APIPathPrefix+"/events", queryParams.Encode(), nil)
 	if err != nil {
 		return nil, err
