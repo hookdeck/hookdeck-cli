@@ -26,18 +26,18 @@ func newTransformationExecutionsCmd() *cobra.Command {
 }
 
 type transformationExecutionsListCmd struct {
-	cmd        *cobra.Command
-	trnID      string
-	logLevel   string
+	cmd          *cobra.Command
+	trnID        string
+	logLevel     string
 	connectionID string
-	issueID    string
-	createdAt  string
-	orderBy    string
-	dir        string
-	limit      int
-	next       string
-	prev       string
-	output     string
+	issueID      string
+	createdAt    string
+	orderBy      string
+	dir          string
+	limit        int
+	next         string
+	prev         string
+	output       string
 }
 
 func newTransformationExecutionsListCmd() *transformationExecutionsListCmd {

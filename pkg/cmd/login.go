@@ -43,7 +43,7 @@ upgrade and sandbox retention.`,
 		RunE: lc.runLoginCmd,
 	}
 	lc.cmd.Flags().BoolVarP(&lc.interactive, "interactive", "i", false, "Run interactive configuration mode if you cannot open a browser")
-	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to current directory (.hookdeck/config.toml)")
+	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save credentials to ./.hookdeck/config.toml in the current directory. Cannot be combined with --hookdeck-config, which takes the path to write instead.")
 	lc.cmd.Flags().StringVar(&lc.cli_key, "cli-key", "", "CLI key from Hookdeck dashboard onboarding")
 
 	return lc

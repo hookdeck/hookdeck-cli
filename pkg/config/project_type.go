@@ -114,6 +114,18 @@ func IsGatewayProject(value string) bool {
 	}
 }
 
+// IsOutpostProject returns true if the given type or mode represents an Outpost project.
+// Unlike IsGatewayProject, Outpost has a single type and mode, so there are no aliases.
+// (The API rename in 2026-09-01 made ProjectTypeOutpost literally "outpost".)
+func IsOutpostProject(typeOrMode string) bool {
+	switch typeOrMode {
+	case ProjectTypeOutpost:
+		return true
+	default:
+		return false
+	}
+}
+
 // ProjectTypeToJSON returns the value used in `--output json` and accepted by the
 // `--type` filter. Deliberately not the API type: `gateway` is what the CLI has
 // always emitted, and changing it would break anyone parsing that output.

@@ -31,11 +31,12 @@ type Config struct {
 	DeviceName string
 
 	// Helpers
-	APIBaseURL       string
-	DashboardBaseURL string
-	ConsoleBaseURL   string
-	WSBaseURL        string
-	Insecure         bool
+	APIBaseURL        string
+	OutpostAPIBaseURL string
+	DashboardBaseURL  string
+	ConsoleBaseURL    string
+	WSBaseURL         string
+	Insecure          bool
 
 	// Config
 	ConfigFileFlag string // flag -- should NOT use this directly
@@ -78,7 +79,17 @@ func (c *Config) InitConfig() {
 
 	c.Profile.Config = c
 
-	// Set log level
+	// Set log level.
+	//
+	// An empty value means unset, not invalid: constructConfig coalesces it to
+	// "info", but that runs after this switch, and the CLI's --log-level default
+	// only covers a Config built through the root command. Anything else — a
+	// programmatically constructed Config, or a test — arrived here with "" and
+	// was killed by the log.Fatalf below, taking the process with it. A genuinely
+	// wrong value is still worth shouting about; an unset one is not.
+	if c.LogLevel == "" {
+		c.LogLevel = "info"
+	}
 	switch c.LogLevel {
 	case "debug":
 		log.SetLevel(log.DebugLevel)
@@ -181,15 +192,27 @@ func (c *Config) InitConfig() {
 	log.SetFormatter(logFormatter)
 }
 
-// UseProject selects the active project. projectType is the API project type;
-// display labels and legacy mode values are still accepted for compatibility.
+// UseProject selects the active project and persists it to the config file this
+// Config was loaded from — the file getConfigPath resolved, so the write lands
+// wherever the reads came from. That is the only correct target for every
+// command except one explicitly given --local: callers must not re-derive a
+// path of their own (see #424).
+//
+// projectType is the API project type; display labels and legacy mode values
+// are still accepted for compatibility.
 func (c *Config) UseProject(projectId string, projectType string) error {
 	c.setProjectIdentity(projectId, projectType)
 	return c.Profile.SaveProfile()
 }
 
-// UseProjectLocal selects the active project to be used in local config
-// Returns true if a new file was created, false if existing file was updated
+// UseProjectLocal selects the active project and writes it to
+// ./.hookdeck/config.toml in the current working directory, creating the file
+// and its directory if needed. Returns true if a new file was created, false if
+// an existing file was updated.
+//
+// This ignores the resolved config path on purpose, so it is only correct for
+// commands run with --local — which is why --local and --hookdeck-config are
+// rejected together. Anything else must go through UseProject.
 func (c *Config) UseProjectLocal(projectId string, projectType string) (bool, error) {
 	// Get current working directory
 	workingDir, err := os.Getwd()
@@ -361,6 +384,7 @@ func (c *Config) constructConfig() {
 	c.Color = stringCoalesce(c.Color, c.viper.GetString(("color")), "auto")
 	c.LogLevel = stringCoalesce(c.LogLevel, c.viper.GetString(("log")), "info")
 	c.APIBaseURL = stringCoalesce(c.APIBaseURL, c.viper.GetString(("api_base")), hookdeck.DefaultAPIBaseURL)
+	c.OutpostAPIBaseURL = stringCoalesce(c.OutpostAPIBaseURL, c.viper.GetString(("outpost_api_base")), hookdeck.DefaultOutpostAPIBaseURL)
 	c.DashboardBaseURL = stringCoalesce(c.DashboardBaseURL, c.viper.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
 	c.ConsoleBaseURL = stringCoalesce(c.ConsoleBaseURL, c.viper.GetString(("console_base")), hookdeck.DefaultConsoleBaseURL)
 	c.WSBaseURL = stringCoalesce(c.WSBaseURL, c.viper.GetString(("ws_base")), hookdeck.DefaultWebsocektURL)
@@ -428,8 +452,11 @@ func (c *Config) SetTelemetryDisabled(disabled bool) error {
 //   - No viper (e.g. some tests): only clears those Profile fields in memory; nothing is
 //     written to disk.
 //
-// MCP reauth uses the persisted path in production. The shared *hookdeck.Client is also
-// cleared separately in the MCP handler so API calls stop using the old key immediately.
+// The shared *hookdeck.Client is also cleared separately in the MCP handler so API calls
+// stop using the old key immediately.
+//
+// Use ClearActiveProfileCredentialsInMemory instead when starting a sign-in that may not
+// finish — see the note there.
 func (c *Config) ClearActiveProfileCredentials() error {
 	if c == nil || c.Profile.APIKey == "" {
 		return nil
@@ -443,6 +470,25 @@ func (c *Config) ClearActiveProfileCredentials() error {
 	}
 	zeroProfileCredentialFields(&c.Profile)
 	return nil
+}
+
+// ClearActiveProfileCredentialsInMemory clears the active profile's credentials for this
+// process only, leaving whatever is stored on disk alone.
+//
+// This is for starting a sign-in that might not finish. Removing the stored credentials
+// first gains nothing: a completed sign-in calls ApplyPollAPIKeyResponse, which sets every
+// field this would have cleared, so the stored profile is overwritten either way. It only
+// costs something when the sign-in does not complete — an abandoned browser flow, a closed
+// laptop, a failed poll — and then the user is signed out of every terminal and every
+// future session, having gained nothing for it.
+//
+// Clearing in memory is still required, so the current process stops using the old
+// credentials and the caller's sign-in flow proceeds as unauthenticated.
+func (c *Config) ClearActiveProfileCredentialsInMemory() {
+	if c == nil {
+		return
+	}
+	zeroProfileCredentialFields(&c.Profile)
 }
 
 func zeroProfileCredentialFields(p *Profile) {
@@ -469,12 +515,18 @@ func (c *Config) SaveActiveProfileAfterLogin() {
 	}
 }
 
-// getConfigPath returns the path for the config file.
-// Precedence:
+// getConfigPath returns the path for the config file. It is the single
+// authority on where configuration lives: the file it returns is the file every
+// command reads AND writes, so an explicit path is honoured end to end rather
+// than only on the way in (#424). The one exception is --local, which pins the
+// write to ./.hookdeck/config.toml via UseProjectLocal.
+//
+// Precedence — explicit beats implicit:
 // - path (if path is provided, e.g. from --hookdeck-config flag)
 // - HOOKDECK_CONFIG_FILE env var (for acceptance tests / parallel runs; avoids flag collision with subcommand JSON --config)
-// - `${PWD}/.hookdeck/config.toml`
+// - `${PWD}/.hookdeck/config.toml`, if it exists
 // - `${HOME}/.config/hookdeck/config.toml`
+//
 // Returns the path string and a boolean indicating whether it's the global default path.
 func (c *Config) getConfigPath(path string) (string, bool) {
 	workspaceFolder, err := os.Getwd()

@@ -139,6 +139,7 @@ var generateMarkerRE = regexp.MustCompile(`(?m)^(<!-- (GENERATE(?:_[A-Z0-9_]+|_H
 
 // generateEndMarker is the simple closing tag (no command list required).
 const generateEndMarker = "<!-- GENERATE_END -->"
+
 var generateEndRE = regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(generateEndMarker) + `\s*$`)
 
 // findNextEndMarker returns (start, length) of the next GENERATE*:END marker, or (-1, 0).
@@ -381,10 +382,12 @@ func globalFlagsTable(root *cobra.Command) string {
 
 func generateTOC(root *cobra.Command) string {
 	// Groups only; no per-command sub-links
+	// Hand-maintained rather than derived from the headings, so it stays in
+	// reading order. Add new top-level sections here.
 	sections := []string{
 		"Global Options", "Authentication", "Projects", "Local Development", "Gateway",
 		"Connections", "Sources", "Destinations", "Transformations", "Events", "Requests",
-		"Attempts", "Utilities",
+		"Attempts", "Metrics", "Outpost", "Utilities",
 	}
 	var b bytes.Buffer
 	for _, title := range sections {

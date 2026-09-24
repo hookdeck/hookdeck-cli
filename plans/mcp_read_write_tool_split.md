@@ -1,0 +1,1000 @@
+---
+name: MCP read/write tool split (platform tools parked)
+overview: "Split the embedded MCP servers so read actions and gated write actions live on separate tool names. Ships as v3.0.0-beta.2. Tool names change because MCP clients grant permission per tool name and the compound pattern that preceded them made 'allow reads, prompt on writes' inexpressible. Platform tools (organization, projects, custom domains) were built under the same naming rule and then PARKED on 2026-09-23: probing the live API proved every platform route requires an organization API key, so the surface was unusable by the credential a CLI user actually holds. That work is preserved on branch `platform-api` pending a permissions decision."
+---
+
+# MCP read/write tool split (platform tools parked)
+
+**Status:** implemented and shipped in v3.0.0; platform tools built, then parked
+**Target:** `v3.0.0-beta.2`, branch `release/v3.0.0`
+**Baseline:** `v3.0.0-beta.1`
+
+Two workstreams were planned to ship together:
+
+1. **Tool naming** — split every resource tool into `_read` / `_write` halves. **Shipping.**
+2. **Platform tools** — expose the organization, projects and API key endpoints the API
+   now offers, named under the same rule from the start. **Parked — see below.**
+
+They were planned together because the naming rule should be applied once, to the whole surface.
+That reasoning still holds, and is why the platform work was built to the same convention: if it
+returns, it returns already named correctly and costs no second re-grant.
+
+---
+
+## Update 2026-09-23: the platform half is parked
+
+**Built, tested, and then removed from the release.** Preserved on branch `platform-api` at
+`d0bbc0f`. Removed from `release/v3.0.0` in `4857985`.
+
+**Why.** Before shipping, every platform route was probed directly with all four Hookdeck
+credentials (`tools/credential-matrix`, committed). The result: **every platform route requires an
+organization API key.** A user CLI session key — what `hookdeck login` stores, and what the MCP
+servers are handed — gets `401` on all of them, *including reading the project it is currently
+pinned to*. A project API key can read itself and nothing else. The only platform route any CLI
+credential reaches is `GET /projects`.
+
+These are `401` at the auth layer, not `403 INSUFFICIENT_SCOPE`. The route refuses the credential
+for what it is, before authorization runs, so no scope grant changes the outcome.
+
+That makes the whole surface below unusable by the credential its users hold. Shipping it would
+have meant publishing a command tree and five MCP tools that answer "Unauthorized" to everyone not
+carrying an org key — a credential most CLI users neither have nor should be pasting into an agent.
+
+**What unblocks it is a product decision, not code:** should a CLI session inherit the permissions
+of the dashboard user who created it? Put to the team in
+[Platform APIs: what each credential can actually do](https://app.notion.com/p/3e4783a05de28139a18ac475d3d5fc1a?pvs=204).
+That discussion also identified a prerequisite: **users cannot currently list or revoke their own
+CLI keys**, which has to be solved before a CLI key is given more power.
+
+**How to read the rest of this document.** Everything about the read/write split stands and
+shipped. Platform sections are marked **PARKED** and describe `platform-api`, not the release.
+Their checklists are left ticked on purpose — the work was genuinely done, and the ticks record
+what exists on that branch.
+
+---
+
+## Problem
+
+MCP clients grant tool permission **per tool name**, with wildcards over names and no
+argument matching. The tool name is the only permission boundary that exists.
+
+The Event Gateway and Outpost servers use a compound pattern: one tool per resource, with an
+`action` enum whose contents depend on `--allow-write`. `gateway_connections` in write mode
+accepts `list`, `get`, `pause`, `unpause`, `create`, `upsert`, `update`, `delete`, `enable`,
+`disable`.
+
+So "let the agent read connections freely, but ask before it changes one" cannot be expressed.
+A user can allow `gateway_connections` entirely, which permits deleting a live connection
+unprompted, or deny it and be prompted on every read.
+
+Two aggravating details in the current code:
+
+- `destructiveHint` is computed per tool, not per action (`pkg/mcpcore/toolspec.go`), so one
+  destructive action flags the whole tool and a client gating on the hint prompts on `list`.
+- `ReadOnlyHint` is false even in read-only mode for `gateway_connections`, because
+  `pause`/`unpause` are `Mutates: true`. Accurate, but it means the read-only tool cannot be
+  blanket-allowed either.
+
+Platform tools raise the stakes rather than changing the problem. `POST /organizations/current/api-keys`
+mints credentials. There is no version of "allow the agent to read my projects" that should also
+permit it to create an organization API key, and under the current pattern those would be the
+same grant.
+
+### Why this beta
+
+v3.0.0 already renames every Gateway tool from `hookdeck_*` to `gateway_*`. Per-tool grants and
+`allowedTools` entries do not survive a rename, so every user re-grants on upgrade regardless.
+Splitting after GA would force a second re-grant. This is the last point where the naming
+change, the platform additions, and the existing rename all cost one disruption instead of three.
+
+*Partly overtaken by events:* the platform additions are parked, so this release spends the one
+disruption on the split and the rename. The argument is why the platform tools were built to the
+new convention before being shelved — if they return, they cost no further re-grant.
+
+---
+
+## Decision: naming
+
+**Symmetric `_read` / `_write` suffixes on every resource tool**, with ungated mutations on
+their own third tool.
+
+```
+gateway_connections_read        list, get                       ReadOnly  not destructive
+gateway_connections_pause       pause, unpause                  mutating  not destructive
+gateway_connections_write       create, upsert, update,         mutating  destructive
+                                delete, enable, disable
+```
+
+Rules:
+
+1. Every resource tool carries `_read` or `_write`, with no exceptions — including resources
+   that have no write half (`gateway_metrics_read`, `outpost_catalog_read`) and the one that is
+   entirely write (`outpost_publish_write`).
+2. An action enum must never mix read and write. Each tool's actions are homogeneous.
+3. `_write` tools exist only under `--allow-write`. `_read` tools are byte-identical in both
+   modes, which is what makes a grant durable.
+4. `ReadOnlyHint` is driven by `HasChanging()`, not `HasWrite()`, so a tool carrying an ungated
+   mutation still cannot claim to be a pure read.
+5. An ungated mutation gets its own tool rather than sitting on either half
+   (`gateway_connections_pause`, `hookdeck_projects_use`).
+
+### Why symmetric rather than a bare read name
+
+The asymmetric alternative — reads keep their existing bare names, `_write` is added — was the
+initial recommendation because it minimises churn. Evidence moved the decision; see
+[Evidence](#evidence). Summarised:
+
+- **It matches the API's own permission vocabulary.** Hookdeck API keys carry scopes shaped
+  `gateway.events.read`, `gateway.events.write`, `gateway.sources.read`. The platform already
+  draws its permission boundary at read/write, per resource, per product, and names it exactly
+  that way. `gateway_events_read` / `gateway_events_write` mirrors `gateway.events.read` /
+  `gateway.events.write` character for character apart from the separator. A user reasoning
+  about what a key can do and what a tool can do uses one vocabulary. This is the strongest
+  argument and it postdates the original recommendation.
+- **Permission expressibility.** "Allow all reads" is `*_read` — one rule, on any client. Under
+  the asymmetric rule, `gateway_*` also matches the write tools, so an allowlist-only client
+  must enumerate every read tool by hand (20 entries, measured).
+- **No exception to memorise.** Under the asymmetric rule the name `outpost_publish` would be
+  bare *and* write-only, contradicting the "bare means read" rule every other tool teaches, at
+  the one tool where a wrong guess has real side effects.
+- **No accidental inconsistency.** Under a split-only rule, `gateway_issues_read` and
+  `gateway_attempts` are the same shape of tool named differently, purely because
+  `gateway_issues_write` happens to exist. That invites hallucinated names like
+  `gateway_attempts_read`.
+
+Accepted costs:
+
+- Read tools are renamed a second time in one release. Mitigated by v3.0.0 already forcing a
+  re-grant.
+- `gateway_metrics_read` carries a suffix distinguishing it from a write half that does not exist.
+- Uniform suffixes make `gateway_metrics_read` (aggregate queries) look structurally identical
+  to a plain CRUD read. Counter this in tool descriptions, not in names.
+- `gateway_connections_pause` and `hookdeck_projects_use` match neither suffix, and are
+  conspicuous precisely because everything else is regular.
+
+### Why pause/unpause get their own tool
+
+`pause` and `unpause` mutate but are deliberately not gated: read-only is the mode people
+investigate incidents in, pausing a misbehaving connection is usually how that investigation
+ends, and pausing buffers rather than drops. Reasoning is in `pkg/gateway/mcp/tool_connections.go`;
+`TestWriteGuard_PauseIsNotGated` pins it.
+
+Leaving them on the read tool would keep `gateway_connections_read` un-blanket-allowable, which
+defeats most of the point. Moving them to the write tool would gate them, changing what is
+allowed. A third tool keeps all three postures honest.
+
+Recorded as considered: GitHub's `pull_request_review_write` carries `resolve_thread` /
+`unresolve_thread` — a reversible, low-stakes, paired state change structurally like
+`pause`/`unpause` — on the **write** tool, accepting that it disappears in read-only mode. Our
+carve-out goes the other way on a deliberate product judgement about incident response.
+
+---
+
+## Decision: platform tools — PARKED
+
+> Built as specified, then parked. See "Update 2026-09-23" at the top.
+
+### What the API now offers
+
+Verified against the live spec at `https://api.hookdeck.com/2026-09-01/openapi` (95 paths),
+diffed against the pinned `plans/openapi_2025-07-01.json` (83 paths). New platform endpoints:
+
+| Endpoint | Methods | Notes |
+|---|---|---|
+| `/organizations/current` | GET, PUT | PUT body: `name` only |
+| `/organizations/current/api-keys` | GET, POST | POST: `label`, `type` (`organization`\|`project`), `team_id`, `scopes`, `grants`. Creating organization keys **requires an admin session**. |
+| `/organizations/current/api-keys/{id}` | PUT, DELETE | PUT changes scopes/grants, secret unchanged. DELETE stops authenticating **immediately**. |
+| `/organizations/current/api-keys/{id}/roll` | POST | `delay_sec` required; old key expires after the delay. |
+| `/projects` | GET, POST | POST: `name`, `organization_id`, `private`, `type` (`event_gateway`\|`outpost`) |
+| `/projects/{id}` | GET, PUT, DELETE | PUT: `headers_prefix`, `domain`, `name`, `context`, `notification_methods`, `webhook_topics`, `webhook_source_id`, `private` |
+| `/projects/{id}/custom_domains` | GET, POST | Replaces `/teams/current/custom_domains` |
+| `/projects/{id}/custom_domains/{domain_id}` | DELETE | |
+
+Also new, and **not platform** — Gateway features to triage separately, not in this plan:
+`POST /events/{id}/replay`, `POST /requests/{id}/replay`, and the `/bulk/requests/replay` set.
+
+### Prerequisite: API version bump — already done on `main`
+
+`main` merged `feat/api-2026-09-01` (PR #378) and shipped it in **v2.6.0**. On `main`:
+
+- `pkg/hookdeck/client.go` — `const APIPathPrefix = "/2026-09-01"`
+- `pkg/hookdeck/projects.go` — lists via `GET /projects`, no longer the undocumented `/teams`
+
+`release/v3.0.0` still pins `/2025-07-01`, so **merging `main` is the first task** and it delivers
+this prerequisite. No separate version-bump work is needed, and the "wholesale vs per-call"
+question this plan previously carried is moot.
+
+What the merge does *not* bring: there is no client code for organizations or API keys on `main`.
+Those endpoints still need `pkg/hookdeck/` methods written here.
+
+Two details the bump carries, both already absorbed on `main`:
+
+- **`/teams` is gone in 2026-09-01**, and was undocumented in 2025-07-01 too — the CLI depended
+  on an unspecified endpoint. `GET /projects` replaces it, so this fixed a latent fragility.
+- **Custom domains moved** from `/teams/current/custom_domains` to `/projects/{id}/custom_domains`.
+  This does **not** affect Outpost's `custom_domain_*` actions, which use the separate Outpost
+  path `/config/custom_domain` (`pkg/hookdeck/outpost_config.go`). Confirmed by reading both.
+
+### Proposed platform tools
+
+Platform tools keep the `hookdeck_` prefix (`mcpcore.DefaultPlatformPrefix`), because you log in
+to Hookdeck, not to a product. They are registered on **both** servers.
+
+| Tool | Actions | Mode |
+|---|---|---|
+| `hookdeck_projects_read` | `list`, `get` | both |
+| `hookdeck_projects_use` | `use` | both |
+| `hookdeck_projects_write` | `create`, `update`, `delete`\* | `--allow-write` |
+| `hookdeck_organization_read` | `get` | both |
+| `hookdeck_organization_write` | `update` | `--allow-write` |
+
+`*` destructive.
+
+**API key management is deliberately excluded.** `/organizations/current/api-keys` is not exposed
+as an MCP tool in any form — not even `list`. Credentials should not flow to agents, and key
+management belongs on the CLI, the API, or the dashboard where a human is the one holding them.
+This is stricter than the read/write split alone would require: the split would happily permit a
+read-only `list`, and the decision is to not offer it regardless. An agent that could mint a
+write-scoped key would defeat every other boundary in this plan, and the cheapest way to
+guarantee it cannot is to leave the surface off entirely.
+
+This replaces today's single `hookdeck_projects` (`list`, `use`) and resolves the open question
+the previous revision of this plan carried: `list` is a read, `use` changes what every
+subsequent call targets, and permission is per tool name, so the safe read could not be granted
+without the state change. Splitting resolves it under the same rule as everything else.
+
+**`use` gets its own tool**, for the same reason as `pause`. It mutates session state rather
+than remote data, an agent needs it in read-only mode to investigate a different project, and
+putting it on the read tool would make `hookdeck_projects_read` un-blanket-allowable — the exact
+failure this change exists to fix.
+
+**Project type.** `POST /projects` takes `type: event_gateway | outpost`. The Gateway server
+should default it to `event_gateway` and the Outpost server to `outpost`, rather than requiring
+an agent to supply a value it has no way to infer.
+
+### Tool count
+
+> **Superseded by the parking.** The "After platform" column never shipped.
+
+| Server | Today | After split | After platform *(parked)* |
+|---|---|---|---|
+| Event Gateway | 14 | 22 | ~~26~~ |
+| Outpost | 11 | 16 | ~~20~~ |
+
+Five platform tools would have replaced today's single `hookdeck_projects`, so +4 per server.
+
+**What actually ships** on Event Gateway is **17** tools read-only and **25** with
+`--allow-write`, per the golden list in `TestToolSurfaceIsWhatWeThinkItIs`, which is the
+authority on the surface — not this table. Comfortably inside the 30-50 band section 2 of
+`hookdeck_mcp_buildout_plan_v2.md` protects, and parking the platform tools restored the headroom
+Gateway had been about to spend. The two servers are normally configured separately, so the
+per-server number is the relevant one.
+
+---
+
+## Evidence
+
+Four agents were run against the candidate naming schemes. Three saw one scheme each, in
+isolation, with no indication that alternatives existed or that naming was under evaluation;
+they were handed a tool list and asked to route ten realistic requests and then write permission
+rules. A fourth compared all three with the schemes in shuffled order.
+
+### Routing accuracy does not discriminate
+
+All three schemes scored **10/10**. No scheme produced a misroute. The separation is entirely in
+permission ergonomics and self-reported friction.
+
+### Permission rules required for "allow all reads, prompt on writes"
+
+| Scheme | allow + deny | allowlist-only |
+|---|---|---|
+| Asymmetric (bare read names) | 4 rules | **20 enumerated entries** |
+| **Symmetric (chosen)** | **3 rules** | **`*_read` + `gateway_help` — 2 entries** |
+| Split-only symmetric | **15 rules** | 10 entries |
+
+The split-only agent considered the wildcard and rejected it: `*_write` covered 9 of 15, "so an
+explicit list is simplest and safest overall." A partial convention is worse than none, because
+it invites a wildcard that silently under-covers.
+
+### Findings independent of scheme
+
+All three blind agents raised these unprompted:
+
+- **`hookdeck_projects` mixes `list` with `use`.** Resolved by the platform split above.
+- **`run` on transformations reads as a write.** It persists nothing and correctly stays on the
+  read tool, but the name gives no signal; one agent only found it after checking the write tool.
+- **`retry` appears on three tools** (`gateway_request_write`, `gateway_event_write`,
+  `outpost_events_write`). Only the user's noun disambiguates.
+- **`pause` competes with `disable`.** All three picked `pause` for "stop delivery right now"
+  and called `disable` defensible. Supports keeping the reversible option ungated.
+- **`metrics.events` vs `metrics.attempts`** is ambiguous for "how many were delivered" — an
+  attempt is the delivery try, an event the logical unit.
+
+### Alternatives rejected
+
+**A third destructive tier** (`_write` plus `_destructive`, so deletes gate separately). Two
+blind agents noted that `_write` bundles `delete` with `disable`. Rejected: the closest analogue
+does the same. GitHub's `pull_request_review_write` method enum is
+`create, submit_pending, delete_pending, resolve_thread, unresolve_thread` — a real delete beside
+a create — and `sub_issue_write` is `add, remove, reprioritize`. Verified by reading the shipped
+schemas. No server separates destructive operations onto their own dispatcher name, and the
+split would push Gateway past the tool-count band for a distinction nothing else makes.
+
+**Verb-first per-operation tools** (`gateway_create_connection`), which would give read/write
+separation structurally and need no action enum at all. This is the fallback
+`hookdeck_mcp_buildout_plan_v2.md:130` already names for the compound pattern, with the stated
+trigger: "if agents consistently fail to specify an action or confuse action-specific
+parameters." The blind test is the evidence against pulling it — 30/30 correct routing, zero
+action-selection failures. The compound pattern passes its own criterion. What it fails is
+permissions, which was not a consideration when the bet was written, and which a naming change
+fixes without abandoning the pattern.
+
+Worth revisiting separately: that plan's "accuracy degrades above 30-50 tools" is the constraint
+the compound pattern exists to respect, and it is unverified here. Servers shipping today run
+well above it (Riverside 68 tools, n8n 54, GitHub ~90 across toolsets). Observing that vendors
+ship those counts is not the same as measuring accuracy at them. Re-test before the next MCP
+expansion. The platform additions would have put Gateway at 28; parking them leaves it at **25**
+in write mode, so there is more headroom than this section originally assumed — but the re-test is
+still owed before spending it.
+
+**Server-level split** (a separate write-only instance, so the server name is the boundary).
+Deferred. Write mode is currently additive, so a second instance would expose reads twice and
+duplicate the tool list in context. Making it write-only requires exactly the homogeneous tools
+this change produces, so it is downstream of this work, not instead of it.
+
+---
+
+## Implementation checklist
+
+### 0. Merge `main` (v2.6.0) into `release/v3.0.0` — do this first
+
+65 commits behind, 77 ahead. 25 conflicted files, 8 of them in the MCP packages this plan
+rewrites. Merging after the split would mean resolving those same conflicts twice, the second
+time against code that had just been restructured.
+
+- [x] Merge `origin/main`; brings `APIPathPrefix = "/2026-09-01"` and `GET /projects`
+- [x] Port `d5836cd` (`fix: resolve MCP active project name for project-scoped keys`, +136 lines)
+      into `pkg/mcpcore/project_display.go` — this branch moved the file there, `main` fixed it in
+      the old `pkg/gateway/mcp/` location, so git reports modify/delete and the fix must be
+      carried across by hand or it is silently lost
+- [x] Resolve the MCP conflicts: `tools.go` (197 lines main-side), `tool_help.go` (90),
+      `tool_metrics.go` (117), `tool_requests.go` (64), `tool_events.go` (45), `server_test.go`,
+      `pkg/mcpcore/tool_projects_errors.go`
+- [x] Resolve the rest: `pkg/config/project_type.go` (121), `pkg/hookdeck/client.go` (65),
+      `transformations.go`, `projects_test.go`, `pkg/login/claimed_cli_key.go`,
+      `pkg/cmd/{root,event_list,request_list,transformation_run,destination_common,destination_update}.go`
+- [x] Non-code: `package.json` (version), `REFERENCE.md` (regenerate, do not hand-merge),
+      `AGENTS.md`, `.github/workflows/acceptance.yml`
+- [x] `go build ./... && go test ./...` green before any split work starts
+
+### 0b. Unplanned work the merge surfaced — **done**
+
+None of this was in the plan; all of it shipped in commits b0b5710, 5c21412 and eab705f.
+
+- [x] Port `main`'s metrics filter matrix (`rejectFilters`, `rejectDimensions`, the per-action
+      schema descriptions, `delivery_group`). Believed present on this branch, verified absent.
+- [x] Port `canonicalEventsStatus` **and** `canonicalRequestsStatus`. The first pass took only the
+      events half, reintroducing the asymmetry this repo had already fixed; the verification sweep
+      caught it.
+- [x] Move `events`/`ignored_events` to `gateway_events` with a `request_id` route selector
+- [x] Restrict `list_ignored` to the six parameters its route declares, and refuse the rest
+- [x] Align the CLI: `request events` was missing `--next-attempt-at-after/before` and
+      `--search-term`, and disagreed with `event list` on two usage strings
+- [x] `internal/speccheck` + `specGuard` — every mock-backed test now validates query parameters
+      against the pinned OpenAPI document
+- [x] Acceptance tests (`-tags=mcp`) for the request-scoped listings and status canonicalisation,
+      run against the live API
+- [x] Generalise the REFERENCE.md example guard from `gateway metrics` to every hand-written
+      `hookdeck ...` invocation
+- [x] Fix `ErrorResponse.Detail` rendering an object inside a `data` array as raw JSON
+- [x] Fix `InitConfig` running its log-level switch before the default was applied, so any Config
+      not built through the root command called `log.Fatalf` and exited the process
+- [x] Rewrite six schema/Notes sites that pointed at the removed `gateway_request` actions
+- [x] Correct three `REFERENCE.md` metrics examples naming subcommands that do not exist
+
+### 1. `pkg/mcpcore/`
+
+Notes below re-verified against the post-merge file (2026-09-22). The merge did not touch
+`toolspec.go`: `Available` is still additive, `VisibleProps` still filters by mode rather than per
+tool, `Define` still renders one tool per spec, and the `rejectUnknownArgs` carve-out is intact at
+lines 402/415/424. One addition since the plan was written — `mcpcore.ArgIsSet` (input.go), added
+for the `list_ignored` guard, which the per-action work can reuse.
+
+
+- [x] `ActionSet`: add write-only and read-only selection alongside the existing additive
+      `Available(writeEnabled)`. Keep `ActionSet` the single source of truth — do not duplicate
+      action lists across two hand-written specs, they will drift.
+- [x] `ToolSpec.Define`: render the read tool and, under write mode, the write tool.
+- [x] `VisibleProps`: filter props per **tool**, not per mode. The read tool must not advertise
+      write-only props (`rules`, `config`); the write tool should not advertise read-only
+      filters it cannot use. Check `Prop.Write` handling.
+- [x] Annotations per tool: `ReadOnlyHint` true exactly when no action changes state;
+      `DestructiveHint` true exactly when that tool carries a destructive action. Keep
+      `HasChanging()` driving `ReadOnlyHint`.
+- [x] `rejectUnknownArgs`: preserve the carve-out that lets a hidden-by-mode argument through
+      when the requested action is itself hidden. A write action requested on the read tool in
+      read-only mode must still produce the "restart with `--allow-write`" message, not an
+      unknown-tool or unknown-arg error.
+- [x] `help.go` / `HelpTopic`: topics for the new tool names.
+
+### 2. Split existing tools
+
+- [x] `pkg/gateway/mcp/tools.go`, `pkg/outpost/mcp/tools.go`: `resourceSpecs()` / `toolDefs()`.
+      Register each `_write` tool immediately after its `_read` counterpart so the pairing is
+      visible in the advertised order.
+- [x] `tool_*.go`: `ActionSet` declarations stay the source of truth. Handlers can be shared
+      between the pair as long as `DispatchWithDefault` still resolves.
+- [x] Write tools must **not** default an action. Require `action` explicitly. Read tools keep
+      their existing defaults.
+- [x] Move `events`/`ignored_events` from the singular request tool to the plural one, and
+      rewrite the `Notes` prose on both (see the decision above)
+- [x] Port `canonicalEventsStatus` / `canonicalRequestsStatus` from `main` — status vocabulary is
+      canonicalised per action, so `status: "failed"` works everywhere it is offered
+- [x] Rewrite `tool_requests_events_filters_test.go` for this architecture; it merged in from
+      `main` written against `hookdeck_requests` / `requestsToolProperties`
+- [x] `tool_help.go`: overview must describe the new shape, and say `_write` tools appear under
+      `--allow-write` rather than that actions are added.
+- [x] Tool descriptions: drop "only the actions listed above are available; see help for how to
+      enable the rest" from read tools. The reads are all that tool ever offers, in either mode.
+
+### 3. Platform tools — PARKED (done on `platform-api`)
+
+- [x] API client methods for organizations, projects CRUD (no API keys, by decision)
+- [x] `hookdeck_projects_read` (`list`, `get`) — replaces today's `hookdeck_projects`
+- [x] `hookdeck_projects_use` (`use`) — both modes
+- [x] `hookdeck_projects_write` (`create`, `update`, `delete`), `type` defaulted per server
+- [x] `hookdeck_organization_read` / `_write`
+- [x] Register on both Gateway and Outpost servers
+- [x] Help topics for each
+
+### 4. Description fixes (from the blind runs, scheme-independent)
+
+- [x] `transformations_read.run` — state explicitly that it persists nothing
+- [x] Port per-action argument scoping into `mcpcore` — `Prop.Actions`, declared on the property
+      rather than in a parallel map, so there is one place to change when an action gains an argument
+- [x] `metrics_read` — distinguish `events` from `attempts` for delivery questions
+- [x] `request_write.retry` / `event_write.retry` — disambiguate from each other
+- [x] `connections_pause.pause` vs `connections_write.disable` — say which is the reversible
+      incident-response action
+- [x] `projects_use` — say it changes what every subsequent call targets
+
+### 4c. Bulk operations
+
+- [x] API client methods for all 19 `/bulk/` endpoints
+- [x] `gateway_bulk_read` — `list`, `get`, `plan`
+- [x] `gateway_bulk_write` — `create`, `cancel`
+- [x] `operation` enum covering the five families
+- [x] **Per-operation filter gating**, derived from the OpenAPI document, refusing any filter the
+      chosen operation does not declare — `ignored_events_retry` accepts 3 where the event
+      families accept 23
+- [x] `target` accepted only on `requests_replay`, with the fan-out stated in its description
+- [x] `{action:"cancel", operation:"events_cancel"}` refused, saying it cannot be stopped
+- [x] `create` names `plan` as the thing to call first
+- [x] `replay` descriptions distinguish it from `retry`: new request, new events, current config
+- [x] Acceptance tests, including `plan` working without `--allow-write`
+- [x] A spec-conformance test that every advertised filter is declared for its operation
+
+### 4b. CLI platform commands — PARKED (done on `platform-api`)
+
+- [x] API client methods: organizations, projects CRUD, custom domains, API keys
+- [x] `hookdeck org` group with `get` / `update`
+- [x] `hookdeck org api-key` with `list` / `create` / `update` / `roll` / `delete`
+- [x] `hookdeck project` gains `get` / `create` / `update` / `delete`
+- [x] `hookdeck project custom-domain` with `list` / `add` / `remove`
+- [x] `--project` resolves an id or a name, reusing the `project use` resolver
+- [x] Destructive commands use the existing confirmation path (`project delete`,
+      `api-key delete`, `custom-domain remove`)
+- [x] Secret handling: print `key` once on create/roll, never log it, never echo it in an error;
+      `list` renders `key_fingerprint`, never `key`
+- [x] `--scope` documents that the API is the authority — no local validation, no hardcoded list
+- [x] Acceptance tests for each new command, success and failure paths (`-tags=platform`,
+      wired into CI slice 0 for its account-level key)
+- [x] `REFERENCE.md` regenerates cleanly and the new commands appear in the generated blocks
+
+### 5. Docs and generated output
+
+- [~] `README.md`, `REFERENCE.md` — the events/requests tables and traversal prose are
+      corrected; the `_read`/`_write` rename is not reflected yet
+- [x] `go run ./tools/generate-reference --check`, regenerate if it fails (green as of eab705f;
+      rerun after the rename)
+- [x] ~~`CHANGELOG.md`~~ — **not the right place.** The file says outright that it is no longer
+      maintained and points at GitHub Releases. The breaking change belongs in the beta.2 release
+      notes instead; the draft is under "Release notes" below, and `.agents/skills/` carries the
+      release process.
+- [x] Anything in `docs/` listing MCP tools — `docs/` holds only a demo GIF; `README.md` was the
+      only document naming tools, and is updated
+
+### 6. Tests
+
+Update:
+
+- [x] `pkg/gateway/mcp/write_mode_test.go` — `TestListTools_ReadOnlyMode`,
+      `TestListTools_WriteMode`, `TestWriteGuard_BlocksWriteActionsInReadOnlyMode`,
+      `TestWriteGuard_PauseIsNotGated`, `TestWriteGuard_TransformationRunIsNotGated`,
+      `TestWriteGuard_AllowsWriteActionsInWriteMode`, `TestWriteActions_RequireAnID`,
+      `TestHelpReportsMode`
+- [x] `pkg/gateway/mcp/write_actions_test.go`
+- [x] `pkg/gateway/mcp/server_test.go` (`connectInMemoryWriteEnabled`)
+- [x] `pkg/gateway/mcp/tool_help_test.go`
+- [x] `pkg/outpost/mcp/tool_actions_test.go`, `pkg/outpost/mcp/projects_test.go`
+- [x] `pkg/mcpcore/tool_projects_test.go`, `pkg/mcpcore/*_test.go`
+
+Add:
+
+- [x] **No tool mixes read and write actions.** Iterate every registered tool in write mode and
+      assert its enum is homogeneous. This is the invariant the change creates and the one that
+      will silently regress when someone adds an action later.
+- [x] **Annotations match contents.** `ReadOnlyHint` true exactly when nothing changes state;
+      `DestructiveHint` true exactly when a destructive action is present.
+- [x] **Read tools identical in both modes** — name, description, schema, annotations.
+- [x] **Write tools absent in read-only mode**, and a write action still yields the
+      "restart with `--allow-write`" guidance rather than an unknown-tool error.
+- [x] `pause`/`unpause` stay ungated
+- [x] `transformations/run` stays ungated
+- [x] `projects use` stays ungated
+- [x] Platform tool coverage: projects CRUD, organization
+- [x] **No API key tool is registered on either server, in either mode**
+
+### 7. Verification
+
+- [x] `go build ./...`
+- [x] `go test ./...`
+- [x] `gofmt -l .` clean
+- [x] `go run ./tools/generate-reference --check`
+- [x] Start both servers in both modes, diff `tools/list` — done as a test rather than by hand.
+      `TestToolSurfaceIsWhatWeThinkItIs` renders the whole advertised surface in both modes and
+      asserts it as a golden list, so any tool added, removed, renamed or re-annotated shows up
+      as a diff a reviewer has to agree to. Verified by renaming an action and watching it fail.
+- [x] **MCP acceptance tests migrated to the split names (2026-09-23).** Section 6 was ticked, but
+      only the unit tests had been migrated: `test/acceptance/mcp_test.go` and
+      `outpost_mcp_test.go` still called the compound names, so eleven tests had been failing with
+      `unknown tool "gateway_events"` since the split, and CI slice 0 was red. An earlier pass read
+      the 429s in that run as the cause and moved on; they were not. Both files now also assert the
+      compound names are **absent**, which catches the reverse failure — a tool still answering to a
+      name that `*_read` would not match. `-tags=mcp` green, all four CI slices vet clean.
+- [ ] Manual QA against a real project per `.agents/skills/` — the gated write tools especially
+      (platform writes are no longer in scope; they left with the parking). **Needs a human with a
+      real project; it is the last open item in this plan.**
+- [x] **Independent verification sweep on the `events`/`ignored_events` move** — done; it found
+      four regressions, fixed in 5c21412 — an agent that did
+      not make the change confirms no filter, action or behaviour that worked in v2.6.0 was lost,
+      checked against `main`'s shipped tool surface rather than against this branch's tests
+
+---
+
+## Decision: `events` / `ignored_events` move to the events tool
+
+**Decided 2026-09-22, during the v2.6.0 merge. Flagged for an independent verification sweep
+before this work is considered done.**
+
+`main` shipped `1ac27c1 fix: forward the filters the request events route actually honours` in
+v2.6.0: `hookdeck_requests {action:"events"}` forwards 25 filters (`source_id`, `status`,
+`attempts`, the date ranges, `body`/`headers`/`parsed_query`, paging), pinned by a test asserting
+the set stays identical to `hookdeck_events {action:"list"}` — `GET /requests/{id}/events` and
+`GET /events` declare the same query parameters.
+
+This branch forwards none of them: `requestEvents` calls `GetRequestEvents(ctx, id, nil)`, because
+the v3.0.0 split made the singular tool id-only ("Takes an id and nothing else… has no filters and
+cannot search").
+
+Shipping that would drop 25 filters that work in v2.6.0 — a functional regression on upgrade,
+beyond the renaming this release is meant to be about.
+
+**Resolution: `events` and `ignored_events` move from `<prefix>_request` (singular) to
+`<prefix>_events`, the events collection tool.**
+
+An earlier revision of this decision sent them to the plural *requests* tool on the assumption
+that it already carried the filter props. It does not — measured against the 25 filters main's
+test pins:
+
+| Tool | Missing | Extra props the route rejects |
+|---|---|---|
+| `gateway_requests` | **12** — `connection_id`, `destination_id`, `delivery_group`, `attempts`, `issue_id`, `error_code`, `response_status`, `cli_id`, `successful_*`, `last_attempt_*` | 9 — `rejection_cause`, `verified`, `ingested_*`, `search_term`, `*_count` |
+| `gateway_events` | **0** | 0 |
+
+`gateway_events` queries `GET /events`, which is the route main identified as declaring the same
+query parameters as `GET /requests/{id}/events`. The filters are already there because they are
+the same filters.
+
+| Tool | Actions |
+|---|---|
+| `gateway_events_read` | `list`, `list_ignored` — both scoped by an optional `request_id` |
+| `gateway_requests_read` | `list` (unchanged) |
+| `gateway_request_read` | `get`, `raw_body` |
+| `gateway_request_write` | `retry` |
+
+`gateway_events` gains one property, `request_id`. When present, `list` queries
+`GET /requests/{id}/events` instead of `GET /events`; `list_ignored` requires it and queries
+`GET /requests/{id}/ignored_events`. Every existing filter keeps working across all three routes
+because all three declare the same set.
+
+This is better motivated than either branch's shape. An action that returns events, filtered by
+event filters, belongs on the events tool. The original split exists because "list carries ~20
+filters that no by-id action can use" — and `events` *does* use them, so it was never a by-id
+action in the sense the split assumed. `get` and `raw_body` genuinely take an id and nothing else
+and stay on the singular tool.
+
+Consequences to carry through:
+
+- `list_ignored` requires `request_id` while `list` does not, on one tool. Main's shape had the
+  same property on its own tool, so the asymmetry is not new.
+- The traversal note on the request tools currently says events "cannot be filtered by
+  request_id". That was true of `GET /events` as a raw filter and is now misleading: the tool
+  accepts `request_id` and switches route. Rewrite it.
+- The `Notes` prose on both request tools describes the old division and must be rewritten.
+- `TestRequestsEventsMatchesTheEventsListFilterSet` — main's drift guard between the two filter
+  sets — must survive the move, retargeted at our spec structure.
+
+Alternatives rejected: adding the 25 filters to the singular request tool (re-creates the exact
+problem the split solved — showing list filters to a caller who only has an id); moving them to
+the plural requests tool (needs 12 new props plus per-action arg scoping, to reach a set the
+events tool already has); and accepting the regression (a real capability loss on upgrade,
+undocumented).
+
+## Spec conformance check (2026-09-22)
+
+The tool parameter sets were verified directly against
+`https://api.hookdeck.com/2026-09-01/openapi`, rather than against either branch's tests, after
+the merge raised the question of whether parameters had been lost.
+
+| Route | Query params declared | Our tool |
+|---|---|---|
+| `GET /events` | 30 | complete, 5 deliberately hidden |
+| `GET /requests` | 23 | complete, 3 deliberately hidden |
+| `GET /requests/{id}/events` | 30 — **identical to `/events`** | complete |
+| `GET /requests/{id}/ignored_events` | **6** | restricted, see below |
+
+Findings:
+
+- **Nothing was lost in the merge.** Every parameter either branch forwarded is still forwarded.
+- **`GET /requests/{id}/events` declares exactly the `/events` set**, which confirms the premise
+  the `events` move rests on: one schema can serve both routes.
+- **`GET /requests/{id}/ignored_events` declares only `dir`, `id`, `limit`, `next`, `order_by`,
+  `prev`.** It is *not* symmetric with its sibling. The first implementation of `list_ignored`
+  forwarded the full 30-filter set on the assumption that it was, which would have produced
+  exactly the failure this package keeps finding: an unfiltered list that reads as a filtered
+  one. `refuseFiltersIgnoredEventsDrops` now refuses anything the route does not declare and
+  points the caller at `list`, which does filter.
+- **Five parameters are deliberately not offered** on `gateway_events`
+  (`bulk_retry_id`, `include`, `progressive`, `event_data_id`, `cli_user_id`) and three on
+  `gateway_requests` (`bulk_retry_id`, `include`, `progressive`). Pinned by an existing test in
+  `pkg/gateway/mcp/server_test.go`. A conscious decision, not a gap, and unchanged by the merge.
+
+Worth building on this: nothing currently checks tool schemas against the OpenAPI document, so
+the `ignored_events` asymmetry was found by hand and the next one would be too. A generated
+conformance test — every advertised filter must appear in the spec for the route the action
+queries — would close the class rather than the instance. Out of scope here; logged as follow-up.
+
+## Testing rule: a mock must be built from the spec, or use an acceptance test
+
+Adopted 2026-09-22, after a mock-backed test confirmed a bug rather than catching it.
+
+A hand-written mock answers whatever it is asked. A test asserting "this filter reached the API"
+against one proves what the code does, not what the API accepts — so `list_ignored` forwarding
+thirty filters to a route that declares six went green. The API is the contract; a mock that does
+not encode it cannot test conformance to it.
+
+**The rule: prefer an acceptance test against the live API. A mock is acceptable only where it is
+built from the OpenAPI document.**
+
+Both halves are now in place:
+
+- `internal/speccheck` reads `test/openapi/openapi_2026-09-01.json` (the version
+  `hookdeck.APIPathPrefix` pins) and reports query parameters a route does not declare. It
+  resolves `{id}` templates and normalises the bracket serialisations — `created_at[gte]`,
+  `measures[]`, `filters[source_id]` — to the parameter the document names.
+- `specGuard` in `pkg/gateway/mcp/server_test.go` wraps every mock handler, so **every existing
+  mock-backed test is now spec-checked** rather than only new ones. Verified by reintroducing the
+  `list_ignored` bug: the guard fails with the route and the offending parameters named. The
+  suite is otherwise clean, so no other route is sending undeclared parameters today.
+- Acceptance tests under `-tags=mcp` cover what a mock cannot: that the live API accepts the
+  request-scoped listings, and that a lower-case `status` is canonicalised rather than 422'd.
+
+Known limit: the inner key of a deepObject (`filters[source_id]`) is not checked, because the
+document does not describe it at that level. `pkg/hookdeck`'s metrics filter matrix owns that
+question.
+
+Follow-up worth taking: the spec file is a committed copy, so it can drift from the live API.
+A check that re-fetches and diffs it — or a CI step that fails when `APIPathPrefix` names a
+version the committed document does not — would close that.
+
+## Release notes for v3.0.0
+
+Published on the [GitHub Release](https://github.com/hookdeck/hookdeck-cli/releases/tag/v3.0.0),
+which is the record. They are drafted in `plans/v3.0.0-release-notes.md`, which is gitignored: a
+committed copy would only drift from the Release once anyone edited it there.
+
+How to write them is in `.agents/skills/hookdeck-cli-release/references/release-notes-voice.md`.
+The draft that lived in this section was written like a plan — a table categorising readers, and a
+note about what had *not* changed — which is what prompted that guide.
+
+## Open questions
+
+1. ~~**Should API key management be in MCP at all?**~~ **Resolved: no.** Not exposed in any
+   form, including `list`. Credentials should not leak to agents; key management is a CLI, API
+   or dashboard action where a human holds the credential. Decided 2026-09-22.
+
+2. ~~**API version bump: wholesale or per-call?**~~ **Resolved** — `main` bumped wholesale to
+   `/2026-09-01` in v2.6.0. Merging delivers it.
+
+3. ~~**Do platform tools belong on both servers?**~~ **Resolved: yes, both.** Matches
+   `hookdeck_projects` today. A user running both servers sees them twice and grants them twice,
+   which is the lesser cost: platform tools on Gateway only would leave Outpost-only users unable
+   to switch project. Decided 2026-09-22. **Superseded 2026-09-23** — platform tools are parked;
+   the question returns only if the permissions model changes.
+
+4. ~~**Does `hookdeck project` (the CLI command tree) grow to match?**~~ **Resolved: yes, and
+   further than MCP goes.** The CLI gains commands for the platform APIs — organizations,
+   projects, **and API keys**. Decided 2026-09-22. **Superseded 2026-09-23** — built, then parked
+   with the rest of the platform work. See "CLI platform commands — PARKED" below.
+
+5. **Should a CLI session inherit the dashboard user's permissions?** **Open — with the team.**
+   This is the decision the platform work is waiting on. See "Update 2026-09-23" at the top.
+
+6. **CLI key management.** Users cannot list or revoke their own CLI keys. Identified as a
+   prerequisite to giving CLI keys more power. **Open.**
+
+## Decision: expose bulk operations
+
+Decided 2026-09-22, **in beta.2**. Two tools, `cancel` on the write tool.
+
+### Scope: 19 endpoints, five families, none currently reachable
+
+Nothing in the CLI or MCP touches any `/bulk/` path today. **Fifteen of the nineteen predate the
+v2.6.0 merge** — this is a standing gap, not a regression. Only the `requests/replay` family is new.
+
+```
+/bulk/events/retry           + /plan  + /{id}  + /{id}/cancel
+/bulk/events/cancel          + /plan  + /{id}          (no job cancel — see below)
+/bulk/ignored-events/retry   + /plan  + /{id}  + /{id}/cancel
+/bulk/requests/retry         + /plan  + /{id}  + /{id}/cancel
+/bulk/requests/replay        + /plan  + /{id}  + /{id}/cancel      (new in 2026-09-01)
+```
+
+Every family has the same shape — `POST {query: {...}}`, a `plan` that estimates before anything
+runs, a listing, a by-id fetch — so one tool pair covers all nineteen.
+
+### The tools
+
+| Tool | Actions | Mode |
+|---|---|---|
+| `gateway_bulk_read` | `list`, `get`, `plan` | both |
+| `gateway_bulk_write` | `create`, `cancel` | `--allow-write` |
+
+Both take `operation`, naming the family:
+`events_retry` | `events_cancel` | `ignored_events_retry` | `requests_retry` | `requests_replay`.
+
+**`cancel` is not ambiguous, because the API puts the two meanings at different levels and so does
+this.** `operation` says what kind of job; `action` says what you are doing to a job:
+
+| Call | Means | Endpoint |
+|---|---|---|
+| `{action:"create", operation:"events_cancel", ...}` | start a bulk cancellation of many events | `POST /bulk/events/cancel` |
+| `{action:"cancel", id:"bar_123"}` | stop a running bulk job | `POST /bulk/{family}/{id}/cancel` |
+
+Both words are the API's own. An earlier draft proposed renaming the job action to `stop` or
+`abort` to remove the collision; that was rejected, and rightly — a name that does not appear in
+the Hookdeck docs cannot be searched for, and the tool description can carry the distinction that
+a renamed action would only have hidden.
+
+**`plan` is a read**, so an agent can size the blast radius of any bulk operation with no
+`--allow-write` at all. `create`'s description must name it as the thing to call first.
+
+**`cancel` is on the write tool**, not a third tool of its own. The pause/unpause precedent was
+considered and does not carry: a read-only server cannot have started the job, so this would be
+stopping someone else's work — a different proposition from pausing a connection that is
+misbehaving regardless of who is looking at it.
+
+### The filter sets differ per operation, and that is the risk
+
+This is the `list_ignored` failure a third time, and it is worth stating plainly before it is
+built. The `query` each family accepts is **not** the same:
+
+| operation | `query` filters |
+|---|---|
+| `events_retry`, `events_cancel` | 23 — the full event filter set |
+| `requests_retry` | 16 — the request filter set |
+| `requests_replay` | those 16 **+ `target`** |
+| `ignored_events_retry` | **3** — `cause`, `webhook_id`, `transformation_id` |
+
+A flat schema advertising all of them would let `{operation:"ignored_events_retry", status:"FAILED"}`
+through, the API would ignore `status`, and the caller would get a bulk retry across a far wider
+set than they asked for — an unfiltered operation that reads as a filtered one, with real
+deliveries behind it.
+
+So: **the accepted filters must be gated per `operation`, verified against the OpenAPI document,
+and a filter the operation does not declare must be refused rather than dropped.** `internal/speccheck`
+already reads that document and `specGuard` already fails any test that sends an undeclared
+parameter, so the guard is enforceable the moment the tool exists.
+
+`target` deserves its own note: it appears only on `requests_replay`, and a bare `source_id` in it
+replays onto **every active connection on that source, resolved as the replay runs**.
+
+### `events_cancel` cannot be stopped once started
+
+It is the one family with no `/{id}/cancel`. `{action:"cancel"}` against it must be refused with
+that reason stated — which is information worth surfacing, and which a design that hid the
+asymmetry would have lost.
+
+### Retry is not replay
+
+Worth keeping straight, because the names do not say it:
+
+- **retry** — another delivery attempt for records that already exist.
+- **replay** — re-ingests through the full pipeline, creating a **new request and new events**,
+  re-evaluated against *current* configuration, optionally targeting connections the original
+  never went to. The original is untouched.
+
+Replay is the larger hammer, and `Destructive: false` does not capture it: it creates and destroys
+nothing, but it is the action most likely to be regretted. The description carries that weight.
+
+### Consequences
+
+- Gateway goes from 22 tools to **24**.
+- beta.2 was to carry four workstreams: the read/write split, platform MCP tools, the CLI `org`
+  family, and bulk operations. **It ships two** — the split and bulk operations; the two platform
+  workstreams are parked. Recorded as a deliberate choice — bulk operations depend on none of
+  the others, so they remain the cleanest thing to lift out if the release needs shrinking.
+- The CLI has no bulk commands either. Out of scope here; the gap will be noticed.
+
+## CLI platform commands — PARKED
+
+> Built as specified, then parked. See "Update 2026-09-23" at the top.
+
+Decided 2026-09-22: the CLI grows commands for the platform APIs, covering organizations,
+projects and API keys.
+
+### The deliberate asymmetry, recorded
+
+**API keys get CLI commands but no MCP tool, in any form.** That looks inconsistent until the
+reason is stated, so it is stated here: the boundary is not the capability, it is who is holding
+the credential. A human at a terminal minting a key is the normal way to provision CI. An agent
+able to mint one can escalate past every other boundary in this plan — a read-only agent that
+could create a write-scoped key has defeated the point of the read/write split. Same API, two
+surfaces, different trust, on purpose.
+
+Anyone later "fixing the inconsistency" by adding an `hookdeck_api_keys` tool should read this
+paragraph first.
+
+### Existing surface
+
+`pkg/cmd/project.go` with `project_list.go` and `project_use.go`. No organization command group.
+
+### Decided
+
+- **`hookdeck org`**, not `organization` — the long form reads badly at the depth these commands sit at.
+- ~~**Ships in beta.2**, alongside the read/write split and the platform MCP tools.~~
+  **Reversed 2026-09-23** — parked with the platform MCP tools. See "Update 2026-09-23" at the top.
+- **Destructive commands use the existing confirmation path**, the same one `outpost` commands use
+  ("cannot confirm this action: no terminal is attached"). `project delete` and `api-key delete`
+  both destroy access.
+
+### Command shape, settled against the spec
+
+Three facts from `test/openapi/openapi_2026-09-01.json` decide this:
+
+1. **There is no organization argument to pass.** Every key route is
+   `/organizations/current/api-keys` — "current" is the authenticated organization, and the API
+   offers no way to name another. A required org argument would have nothing to carry.
+2. **One endpoint serves both key kinds.** `type: organization | project` with `team_id` naming
+   the project; `GET` "lists the active organization and project API keys of the current
+   organization". Splitting the CLI by kind would split one endpoint across two command families.
+3. **`grants` is dual-purpose**: for an organization key it names the projects the key may reach;
+   for a project key it carries per-resource scope overrides. Same field, different meaning, keyed
+   off `type`.
+
+So a single family under `org`, with the project as a flag rather than a parent command:
+
+```
+hookdeck
+├── org                                  NEW — "Manage your organization [BETA]"
+│   ├── get                              GET  /organizations/current
+│   ├── update                           PUT  /organizations/current
+│   │     --name
+│   └── api-key                          one family, both key kinds
+│       ├── list                         GET    /organizations/current/api-keys
+│       ├── create                       POST   /organizations/current/api-keys
+│       │     --label          (required)
+│       │     --project <id|name>        omit -> org key; set -> project key (team_id)
+│       │     --scope          (repeatable, pass-through; API default ["*"])
+│       │     --grant          (repeatable, KEY=VALUE; meaning depends on key kind)
+│       ├── update <id>                  PUT    /organizations/current/api-keys/{id}
+│       │     --scope / --grant          secret unchanged
+│       ├── roll <id>                    POST   /organizations/current/api-keys/{id}/roll
+│       │     --delay          (required) old key expires after this
+│       └── delete <id>                  DELETE /organizations/current/api-keys/{id}
+│             confirmation — stops authenticating immediately
+│
+├── project                              EXTENDED
+│   ├── list                             existing
+│   ├── use                              existing
+│   ├── get <id>                         NEW  GET    /projects/{id}
+│   ├── create                           NEW  POST   /projects
+│   │     --name  --type <event_gateway|outpost>  --private  --org-id
+│   ├── update <id>                      NEW  PUT    /projects/{id}
+│   │     --name  --private  --domain  --headers-prefix
+│   │     --notification-method  --webhook-topic  --webhook-source-id
+│   │     --context / --context-file     (object — file, per the outpost precedent)
+│   ├── delete <id>                      NEW  DELETE /projects/{id}
+│   │     confirmation
+│   └── custom-domain                    NEW
+│       ├── list                         GET    /projects/{id}/custom_domains
+│       ├── add <hostname>               POST   /projects/{id}/custom_domains
+│       └── remove <domain-id>           DELETE /projects/{id}/custom_domains/{domain_id}
+│             confirmation
+│
+├── gateway ...                          unchanged
+├── outpost ...                          unchanged
+└── ci, listen, login, whoami, ...       unchanged
+```
+
+**No `project api-key`, and that matches the API.** Verified against the document: the only
+api-key routes are the three under `/organizations/current/api-keys`, and the only routes nested
+under `/projects/{id}/` are `custom_domains`. Project scoping is the `team_id` *field* on the
+organization endpoint, not a nested route.
+
+`custom-domain` sits under `project` because the route does. It is **not** the same feature as
+`outpost config custom_domain`, which uses Outpost's own `/config/custom_domain`; keeping them
+under separate parents avoids implying they are one thing.
+
+`--project` should accept an id or a name, reusing the resolver `project use` already has.
+
+### Open, before building
+
+- **`POST /projects` declares no required fields** — `name`, `type`, `private`, `organization_id`
+  are all optional, so a bare `hookdeck project create` is a valid API call. The CLI should
+  probably require `--name` and `--type` anyway; a nameless project of unspecified type is
+  unlikely to be what anyone meant. Not yet decided.
+- **`--delay` on `roll` is `delay_sec`.** Accepting a duration (`--delay 1h`) is kinder than
+  making people compute 3600, but diverges from the API's own spelling. Not yet decided.
+- **Aliasing.** `hookdeck connection` already exists at top level *and* as
+  `hookdeck gateway connection`, so this CLI does alias. That weakens the argument for refusing a
+  `hookdeck project api-key` alias on principle — the case against it is still that it cannot
+  express an organization key, so an alias would cover only half the family.
+
+Omitting `--project` creates an organization key; passing it creates a project key. `hookdeck
+project api-key ...` was considered and rejected: it cannot express an organization-scoped key,
+which is half the feature, so it would need a second family under `org` anyway and the listing
+would have to be duplicated or arbitrarily assigned to one of them.
+
+If `org api-key` proves undiscoverable for people who only ever want a project key, an alias under
+`project` is cheap to add later. Adding it now would mean two paths to one endpoint before anyone
+has asked.
+
+### Project type does not enter into it
+
+Checked directly, because it is the obvious thing to assume: **the `ApiKey` schema carries no
+project type and no type-dependent fields** — `id`, `label`, `key`, `team_id`, `organization_id`,
+`key_fingerprint`, `scopes`, `grants`, `expires_at`. Nothing varies with `event_gateway` vs
+`outpost`.
+
+### Scopes cannot be validated locally, and that is a real constraint
+
+**The document declares no scope enum.** `scopes` is a free-form `[]string`; the only values
+anywhere in the spec are three examples — `gateway.sources.read`, `gateway.events.read`,
+`gateway.events.write` — and `["*"]` is the documented default for full access.
+
+The `<product>.<resource>.<verb>` shape implies an `outpost.*` namespace, but the spec never names
+one. So `--scope` cannot offer completion or client-side validation without a list the API does
+not publish. Options, none free: hardcode a list (drifts silently, the failure this repo keeps
+finding), pass through and let the API's 4xx be the validator (honest, worse UX), or ask for a
+scopes endpoint. **Recommended: pass through**, and say plainly in `--help` that the API is the
+authority on what a scope may be. Revisit if a scopes endpoint appears.
+
+### Secret handling
+
+`POST` returns `key`, the bearer secret, and `roll` returns a replacement. `key_fingerprint` is
+the non-secret identifier for everything else. The CLI must print the secret once, never log it,
+and never echo it in an error. AGENTS.md already carries the rule — the config file is
+single-quoted TOML and a redaction pattern matching only double quotes prints the key verbatim.
+`list` returns `key` too, so the list renderer must show the fingerprint, not the secret.
+
+## Out of scope
+
+- Which actions are gated. The read/write classification for existing actions is unchanged; this
+  is about where actions live, not what is allowed.
+- `--allow-write`, `HOOKDECK_MCP_ALLOW_WRITE`, or new flags.
+- A write-only server mode.
+- API key management in MCP, in any form (see resolved question 1).
+- The non-MCP CLI command tree (see open question 4).
+- API client behaviour beyond the version bump, auth, the response envelope.

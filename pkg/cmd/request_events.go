@@ -26,6 +26,9 @@ type requestEventsCmd struct {
 	deliveryGroup     string
 	status            string
 	attempts          string
+	nextAttemptAfter  string
+	nextAttemptBefore string
+	searchTerm        string
 	responseStatus    string
 	errorCode         string
 	cliID             string
@@ -74,9 +77,12 @@ Examples:
 	rc.cmd.Flags().StringVar(&rc.connectionID, "connection-id", "", "Filter by connection ID")
 	rc.cmd.Flags().StringVar(&rc.sourceID, "source-id", "", "Filter by source ID")
 	rc.cmd.Flags().StringVar(&rc.destinationID, "destination-id", "", "Filter by destination ID")
-	rc.cmd.Flags().StringVar(&rc.deliveryGroup, "delivery-group", "", "Filter by delivery group")
+	rc.cmd.Flags().StringVar(&rc.deliveryGroup, "delivery-group", "", "Filter by delivery group (comma-separated)")
 	rc.cmd.Flags().StringVar(&rc.status, "status", "", eventStatusFlag.usage())
-	rc.cmd.Flags().StringVar(&rc.attempts, "attempts", "", "Filter by number of attempts (integer or operators)")
+	rc.cmd.Flags().StringVar(&rc.attempts, "attempts", "", "Filter by number of attempts. A whole number")
+	rc.cmd.Flags().StringVar(&rc.nextAttemptAfter, "next-attempt-at-after", "", "Filter by next_attempt_at after (ISO date-time)")
+	rc.cmd.Flags().StringVar(&rc.nextAttemptBefore, "next-attempt-at-before", "", "Filter by next_attempt_at before (ISO date-time)")
+	rc.cmd.Flags().StringVar(&rc.searchTerm, "search-term", "", "Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters)")
 	rc.cmd.Flags().StringVar(&rc.responseStatus, "response-status", "", "Filter by HTTP response status (e.g. 200, 500)")
 	rc.cmd.Flags().StringVar(&rc.errorCode, "error-code", "", "Filter by error code")
 	rc.cmd.Flags().StringVar(&rc.cliID, "cli-id", "", "Filter by CLI ID")
@@ -141,6 +147,15 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 	}
 	if rc.attempts != "" {
 		params["attempts"] = rc.attempts
+	}
+	if rc.nextAttemptAfter != "" {
+		params["next_attempt_at[gte]"] = rc.nextAttemptAfter
+	}
+	if rc.nextAttemptBefore != "" {
+		params["next_attempt_at[lte]"] = rc.nextAttemptBefore
+	}
+	if rc.searchTerm != "" {
+		params["search_term"] = rc.searchTerm
 	}
 	if rc.responseStatus != "" {
 		params["response_status"] = rc.responseStatus

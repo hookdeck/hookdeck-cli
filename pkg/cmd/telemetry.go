@@ -19,9 +19,9 @@ func newTelemetryCmd() *telemetryCmd {
 		Long:  "Enable or disable anonymous telemetry that helps improve the Hookdeck CLI. Telemetry is enabled by default. You can also set the HOOKDECK_CLI_TELEMETRY_DISABLED environment variable to 1 or true.",
 		Example: `  $ hookdeck telemetry disabled
   $ hookdeck telemetry enabled`,
-		Args: cobra.ExactArgs(1),
+		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"enabled", "disabled"},
-		RunE: tc.runTelemetryCmd,
+		RunE:      tc.runTelemetryCmd,
 	}
 
 	return tc

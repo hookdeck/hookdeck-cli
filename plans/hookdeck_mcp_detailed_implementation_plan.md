@@ -1,5 +1,12 @@
 # Hookdeck MCP Server — Detailed Implementation Plan
 
+> **Historical — tool names have changed.** This document was written before v3.0.0 and uses the
+> original `hookdeck_*` tool names with the compound `action` pattern. v3.0.0 renamed the Event
+> Gateway tools to `gateway_*` and split each one into `_read` / `_write` halves. The design
+> reasoning here still holds; the names do not. For the current surface see the golden list in
+> `TestToolSurfaceIsWhatWeThinkItIs`, and for why the names changed see
+> `plans/mcp_read_write_tool_split.md`.
+
 ## Overview
 
 This document maps the high-level MCP build-out plan against the existing hookdeck-cli codebase and provides every implementation detail an engineer needs to build Phase 1 without ambiguity.

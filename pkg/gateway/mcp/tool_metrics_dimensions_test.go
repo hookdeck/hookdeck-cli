@@ -93,7 +93,7 @@ func TestMetricsToolRejectsDimensionsTheRouteIgnores(t *testing.T) {
 				args[k] = v
 			}
 
-			result := callTool(t, session, "hookdeck_metrics", args)
+			result := callTool(t, session, "gateway_metrics_read", args)
 
 			assert.True(t, result.IsError, "%s grouped by %s must be refused", tt.action, tt.dimension)
 			body := textContent(t, result)
@@ -120,7 +120,7 @@ func TestMetricsToolRejectsDeliveryGroupDimensionWithoutDestination(t *testing.T
 				hookdeck.APIPathPrefix + "/metrics/attempts": fail,
 			})
 
-			result := callTool(t, session, "hookdeck_metrics", map[string]any{
+			result := callTool(t, session, "gateway_metrics_read", map[string]any{
 				"action":     action,
 				"start":      "2025-01-01T00:00:00Z",
 				"end":        "2025-01-02T00:00:00Z",
@@ -150,7 +150,7 @@ func TestMetricsToolAcceptsDimensionsTheRouteHonours(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":         "events",
 		"start":          "2025-01-01T00:00:00Z",
 		"end":            "2025-01-02T00:00:00Z",
@@ -176,7 +176,7 @@ func TestMetricsToolMapsConnectionDimensionBeforeGating(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":     "events",
 		"start":      "2025-01-01T00:00:00Z",
 		"end":        "2025-01-02T00:00:00Z",

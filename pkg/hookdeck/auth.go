@@ -148,6 +148,17 @@ func (c *Client) PollForAPIKeyWithKey(apiKey string, interval time.Duration, max
 // be sent to /cli-auth/validate — the server may prefer headers over the key's
 // bound team and reject a valid key with 401.
 func (c *Client) clientForCLIAuthValidate() *Client {
+	return c.withoutProjectScope()
+}
+
+// withoutProjectScope copies the client with ProjectID cleared.
+//
+// ProjectID goes out as X-Team-ID / X-Project-ID on every request. Account-level
+// routes — /organizations/current, /projects and everything under it, the API
+// key routes — reject a request scoped to one project, with a bare 401 that
+// reads as a bad credential rather than a wrong scope. Anything account-level
+// has to go through here.
+func (c *Client) withoutProjectScope() *Client {
 	return &Client{
 		BaseURL:                 c.BaseURL,
 		APIKey:                  c.APIKey,
@@ -268,12 +279,17 @@ func pollForAPIKey(pollURL string, interval time.Duration, maxAttempts int) (*Po
 
 // UpdateClient updates a CLI client's device name
 func (c *Client) UpdateClient(clientID string, input UpdateClientInput) error {
+	path, err := apiPath("cli", clientID)
+	if err != nil {
+		return err
+	}
+
 	jsonData, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.Put(context.Background(), APIPathPrefix+"/cli/"+clientID, jsonData, nil)
+	_, err = c.Put(context.Background(), path, jsonData, nil)
 	return err
 }
 

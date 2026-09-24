@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -393,4 +394,124 @@ func TestRequestListPaginationWorkflow(t *testing.T) {
 			assert.False(t, firstPageIDs[r.ID], "Second page should not contain requests from first page")
 		}
 	}
+}
+
+// The filters added in the v3 pass over the requests query. See
+// TestEventListNewFiltersReachTheAPI for why the query string is asserted
+// rather than only the exit status.
+func TestRequestListNewFiltersReachTheAPI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	proxy := StartRecordingProxy(t, defaultAPIUpstream)
+	defer proxy.Close()
+
+	_, _, err := cli.Run(
+		"--api-base", proxy.URL(),
+		"gateway", "request", "list", "--limit", "5",
+		"--search-term", "acceptance",
+		"--events-count", "0",
+		"--ignored-count", "1",
+		"--cli-events-count", "1",
+	)
+	require.NoError(t, err)
+
+	query := RecordedQueryForPath(t, proxy, "/requests")
+	assert.Equal(t, "acceptance", query.Get("search_term"))
+	// events_count=0 finds requests that produced no events, which is the query
+	// that explains a "missing" webhook. The zero has to survive to the wire.
+	assert.Equal(t, "0", query.Get("events_count"))
+	assert.Equal(t, "1", query.Get("ignored_count"))
+	assert.Equal(t, "1", query.Get("cli_events_count"))
+}
+
+func TestRequestListWithSearchTerm(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	cli.RunExpectSuccess("gateway", "request", "list", "--search-term", "acceptance", "--limit", "5")
+}
+
+// A request that produced no events is the usual reason a webhook looks
+// missing, so this filter is asserted on results rather than on exit status.
+func TestRequestListWithEventsCount(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	connID, eventID := createConnectionAndTriggerEvent(t, cli)
+	t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+	type RequestListResponse struct {
+		Models []Request `json:"models"`
+	}
+
+	// The request that produced the event just triggered. Anchoring on a known
+	// id is what makes this test able to fail: asserting only that every
+	// returned row matches the filter passes trivially when the page is empty,
+	// so a filter that was dropped entirely — the failure worth catching —
+	// looked identical to one that worked.
+	var ev struct {
+		RequestID string `json:"request_id"`
+	}
+	require.NoError(t, cli.RunJSON(&ev, "gateway", "event", "get", eventID))
+	require.NotEmpty(t, ev.RequestID, "the event must name the request that produced it")
+
+	ids := func(models []Request) []string {
+		out := make([]string, 0, len(models))
+		for _, r := range models {
+			out = append(out, r.ID)
+		}
+		return out
+	}
+
+	// events_count is derived and settles after the event itself exists. The
+	// setup waits for the event, not the counter, so querying immediately can
+	// legitimately miss the request — which is how the first version of this
+	// test failed in CI at 6 seconds while passing locally at 33.
+	//
+	// Polled by hand rather than with require.Eventually, which evaluates its
+	// message arguments before the condition has run and would report an empty
+	// list whatever actually came back.
+	var withEvents RequestListResponse
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		require.NoError(t, cli.RunJSON(&withEvents, "gateway", "request", "list", "--events-count", "1", "--limit", "50"))
+		if slices.Contains(ids(withEvents.Models), ev.RequestID) {
+			break
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("--events-count 1 never returned %s, the request known to have produced one event, "+
+				"within 60s; the page held %d request(s): %v",
+				ev.RequestID, len(withEvents.Models), ids(withEvents.Models))
+		}
+		time.Sleep(3 * time.Second)
+	}
+	for _, r := range withEvents.Models {
+		assert.Equal(t, 1, r.EventsCount, "--events-count 1 must only return requests with one event")
+	}
+
+	var withoutEvents RequestListResponse
+	require.NoError(t, cli.RunJSON(&withoutEvents, "gateway", "request", "list", "--events-count", "0", "--limit", "50"))
+	// The boundary case. If the filter were ignored the API would return every
+	// request, this one among them, so its absence is what proves the filter
+	// reached the endpoint rather than being silently dropped.
+	assert.NotContains(t, ids(withoutEvents.Models), ev.RequestID,
+		"--events-count 0 must not return a request that produced an event")
+	for _, r := range withoutEvents.Models {
+		assert.Equal(t, 0, r.EventsCount, "--events-count 0 must only return requests with no events")
+	}
+}
+
+func TestRequestListWithIgnoredAndCLIEventCounts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	cli.RunExpectSuccess("gateway", "request", "list", "--ignored-count", "0", "--limit", "5")
+	cli.RunExpectSuccess("gateway", "request", "list", "--cli-events-count", "0", "--limit", "5")
 }

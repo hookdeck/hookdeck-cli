@@ -15,14 +15,14 @@ import (
 type transformationListCmd struct {
 	cmd *cobra.Command
 
-	id       string
-	name     string
-	orderBy  string
-	dir      string
-	limit    int
-	next     string
-	prev     string
-	output   string
+	id      string
+	name    string
+	orderBy string
+	dir     string
+	limit   int
+	next    string
+	prev    string
+	output  string
 }
 
 func newTransformationListCmd() *transformationListCmd {

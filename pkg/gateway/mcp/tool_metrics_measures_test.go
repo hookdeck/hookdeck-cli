@@ -44,7 +44,7 @@ func TestMetricsToolRejectsMixedMeasureRoutes(t *testing.T) {
 				hookdeck.APIPathPrefix + "/metrics/events-pending-timeseries": fail,
 			})
 
-			result := callTool(t, session, "hookdeck_metrics", map[string]any{
+			result := callTool(t, session, "gateway_metrics_read", map[string]any{
 				"action":   "events",
 				"start":    "2025-01-01T00:00:00Z",
 				"end":      "2025-01-02T00:00:00Z",
@@ -71,7 +71,7 @@ func TestMetricsToolAcceptsSingleRouteMeasures(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":   "events",
 		"start":    "2025-01-01T00:00:00Z",
 		"end":      "2025-01-02T00:00:00Z",
@@ -145,7 +145,7 @@ func TestMetricsToolRejectsCrossRouteEventQuery(t *testing.T) {
 				args[k] = v
 			}
 
-			result := callTool(t, session, "hookdeck_metrics", args)
+			result := callTool(t, session, "gateway_metrics_read", args)
 
 			assert.True(t, result.IsError, "a query naming two routes must be refused")
 			body := textContent(t, result)
@@ -168,7 +168,7 @@ func TestMetricsToolStillAnswersSingleRouteEventQueries(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":     "events",
 		"start":      "2025-01-01T00:00:00Z",
 		"end":        "2025-01-02T00:00:00Z",
@@ -197,7 +197,7 @@ func TestMetricsToolTranslatesQueueDepthMeasureOnTheWire(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":   "events",
 		"start":    "2025-01-01T00:00:00Z",
 		"end":      "2025-01-02T00:00:00Z",

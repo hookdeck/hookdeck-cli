@@ -3,10 +3,10 @@
 package acceptance
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -14,27 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-const mcpInitializeJSON = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}`
-
-func firstJSONRPCMessageLine(t *testing.T, stdout string) map[string]any {
-	t.Helper()
-	for _, line := range strings.Split(stdout, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		var msg map[string]any
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			continue
-		}
-		if _, ok := msg["jsonrpc"]; ok {
-			return msg
-		}
-	}
-	t.Fatalf("no JSON-RPC line in stdout: %q", stdout)
-	return nil
-}
 
 func assertGatewayMCPStdioHygiene(t *testing.T, stdout, stderr string) {
 	t.Helper()
@@ -54,6 +33,8 @@ func TestMCPHelp(t *testing.T) {
 	assert.Contains(t, stdout, "Model Context Protocol")
 	assert.Contains(t, stdout, "stdio")
 	assert.Contains(t, stdout, "hookdeck gateway mcp")
+	assert.Contains(t, stdout, "--allow-write")
+	assert.Contains(t, stdout, "read-only")
 }
 
 func TestGatewayHelpListsMCP(t *testing.T) {
@@ -124,7 +105,7 @@ func TestMCPEventsList_DateRangeAndBodyFilter(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_events", map[string]any{
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
 		"action":         "list",
 		"created_after":  "2020-01-01T00:00:00Z",
 		"created_before": "2030-01-01T00:00:00Z",
@@ -142,17 +123,43 @@ func TestMCPRequestsList_DateRangeAndBodyFilter(t *testing.T) {
 		t.Skip("Skipping acceptance test in short mode")
 	}
 	cli := NewCLIRunner(t)
-	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "hookdeck_requests", map[string]any{
-		"action":          "list",
-		"ingested_after":  "2020-01-01T00:00:00Z",
-		"created_before":  "2030-01-01T00:00:00Z",
-		"body":            map[string]any{},
-		"limit":           5,
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests_read", map[string]any{
+		"action":         "list",
+		"ingested_after": "2020-01-01T00:00:00Z",
+		"created_before": "2030-01-01T00:00:00Z",
+		"body":           map[string]any{},
+		"limit":          5,
 	}, 20*time.Second)
 	assert.False(t, result.IsError, "tool error: %s", result.Text)
 	assert.Contains(t, result.Text, `"data"`)
 	assert.True(t, strings.Contains(result.Text, `"models"`) || strings.Contains(result.Text, `"count"`),
 		"expected list payload in %s", result.Text)
+}
+
+// The singular tools are the ones an agent reaches for once it has an id, so
+// they have to be reachable end to end. A missing record fails at the API,
+// which proves the call got that far; an unknown action or tool would not.
+func TestMCPSingularToolsAreReachable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	cases := []struct{ tool, id string }{
+		{"gateway_event_read", "evt_does_not_exist"},
+		{"gateway_request_read", "req_does_not_exist"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.tool, func(t *testing.T) {
+			result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, tc.tool, map[string]any{
+				"action": "get",
+				"id":     tc.id,
+			}, 20*time.Second)
+			assert.NotContains(t, result.Text, "unknown action")
+			assert.NotContains(t, result.Text, "Unknown tool")
+		})
+	}
 }
 
 func TestGatewayMCPStdio_OutpostProjectRejected(t *testing.T) {
@@ -172,5 +179,361 @@ func TestGatewayMCPStdio_OutpostProjectRejected(t *testing.T) {
 	assert.Contains(t, strings.ToLower(stderr), "gateway")
 	if strings.TrimSpace(stdout) != "" {
 		assertGatewayMCPStdioHygiene(t, stdout, stderr)
+	}
+}
+
+// --- Write mode (--allow-write) ---
+
+var gatewayMCPCommand = []string{"gateway", "mcp"}
+
+func TestGatewayMCPStdio_ReadOnlyByDefault(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	tools, stdout, stderr := ListMCPTools(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, 10*time.Second)
+	assertGatewayMCPStdioHygiene(t, stdout, stderr)
+
+	// Product tools take the gateway_ prefix; the platform tools keep
+	// hookdeck_, because you log in to Hookdeck and switch a Hookdeck project
+	// whichever product's server you are in.
+	for _, name := range []string{
+		"hookdeck_projects_read", "hookdeck_projects_use", "hookdeck_login",
+		"gateway_help", "gateway_connections_read", "gateway_connections_pause",
+		"gateway_sources_read", "gateway_destinations_read", "gateway_transformations_read",
+		"gateway_requests_read", "gateway_request_read",
+		"gateway_events_read", "gateway_event_read",
+		"gateway_attempts_read", "gateway_issues_read", "gateway_metrics_read",
+	} {
+		assert.Contains(t, tools, name)
+	}
+	for _, name := range []string{"gateway_login", "gateway_projects"} {
+		assert.NotContains(t, tools, name, "platform tools must not carry the product prefix")
+	}
+	for _, name := range []string{"hookdeck_connections", "hookdeck_events", "hookdeck_help"} {
+		assert.NotContains(t, tools, name, "product tools were renamed to gateway_ in v3")
+	}
+	// The compound names the split replaced. A client granting `*_read` would
+	// silently miss a tool that still answered to one of these.
+	for _, name := range []string{
+		"gateway_connections", "gateway_sources", "gateway_events", "gateway_event",
+		"gateway_requests", "gateway_request", "hookdeck_projects",
+	} {
+		assert.NotContains(t, tools, name, "the compound tool names were split in v3.0.0-beta.2")
+	}
+
+	// Nothing that creates, changes or deletes — except pause, which keeps its
+	// own tool precisely so it can stay available here.
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_connections_read"]))
+	assert.Equal(t, []string{"pause", "unpause"},
+		MCPToolActionEnum(t, tools["gateway_connections_pause"]))
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_sources_read"]))
+	// Events and requests are split plural/singular: the plural tools search,
+	// the singular ones act on one record by id. Request-scoped event listings
+	// moved onto the events tool in v3.0.0-beta.2, which is why list_ignored is
+	// here and ignored_events is no longer on the singular request tool.
+	assert.Equal(t, []string{"list", "list_ignored"},
+		MCPToolActionEnum(t, tools["gateway_events_read"]))
+	assert.Equal(t, []string{"get", "raw_body"}, MCPToolActionEnum(t, tools["gateway_event_read"]))
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests_read"]))
+	assert.Equal(t, []string{"get", "raw_body"},
+		MCPToolActionEnum(t, tools["gateway_request_read"]))
+}
+
+func TestGatewayMCPStdio_AllowWriteAddsWriteActions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	command := append(append([]string{}, gatewayMCPCommand...), "--allow-write")
+	tools, stdout, stderr := ListMCPTools(t, cli.projectRoot, cli.configPath, command, 10*time.Second)
+	assertGatewayMCPStdioHygiene(t, stdout, stderr)
+
+	// retry lives on the singular write tools, and stays off the plural reads.
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_event_write"]), "retry")
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_request_write"]), "retry")
+	assert.Equal(t, []string{"list", "list_ignored"},
+		MCPToolActionEnum(t, tools["gateway_events_read"]))
+	assert.Equal(t, []string{"list"}, MCPToolActionEnum(t, tools["gateway_requests_read"]))
+	for _, want := range []string{"create", "upsert", "update", "delete", "enable", "disable"} {
+		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_connections_write"]), want)
+		assert.Contains(t, MCPToolActionEnum(t, tools["gateway_sources_write"]), want)
+	}
+	assert.Contains(t, MCPToolActionEnum(t, tools["gateway_issues_write"]), "dismiss")
+
+	// Read tools are byte-identical in both modes: write mode adds tools, it
+	// never grows an existing read tool's actions.
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_attempts_read"]))
+	assert.Equal(t, []string{"list", "get"}, MCPToolActionEnum(t, tools["gateway_connections_read"]))
+}
+
+func TestGatewayMCPStdio_ReadOnlyRefusesWriteAction(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_sources_read", map[string]any{
+		"action": "delete",
+		"id":     "src_does_not_exist",
+	}, 20*time.Second)
+
+	require.True(t, result.IsError, "a read-only server must refuse delete: %s", result.Text)
+	assert.Contains(t, result.Text, "read-only mode")
+	assert.Contains(t, result.Text, "--allow-write")
+}
+
+// TestGatewayMCPStdio_PauseStaysAvailableReadOnly is the acceptance-level
+// counterpart to the unit test: pause is a mutation that deliberately remains
+// offered in read-only mode, because read-only is the mode incidents get
+// investigated in.
+func TestGatewayMCPStdio_PauseStaysAvailableReadOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand, "gateway_connections_pause", map[string]any{
+		"action": "pause",
+		"id":     "conn_does_not_exist",
+	}, 20*time.Second)
+
+	// It fails because the connection does not exist, not because the action
+	// was gated. The distinction is the whole point of the test.
+	assert.NotContains(t, result.Text, "read-only mode")
+	assert.NotContains(t, result.Text, "--allow-write")
+}
+
+func TestGatewayMCPTool_HelpReportsMode(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	readOnly := CallMCPTool(t, cli.projectRoot, cli.configPath, gatewayMCPCommand,
+		"gateway_help", map[string]any{}, 20*time.Second)
+	assert.Contains(t, readOnly.Text, "Mode: read-only")
+	assert.Contains(t, readOnly.Text, "--allow-write")
+
+	write := CallMCPTool(t, cli.projectRoot, cli.configPath,
+		append(append([]string{}, gatewayMCPCommand...), "--allow-write"),
+		"gateway_help", map[string]any{}, 20*time.Second)
+	assert.Contains(t, write.Text, "Mode: write enabled")
+}
+
+// --- Request-scoped event listings (v3.0.0: moved onto gateway_events) ---
+
+// firstRequestID returns a request id from the live project, or skips.
+func firstRequestID(t *testing.T, cli *CLIRunner) string {
+	t.Helper()
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_requests_read", map[string]any{
+		"action": "list",
+		"limit":  1,
+	}, 20*time.Second)
+	require.False(t, result.IsError, "listing requests failed: %s", result.Text)
+
+	m := regexp.MustCompile(`"id"\s*:\s*"(req_[A-Za-z0-9]+)"`).FindStringSubmatch(result.Text)
+	if m == nil {
+		t.Skip("no requests in the test project to scope an event listing to")
+	}
+	return m[1]
+}
+
+// TestMCPEventsScopedToARequest exercises the route the singular request tool
+// used to own. The filters have to reach GET /requests/{id}/events and be
+// accepted: an undeclared one comes back 422 from the live API, which a mock
+// cannot tell us.
+func TestMCPEventsScopedToARequest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	requestID := firstRequestID(t, cli)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
+		"action":         "list",
+		"request_id":     requestID,
+		"created_after":  "2020-01-01T00:00:00Z",
+		"created_before": "2030-01-01T00:00:00Z",
+		"limit":          5,
+	}, 20*time.Second)
+
+	assert.False(t, result.IsError, "tool error: %s", result.Text)
+	assert.Contains(t, result.Text, `"data"`)
+}
+
+// TestMCPEventsIgnoredScopedToARequest covers the sibling route, which declares
+// only paging and ordering.
+func TestMCPEventsIgnoredScopedToARequest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	requestID := firstRequestID(t, cli)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
+		"action":     "list_ignored",
+		"request_id": requestID,
+		"limit":      5,
+	}, 20*time.Second)
+
+	assert.False(t, result.IsError, "tool error: %s", result.Text)
+	assert.Contains(t, result.Text, `"data"`)
+}
+
+// TestMCPEventsIgnoredRefusesUndeclaredFilters is the guard, end to end.
+// GET /requests/{id}/ignored_events declares six query parameters where its
+// sibling declares thirty, so a filter has to be refused here rather than sent
+// to be ignored. The refusal is local, so this never reaches the API.
+func TestMCPEventsIgnoredRefusesUndeclaredFilters(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
+		"action":     "list_ignored",
+		"request_id": "req_does_not_matter",
+		"status":     "FAILED",
+	}, 20*time.Second)
+
+	require.True(t, result.IsError, "a filter the route does not declare must be refused: %s", result.Text)
+	assert.Contains(t, result.Text, "status")
+}
+
+// TestMCPEventsStatusIsCanonicalisedAgainstTheLiveAPI is the case a mock cannot
+// prove. The events enum is upper case and the API 422s a lower-case value, so
+// if canonicalisation regresses this fails against the real endpoint.
+func TestMCPEventsStatusIsCanonicalisedAgainstTheLiveAPI(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	for _, spelling := range []string{"FAILED", "failed", "Failed"} {
+		t.Run(spelling, func(t *testing.T) {
+			result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_events_read", map[string]any{
+				"action": "list",
+				"status": spelling,
+				"limit":  1,
+			}, 20*time.Second)
+
+			assert.False(t, result.IsError, "status %q was rejected: %s", spelling, result.Text)
+			assert.NotContains(t, result.Text, "422")
+		})
+	}
+}
+
+// --- v3.0.0-beta.2: the read/write split, platform tools and bulk operations ---
+
+// The split's whole purpose, checked against a live server: every read tool is
+// annotated read-only, so a client can grant `*_read` and be prompted on
+// everything else.
+//
+// Uses tools/list rather than calling each tool. An earlier version called them
+// one at a time and only checked the reply was not "Unknown tool" — which never
+// touched an annotation despite the name, and took two minutes doing it.
+func TestMCPReadToolsAreAnnotatedReadOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	tools, _, _ := ListMCPTools(t, cli.projectRoot, cli.configPath, []string{"gateway", "mcp"}, 30*time.Second)
+	require.NotEmpty(t, tools, "the server advertised no tools")
+
+	for name, tool := range tools {
+		if !strings.HasSuffix(name, "_read") {
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			annotations, ok := tool["annotations"].(map[string]any)
+			require.True(t, ok, "%s has no annotations; an unset readOnlyHint reads as false", name)
+			assert.Equal(t, true, annotations["readOnlyHint"],
+				"%s must be annotated read-only, or `*_read` is not a usable grant", name)
+		})
+	}
+}
+
+// Write tools are not registered without --allow-write, and a gated action
+// asked for on the read tool names the flag rather than reading as a typo.
+func TestMCPWriteToolsAbsentWithoutAllowWrite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	tools, _, _ := ListMCPTools(t, cli.projectRoot, cli.configPath, []string{"gateway", "mcp"}, 30*time.Second)
+	require.NotEmpty(t, tools)
+
+	for name := range tools {
+		assert.False(t, strings.HasSuffix(name, "_write"),
+			"%s must not be registered without --allow-write", name)
+	}
+
+	gated := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_connections_read",
+		map[string]any{"action": "delete", "id": "web_does_not_exist"}, 20*time.Second)
+	require.True(t, gated.IsError, "a gated action must be refused: %s", gated.Text)
+	assert.Contains(t, gated.Text, "--allow-write",
+		"a gated action must name the flag that enables it")
+}
+
+// plan is a read, so the blast radius of a bulk operation can be sized with no
+// write access at all. This is the safety property the design rests on, and a
+// mock cannot prove the API accepts the query — it rejected the first version
+// of this call with "query must be of type object".
+func TestMCPBulkPlanWorksWithoutAllowWrite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_bulk_read",
+		map[string]any{
+			"action":    "plan",
+			"operation": "events_retry",
+			"query":     map[string]any{"status": "FAILED"},
+		}, 30*time.Second)
+
+	assert.False(t, result.IsError, "plan must work in read-only mode: %s", result.Text)
+	assert.Contains(t, result.Text, "estimated_count")
+}
+
+// A filter the operation does not declare is refused locally, before anything
+// reaches the API — the API would ignore it and run across everything the rest
+// matched.
+func TestMCPBulkRefusesAFilterTheOperationDoesNotDeclare(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+
+	result := CallGatewayMCPTool(t, cli.projectRoot, cli.configPath, "gateway_bulk_read",
+		map[string]any{
+			"action":    "plan",
+			"operation": "ignored_events_retry",
+			"query":     map[string]any{"status": "FAILED"},
+		}, 20*time.Second)
+
+	require.True(t, result.IsError, "a filter the operation does not declare must be refused")
+	assert.Contains(t, result.Text, "status")
+	assert.Contains(t, result.Text, "cause", "the message should name what it does take")
+}
+
+// API key management must not be reachable from MCP in any form. Asserted over
+// the advertised list rather than by calling names we hope do not exist.
+func TestMCPExposesNoAPIKeyTool(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cli := NewCLIRunner(t)
+	tools, _, _ := ListMCPTools(t, cli.projectRoot, cli.configPath, []string{"gateway", "mcp"}, 30*time.Second)
+	require.NotEmpty(t, tools)
+
+	for name := range tools {
+		lower := strings.ToLower(name)
+		assert.NotContains(t, lower, "api_key",
+			"a key is a credential; minting one is not an agent's to do")
+		assert.NotContains(t, lower, "apikey")
 	}
 }

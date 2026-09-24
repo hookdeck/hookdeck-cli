@@ -130,6 +130,10 @@ func runRequestEventsAgainst(t *testing.T, server *httptest.Server, rc *requestE
 	t.Cleanup(config.ResetAPIClientForTesting)
 
 	Config = config.Config{}
+	// A zero Config is briefly visible to any test running in parallel, and
+	// InitConfig log.Fatalf's on an empty LogLevel — which kills the whole test
+	// binary, not just this test. Keep the zeroed window valid.
+	Config.LogLevel = "info"
 	Config.APIBaseURL = server.URL
 	Config.Profile.APIKey = "sk_test_123456789012"
 	Config.Profile.ProjectId = "proj_1"

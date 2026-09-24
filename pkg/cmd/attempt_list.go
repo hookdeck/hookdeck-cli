@@ -13,7 +13,7 @@ import (
 )
 
 type attemptListCmd struct {
-	cmd    *cobra.Command
+	cmd     *cobra.Command
 	eventID string
 	orderBy string
 	dir     string

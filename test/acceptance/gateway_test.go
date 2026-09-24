@@ -4,6 +4,7 @@ package acceptance
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -301,4 +302,31 @@ func TestGatewaySourcesAliasWorks(t *testing.T) {
 	assert.Contains(t, helpOut, "source", "gateway sources --help should describe source commands")
 
 	t.Logf("Gateway 'sources' alias verified")
+}
+
+// TestOutpostCommandsRejectGatewayProject belongs in a Gateway slice on purpose:
+// it needs a Gateway project to point an outpost command at, which the Outpost
+// slice's key cannot provide.
+//
+// Without the project gate the API answers 404, which reads as "no such tenant"
+// rather than "you are on the wrong project".
+func TestOutpostCommandsRejectGatewayProject(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	for _, args := range [][]string{
+		{"outpost", "tenant", "list"},
+		{"outpost", "status"},
+		{"outpost", "topic", "list"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout, _, err := cli.Run(args...)
+			require.Error(t, err, "a Gateway project must not satisfy an outpost command")
+			assert.Contains(t, stdout, "requires an Outpost project")
+			assert.Contains(t, stdout, "hookdeck project use", "the error should say how to fix it")
+		})
+	}
 }

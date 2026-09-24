@@ -84,7 +84,12 @@ func (c *Client) ListIssues(ctx context.Context, params map[string]string) (*Iss
 
 // GetIssue retrieves a single issue by ID.
 func (c *Client) GetIssue(ctx context.Context, id string) (*Issue, error) {
-	resp, err := c.Get(ctx, APIPathPrefix+"/issues/"+id, "", nil)
+	path, err := apiPath("issues", id)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(ctx, path, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -100,12 +105,17 @@ func (c *Client) GetIssue(ctx context.Context, id string) (*Issue, error) {
 
 // UpdateIssue updates an issue's status.
 func (c *Client) UpdateIssue(ctx context.Context, id string, req *IssueUpdateRequest) (*Issue, error) {
+	path, err := apiPath("issues", id)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal issue update request: %w", err)
 	}
 
-	resp, err := c.Put(ctx, APIPathPrefix+"/issues/"+id, data, nil)
+	resp, err := c.Put(ctx, path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +130,23 @@ func (c *Client) UpdateIssue(ctx context.Context, id string, req *IssueUpdateReq
 }
 
 // DismissIssue dismisses an issue (DELETE /issues/{id}).
+//
+// Dismissing sets dismissed_at and deliberately leaves status alone: an issue
+// that is still OPENED after a successful dismiss is correct, because dismissal
+// and resolution are separate axes. Verified against the API — DELETE returns
+// 200 with dismissed_at populated and status unchanged.
+//
+// Two independent QA passes have reported this as "dismiss does not dismiss"
+// after checking status and not dismissed_at. It is not a defect, and changing
+// this to PUT {"status":"IGNORED"} — which does change status — would conflate
+// the two concepts and throw away the distinction the API is drawing.
 func (c *Client) DismissIssue(ctx context.Context, id string) (*Issue, error) {
-	urlPath := APIPathPrefix + "/issues/" + id
-	req, err := c.newRequest(ctx, "DELETE", urlPath, nil)
+	path, err := apiPath("issues", id)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
 	if err != nil {
 		return nil, err
 	}

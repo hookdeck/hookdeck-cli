@@ -14,12 +14,12 @@ import (
 )
 
 type transformationCreateCmd struct {
-	cmd       *cobra.Command
-	name      string
-	code      string
-	codeFile  string
-	env       string
-	output    string
+	cmd      *cobra.Command
+	name     string
+	code     string
+	codeFile string
+	env      string
+	output   string
 }
 
 func newTransformationCreateCmd() *transformationCreateCmd {

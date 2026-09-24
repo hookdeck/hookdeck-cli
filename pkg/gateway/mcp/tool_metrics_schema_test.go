@@ -13,7 +13,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-// metricsSchemaProperty returns one property of the live hookdeck_metrics tool
+// metricsSchemaProperty returns one property of the live gateway_metrics tool
 // schema, as an MCP client would read it off tools/list.
 func metricsSchemaProperty(t *testing.T, name string) map[string]any {
 	t.Helper()
@@ -24,7 +24,7 @@ func metricsSchemaProperty(t *testing.T, name string) map[string]any {
 	require.NoError(t, err)
 
 	for _, tool := range listed.Tools {
-		if tool.Name != "hookdeck_metrics" {
+		if tool.Name != "gateway_metrics_read" {
 			continue
 		}
 		raw, err := json.Marshal(tool.InputSchema)
@@ -34,10 +34,10 @@ func metricsSchemaProperty(t *testing.T, name string) map[string]any {
 		}
 		require.NoError(t, json.Unmarshal(raw, &schema))
 		prop, ok := schema.Properties[name]
-		require.True(t, ok, "hookdeck_metrics schema has no %q property", name)
+		require.True(t, ok, "gateway_metrics schema has no %q property", name)
 		return prop
 	}
-	t.Fatal("hookdeck_metrics not listed")
+	t.Fatal("gateway_metrics not listed")
 	return nil
 }
 
@@ -142,7 +142,7 @@ func TestAPIValidationErrorReachesTheClientReadable(t *testing.T) {
 		},
 	})
 
-	result := callTool(t, session, "hookdeck_metrics", map[string]any{
+	result := callTool(t, session, "gateway_metrics_read", map[string]any{
 		"action":      "events",
 		"start":       "2025-01-01T00:00:00Z",
 		"end":         "2025-01-02T00:00:00Z",

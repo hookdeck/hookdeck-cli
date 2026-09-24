@@ -37,7 +37,7 @@ $ hookdeck project use --local
 Pinning project to current directory`,
 	}
 
-	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save project to current directory (.hookdeck/config.toml)")
+	lc.cmd.Flags().BoolVar(&lc.local, "local", false, "Save the project to ./.hookdeck/config.toml in the current directory. Cannot be combined with --hookdeck-config, which takes the path to write instead.")
 
 	return lc
 }
@@ -123,6 +123,19 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 	var configPath string
 	var isNewConfig bool
 
+	// The file written must be the file read, or the success message describes a
+	// switch that did not happen. --local pins the write to
+	// ./.hookdeck/config.toml; every other case writes the file this invocation
+	// loaded, which Config already resolved by the documented precedence:
+	// --hookdeck-config (or HOOKDECK_CONFIG_FILE) when given, else a cwd-local
+	// .hookdeck/config.toml when one exists, else the global config.
+	//
+	// This branch used to re-derive that itself and only ever looked for a
+	// cwd-local file, so running from a directory that happened to contain one
+	// overwrote it and left the file named by --hookdeck-config untouched — the
+	// flag exists precisely to keep a command off other configuration (#424).
+	// Do not reintroduce the second lookup: the resolved path is the only
+	// authority on where config lives.
 	if lc.local {
 		isNewConfig, err = Config.UseProjectLocal(selected.Id, projectType)
 		if err != nil {
@@ -134,27 +147,10 @@ func (lc *projectUseCmd) runProjectUseCmd(cmd *cobra.Command, args []string) err
 		}
 		configPath = filepath.Join(workingDir, ".hookdeck/config.toml")
 	} else {
-		workingDir, wdErr := os.Getwd()
-		if wdErr != nil {
-			return wdErr
+		if err := Config.UseProject(selected.Id, projectType); err != nil {
+			return err
 		}
-		localConfigPath := filepath.Join(workingDir, ".hookdeck/config.toml")
-		localConfigExists, _ := Config.FileExists(localConfigPath)
-
-		if localConfigExists {
-			isNewConfig, err = Config.UseProjectLocal(selected.Id, projectType)
-			if err != nil {
-				return err
-			}
-			configPath = localConfigPath
-		} else {
-			err = Config.UseProject(selected.Id, projectType)
-			if err != nil {
-				return err
-			}
-			configPath = Config.GetConfigFile()
-			isNewConfig = false
-		}
+		configPath = Config.GetConfigFile()
 	}
 
 	displayName := selected.Project

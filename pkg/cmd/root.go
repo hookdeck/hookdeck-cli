@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 	"github.com/hookdeck/hookdeck-cli/pkg/validators"
 	"github.com/hookdeck/hookdeck-cli/pkg/version"
 	"github.com/spf13/cobra"
@@ -142,9 +144,9 @@ const (
 // Interactive sign-in is only viable with a terminal: it blocks on Enter, opens a
 // browser, and polls for ~4 minutes, so choosing it in CI, Docker or an agent
 // turns a fast, fixable error into a hang.
-func resolveAuthFallback(gatewayMCP, interactiveStdin bool) authFallback {
+func resolveAuthFallback(isMCP, interactiveStdin bool) authFallback {
 	switch {
-	case gatewayMCP:
+	case isMCP:
 		return authFallbackMCP
 	case !interactiveStdin:
 		return authFallbackNonInteractive
@@ -167,8 +169,14 @@ Or run ` + "`hookdeck login`" + ` in an interactive terminal.`
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	gatewayMCP := argvContainsGatewayMCP(os.Args)
-	if err := rootCmd.Execute(); err != nil {
+	mcpGroup := argvMCPGroup(os.Args)
+	isMCP := mcpGroup != ""
+	mcpLoginTool := mcpLoginToolName()
+	// ExecuteC, not Execute, for the command that actually failed: an unknown
+	// subcommand of a group is rejected by the group, and the message has to
+	// name that group rather than the root. See unknownCommandMessage.
+	failed, err := rootCmd.ExecuteC()
+	if err != nil {
 		errString := err.Error()
 		isLoginRequiredError := errString == validators.ErrAPIKeyNotConfigured.Error() || errString == validators.ErrDeviceNameNotConfigured.Error()
 
@@ -178,10 +186,10 @@ func Execute() {
 			errRunes[0] = unicode.ToUpper(errRunes[0])
 			capitalized := string(errRunes)
 
-			switch resolveAuthFallback(gatewayMCP, stdinIsTerminal()) {
+			switch resolveAuthFallback(isMCP, stdinIsTerminal()) {
 			case authFallbackMCP:
 				// MCP uses JSON-RPC on stdout; do not run interactive login or print recovery text there.
-				fmt.Fprintf(os.Stderr, "%s. Use hookdeck_login in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized)
+				fmt.Fprintf(os.Stderr, "%s. Use %s in the MCP session (or run `hookdeck login` in a terminal).\n", capitalized, mcpLoginTool)
 				os.Exit(1)
 			case authFallbackNonInteractive:
 				fmt.Fprintf(os.Stderr, "%s.\n\n%s\n", capitalized, nonInteractiveAuthHelp)
@@ -202,17 +210,8 @@ func Execute() {
 			}
 
 		case strings.Contains(errString, "unknown command"):
-			suggStr := "\nS"
-
-			suggestions := rootCmd.SuggestionsFor(os.Args[1])
-			if len(suggestions) > 0 {
-				suggStr = fmt.Sprintf(" Did you mean \"%s\"?\nIf not, s", suggestions[0])
-			}
-
-			msg := fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
-				"ee \"hookdeck --help\" for a list of available commands.",
-				os.Args[1], rootCmd.CommandPath(), suggStr)
-			if gatewayMCP {
+			msg := unknownCommandMessage(failed, errString)
+			if isMCP {
 				fmt.Fprintln(os.Stderr, msg)
 			} else {
 				fmt.Println(msg)
@@ -225,7 +224,7 @@ func Execute() {
 		case errors.As(err, new(*actionableError)):
 			// The command already explained what to do; do not replace it with
 			// the generic recovery text below.
-			if gatewayMCP {
+			if isMCP {
 				fmt.Fprintln(os.Stderr, err)
 			} else {
 				fmt.Println(err)
@@ -239,14 +238,17 @@ func Execute() {
 				if serverMsg := unauthorizedServerMessage(err); serverMsg != "" {
 					msg = "Authentication failed: " + serverMsg + "\n\n"
 				}
-				msg += "Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`.\n\n" +
-					"MCP: use hookdeck_login with reauth: true."
-				if gatewayMCP {
-					fmt.Fprintln(os.Stderr, msg)
+				msg += "Sign in again: run `hookdeck login` (browser sign-in), or `hookdeck login -i` / `hookdeck --api-key <key> login`."
+				if isMCP {
+					// Only an MCP session can act on this; in a terminal it is
+					// advice about a tool the reader has no way to call. The
+					// tool name is derived rather than hardcoded so it follows
+					// the login tool wherever it is registered.
+					fmt.Fprintln(os.Stderr, msg+"\n\nMCP: use "+mcpLoginTool+" with reauth: true.")
 				} else {
 					fmt.Println(msg)
 				}
-			} else if gatewayMCP {
+			} else if isMCP {
 				fmt.Fprintln(os.Stderr, err)
 			} else {
 				fmt.Println(err)
@@ -257,36 +259,66 @@ func Execute() {
 	}
 }
 
-// argvContainsGatewayMCP reports whether argv invokes `hookdeck gateway mcp`, ignoring
-// global flags and flag values (e.g. --profile name, -p name) so detection stays accurate.
-func argvContainsGatewayMCP(argv []string) bool {
+// mcpCommandGroups are the command groups that have an `mcp` subcommand. Every
+// one of them speaks JSON-RPC on stdout, so they share the stdout hygiene and
+// authentication fallback rules.
+var mcpCommandGroups = []string{"gateway", "outpost"}
+
+// argvContainsMCP reports whether argv invokes a `<group> mcp` command.
+func argvContainsMCP(argv []string) bool {
+	return argvMCPGroup(argv) != ""
+}
+
+// argvMCPGroup returns the command group of a `<group> mcp` invocation, or "".
+// It ignores global flags and flag values (e.g. --profile name, -p name) so
+// detection stays accurate.
+func argvMCPGroup(argv []string) string {
 	if len(argv) < 3 {
-		return false
+		return ""
 	}
 	pos := globalPositionalArgs(argv[1:])
 	for i := 0; i < len(pos)-1; i++ {
-		if pos[i] == "gateway" && pos[i+1] == "mcp" {
-			return true
+		if pos[i+1] != "mcp" {
+			continue
+		}
+		for _, group := range mcpCommandGroups {
+			if pos[i] == group {
+				return group
+			}
 		}
 	}
-	return false
+	return ""
+}
+
+// mcpLoginToolName returns the login tool exposed by every group's MCP server,
+// so pre-startup errors point at a tool that exists in that session.
+//
+// It takes no group because there is nothing to vary. Signing in is a platform
+// operation rather than a product one, so each server registers it under the
+// platform prefix whatever its own tool prefix is — see
+// mcpcore.Server.platformToolName. Deriving the name from the group instead
+// produced outpost_login, which no server registers, so the one message whose
+// job is to say what to do next named a tool the agent could not call.
+func mcpLoginToolName() string {
+	return mcpcore.DefaultPlatformPrefix + "_login"
 }
 
 // flagNeedsNextArg lists global flags that consume the next argv token as their value.
 // Keep in sync with the PersistentFlags registered in init() below.
 var flagNeedsNextArg = map[string]bool{
-	"profile":         true,
-	"p":               true,
-	"cli-key":         true,
-	"api-key":         true,
-	"hookdeck-config": true,
-	"device-name":     true,
-	"log-level":       true,
-	"color":           true,
-	"api-base":        true,
-	"dashboard-base":  true,
-	"console-base":    true,
-	"ws-base":         true,
+	"profile":          true,
+	"p":                true,
+	"cli-key":          true,
+	"api-key":          true,
+	"hookdeck-config":  true,
+	"device-name":      true,
+	"log-level":        true,
+	"color":            true,
+	"api-base":         true,
+	"outpost-api-base": true,
+	"dashboard-base":   true,
+	"console-base":     true,
+	"ws-base":          true,
 }
 
 // globalPositionalArgs returns argv arguments that are not global flags or flag values,
@@ -350,7 +382,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&Config.Color, "color", "", "turn on/off color output (on, off, auto)")
 
-	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "hookdeck-config", "", "path to CLI config file (default is $HOME/.config/hookdeck/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&Config.ConfigFileFlag, "hookdeck-config", "", "path to the CLI config file to read and write. Overrides config discovery: without it the CLI uses ./.hookdeck/config.toml when that exists, otherwise $HOME/.config/hookdeck/config.toml")
 
 	rootCmd.PersistentFlags().StringVar(&Config.DeviceName, "device-name", "", "device name")
 
@@ -361,6 +393,9 @@ func init() {
 	// Hidden configuration flags, useful for dev/debugging
 	rootCmd.PersistentFlags().StringVar(&Config.APIBaseURL, "api-base", "", fmt.Sprintf("Sets the API base URL (default \"%s\")", hookdeck.DefaultAPIBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("api-base")
+
+	rootCmd.PersistentFlags().StringVar(&Config.OutpostAPIBaseURL, "outpost-api-base", "", fmt.Sprintf("Sets the Outpost API base URL (default \"%s\")", hookdeck.DefaultOutpostAPIBaseURL))
+	rootCmd.PersistentFlags().MarkHidden("outpost-api-base")
 
 	rootCmd.PersistentFlags().StringVar(&Config.DashboardBaseURL, "dashboard-base", "", fmt.Sprintf("Sets the web dashboard base URL (default \"%s\")", hookdeck.DefaultDashboardBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("dashboard-base")
@@ -381,9 +416,94 @@ func init() {
 	rootCmd.AddCommand(newWhoamiCmd().cmd)
 	rootCmd.AddCommand(newProjectCmd().cmd)
 	rootCmd.AddCommand(newGatewayCmd().cmd)
+	addOutpostCmdTo(rootCmd)
 	rootCmd.AddCommand(newTelemetryCmd().cmd)
 	// Backward compat: same connection command tree also at root (single definition in newConnectionCmd)
 	addConnectionCmdTo(rootCmd)
+
+	// Must stay last: it walks the assembled tree. See markGroupCommands.
+	markGroupCommands(rootCmd)
+}
+
+// unknownCommandPattern matches the wording cobra uses for an unknown
+// subcommand, from legacyArgs at the root and from cobra.NoArgs on a group
+// command. Capturing the two names from the message rather than from os.Args is
+// what makes the message correct at any depth: os.Args[1] is the *group* when
+// the unknown word is a subcommand of one, so `hookdeck project create` used to
+// report `Unknown command "project" for "hookdeck". Did you mean "project"?`.
+var unknownCommandPattern = regexp.MustCompile(`unknown command "([^"]*)" for "([^"]*)"`)
+
+// unknownCommandMessage renders the recovery text for an unknown (sub)command.
+// failed is the command that rejected it, used only for spelling suggestions.
+func unknownCommandMessage(failed *cobra.Command, errString string) string {
+	name, parent := "", rootCmd.CommandPath()
+	if m := unknownCommandPattern.FindStringSubmatch(errString); m != nil {
+		name, parent = m[1], m[2]
+	} else if len(os.Args) > 1 {
+		name = os.Args[1]
+	}
+
+	suggStr := "\nS"
+	if failed != nil {
+		// cobra only defaults this inside findSuggestions, which cobra.NoArgs
+		// does not call — so without it a group command offers no spelling
+		// suggestions at all, while the root (which goes through legacyArgs)
+		// does.
+		if failed.SuggestionsMinimumDistance <= 0 {
+			failed.SuggestionsMinimumDistance = 2
+		}
+		if best := closestSuggestion(name, failed.SuggestionsFor(name)); best != "" {
+			suggStr = fmt.Sprintf(" Did you mean \"%s\"?\nIf not, s", best)
+		}
+	}
+
+	return fmt.Sprintf("Unknown command \"%s\" for \"%s\".%s"+
+		"ee \"%s --help\" for a list of available commands.",
+		name, parent, suggStr, parent)
+}
+
+// closestSuggestion picks the likeliest of cobra's candidates.
+//
+// SuggestionsFor returns them in registration order, not in order of
+// similarity, and the message only has room for one. Taking the first gave
+// `hookdeck outpost tenant lst` → `Did you mean "get"?` while "list" was in the
+// same list, because "get" happened to be registered earlier and is also two
+// edits away. A prefix match wins outright; otherwise the fewest edits does.
+func closestSuggestion(typed string, candidates []string) string {
+	best, bestScore := "", 0
+	for _, candidate := range candidates {
+		score := editDistance(typed, candidate)
+		if strings.HasPrefix(strings.ToLower(candidate), strings.ToLower(typed)) {
+			score = -1
+		}
+		if best == "" || score < bestScore {
+			best, bestScore = candidate, score
+		}
+	}
+	return best
+}
+
+// editDistance is the Levenshtein distance between two strings, case-folded.
+// cobra computes this internally but does not expose it.
+func editDistance(a, b string) int {
+	ar, br := []rune(strings.ToLower(a)), []rune(strings.ToLower(b))
+	prev := make([]int, len(br)+1)
+	curr := make([]int, len(br)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ar); i++ {
+		curr[0] = i
+		for j := 1; j <= len(br); j++ {
+			cost := 1
+			if ar[i-1] == br[j-1] {
+				cost = 0
+			}
+			curr[j] = min(prev[j]+1, min(curr[j-1]+1, prev[j-1]+cost))
+		}
+		prev, curr = curr, prev
+	}
+	return prev[len(br)]
 }
 
 // unauthorizedServerMessage returns the API's own explanation for a 401, if it

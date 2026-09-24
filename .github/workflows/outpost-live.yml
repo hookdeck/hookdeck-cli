@@ -1,0 +1,46 @@
+name: Outpost Live Smoke Test
+
+# The `outpostlive` build tag is the only thing that proves the Outpost API
+# client works against a real Outpost host: everything under `-tags=outpost`
+# drives the CLI, and the client's own unit tests run against stub servers,
+# which can only assert the implementation's assumptions back at it.
+#
+# It is deliberately not part of the pull-request acceptance matrix. It makes
+# real requests to a live deployment, so a deployment problem would fail every
+# unrelated PR. A nightly run keeps it honest without coupling it to the PR
+# gate, and workflow_dispatch makes it runnable on demand — run it before
+# cutting a release.
+on:
+  schedule:
+    # 05:00 UTC daily.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  outpost-live:
+    runs-on: ubuntu-latest
+    env:
+      HOOKDECK_CLI_OUTPOST_TESTING_API_KEY: ${{ secrets.HOOKDECK_CLI_OUTPOST_TESTING_API_KEY }}
+      HOOKDECK_CLI_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.26.6"
+
+      # The tests skip themselves when the key is absent, which is right for a
+      # developer machine and wrong here: a missing secret would turn this job
+      # green while testing nothing.
+      - name: Require the Outpost testing key
+        run: |
+          if [ -z "$HOOKDECK_CLI_OUTPOST_TESTING_API_KEY" ]; then
+            echo "HOOKDECK_CLI_OUTPOST_TESTING_API_KEY is not set; the live tests would skip silently." >&2
+            exit 1
+          fi
+
+      - name: Run Outpost live smoke test
+        run: go test -tags=outpostlive ./test/acceptance/... -v -timeout 12m

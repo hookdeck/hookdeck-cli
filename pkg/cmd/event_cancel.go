@@ -39,9 +39,10 @@ func (ec *eventCancelCmd) runEventCancelCmd(cmd *cobra.Command, args []string) e
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	if err := client.CancelEvent(ctx, eventID); err != nil {
+	event, err := client.CancelEvent(ctx, eventID)
+	if err != nil {
 		return fmt.Errorf("failed to cancel event: %w", err)
 	}
-	fmt.Printf("Event %s cancelled.\n", eventID)
+	fmt.Printf("Event %s is now %s.\n", eventID, event.Status)
 	return nil
 }

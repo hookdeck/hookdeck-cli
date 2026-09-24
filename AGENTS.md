@@ -334,6 +334,22 @@ go run . login --help
 
 ## 6. Documentation Standards
 
+### Spelling: British prose, literal identifiers
+
+Prose uses **British** spelling — `behaviour`, `honoured`, `recognise`, `colour`, `initialise`.
+That is what the codebase already does (behaviour 19 to behavior 5, honoured 10 to 0) and what the
+release notes lean towards, though they are inconsistent because this was never written down:
+v2.6.0 used "behavior" and "honoured" in the same document.
+
+**Identifiers keep their real spelling**, always. A flag, environment variable, API field, struct
+tag or library symbol is a literal, not prose:
+
+- `--color`, `NO_COLOR`, `ansi.Color()` — never `--colour`
+- an API field named `behavior` stays `behavior` when quoted as a field
+
+So a sentence can legitimately carry both: "`--color off` also suppresses the colour in piped
+output." Check whether the word is something the reader types before you change its spelling.
+
 ### Command help text (Short and Long)
 
 Use the shared helpers in **`pkg/cmd/helptext.go`** for resource commands so Short and the common part of Long are defined once and stay consistent across sources, connections, and any future resources.
@@ -585,6 +601,25 @@ Summary for code and docs work:
 - **Guest** — `listen` without login may call `POST /cli/guest`; separate from `--cli-key` onboarding.
 - **`project list`** — Requires a user-associated CLI client key (`hookdeck login` or `hookdeck login --cli-key`). CI keys from `hookdeck ci` and raw Project API keys cannot list or switch projects (acceptance: `HOOKDECK_CLI_TESTING_CLI_KEY`).
 
+- **`outpost publish`** — The publish API requires a **Project API key** sent as a bearer token and does not accept the CLI client key stored by `hookdeck login`. It therefore has its own `--api-key` flag defaulting to `HOOKDECK_API_KEY`, in the same shape as `hookdeck ci --api-key`. Every other `hookdeck outpost` command uses the stored credentials normally. When the key is missing the command fails with its own guidance rather than a bare 401, which the generic handler would otherwise rewrite into "your API key is invalid or expired" — accurate but useless here, since the stored key is never valid for this endpoint.
+
+### Diagnosing a key before you debug anything else
+
+The config file cannot tell you which credential you hold — `api_key` is the field name for every CLI client key regardless of origin. When a command fails with a permission or project error, establish the key's scope first:
+
+- `hookdeck whoami` — the active project and its type. Does **not** reveal the key's scope.
+- `hookdeck project list` — succeeds only with a user-associated key. A "scoped to a single project" error means the key came from `hookdeck ci`.
+
+A project-scoped key is bound to one project, so it also ignores any attempt to target another project. Do not chase a project-selection bug before ruling this out.
+
+### Keys used by acceptance tests
+
+| Env var | Kind | Used for |
+|---|---|---|
+| `HOOKDECK_CLI_TESTING_API_KEY` (`_2`, `_3`) | Project API key, one per slice | The default runner; exchanged via `hookdeck ci` (`getAcceptanceAPIKey` in `test/acceptance/helpers.go`) |
+| `HOOKDECK_CLI_TESTING_CLI_KEY` | User-associated CLI key | Only `project list` / `project use` tests, via `NewCLIRunnerWithKey` |
+
+Each slice's key belongs to a **different project**, which is why tests must use unique resource names rather than assuming an empty project.
 - **Redacting keys: the CLI writes single-quoted TOML.** A redaction pattern that only matches double-quoted values will print the key from `config.toml` verbatim. Match both quote styles, or avoid reading the file at all — compare by hash, and refer to variables by name. Never echo a key value, including into a log you expect only yourself to read.
 
 ---
@@ -597,6 +632,7 @@ Summary for code and docs work:
 - **Windows:** Git must create symlinks correctly (`core.symlinks` / Developer Mode). If symlinks are missing after clone, recreate them (`mklink /D` on Windows, or copy `.agents/skills/` into `.cursor/skills` and `.claude/skills` as a fallback).
 - **Releases:** For cutting GitHub releases, tags, npm/beta publish flow, and drafting release notes, use **`.agents/skills/hookdeck-cli-release/SKILL.md`**; human-facing steps remain in **README.md § Releasing**.
 - **Reviewing:** For reviewing a pull request, diff or branch, use **`.agents/skills/hookdeck-cli-review/SKILL.md`**: why a green pull request still needs its acceptance run read, where a new acceptance-test build tag has to be registered, which generated files and wire contracts break silently, which docs move with a command's surface, and what not to raise.
+- **Manual QA:** For exploratory testing of the CLI and MCP servers against the live API, use **`.agents/skills/hookdeck-cli-manual-qa/SKILL.md`**. It carries the credential guard that keeps destructive commands inside acceptance-test projects and off your own login — use it rather than pointing a shell at a project by hand.
 
 ---
 

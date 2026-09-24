@@ -1,291 +1,170 @@
 package mcp
 
 import (
-	"encoding/json"
-
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/mcpcore"
 )
 
-// toolDefs lists every tool the MCP server exposes. Each entry pairs a Tool
-// definition (with a proper JSON Schema) with a handler that calls the
-// Hookdeck API.
-func toolDefs(client *hookdeck.Client) []struct {
-	tool    *mcpsdk.Tool
-	handler mcpsdk.ToolHandler
-} {
-	return []struct {
-		tool    *mcpsdk.Tool
-		handler mcpsdk.ToolHandler
-	}{
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_projects",
-				Description: "Always call this first when the user references a specific project by name. List available projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. All queries (events, issues, connections, metrics, requests) are scoped to the active project — if the wrong project is active, all results will be wrong. Also use this when unsure which project is currently active. If list or use fails (especially 401/403), the error may suggest hookdeck_login with reauth: true. JSON successes use a standard data/meta envelope; see hookdeck_help (overview or any tool topic).",
-				InputSchema: schema(map[string]prop{
-					"action":     {Type: "string", Desc: "Action to perform: list or use", Enum: []string{"list", "use"}},
-					"project_id": {Type: "string", Desc: "Project ID (required for use action)"},
-				}, "action"),
-			},
-			handler: handleProjects(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_connections",
-				Description: "Inspect connections (routes linking sources to destinations). List connections with filters, get details by ID or name, or pause/unpause a connection's delivery pipeline. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
-				InputSchema: schema(map[string]prop{
-					"action":         {Type: "string", Desc: "Action: list, get, pause, or unpause", Enum: []string{"list", "get", "pause", "unpause"}},
-					"id":             {Type: "string", Desc: "Connection ID or name (required for get/pause/unpause)"},
-					"name":           {Type: "string", Desc: "Filter by name (list)"},
-					"source_id":      {Type: "string", Desc: "Filter by source ID (list)"},
-					"destination_id": {Type: "string", Desc: "Filter by destination ID (list)"},
-					"disabled":       {Type: "boolean", Desc: "Filter disabled connections (list)"},
-					"limit":          {Type: "integer", Desc: "Max results (list)"},
-					"next":           {Type: "string", Desc: "Next page cursor"},
-					"prev":           {Type: "string", Desc: "Previous page cursor"},
-				}, "action"),
-			},
-			handler: handleConnections(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_sources",
-				Description: "List and inspect inbound sources (HTTP endpoints that receive events). Returns source configuration including URL, verification settings, and allowed HTTP methods.",
-				InputSchema: schema(map[string]prop{
-					"action": {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
-					"id":     {Type: "string", Desc: "Source ID (required for get)"},
-					"name":   {Type: "string", Desc: "Filter by name (list)"},
-					"limit":  {Type: "integer", Desc: "Max results (list)"},
-					"next":   {Type: "string", Desc: "Next page cursor"},
-					"prev":   {Type: "string", Desc: "Previous page cursor"},
-				}, "action"),
-			},
-			handler: handleSources(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_destinations",
-				Description: "List and inspect delivery destinations where events are sent. Destination types include HTTP endpoints, CLI (local development), and MOCK (testing). Returns destination configuration including URL, authentication, and rate limiting settings.",
-				InputSchema: schema(map[string]prop{
-					"action": {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
-					"id":     {Type: "string", Desc: "Destination ID (required for get)"},
-					"name":   {Type: "string", Desc: "Filter by name (list)"},
-					"limit":  {Type: "integer", Desc: "Max results (list)"},
-					"next":   {Type: "string", Desc: "Next page cursor"},
-					"prev":   {Type: "string", Desc: "Previous page cursor"},
-				}, "action"),
-			},
-			handler: handleDestinations(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_transformations",
-				Description: "List and inspect JavaScript transformations applied to event payloads. Returns transformation code and configuration for debugging payload processing.",
-				InputSchema: schema(map[string]prop{
-					"action": {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
-					"id":     {Type: "string", Desc: "Transformation ID (required for get)"},
-					"name":   {Type: "string", Desc: "Filter by name (list)"},
-					"limit":  {Type: "integer", Desc: "Max results (list)"},
-					"next":   {Type: "string", Desc: "Next page cursor"},
-					"prev":   {Type: "string", Desc: "Previous page cursor"},
-				}, "action"),
-			},
-			handler: handleTransformations(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_requests",
-				Description: "Query inbound requests (raw HTTP data received by Hookdeck before routing). List supports the same filters as `hookdeck gateway request list` (metadata, date range, payload search, sort). Get details, inspect raw body, or view events and ignored events from a request. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
-				InputSchema: schema(requestsToolProperties, "action"),
-			},
-			handler: handleRequests(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_events",
-				Description: "Query events (processed deliveries routed through connections to destinations). List supports the same filters as `hookdeck gateway event list` (metadata, date range, payload search, sort). Get event details (get) or the event payload (raw_body). Use action raw_body with the event id to get the payload directly — do not use hookdeck_requests for the payload when you already have an event id. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
-				InputSchema: schema(eventsToolProperties, "action"),
-			},
-			handler: handleEvents(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_attempts",
-				Description: "Query delivery attempts (each HTTP request made to deliver an event to its destination). Filter by event to see retry history, response status codes, and error details.",
-				InputSchema: schema(map[string]prop{
-					"action":   {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
-					"id":       {Type: "string", Desc: "Attempt ID (required for get)"},
-					"event_id": {Type: "string", Desc: "Filter by event (list)"},
-					"limit":    {Type: "integer", Desc: "Max results (list)"},
-					"order_by": {Type: "string", Desc: "Sort field (list)"},
-					"dir":      {Type: "string", Desc: "Sort direction: asc or desc (list)"},
-					"next":     {Type: "string", Desc: "Next page cursor"},
-					"prev":     {Type: "string", Desc: "Previous page cursor"},
-				}, "action"),
-			},
-			handler: handleAttempts(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_issues",
-				Description: "List and inspect Hookdeck issues — aggregated failure signals such as repeated delivery failures, transformation errors, and backpressure alerts. Use this to identify systemic problems across your event pipeline. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
-				InputSchema: schema(map[string]prop{
-					"action":           {Type: "string", Desc: "Action: list or get", Enum: []string{"list", "get"}},
-					"id":               {Type: "string", Desc: "Issue ID (required for get)"},
-					"type":             {Type: "string", Desc: "Filter: delivery, transformation, or backpressure (list)"},
-					"filter_status":    {Type: "string", Desc: "Filter by status (list)"},
-					"issue_trigger_id": {Type: "string", Desc: "Filter by trigger (list)"},
-					"order_by":         {Type: "string", Desc: "Sort field (list)"},
-					"dir":              {Type: "string", Desc: "Sort direction: asc or desc (list)"},
-					"limit":            {Type: "integer", Desc: "Max results (list)"},
-					"next":             {Type: "string", Desc: "Next page cursor"},
-					"prev":             {Type: "string", Desc: "Previous page cursor"},
-				}, "action"),
-			},
-			handler: handleIssues(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_metrics",
-				Description: "Query aggregate metrics over a time range. Get counts, failure rates, error rates, queue depth, and pending event data for events, requests, attempts, and transformations. Supports grouping by dimensions like source, destination, or connection. Filters apply only to the actions named in each argument: passing one elsewhere is rejected, because the API would ignore it and return unfiltered totals. Results are scoped to the active project — call `hookdeck_projects` first if the user has specified a project.",
-				InputSchema: schema(map[string]prop{
-					"action":         {Type: "string", Desc: "Metric type: events, requests, attempts, or transformations", Enum: []string{"events", "requests", "attempts", "transformations"}},
-					"start":          {Type: "string", Desc: "Start datetime (ISO 8601, required)"},
-					"end":            {Type: "string", Desc: "End datetime (ISO 8601, required)"},
-					"granularity":    {Type: "string", Desc: "Time bucket size, e.g. 1h, 5m, 1d"},
-					"measures":       {Type: "array", Desc: descMetricsMeasures, Items: &prop{Type: "string"}},
-					"dimensions":     {Type: "array", Desc: descMetricsDimensions, Items: &prop{Type: "string"}},
-					"source_id":      {Type: "string", Desc: "Filter by source (events, requests)"},
-					"destination_id": {Type: "string", Desc: "Filter by destination (events, attempts)"},
-					"delivery_group": {Type: "string", Desc: "Filter by delivery group (events, attempts)"},
-					"connection_id":  {Type: "string", Desc: "Filter by connection, maps to webhook_id (events, transformations)"},
-					"status":         {Type: "string", Desc: descMetricsStatus},
-					"issue_id":       {Type: "string", Desc: "Filter by issue (transformations; events when grouping by issue_id)"},
-				}, "action", "start", "end", "measures"),
-			},
-			handler: handleMetrics(client),
-		},
-		{
-			tool: &mcpsdk.Tool{
-				Name:        "hookdeck_help",
-				Description: "Get an overview of all available Hookdeck tools or detailed help for a specific tool. Use this when unsure which tool to use for a task. The overview and each tool topic document the common JSON response shape (data + meta). Note: all tools operate on the active project — use `hookdeck_projects` to verify or switch project context before querying.",
-				InputSchema: schema(map[string]prop{
-					"topic": {Type: "string", Desc: "Tool name for detailed help (e.g. hookdeck_events). Omit for overview."},
-				}),
-			},
-			handler: handleHelp(client),
-		},
+// Tool names. The Event Gateway server namespaces its product tools with
+// "gateway_" so it can be configured alongside the Outpost server without
+// colliding, and so a tool name says which product it acts on.
+//
+// The platform tools (hookdeck_login, hookdeck_projects_*) deliberately do not
+// take this prefix — see mcpcore.DefaultPlatformPrefix.
+const (
+	toolPrefix      = "gateway"
+	helpToolName    = toolPrefix + "_help"
+	helpTopicPrefix = toolPrefix + "_"
+	// The sibling-pointer constants name the READ tools, because that is what
+	// prose pointing at a sibling almost always means: "use gateway_event to
+	// read one by id". Write references are spelled with the _write constants
+	// below, so a reader is never sent to a tool that is not registered in the
+	// mode they are in.
+	eventsToolName   = toolPrefix + "_events_" + mcpcore.GroupRead
+	eventToolName    = toolPrefix + "_event_" + mcpcore.GroupRead
+	requestsToolName = toolPrefix + "_requests_" + mcpcore.GroupRead
+	requestToolName  = toolPrefix + "_request_" + mcpcore.GroupRead
+
+	eventWriteToolName   = toolPrefix + "_event_" + mcpcore.GroupWrite
+	requestWriteToolName = toolPrefix + "_request_" + mcpcore.GroupWrite
+	loginToolDesc        = "Authenticate the Hookdeck CLI or sign in again. Without arguments, returns a URL for browser login when not yet authenticated, or confirms if already signed in. Set reauth: true to clear the current session and start a new browser login (use when hookdeck_projects_read list fails and the stored key may be a single-project or dashboard API key)."
+	projectsToolDesc     = "Always call this first when the user references a specific project by name. List available projects to find the matching project ID, then use the `use` action to switch to it before calling any other tools. All queries (events, issues, connections, metrics, requests) are scoped to the active project — if the wrong project is active, all results will be wrong. Also use this when unsure which project is currently active. If list or use fails (especially 401/403), the error may suggest hookdeck_login with reauth: true. JSON successes use a standard data/meta envelope; see gateway_help (overview or any tool topic)."
+)
+
+// ServerOptions configure the Event Gateway MCP server.
+type ServerOptions struct {
+	// Client is the Hookdeck API client shared by every tool handler. Handlers
+	// mutate it in place (the projects and login tools set ProjectID).
+	Client *hookdeck.Client
+
+	// Config is the CLI configuration, used by the login tool.
+	Config *config.Config
+
+	// WriteEnabled turns on the actions that create, change or delete data.
+	WriteEnabled bool
+}
+
+// NewServer creates an MCP server exposing the Event Gateway tools.
+//
+// The supplied client is shared across all tool handlers; changing its
+// ProjectID (e.g. via the projects tool's use action) affects subsequent calls
+// within the same session.
+//
+// hookdeck_login is always registered: it signs in when unauthenticated, or
+// with reauth: true clears stored credentials and starts a fresh browser login.
+func NewServer(opts ServerOptions) *mcpcore.Server {
+	return mcpcore.NewServer(mcpcore.Options{
+		Name:         "hookdeck-gateway",
+		ToolPrefix:   toolPrefix,
+		Client:       opts.Client,
+		Config:       opts.Config,
+		WriteEnabled: opts.WriteEnabled,
+		ToolDefs:     toolDefs,
+	})
+}
+
+// resourceSpecs lists every product tool the Event Gateway server exposes.
+// Registration order is the order tools are advertised in.
+//
+// Events and requests are split into a plural collection tool and a singular
+// single-record tool. Their actions share no parameters beyond an id: list
+// carries ~20 filters that no by-id action can use, so a single tool would
+// show every one of them to a caller that only has an id. The pairs are
+// registered next to each other so the naming distinction is visible where an
+// agent reads the tool list.
+func resourceSpecs() []mcpcore.ToolSpec {
+	return []mcpcore.ToolSpec{
+		connectionsSpec,
+		sourcesSpec,
+		destinationsSpec,
+		transformationsSpec,
+		requestsSpec,
+		requestSpec,
+		eventsSpec,
+		eventSpec,
+		attemptsSpec,
+		issuesSpec,
+		metricsSpec,
+		bulkSpec,
 	}
 }
 
-// requestsToolProperties is the hookdeck_requests schema. It is a package var
-// so requestsActionArgs can be checked against it: an argument the schema
-// advertises but no action honours is a filter that would vanish in silence.
-//
-// The events action queries GET /requests/{id}/events, which declares the whole
-// /events filter set, so most of the filters `hookdeck gateway event list`
-// offers apply there as well as on list. Each description names the actions the
-// argument reaches; anywhere else it is refused rather than dropped.
-//
-// That route also takes an `id` query parameter filtering by event ID, which
-// this tool cannot offer: `id` already carries the request ID the events action
-// puts in the path, and one property cannot be both.
-var requestsToolProperties = map[string]prop{
-	"action":              {Type: "string", Desc: "Action: list, get, raw_body, events, or ignored_events", Enum: []string{"list", "get", "raw_body", "events", "ignored_events"}},
-	"id":                  {Type: "string", Desc: "Request ID: filter by ID(s) on list (comma-separated), or required for get/raw_body/events/ignored_events"},
-	"source_id":           {Type: "string", Desc: "Filter by source (list, events)"},
-	"connection_id":       {Type: "string", Desc: "Filter by connection (events, maps to webhook_id)"},
-	"destination_id":      {Type: "string", Desc: "Filter by destination (events)"},
-	"delivery_group":      {Type: "string", Desc: "Filter by delivery group (events; the /requests collection has no such filter, so list rejects it rather than return unfiltered rows)"},
-	"status":              {Type: "string", Desc: descRequestsStatus},
-	"rejection_cause":     {Type: "string", Desc: "Filter by rejection cause (list)"},
-	"verified":            {Type: "boolean", Desc: "Filter by verification status (list)"},
-	"attempts":            {Type: "string", Desc: "Filter by attempt count (events). Integer or API operator syntax; pass through as string."},
-	"issue_id":            {Type: "string", Desc: "Filter by issue (events)"},
-	"error_code":          {Type: "string", Desc: "Filter by error code (events)"},
-	"response_status":     {Type: "string", Desc: "Filter by HTTP response status (events)"},
-	"cli_id":              {Type: "string", Desc: "Filter by CLI listen session ID (events)"},
-	"created_after":       {Type: "string", Desc: "created_at lower bound (list, events). " + descDateAfter},
-	"created_before":      {Type: "string", Desc: "created_at upper bound (list, events). " + descDateBefore},
-	"ingested_after":      {Type: "string", Desc: "ingested_at lower bound (list). " + descDateAfter},
-	"ingested_before":     {Type: "string", Desc: "ingested_at upper bound (list). " + descDateBefore},
-	"successful_after":    {Type: "string", Desc: "successful_at lower bound (events). " + descDateAfter},
-	"successful_before":   {Type: "string", Desc: "successful_at upper bound (events). " + descDateBefore},
-	"last_attempt_after":  {Type: "string", Desc: "last_attempt_at lower bound (events). " + descDateAfter},
-	"last_attempt_before": {Type: "string", Desc: "last_attempt_at upper bound (events). " + descDateBefore},
-	"body":                {Type: "string", Desc: "Filter by body (list: the request body; events: the event payload). " + descJSONFilter},
-	"headers":             {Type: "string", Desc: "Filter by headers (list, events). " + descJSONFilter},
-	"parsed_query":        {Type: "string", Desc: "Filter by parsed query string as JSON (list, events). " + descJSONFilter},
-	"path":                {Type: "string", Desc: descPathFilter + " Applies to list and events."},
-	"order_by":            {Type: "string", Desc: "Sort field (list, events), e.g. created_at"},
-	"dir":                 {Type: "string", Desc: "Sort direction: asc or desc (list, events)"},
-	"limit":               {Type: "integer", Desc: "Max results (list, events, ignored_events)"},
-	"next":                {Type: "string", Desc: "Next page cursor (list, events, ignored_events)"},
-	"prev":                {Type: "string", Desc: "Previous page cursor (list, events, ignored_events)"},
-}
+// toolDefs builds the tool definitions for the current write mode. Each spec
+// renders its own schema, so read-only sessions never advertise a write action.
+func toolDefs(srv *mcpcore.Server) []mcpcore.ToolDef {
+	// Platform tools: the organization and its projects. Both servers expose
+	// them under the hookdeck_ prefix — it is the same operation whichever
+	// product you are in.
+	var defs []mcpcore.ToolDef
+	for _, spec := range srv.PlatformSpecs(projectsToolDesc) {
+		defs = append(defs, spec.Define(srv)...)
+	}
 
-// eventsToolProperties is the hookdeck_events schema, held as a var for the
-// same reason as requestsToolProperties.
-var eventsToolProperties = map[string]prop{
-	"action":              {Type: "string", Desc: "Action: list, get, or raw_body. Use raw_body to get the event payload (body); get returns metadata and headers only.", Enum: []string{"list", "get", "raw_body"}},
-	"id":                  {Type: "string", Desc: "Event ID: filter by ID(s) on list (comma-separated), or required for get/raw_body"},
-	"connection_id":       {Type: "string", Desc: "Filter by connection (list, maps to webhook_id)"},
-	"source_id":           {Type: "string", Desc: "Filter by source (list)"},
-	"destination_id":      {Type: "string", Desc: "Filter by destination (list)"},
-	"delivery_group":      {Type: "string", Desc: "Filter by delivery group (list)"},
-	"status":              {Type: "string", Desc: "Event status (list): " + hookdeck.EventStatusValues},
-	"attempts":            {Type: "string", Desc: "Filter by attempt count (list). Integer or API operator syntax; pass through as string."},
-	"issue_id":            {Type: "string", Desc: "Filter by issue (list)"},
-	"error_code":          {Type: "string", Desc: "Filter by error code (list)"},
-	"response_status":     {Type: "string", Desc: "Filter by HTTP response status (list)"},
-	"cli_id":              {Type: "string", Desc: "Filter by CLI listen session ID (list)"},
-	"created_after":       {Type: "string", Desc: "created_at lower bound (list). " + descDateAfter},
-	"created_before":      {Type: "string", Desc: "created_at upper bound (list). " + descDateBefore},
-	"successful_after":    {Type: "string", Desc: "successful_at lower bound (list). " + descDateAfter},
-	"successful_before":   {Type: "string", Desc: "successful_at upper bound (list). " + descDateBefore},
-	"last_attempt_after":  {Type: "string", Desc: "last_attempt_at lower bound (list). " + descDateAfter},
-	"last_attempt_before": {Type: "string", Desc: "last_attempt_at upper bound (list). " + descDateBefore},
-	"body":                {Type: "string", Desc: "Filter by event payload body. " + descJSONFilter},
-	"headers":             {Type: "string", Desc: "Filter by event headers. " + descJSONFilter},
-	"parsed_query":        {Type: "string", Desc: "Filter by parsed query as JSON. " + descJSONFilter},
-	"path":                {Type: "string", Desc: descPathFilter},
-	"limit":               {Type: "integer", Desc: "Max results (list)"},
-	"order_by":            {Type: "string", Desc: "Sort field (list)"},
-	"dir":                 {Type: "string", Desc: "Sort direction: asc or desc (list)"},
-	"next":                {Type: "string", Desc: "Next page cursor (list)"},
-	"prev":                {Type: "string", Desc: "Previous page cursor (list)"},
-}
+	for _, spec := range resourceSpecs() {
+		// Each group renders its own tool, read first and the gated one last,
+		// so the pairing is visible where an agent reads the tool list.
+		defs = append(defs, spec.Define(srv)...)
+	}
 
-// prop describes a single JSON Schema property.
-type prop struct {
-	Type  string   `json:"type"`
-	Desc  string   `json:"description,omitempty"`
-	Enum  []string `json:"enum,omitempty"`
-	Items *prop    `json:"items,omitempty"`
+	defs = append(defs,
+		mcpcore.ToolDef{
+			Tool: &mcpsdk.Tool{
+				Name:        srv.HelpToolName(),
+				Description: "Get an overview of all available Event Gateway tools or detailed help for a specific tool. Use this when unsure which tool to use for a task, or to find out which actions this session is allowed to perform. The overview reports the current mode (read-only or write) and documents the common JSON response shape (data + meta). Note: all tools operate on the active project — use `hookdeck_projects_read` to list projects and `hookdeck_projects_use` to switch before querying.",
+				InputSchema: mcpcore.Schema(map[string]mcpcore.Prop{
+					"topic": {Type: "string", Desc: "Tool name for detailed help (e.g. gateway_events_read). Omit for overview."},
+				}),
+				Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+			},
+			Handler: handleHelp(srv),
+		},
+		srv.LoginToolDef(loginToolDesc),
+	)
+
+	return defs
 }
 
 const (
-	descDateAfter  = "ISO 8601 datetime. Maps to API field[gte]; do not pass bracket keys in MCP args. Combinable with the matching *_before param."
-	descDateBefore = "ISO 8601 datetime. Maps to API field[lte]; do not pass bracket keys in MCP args."
+	descDateAfter  = "ISO 8601 datetime lower bound (list). Maps to API field[gte]; do not pass bracket keys in MCP args. Combinable with the matching *_before param."
+	descDateBefore = "ISO 8601 datetime upper bound (list). Maps to API field[lte]; do not pass bracket keys in MCP args."
 	descJSONFilter = "Hookdeck JSON filter (object or string). Same syntax as hookdeck listen --filter-body."
 	descPathFilter = "Partial URL path match (string)."
-)
 
-// status is the one hookdeck_requests argument whose vocabulary changes with
-// the action: list queries GET /requests, whose statuses describe what happened
-// to the request at the edge, and events queries GET /requests/{id}/events,
-// whose statuses describe where each delivery is in its lifecycle. One flat
-// schema property carries both, so the description has to name both — the same
-// shape hookdeck_metrics uses for the four vocabularies its status argument
-// carries. Describing only one of them was the defect: a client reading
-// "accepted or rejected" had no way to learn the events vocabulary exists. The
-// handler checks the value against the action's own list as well, because the
-// API's 422 names only the enum of the route it was sent to.
-var descRequestsStatus = "Filter by status. The vocabulary differs per action, because the two actions query different collections — " +
-	"list (the status of the request itself): " + hookdeck.RequestLogStatusValues + "; " +
-	"events (the delivery status of each event the request produced): " + hookdeck.EventStatusValues + ". " +
-	"A value from the other action's vocabulary is refused, not sent."
+	// One filter that searches body, headers, parsed_query and path together,
+	// for when the caller knows the value but not which field carries it.
+	//
+	// The API schema calls this a partial match. It is not: verified against the
+	// live API, the term has to equal a complete field value. "foo.bar.baz"
+	// matches a field holding exactly that; "bar" matches nothing. It is not
+	// word-tokenised either — a field holding "quixotic wombat flugelhorn"
+	// matches only the whole phrase, not "wombat". Describing it as partial
+	// sends callers looking for substrings that can never match.
+	descSearchTerm = "Match a complete value across the body, headers, parsed_query and path at once (minimum 3 characters). " +
+		"The term must equal a whole field value, not a substring or a single word within one: a field holding " +
+		"\"pat@example.test\" matches that exact string but not \"example\". " +
+		"Use when you know the value but not which field holds it; use body/headers/parsed_query for a structured match."
+
+	// The API schema is nullable and says null matches events with no delivery
+	// group. A query string cannot carry a JSON null, and the string "null" is
+	// read as a group name — verified against the live API, it returns nothing
+	// in a project whose events all have no delivery group. Saying so here stops
+	// an agent burning calls on a query that cannot work.
+	descDeliveryGroup = "Filter by delivery group; comma-separate several. " +
+		"The API documents null as matching events without a delivery group, but that null cannot be expressed " +
+		"in a query string — passing \"null\" filters for a group of that name, so there is no way to search for ungrouped events."
+
+	// A whole number only.
+	//
+	// The API does accept operator objects here — events_count[gte]=1 filters
+	// and was verified against it — but the value goes on the wire as a bare
+	// scalar, so there is no way to express one from here. Saying "or operator
+	// syntax", as this used to, sent callers to a 422: ">0" and {"gt":0} are
+	// both rejected as "must be one of [number, object, array]".
+	descCountFilter = "A whole number, e.g. 0 to find records that produced none. Comparisons such as \">0\" are not supported here."
+)
 
 // measures, dimensions and status decide whether a metrics call succeeds, and
 // each of the four actions has its own vocabulary. One flat schema cannot carry
@@ -318,16 +197,3 @@ var (
 		"attempts: " + hookdeck.AttemptStatusValues + ". " +
 		"Not supported on transformations."
 )
-
-// schema builds a JSON Schema object with the given properties and required fields.
-func schema(properties map[string]prop, required ...string) json.RawMessage {
-	s := map[string]interface{}{
-		"type":       "object",
-		"properties": properties,
-	}
-	if len(required) > 0 {
-		s["required"] = required
-	}
-	data, _ := json.Marshal(s)
-	return data
-}

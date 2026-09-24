@@ -371,3 +371,109 @@ func TestProjectListFailsWithCIKeyAcceptance(t *testing.T) {
 	assert.Contains(t, combined, "hookdeck login",
 		"the error should tell the user how to get an account-wide key")
 }
+
+// TestProjectUseHookdeckConfigWritesNamedFileNotCwdLocal is the acceptance-level
+// regression test for #424: `hookdeck project use --hookdeck-config <path>` used
+// to report success and then write a .hookdeck/config.toml that merely happened
+// to be in the working directory, leaving the file the flag named untouched. The
+// flag exists to keep a command off other configuration, so the named file must
+// be the one written, and the local one must be byte-identical afterwards.
+//
+// Requires HOOKDECK_CLI_TESTING_CLI_KEY: switching projects needs an
+// account-wide CLI key, which API and CI keys are not.
+func TestProjectUseHookdeckConfigWritesNamedFileNotCwdLocal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+	cliKey := os.Getenv("HOOKDECK_CLI_TESTING_CLI_KEY")
+	if cliKey == "" {
+		t.Skip("Skipping project use test: HOOKDECK_CLI_TESTING_CLI_KEY must be set (CLI key required for switching projects; API and CI keys cannot list or switch projects)")
+	}
+
+	cli := NewCLIRunnerWithKey(t, cliKey)
+
+	// `project use <org> <project>` requires the pair to be unambiguous, so pick
+	// one that appears exactly once. As elsewhere in this file, the listing is
+	// never echoed into logs or failure messages.
+	listOut, _, err := cli.Run("project", "list", "--output", "json")
+	require.NoError(t, err, "project list should succeed with an account-wide CLI key")
+	var projects []struct {
+		Id      string `json:"id"`
+		Org     string `json:"org"`
+		Project string `json:"project"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(listOut), &projects),
+		"project list --output json should return valid JSON array")
+
+	counts := map[string]int{}
+	for _, p := range projects {
+		counts[strings.ToLower(p.Org)+"/"+strings.ToLower(p.Project)] = counts[strings.ToLower(p.Org)+"/"+strings.ToLower(p.Project)] + 1
+	}
+	var org, projectName, expectedID string
+	for _, p := range projects {
+		if p.Org == "" || p.Project == "" {
+			continue
+		}
+		if counts[strings.ToLower(p.Org)+"/"+strings.ToLower(p.Project)] == 1 {
+			org, projectName, expectedID = p.Org, p.Project, p.Id
+			break
+		}
+	}
+	if org == "" {
+		t.Skip("Skipping project use test: no uniquely named project available for this credential")
+	}
+
+	tempDir, cleanup := createTempWorkingDir(t)
+	defer cleanup()
+
+	// A cwd-local config the command must not touch. Its project id could not
+	// have come from any real switch, so finding it afterwards is conclusive.
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, ".hookdeck"), 0755))
+	localConfigPath := filepath.Join(tempDir, ".hookdeck", "config.toml")
+	originalLocal := "profile = 'default'\n\n[default]\napi_key = 'cli_key_local_do_not_touch'\nproject_id = 'tm_local_do_not_touch'\nproject_mode = 'inbound'\nproject_type = 'Gateway'\n"
+	require.NoError(t, os.WriteFile(localConfigPath, []byte(originalLocal), 0600))
+
+	// Authenticate into the named file only. login honours --hookdeck-config the
+	// same way, which the local-config check below also asserts.
+	explicitConfigPath := filepath.Join(tempDir, "explicit-config.toml")
+	loginOut, loginErr, err := cli.RunFromCwd("login", "--api-key", cliKey, "--hookdeck-config", explicitConfigPath)
+	if err != nil {
+		t.Logf("STDERR: %s", loginErr)
+	}
+	require.NoError(t, err, "login --hookdeck-config should succeed")
+	require.NotEmpty(t, loginOut, "login should report what it did")
+
+	afterLogin, err := os.ReadFile(localConfigPath)
+	require.NoError(t, err)
+	require.Equal(t, originalLocal, string(afterLogin),
+		"login --hookdeck-config must leave a cwd-local config byte-identical")
+
+	stdout, stderr, err := cli.RunFromCwd("project", "use", org, projectName, "--hookdeck-config", explicitConfigPath)
+	if err != nil {
+		t.Logf("STDERR: %s", stderr)
+	}
+	require.NoError(t, err, "project use --hookdeck-config should succeed")
+
+	// The named file is the one that was written.
+	explicitConfig := map[string]interface{}{}
+	_, decodeErr := toml.DecodeFile(explicitConfigPath, &explicitConfig)
+	require.NoError(t, decodeErr, "the file named by --hookdeck-config should be valid TOML")
+	defaultSection, ok := explicitConfig["default"].(map[string]interface{})
+	require.True(t, ok, "the file named by --hookdeck-config should have a 'default' section")
+	writtenID, _ := defaultSection["project_id"].(string)
+	assert.Equal(t, expectedID, writtenID,
+		"--hookdeck-config must write the selected project to the file it names (#424)")
+
+	// And the cwd-local config is untouched.
+	localAfter, err := os.ReadFile(localConfigPath)
+	require.NoError(t, err, "the cwd-local config should still exist")
+	assert.Equal(t, originalLocal, string(localAfter),
+		"--hookdeck-config must leave a cwd-local config byte-identical (#424)")
+
+	// The reported path must be the file that was actually written: the issue
+	// was a success message that described a switch which had not happened.
+	assert.Contains(t, stdout, explicitConfigPath,
+		"project use should report the file named by --hookdeck-config")
+	assert.NotContains(t, stdout, localConfigPath,
+		"project use must not report writing the cwd-local config")
+}

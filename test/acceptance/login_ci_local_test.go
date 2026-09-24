@@ -356,3 +356,70 @@ func readLocalConfigTOMLFromDir(t *testing.T, dir string) map[string]interface{}
 
 	return config
 }
+
+// TestCIHookdeckConfigWritesNamedFileNotCwdLocal is the acceptance-level guard for
+// #424. The bug was found on `project use`, but the rule it breaks is shared by
+// every command that persists config: --hookdeck-config names the file to read
+// AND write, so a .hookdeck/config.toml that merely happens to be in the working
+// directory must be left alone.
+//
+// `project use` itself needs account-wide credentials (it lists projects), which
+// the CI key used by this suite does not have — see project_use_manual_test.go —
+// so `ci` stands in here as the command that can prove the rule end to end
+// against the real API.
+func TestCIHookdeckConfigWritesNamedFileNotCwdLocal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+
+	tempDir, cleanup := createTempWorkingDir(t)
+	defer cleanup()
+
+	// A cwd-local config that the command must not touch, holding a project id
+	// that could not have come from this login.
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, ".hookdeck"), 0755))
+	localConfigPath := filepath.Join(tempDir, ".hookdeck", "config.toml")
+	originalLocal := "profile = 'default'\n\n[default]\napi_key = 'cli_key_local_do_not_touch'\nproject_id = 'tm_local_do_not_touch'\nproject_mode = 'inbound'\nproject_type = 'Gateway'\n"
+	require.NoError(t, os.WriteFile(localConfigPath, []byte(originalLocal), 0600))
+
+	explicitConfigPath := filepath.Join(tempDir, "explicit-config.toml")
+
+	stdout, stderr, err := cli.RunFromCwd("ci", "--api-key", cli.apiKey, "--hookdeck-config", explicitConfigPath)
+	if err != nil {
+		t.Logf("STDOUT: %s", stdout)
+		t.Logf("STDERR: %s", stderr)
+	}
+	require.NoError(t, err, "ci --hookdeck-config should succeed")
+
+	// The named file is the one that was written.
+	explicitConfig := map[string]interface{}{}
+	_, decodeErr := toml.DecodeFile(explicitConfigPath, &explicitConfig)
+	require.NoError(t, decodeErr, "the file named by --hookdeck-config should be valid TOML")
+	defaultSection, ok := explicitConfig["default"].(map[string]interface{})
+	require.True(t, ok, "the file named by --hookdeck-config should have a 'default' section")
+	projectID, _ := defaultSection["project_id"].(string)
+	require.NotEmpty(t, projectID, "--hookdeck-config must write the file it names (#424)")
+	assert.NotEqual(t, "tm_local_do_not_touch", projectID,
+		"the named file should hold the newly authenticated project")
+
+	// And the cwd-local config is untouched.
+	localAfter, err := os.ReadFile(localConfigPath)
+	require.NoError(t, err, "the cwd-local config should still exist")
+	assert.Equal(t, originalLocal, string(localAfter),
+		"--hookdeck-config must leave a cwd-local config byte-identical (#424)")
+
+	// The read side has to agree with the write side, which is what the issue
+	// reported: a success message followed by a command reporting the old project.
+	whoamiOut, whoamiErr, err := cli.RunFromCwd("whoami", "--hookdeck-config", explicitConfigPath)
+	if err != nil {
+		t.Logf("STDOUT: %s", whoamiOut)
+		t.Logf("STDERR: %s", whoamiErr)
+	}
+	require.NoError(t, err, "whoami with the same --hookdeck-config should succeed")
+	assert.NotContains(t, whoamiOut, "tm_local_do_not_touch",
+		"whoami with the same flag must report the project just written")
+
+	t.Logf("Verified ci --hookdeck-config wrote only %s (project_id=%s)", explicitConfigPath, projectID)
+}

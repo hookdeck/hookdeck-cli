@@ -71,6 +71,22 @@ var flagsRejectingEmptyValues = map[string]bool{
 	"destination-aws-region":              true,
 	"destination-gcp-service-account-key": true,
 
+	// Outpost identity flags. A tenant or event id that expands to an empty
+	// string would silently address a different path rather than fail, so these
+	// are rejected the same way the identity flags above are.
+	"tenant-id": true,
+	"event-id":  true,
+	"topic":     true,
+	"topics":    true,
+	"theme":     true,
+	"hostname":  true,
+
+	// A filter rather than an identifier, but the failure is worse: an empty
+	// value drops the filter, so `--id "$UNSET"` silently widens the query to
+	// everything instead of narrowing it to one record. Only commands that call
+	// rejectEmptyFlags are affected.
+	"id": true,
+
 	// JSON configuration escape hatches
 	"config":                  true,
 	"config-file":             true,

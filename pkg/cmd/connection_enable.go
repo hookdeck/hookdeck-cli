@@ -21,7 +21,7 @@ func newConnectionEnableCmd() *connectionEnableCmd {
 		Args:  validators.ExactArgs(1),
 		Short: ShortEnable(ResourceConnection),
 		Long:  LongEnableIntro(ResourceConnection),
-		RunE: cc.runConnectionEnableCmd,
+		RunE:  cc.runConnectionEnableCmd,
 	}
 	cc.cmd.Annotations = map[string]string{
 		"cli.arguments": `[{"name":"connection-id","type":"string","description":"Connection ID","required":true}]`,

@@ -11,8 +11,15 @@ const (
 	ResourceTransformation = "transformation"
 	ResourceEvent          = "event"
 	ResourceRequest        = "request"
-	ResourceAttempt       = "attempt"
-	ResourceIssue         = "issue"
+	ResourceAttempt        = "attempt"
+	ResourceIssue          = "issue"
+
+	// Outpost resources. Destination and attempt names are shared with the
+	// Event Gateway constants above, but the Outpost resources they describe are
+	// different, so the help text is composed per command rather than reused.
+	ResourceTenant          = "tenant"
+	ResourceTopic           = "topic"
+	ResourceDestinationType = "destination type"
 )
 
 // Short help (one line) for common commands. Use when the only difference is the resource name.
@@ -22,7 +29,7 @@ func ShortDelete(resource string) string  { return "Delete a " + resource }
 func ShortDisable(resource string) string { return "Disable a " + resource }
 func ShortEnable(resource string) string  { return "Enable a " + resource }
 func ShortUpdate(resource string) string  { return "Update a " + resource + " by ID" }
-func ShortCreate(resource string) string { return "Create a new " + resource }
+func ShortCreate(resource string) string  { return "Create a new " + resource }
 func ShortUpsert(resource string) string  { return "Create or update a " + resource + " by name" }
 
 // LongGetIntro returns the first paragraph for "get" commands: "Get detailed information about a specific {resource}.\n\nYou can specify either a {resource} ID or name."

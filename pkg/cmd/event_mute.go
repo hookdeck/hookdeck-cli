@@ -39,9 +39,10 @@ func (ec *eventMuteCmd) runEventMuteCmd(cmd *cobra.Command, args []string) error
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	if err := client.MuteEvent(ctx, eventID); err != nil {
+	event, err := client.MuteEvent(ctx, eventID)
+	if err != nil {
 		return fmt.Errorf("failed to mute event: %w", err)
 	}
-	fmt.Printf("Event %s muted.\n", eventID)
+	fmt.Printf("Event %s is now %s.\n", eventID, event.Status)
 	return nil
 }
