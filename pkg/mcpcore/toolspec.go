@@ -631,6 +631,21 @@ func rejectUnknownArgs(srv *Server, spec ToolSpec, group string, visible map[str
 			return next(ctx, req)
 		}
 
+		// An omitted action is filled in by the handler, and that handler is
+		// shared by every tool split from the same resource. Its fallback is a
+		// read -- list or get -- so on a write, pause or use tool an omitted
+		// action ran a sibling tool's read and reported success:
+		// hookdeck_projects_use {} returned the project list and switched
+		// nothing, and gateway_connections_pause {} listed connections. Only a
+		// read tool may default; everywhere else the schema's "required" is
+		// enforced here, with the actions this tool actually offers.
+		if in.String(actionArgName) == "" && group != GroupRead {
+			return ErrorResult(fmt.Sprintf(
+				"%s is required. This tool offers: %s.",
+				actionArgName, strings.Join(spec.Actions.InGroup(group).Names(), ", "),
+			)), nil
+		}
+
 		// Only defer when the caller is reaching for an action this tool does
 		// not carry. On an action this tool does have, a hidden argument is
 		// just as ignorable as an invented one, and has to be rejected.
