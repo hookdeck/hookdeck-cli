@@ -163,8 +163,17 @@ func (in Input) BoolOrStringE(key string) (*bool, error) {
 	return nil, fmt.Errorf("%s must be true or false, got %v", key, v)
 }
 
-// StringSlice returns the string slice for a key, or nil if missing.
-func (in Input) StringSlice(key string) []string {
+// stringSlice reads a value only when it is a JSON array, and returns nil for
+// anything else -- including the bare or comma-separated string a model sends
+// where an array is declared.
+//
+// It is unexported on purpose. As a public method, tool handlers read
+// caller-supplied lists with it, and a string was dropped without an error:
+// gateway_metrics_read told callers "measures is required" for a measures they
+// had just passed (#440), and a merge later reverted the fix unnoticed. Tool
+// code must use StringList, which accepts both forms; with this unexported, a
+// handler that reaches for the array-only read no longer compiles.
+func (in Input) stringSlice(key string) []string {
 	v, ok := in[key]
 	if !ok {
 		return nil
@@ -240,7 +249,7 @@ func SetPayloadSearchFilters(params map[string]string, in Input) error {
 // StringList reads a value that may be given either as an array of strings or,
 // mirroring the CLI's comma-separated flags, as a single string.
 func StringList(in Input, key string) []string {
-	if values := in.StringSlice(key); len(values) > 0 {
+	if values := in.stringSlice(key); len(values) > 0 {
 		return values
 	}
 	raw := in.String(key)

@@ -69,8 +69,8 @@ func TestInput_Accessors(t *testing.T) {
 	assert.Equal(t, 99, in.Int("nonexistent", 99))
 	assert.Equal(t, true, in.Bool("active"))
 	assert.Equal(t, false, in.Bool("nonexistent"))
-	assert.Equal(t, []string{"a", "b"}, in.StringSlice("tags"))
-	assert.Nil(t, in.StringSlice("nonexistent"))
+	assert.Equal(t, []string{"a", "b"}, in.stringSlice("tags"))
+	assert.Nil(t, in.stringSlice("nonexistent"))
 
 	bp := in.BoolOrString("active")
 	require.NotNil(t, bp)
