@@ -461,6 +461,20 @@ func NewCLIRunnerWithConfigPathNoCI(t *testing.T, configPath string) *CLIRunner 
 	t.Helper()
 	apiKey := getAcceptanceAPIKey(t)
 	require.NotEmpty(t, apiKey, "HOOKDECK_CLI_TESTING_API_KEY must be set")
+	return newCLIRunnerWithConfigPathAndKey(t, configPath, apiKey)
+}
+
+// newCLIRunnerWithConfigPathAndKey is NewCLIRunnerWithConfigPathNoCI for a
+// caller that authenticates with its own key rather than the Gateway acceptance
+// key.
+//
+// The Outpost live smoke test runs `hookdeck ci` with the Outpost Project API
+// key and never uses the Gateway one, but building its runner through
+// NewCLIRunnerWithConfigPathNoCI still required HOOKDECK_CLI_TESTING_API_KEY.
+// Its workflow does not receive that secret -- and should not, since the job
+// has no use for it -- so the test failed on its first scheduled run.
+func newCLIRunnerWithConfigPathAndKey(t *testing.T, configPath, apiKey string) *CLIRunner {
+	t.Helper()
 	projectRoot, err := filepath.Abs("../..")
 	require.NoError(t, err, "Failed to get project root path")
 	runner := &CLIRunner{

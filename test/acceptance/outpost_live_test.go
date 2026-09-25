@@ -89,7 +89,7 @@ func newOutpostLiveClientFromCLIKey(t *testing.T) *hookdeck.Client {
 	require.NoError(t, err)
 
 	configPath := filepath.Join(t.TempDir(), "config.toml")
-	runner := NewCLIRunnerWithConfigPathNoCI(t, configPath)
+	runner := newCLIRunnerWithConfigPathAndKey(t, configPath, apiKey)
 	runner.projectRoot = projectRoot
 
 	stdout, stderr, err := runner.Run("ci", "--api-key", apiKey)
