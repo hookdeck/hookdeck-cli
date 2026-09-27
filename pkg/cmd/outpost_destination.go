@@ -21,14 +21,14 @@ func newOutpostDestinationCmd() *outpostDestinationCmd {
 		Use:     "destination",
 		Aliases: []string{"destinations"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Manage your Outpost destinations"),
-		Long: LongBeta(`Manage the destinations events are delivered to.
+		Short:   "Manage your Outpost destinations",
+		Long: `Manage the destinations events are delivered to.
 
 Destinations belong to a tenant, so every command here takes --tenant-id.
 
 Config and credential fields depend on the destination type. Pass them as
 repeatable key=value pairs — for example '--config url=https://example.com' — and
-run 'hookdeck outpost destination-type get <type>' to see what a type accepts.`),
+run 'hookdeck outpost destination-type get <type>' to see what a type accepts.`,
 	}
 
 	dc.cmd.PersistentFlags().StringVar(&dc.tenantID, "tenant-id", "", "The tenant that owns the destination (required)")

@@ -17,12 +17,12 @@ func newIssueCmd() *issueCmd {
 		Use:     "issue",
 		Aliases: []string{"issues"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Manage your issues"),
-		Long: LongBeta(`Manage Hookdeck issues.
+		Short:   "Manage your issues",
+		Long: `Manage Hookdeck issues.
 
 Issues are automatically created when delivery failures, transformation errors,
 or backpressure conditions are detected. Use these commands to list, inspect,
-update the status of, or dismiss issues.`),
+update the status of, or dismiss issues.`,
 	}
 
 	ic.cmd.AddCommand(newIssueListCmd().cmd)

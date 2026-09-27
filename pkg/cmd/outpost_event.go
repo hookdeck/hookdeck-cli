@@ -17,11 +17,11 @@ func newOutpostEventCmd() *outpostEventCmd {
 		Use:     "event",
 		Aliases: []string{"events"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Inspect published events"),
-		Long: LongBeta(`Inspect events published to your tenants' destinations.
+		Short:   "Inspect published events",
+		Long: `Inspect events published to your tenants' destinations.
 
 Events are created by publishing, so there is no create command here. Publishing
-is asynchronous, so a freshly published event can take a moment to appear.`),
+is asynchronous, so a freshly published event can take a moment to appear.`,
 	}
 
 	ec.cmd.AddCommand(newOutpostEventListCmd().cmd)

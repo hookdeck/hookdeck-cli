@@ -31,8 +31,8 @@ func newOutpostMCPCmd() *outpostMCPCmd {
 	mc.cmd = &cobra.Command{
 		Use:   "mcp",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Start an MCP server for AI agent access to Outpost"),
-		Long: LongBeta(`Starts a Model Context Protocol (MCP) server over stdio.
+		Short: "Start an MCP server for AI agent access to Outpost",
+		Long: `Starts a Model Context Protocol (MCP) server over stdio.
 
 The server exposes Hookdeck Outpost resources — tenants, destinations, events,
 attempts, topics, metrics and project configuration — as MCP tools that AI
@@ -60,7 +60,7 @@ not, the server still starts and hookdeck_login initiates browser-based sign-in.
 Signing in is a Hookdeck operation rather than an Outpost one, so it keeps the
 hookdeck_ prefix here as it does in 'hookdeck gateway mcp'.
 Protocol traffic uses stdout only (JSON-RPC); status and errors from the CLI
-before the server runs go to stderr.`),
+before the server runs go to stderr.`,
 		Example: `  # Start the MCP server, read-only (stdio transport)
   hookdeck outpost mcp
 

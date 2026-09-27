@@ -23,11 +23,11 @@ func newOutpostAttemptCmd() *outpostAttemptCmd {
 		Use:     "attempt",
 		Aliases: []string{"attempts"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Inspect delivery attempts"),
-		Long: LongBeta(`Inspect delivery attempts — each try at delivering an event to a destination.
+		Short:   "Inspect delivery attempts",
+		Long: `Inspect delivery attempts — each try at delivering an event to a destination.
 
 This is where to look when a destination is not receiving events: attempts carry
-the response code and body the destination returned.`),
+the response code and body the destination returned.`,
 	}
 
 	ac.cmd.AddCommand(newOutpostAttemptListCmd().cmd)

@@ -26,12 +26,12 @@ func newOutpostConfigCmd() *outpostConfigCmd {
 		Use:     "config",
 		Aliases: []string{"configs"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Manage Outpost project configuration"),
-		Long: LongBeta(`Read and change this project's Outpost configuration.
+		Short:   "Manage Outpost project configuration",
+		Long: `Read and change this project's Outpost configuration.
 
 These settings apply to the whole project — every tenant and destination — so a
 change here affects all delivery. Changes take a short while to reach the
-deployment; 'hookdeck outpost status' reports when it is still being applied.`),
+deployment; 'hookdeck outpost status' reports when it is still being applied.`,
 	}
 
 	cc.cmd.AddCommand(newOutpostConfigGetCmd().cmd)
@@ -53,11 +53,11 @@ func newOutpostConfigGetCmd() *outpostConfigGetCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "get [key]",
 		Args:  validators.MaximumNArgs(1),
-		Short: ShortBeta("Show project configuration"),
-		Long: LongBeta(`Show this project's Outpost configuration.
+		Short: "Show project configuration",
+		Long: `Show this project's Outpost configuration.
 
 Pass a key to print just that value, which is convenient in scripts. Unset keys
-are omitted unless you ask for one by name.`),
+are omitted unless you ask for one by name.`,
 		RunE: cc.run,
 		Example: `  # Show everything that is set
   hookdeck outpost config get
@@ -139,8 +139,8 @@ func newOutpostConfigSetCmd() *outpostConfigSetCmd {
 
 	cc.cmd = &cobra.Command{
 		Use:   "set [KEY=VALUE ...]",
-		Short: ShortBeta("Change project configuration"),
-		Long: LongBeta(`Change this project's Outpost configuration.
+		Short: "Change project configuration",
+		Long: `Change this project's Outpost configuration.
 
 Only the keys you pass are changed. --unset returns a key to its default.
 
@@ -148,7 +148,7 @@ This affects delivery for every tenant in the project, so use --dry-run first to
 see exactly what would change.
 
 Some keys are managed for you and are rejected if set directly; the API says
-which when that happens.`),
+which when that happens.`,
 		PreRunE: cc.validateFlags,
 		RunE:    cc.run,
 		Example: `  # Set the topics destinations can subscribe to

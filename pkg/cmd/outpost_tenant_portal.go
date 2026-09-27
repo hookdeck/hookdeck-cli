@@ -27,13 +27,13 @@ func newOutpostTenantPortalCmd() *outpostTenantPortalCmd {
 	tc.cmd = &cobra.Command{
 		Use:   "portal <tenant-id>",
 		Args:  validators.ExactArgs(1),
-		Short: ShortBeta("Get a tenant's portal URL"),
-		Long: LongBeta(`Get a redirect URL for a tenant's portal, where they manage their own destinations.
+		Short: "Get a tenant's portal URL",
+		Long: `Get a redirect URL for a tenant's portal, where they manage their own destinations.
 
 The URL grants access to that tenant's portal session, so treat it as a credential.
 
 This requires a portal custom domain to be configured for the project; see
-'hookdeck outpost config custom-domain'.`),
+'hookdeck outpost config custom-domain'.`,
 		PreRunE: tc.validateFlags,
 		RunE:    tc.runOutpostTenantPortalCmd,
 		Example: `  # Print the portal URL

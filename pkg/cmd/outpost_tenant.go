@@ -17,11 +17,11 @@ func newOutpostTenantCmd() *outpostTenantCmd {
 		Use:     "tenant",
 		Aliases: []string{"tenants"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Manage your Outpost tenants"),
-		Long: LongBeta(`Manage tenants — the end users events are delivered on behalf of.
+		Short:   "Manage your Outpost tenants",
+		Long: `Manage tenants — the end users events are delivered on behalf of.
 
 Each tenant owns its own destinations. Tenant IDs are chosen by you rather than
-generated, so use 'upsert' to create one: it is idempotent and safe to re-run.`),
+generated, so use 'upsert' to create one: it is idempotent and safe to re-run.`,
 	}
 
 	tc.cmd.AddCommand(newOutpostTenantListCmd().cmd)

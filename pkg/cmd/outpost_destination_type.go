@@ -24,11 +24,11 @@ func newOutpostDestinationTypeCmd() *outpostDestinationTypeCmd {
 		Use:     "destination-type",
 		Aliases: []string{"destination-types"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Inspect available destination types"),
-		Long: LongBeta(`Inspect the destination types this project can create, and the fields each accepts.
+		Short:   "Inspect available destination types",
+		Long: `Inspect the destination types this project can create, and the fields each accepts.
 
 Destination types are defined by the Outpost deployment rather than the CLI, so
-this is the authoritative list — it stays correct as new types are added.`),
+this is the authoritative list — it stays correct as new types are added.`,
 	}
 
 	dc.cmd.AddCommand(newOutpostDestinationTypeListCmd().cmd)

@@ -21,11 +21,11 @@ func newOutpostMetricsCmd() *outpostMetricsCmd {
 	mc.cmd = &cobra.Command{
 		Use:   "metrics",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Query aggregate metrics"),
-		Long: LongBeta(`Query aggregated metrics over a time range.
+		Short: "Query aggregate metrics",
+		Long: `Query aggregated metrics over a time range.
 
 Both subcommands require --start, --end and at least one --measures value, and
-can group results with --dimensions.`),
+can group results with --dimensions.`,
 	}
 
 	mc.cmd.AddCommand(newOutpostMetricsResourceCmd("events",
@@ -61,15 +61,15 @@ func newOutpostMetricsResourceCmd(resource, summary, measures, dimensions string
 	mc.cmd = &cobra.Command{
 		Use:   resource,
 		Args:  validators.NoArgs,
-		Short: ShortBeta(summary),
-		Long: LongBeta(fmt.Sprintf(`%s
+		Short: summary,
+		Long: fmt.Sprintf(`%s
 
 Measures: %s
 
 Dimensions: %s
 
 Omit --granularity for a single total over the whole range; set it (1h, 5m, 1d)
-to bucket the results over time.`, summary, measures, dimensions)),
+to bucket the results over time.`, summary, measures, dimensions),
 		PreRunE: mc.validateFlags,
 		RunE:    mc.run,
 		Example: fmt.Sprintf(`  # Total over the last week

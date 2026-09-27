@@ -23,12 +23,12 @@ func newOutpostStatusCmd() *outpostStatusCmd {
 	sc.cmd = &cobra.Command{
 		Use:   "status",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Show the Outpost deployment status"),
-		Long: LongBeta(`Show the status of this project's Outpost deployment.
+		Short: "Show the Outpost deployment status",
+		Long: `Show the status of this project's Outpost deployment.
 
 Worth checking first when something is not behaving: configuration changes take
 a short while to reach the deployment, and the status reports when it is still
-being applied.`),
+being applied.`,
 		RunE: sc.run,
 		Example: `  # Check deployment status
   hookdeck outpost status`,

@@ -18,8 +18,8 @@ func newMetricsRequestsCmd() *metricsRequestsCmd {
 	c.cmd = &cobra.Command{
 		Use:   "requests",
 		Args:  cobra.NoArgs,
-		Short: ShortBeta("Query request metrics"),
-		Long:  LongBeta(`Query metrics for requests (acceptance, rejection, etc.). Measures: ` + hookdeck.RequestMetricsMeasures + `.`),
+		Short: "Query request metrics",
+		Long:  `Query metrics for requests (acceptance, rejection, etc.). Measures: ` + hookdeck.RequestMetricsMeasures + `.`,
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.RequestMetricsFilters, hookdeck.RequestMetricsDimensions, hookdeck.RequestStatusValues)

@@ -114,14 +114,14 @@ func newOutpostCmd() *outpostCmd {
 	oc.cmd = &cobra.Command{
 		Use:   "outpost",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Manage your Hookdeck Outpost resources"),
-		Long: LongBeta(`Commands for managing Hookdeck Outpost tenants, destinations, events,
+		Short: "Manage your Hookdeck Outpost resources",
+		Long: `Commands for managing Hookdeck Outpost tenants, destinations, events,
 attempts, topics, metrics, and project configuration.
 
 Outpost delivers events to your users' destinations. Each of your users is a tenant,
 and each tenant owns the destinations their events are delivered to.
 
-These commands require an Outpost project. Use 'hookdeck project use' to switch.`),
+These commands require an Outpost project. Use 'hookdeck project use' to switch.`,
 		Example: `  # List tenants
   hookdeck outpost tenant list
 

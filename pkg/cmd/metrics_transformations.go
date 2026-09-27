@@ -18,8 +18,8 @@ func newMetricsTransformationsCmd() *metricsTransformationsCmd {
 	c.cmd = &cobra.Command{
 		Use:   "transformations",
 		Args:  cobra.NoArgs,
-		Short: ShortBeta("Query transformation metrics"),
-		Long:  LongBeta(`Query metrics for transformations. Measures: ` + hookdeck.TransformationMetricsMeasures + `.`),
+		Short: "Query transformation metrics",
+		Long:  `Query metrics for transformations. Measures: ` + hookdeck.TransformationMetricsMeasures + `.`,
 		RunE:  c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.TransformationMetricsFilters, hookdeck.TransformationMetricsDimensions, hookdeck.TransformationStatusValues)
