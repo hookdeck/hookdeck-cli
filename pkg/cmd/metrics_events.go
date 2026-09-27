@@ -21,8 +21,8 @@ func newMetricsEventsCmd() *metricsEventsCmd {
 	c.cmd = &cobra.Command{
 		Use:   "events",
 		Args:  cobra.NoArgs,
-		Short: ShortBeta("Query event metrics"),
-		Long: LongBeta(`Query event metrics: volume and success/failure counts, error rate, queue depth,
+		Short: "Query event metrics",
+		Long: `Query event metrics: volume and success/failure counts, error rate, queue depth,
 pending over time, or per-issue. Use --measures and --dimensions to choose what to query.
 Requires --start and --end.
 
@@ -33,7 +33,7 @@ them: queue_depth, max_depth, max_age and pending each select their own, and
 none of them can be combined with per-issue (--dimensions issue_id, --issue-id).
 
 Measures: ` + hookdeck.EventMetricsMeasures + `.
-Dimensions: ` + metricsEventsDimensions + `.`),
+Dimensions: ` + metricsEventsDimensions + `.`,
 		RunE: c.runE,
 	}
 	addMetricsCommonFlags(c.cmd, &c.flags, hookdeck.EventMetricsFilters, hookdeck.EventMetricsDimensions, hookdeck.EventStatusValues)

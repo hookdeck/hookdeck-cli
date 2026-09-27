@@ -170,12 +170,12 @@ func newMetricsCmd() *metricsCmd {
 	mc.cmd = &cobra.Command{
 		Use:   "metrics",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Query Event Gateway metrics"),
-		Long: LongBeta(`Query metrics for events, requests, attempts, and transformations.
+		Short: "Query Event Gateway metrics",
+		Long: `Query metrics for events, requests, attempts, and transformations.
 Requires --start and --end (ISO 8601 date-time). Use subcommands to choose the metric type.
 
 For event metrics you can query volume, queue depth, pending over time, or per-issue;
-use --measures, --dimensions, and --issue-id on the events subcommand.`),
+use --measures, --dimensions, and --issue-id on the events subcommand.`,
 	}
 
 	mc.cmd.AddCommand(newMetricsEventsCmd().cmd)

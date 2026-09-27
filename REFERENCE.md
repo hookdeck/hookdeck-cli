@@ -2197,9 +2197,6 @@ The token grants access to that tenant's data and is valid for 24 hours. Treat i
 as a credential: it is intended for your own backend to hand to a tenant's session,
 not to be pasted into a shell history or shared.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -2235,9 +2232,6 @@ The URL grants access to that tenant's portal session, so treat it as a credenti
 
 This requires a portal custom domain to be configured for the project; see
 'hookdeck outpost config custom-domain'.
-
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
 
 **Usage:**
 
@@ -2664,9 +2658,6 @@ list' to see the outcome.
 
 The destination must be enabled and must subscribe to the event's topic.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -2775,9 +2766,6 @@ other outpost command. The credentials stored by 'hookdeck login' are not
 accepted by the publish API, so pass `--api-key` or set HOOKDECK_API_KEY. You can
 create a Project API key in the Hookdeck dashboard under project settings.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -2847,9 +2835,6 @@ Dimensions: tenant_id, topic, destination_id
 Omit `--granularity` for a single total over the whole range; set it (1h, 5m, 1d)
 to bucket the results over time.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -2889,9 +2874,6 @@ Dimensions: tenant_id, destination_id, destination_type, topic, status, code, ma
 Omit `--granularity` for a single total over the whole range; set it (1h, 5m, 1d)
 to bucket the results over time.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -2926,9 +2908,6 @@ Show this project's Outpost configuration.
 
 Pass a key to print just that value, which is convenient in scripts. Unset keys
 are omitted unless you ask for one by name.
-
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
 
 **Usage:**
 
@@ -2969,9 +2948,6 @@ see exactly what would change.
 Some keys are managed for you and are rejected if set directly; the API says
 which when that happens.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -3009,9 +2985,6 @@ hookdeck outpost config set --unset MAX_RETRY_LIMIT
 
 Show the custom domain configured for the tenant portal, if any.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -3036,9 +3009,6 @@ Configure a custom hostname for the tenant portal.
 
 The response includes the DNS records to create. The domain is not usable until
 they have propagated and been verified.
-
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
 
 **Usage:**
 
@@ -3070,9 +3040,6 @@ Remove the tenant portal's custom domain.
 
 Tenant portal URLs stop working until another domain is configured.
 
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
-
 **Usage:**
 
 ```bash
@@ -3101,9 +3068,6 @@ Show the status of this project's Outpost deployment.
 Worth checking first when something is not behaving: configuration changes take
 a short while to reach the deployment, and the status reports when it is still
 being applied.
-
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
 
 **Usage:**
 
@@ -3164,9 +3128,6 @@ Signing in is a Hookdeck operation rather than an Outpost one, so it keeps the
 hookdeck_ prefix here as it does in 'hookdeck gateway mcp'.
 Protocol traffic uses stdout only (JSON-RPC); status and errors from the CLI
 before the server runs go to stderr.
-
-[BETA] This feature is in beta. Please share bugs and feedback via:
-https://github.com/hookdeck/hookdeck-cli/issues
 
 **Usage:**
 

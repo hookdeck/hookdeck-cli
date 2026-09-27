@@ -22,11 +22,11 @@ func newOutpostTopicCmd() *outpostTopicCmd {
 		Use:     "topic",
 		Aliases: []string{"topics"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Inspect available topics"),
-		Long: LongBeta(`Inspect the topics destinations can subscribe to.
+		Short:   "Inspect available topics",
+		Long: `Inspect the topics destinations can subscribe to.
 
 Topics are project configuration rather than a resource, so there is no create
-command. Change them with 'hookdeck outpost config set TOPICS=a,b,c'.`),
+command. Change them with 'hookdeck outpost config set TOPICS=a,b,c'.`,
 	}
 
 	tc.cmd.AddCommand(newOutpostTopicListCmd().cmd)

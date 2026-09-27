@@ -34,8 +34,8 @@ func newOutpostPublishCmd() *outpostPublishCmd {
 	pc.cmd = &cobra.Command{
 		Use:   "publish",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Publish an event"),
-		Long: LongBeta(`Publish an event to a topic, for delivery to a tenant's matching destinations.
+		Short: "Publish an event",
+		Long: `Publish an event to a topic, for delivery to a tenant's matching destinations.
 
 Publishing is asynchronous: a successful response means the event was accepted,
 not that it has been delivered.
@@ -43,7 +43,7 @@ not that it has been delivered.
 This command needs a Hookdeck Project API key, which is different from every
 other outpost command. The credentials stored by 'hookdeck login' are not
 accepted by the publish API, so pass --api-key or set HOOKDECK_API_KEY. You can
-create a Project API key in the Hookdeck dashboard under project settings.`),
+create a Project API key in the Hookdeck dashboard under project settings.`,
 		PreRunE: pc.validateFlags,
 		RunE:    pc.run,
 		Example: `  # Publish an event

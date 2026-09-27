@@ -17,9 +17,9 @@ func newEventCmd() *eventCmd {
 		Use:     "event",
 		Aliases: []string{"events"},
 		Args:    validators.NoArgs,
-		Short:   ShortBeta("Inspect and manage events"),
-		Long: LongBeta(`List, get, retry, cancel, or mute events (processed webhook deliveries).
-Filter by connection ID (--connection-id), status, source, or destination.`),
+		Short:   "Inspect and manage events",
+		Long: `List, get, retry, cancel, or mute events (processed webhook deliveries).
+Filter by connection ID (--connection-id), status, source, or destination.`,
 	}
 
 	ec.cmd.AddCommand(newEventListCmd().cmd)

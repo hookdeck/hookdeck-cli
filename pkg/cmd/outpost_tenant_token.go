@@ -21,12 +21,12 @@ func newOutpostTenantTokenCmd() *outpostTenantTokenCmd {
 	tc.cmd = &cobra.Command{
 		Use:   "token <tenant-id>",
 		Args:  validators.ExactArgs(1),
-		Short: ShortBeta("Mint a JWT for a tenant"),
-		Long: LongBeta(`Mint a short-lived JWT scoped to a single tenant.
+		Short: "Mint a JWT for a tenant",
+		Long: `Mint a short-lived JWT scoped to a single tenant.
 
 The token grants access to that tenant's data and is valid for 24 hours. Treat it
 as a credential: it is intended for your own backend to hand to a tenant's session,
-not to be pasted into a shell history or shared.`),
+not to be pasted into a shell history or shared.`,
 		RunE: tc.runOutpostTenantTokenCmd,
 		Example: `  # Mint a token for a tenant
   hookdeck outpost tenant token acme

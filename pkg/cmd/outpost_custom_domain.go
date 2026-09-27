@@ -19,12 +19,12 @@ func newOutpostCustomDomainCmd() *outpostCustomDomainCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "custom-domain",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Manage the tenant portal's custom domain"),
-		Long: LongBeta(`Manage the custom hostname that serves your tenants' portal.
+		Short: "Manage the tenant portal's custom domain",
+		Long: `Manage the custom hostname that serves your tenants' portal.
 
 A custom domain is required before 'hookdeck outpost tenant portal' can return a
 URL. Adding one returns the DNS records to create; the domain starts working
-once they have propagated and been verified.`),
+once they have propagated and been verified.`,
 	}
 
 	cc.cmd.AddCommand(newOutpostCustomDomainGetCmd().cmd)
@@ -46,8 +46,8 @@ func newOutpostCustomDomainGetCmd() *outpostCustomDomainGetCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "get",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Show the portal custom domain"),
-		Long:  LongBeta(`Show the custom domain configured for the tenant portal, if any.`),
+		Short: "Show the portal custom domain",
+		Long:  `Show the custom domain configured for the tenant portal, if any.`,
 		RunE:  cc.run,
 		Example: `  # Show the configured custom domain
   hookdeck outpost config custom-domain get`,
@@ -98,11 +98,11 @@ func newOutpostCustomDomainSetCmd() *outpostCustomDomainSetCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "set <hostname>",
 		Args:  validators.ExactArgs(1),
-		Short: ShortBeta("Set the portal custom domain"),
-		Long: LongBeta(`Configure a custom hostname for the tenant portal.
+		Short: "Set the portal custom domain",
+		Long: `Configure a custom hostname for the tenant portal.
 
 The response includes the DNS records to create. The domain is not usable until
-they have propagated and been verified.`),
+they have propagated and been verified.`,
 		RunE: cc.run,
 		Example: `  # Configure a custom domain
   hookdeck outpost config custom-domain set portal.example.com`,
@@ -148,10 +148,10 @@ func newOutpostCustomDomainDeleteCmd() *outpostCustomDomainDeleteCmd {
 	cc.cmd = &cobra.Command{
 		Use:   "delete",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Remove the portal custom domain"),
-		Long: LongBeta(`Remove the tenant portal's custom domain.
+		Short: "Remove the portal custom domain",
+		Long: `Remove the tenant portal's custom domain.
 
-Tenant portal URLs stop working until another domain is configured.`),
+Tenant portal URLs stop working until another domain is configured.`,
 		RunE: cc.run,
 		Example: `  # Remove the custom domain, with a confirmation prompt
   hookdeck outpost config custom-domain delete

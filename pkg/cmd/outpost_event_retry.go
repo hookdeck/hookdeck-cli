@@ -24,14 +24,14 @@ func newOutpostEventRetryCmd() *outpostEventRetryCmd {
 	ec.cmd = &cobra.Command{
 		Use:   "retry",
 		Args:  validators.NoArgs,
-		Short: ShortBeta("Retry delivering an event to a destination"),
-		Long: LongBeta(`Deliver an event to a destination again.
+		Short: "Retry delivering an event to a destination",
+		Long: `Deliver an event to a destination again.
 
 The retry is queued rather than performed inline, so a successful response means
 it was accepted, not that it has been delivered. Use 'hookdeck outpost attempt
 list' to see the outcome.
 
-The destination must be enabled and must subscribe to the event's topic.`),
+The destination must be enabled and must subscribe to the event's topic.`,
 		PreRunE: ec.validateFlags,
 		RunE:    ec.run,
 		Example: `  # Retry one delivery
