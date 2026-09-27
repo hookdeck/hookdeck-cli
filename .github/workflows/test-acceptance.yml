@@ -76,5 +76,16 @@ on:
 
 jobs:
   acceptance:
+    # Not for Dependabot. GitHub does not pass repository secrets to a workflow
+    # Dependabot triggers, so every test key is empty and every slice fails in
+    # seconds with "HOOKDECK_CLI_TESTING_API_KEY ... must be set" -- whatever the
+    # dependency. A check that is always red teaches people to ignore red, so
+    # it is skipped instead.
+    #
+    # A dependency bump is still covered: merging it pushes to main as the
+    # merger, not Dependabot, so the post-merge run has secrets and runs in full.
+    # To test before merging, dispatch this workflow on the Dependabot branch.
+    # The release gate calls acceptance.yml directly and is unaffected.
+    if: github.actor != 'dependabot[bot]'
     uses: ./.github/workflows/acceptance.yml
     secrets: inherit

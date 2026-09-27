@@ -66,6 +66,18 @@ than the colour:
 gh run view --job=<id> --log | grep -E -- '--- (SKIP|PASS): <TestName>'
 ```
 
+### Dependabot pull requests skip acceptance, on purpose
+
+GitHub does not pass repository secrets to a workflow Dependabot triggers, so
+acceptance on a Dependabot PR used to fail every slice in seconds on an empty
+test key, whatever the bump. `test-acceptance.yml` now skips the job when
+`github.actor` is `dependabot[bot]`, so the check reads skipped, not red.
+
+That is not the same as covered. The post-merge push to `main` runs as the
+person who merged, with secrets, and is the real run -- confirm it finished.
+For a bump that touches something tests exercise, check before merging: run the
+related tags locally, or dispatch the workflow on the Dependabot branch.
+
 ### A cancelled acceptance run is not a run either
 
 Every acceptance run shares one concurrency group, `acceptance-suite`, so runs
