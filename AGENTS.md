@@ -368,6 +368,27 @@ Use the shared helpers in **`pkg/cmd/helptext.go`** for resource commands so Sho
 
 When adding a **new resource** that follows the same CRUD/get/list/delete/disable/enable/create/upsert pattern, add a new constant (e.g. `ResourceDestination`) and use the same Short/Long intro helpers; extend `helptext.go` only when you need a new *pattern* (e.g. a new verb), not for each resource. Keep command-specific wording (e.g. "Create a connection between a source and destination", list filter descriptions) in the command file.
 
+### Labelling something beta
+
+**Default: no label.** A command, flag or MCP tool that ships in a release is supported. Do not mark it beta because it is new, lightly used, or has had no feedback from a beta release — a label on a GA command discourages the use that would build confidence, and newness is not a risk.
+
+Label something beta **only when one of these holds:**
+
+1. **Operational risk.** Misuse can disrupt delivery or lose data in a way the CLI cannot guard against — delivery groups is the example.
+2. **A planned breaking change.** Its interface — flags, output shape, tool names or arguments — is expected to change within the next minor release, and you can say what will change.
+3. **The feature it wraps is beta.** The API capability behind it is itself beta or behind a feature flag.
+
+**Never** label for newness, low usage, missing beta-tester feedback, or doubt that it works — if it may not work, it is not ready to ship; test it more.
+
+**When a label is justified:**
+
+- **Label the narrowest thing** that is at risk — a flag or an output field, not the whole command.
+- **Say what is unstable or risky** in the label's text. A generic "This feature is in beta" tells the reader nothing to act on.
+- **Record the exit criterion** — what has to be true for the label to come off, and roughly when — at the moment the label goes on.
+- **Review every label at each minor release.** A label with no exit criterion does not come off: the Event Gateway commands carried `[BETA]` from at least v2.0.0 until v3.0.3, through several GA releases.
+
+This is separate from **beta releases** (`vX.Y.Z-beta.N`, npm `@beta`, the `hookdeck-beta` formula), which are a release channel, not a label on a command.
+
 ### Cobra Example and output for website docs
 
 CLI content is generated for the website via `tools/generate-reference`. The generator emits usage, **arguments** (if `Annotations["cli.arguments"]` is set), flags, and the command's `Example` field. Human-injected content in the website (output examples, scenario walkthroughs, behavioral notes) is **required**—it improves docs beyond what generation provides.
