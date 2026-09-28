@@ -15,12 +15,6 @@ const CapabilitiesHeader = "X-Hookdeck-CLI-Capabilities"
 // CapabilityBinaryBody means the CLI forwards request.data_base64 as raw bytes.
 const CapabilityBinaryBody = "binary"
 
-// advertisedCapabilities is the CapabilitiesHeader value sent on connect. It is
-// a variable so acceptance tests can build a CLI that advertises nothing
-// (-ldflags "-X .../pkg/websocket.advertisedCapabilities="), which the server
-// treats exactly like a release that predates binary delivery.
-var advertisedCapabilities = CapabilityBinaryBody
-
 // BodyFormatBinary marks an attempt whose body is carried in DataBase64.
 const BodyFormatBinary = "binary"
 

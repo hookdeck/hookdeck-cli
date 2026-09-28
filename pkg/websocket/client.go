@@ -303,9 +303,7 @@ func (c *Client) connect(ctx context.Context) error {
 	header.Set("Accept-Encoding", "identity")
 	header.Set("User-Agent", useragent.GetEncodedUserAgent())
 	header.Set("X-Hookdeck-Client-User-Agent", useragent.GetEncodedHookdeckUserAgent())
-	if advertisedCapabilities != "" {
-		header.Set(CapabilitiesHeader, advertisedCapabilities)
-	}
+	header.Set(CapabilitiesHeader, CapabilityBinaryBody)
 	header.Set("Websocket-Id", c.WebSocketID)
 	header.Set("X-Team-Id", c.TeamID)
 	header.Set("Authorization", "Basic "+basicAuth(c.CLIKey, ""))

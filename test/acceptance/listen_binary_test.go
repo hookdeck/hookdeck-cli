@@ -3,7 +3,9 @@
 package acceptance
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -21,8 +23,8 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -46,23 +48,55 @@ const binaryDeliveryEnvVar = "HOOKDECK_CLI_TESTING_BINARY_DELIVERY"
 // stored as UTF-8 text and non-UTF-8 file parts cannot survive.
 const multipartBinaryDeliveryEnvVar = "HOOKDECK_CLI_TESTING_MULTIPART_BINARY_DELIVERY"
 
-// buildLegacyCLI builds this CLI advertising no capabilities. The capabilities
-// header is the only thing the server uses to decide how to send a body, so to
-// the server this binary is indistinguishable from a release that predates
-// binary delivery.
-func buildLegacyCLI(t *testing.T) string {
+// legacyCLIVersion is the last release before binary delivery: it sends no
+// X-Hookdeck-CLI-Capabilities header and only reads data_string.
+const legacyCLIVersion = "3.0.3"
+
+// legacyCLIChecksums pins the SHA-256 of each release tarball, from the
+// release's published checksum files.
+var legacyCLIChecksums = map[string]string{
+	"darwin_amd64": "a2ccc50db7211cadb20d23f8025b69b1b8ba180d92cfb4c92d7fd74e907f73e8",
+	"darwin_arm64": "b26f0e4a077c80cdde5cef8f71f189e27bcdf4cbc5792ce89f765f310f147764",
+	"linux_amd64":  "73ecce58128efb8dce09657085f642bb470b618857ff4d53d400b585cf65d764",
+	"linux_arm64":  "a98f6e46ca3d147d37af12cdf8a08651818097c20f521cf6ebc1131b9ef65bf7",
+}
+
+// downloadLegacyCLI fetches the released v3.0.3 binary for this platform,
+// verifies it against the pinned checksum, and returns its path.
+func downloadLegacyCLI(t *testing.T) string {
 	t.Helper()
-	projectRoot, err := filepath.Abs("../..")
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	want, ok := legacyCLIChecksums[platform]
+	require.True(t, ok, "no pinned v%s release for %s", legacyCLIVersion, platform)
+
+	asset := fmt.Sprintf("hookdeck_%s_%s.tar.gz", legacyCLIVersion, platform)
+	url := fmt.Sprintf("https://github.com/hookdeck/hookdeck-cli/releases/download/v%s/%s", legacyCLIVersion, asset)
+	client := &http.Client{Timeout: 2 * time.Minute}
+	resp, err := client.Get(url)
+	require.NoError(t, err, "download %s", url)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "download %s", url)
+	archive, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	binary := filepath.Join(projectRoot, "hookdeck-listen-legacy-"+generateTimestamp())
-	build := exec.Command("go", "build",
-		"-ldflags", "-X github.com/hookdeck/hookdeck-cli/pkg/websocket.advertisedCapabilities=",
-		"-o", binary, ".")
-	build.Dir = projectRoot
-	out, err := build.CombinedOutput()
-	require.NoError(t, err, "failed to build legacy CLI: %s", out)
-	t.Cleanup(func() { _ = os.Remove(binary) })
-	return binary
+	require.Equal(t, want, fmt.Sprintf("%x", sha256.Sum256(archive)), "checksum mismatch for %s", asset)
+
+	gz, err := gzip.NewReader(bytes.NewReader(archive))
+	require.NoError(t, err)
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		require.NoError(t, err, "hookdeck binary not found in %s", asset)
+		if hdr.Name != "hookdeck" {
+			continue
+		}
+		binary := filepath.Join(t.TempDir(), "hookdeck-"+legacyCLIVersion)
+		f, err := os.OpenFile(binary, os.O_CREATE|os.O_WRONLY, 0o755)
+		require.NoError(t, err)
+		_, err = io.Copy(f, tr)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		return binary
+	}
 }
 
 func requireBinaryDelivery(t *testing.T) {
@@ -477,14 +511,14 @@ func TestListenRetriesBinaryBodyByteExact(t *testing.T) {
 	assertSavedFile(t, second.files["body"], f)
 }
 
-// TestListenBinaryWithOldAndNewCLIListening runs a CLI that advertises no
-// capabilities (see buildLegacyCLI) and this CLI on the same source at the
-// same time. Each session gets its own event: this CLI receives the exact
-// bytes, while the old CLI's event fails closed (or, for multipart, is
-// delivered as the lossy text it always got).
+// TestListenBinaryWithOldAndNewCLIListening runs the released v3.0.3 CLI, which
+// predates binary delivery, and this CLI on the same source at the same time,
+// as separate CLI clients. Each session gets its own event: this CLI receives
+// the exact bytes, while the old CLI's event fails closed (or, for multipart,
+// is delivered as the lossy text it always got).
 func TestListenBinaryWithOldAndNewCLIListening(t *testing.T) {
 	requireBinaryDelivery(t)
-	legacyBinary := buildLegacyCLI(t)
+	legacyBinary := downloadLegacyCLI(t)
 
 	s := newBinaryListenSetup(t, "test-bin-mixed")
 	legacyCLI := newSeparateCLIClient(t, s.cli)
