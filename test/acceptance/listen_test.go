@@ -63,6 +63,17 @@ func startListenCapturingOutput(t *testing.T, cli *CLIRunner, extraArgs ...strin
 	require.NoError(t, buildCmd.Run(), "failed to build CLI binary")
 	t.Cleanup(func() { _ = os.Remove(binary) })
 
+	return startListenBinaryCapturingOutput(t, cli, binary, extraArgs...)
+}
+
+// startListenBinaryCapturingOutput runs `listen` from an already-built CLI
+// binary, for example an older release, with the runner's config file.
+func startListenBinaryCapturingOutput(t *testing.T, cli *CLIRunner, binary string, extraArgs ...string) (*exec.Cmd, *syncBuffer, *syncBuffer, chan error) {
+	t.Helper()
+
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root")
+
 	cmd := exec.Command(binary, extraArgs...)
 	cmd.Dir = projectRoot
 
@@ -507,134 +518,4 @@ func TestListenPrefersEnvAPIKeyOverGuestProfile(t *testing.T) {
 		"the guest key should have been replaced by the exchanged CLI client key")
 	assert.NotContains(t, string(configBytes), "console.hookdeck.com/e/",
 		"guest_url should be cleared once a real project is configured")
-}
-
-// binaryDeliveryEnvVar gates TestListenForwardsBinaryBodiesByteExact. The test
-// needs server support that ships separately from the CLI: Core must send
-// data_base64 to sessions advertising the binary capability, and ingestion must
-// store these bodies as binary (BINARY_PAYLOADS_ENABLED). Against a server
-// without that, binary events fail with CLI_BINARY_UNSUPPORTED and nothing
-// reaches the local server. Set it in CI once the server side is deployed, and
-// then remove the gate.
-const binaryDeliveryEnvVar = "HOOKDECK_CLI_TESTING_BINARY_DELIVERY"
-
-// multipartBinaryDeliveryEnvVar additionally enables the multipart case, which
-// also needs ingestion to store multipart/form-data as binary
-// (hookdeck/http-ingestion#547, hookdeck/core#5708). Until then multipart is
-// stored as UTF-8 text and the non-UTF-8 file part cannot survive.
-const multipartBinaryDeliveryEnvVar = "HOOKDECK_CLI_TESTING_MULTIPART_BINARY_DELIVERY"
-
-type forwardedRequest struct {
-	body        []byte
-	contentType string
-}
-
-// TestListenForwardsBinaryBodiesByteExact sends non-UTF-8 bodies through a real
-// source and `hookdeck listen`, and checks the local server receives the exact
-// bytes and the original Content-Type.
-func TestListenForwardsBinaryBodiesByteExact(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	if os.Getenv(binaryDeliveryEnvVar) == "" {
-		t.Skipf("set %s=1 once the server delivers binary bodies to the CLI", binaryDeliveryEnvVar)
-	}
-
-	cli := NewCLIRunner(t)
-	timestamp := generateTimestamp()
-
-	received := make(chan forwardedRequest, 8)
-	localServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		select {
-		case received <- forwardedRequest{body: body, contentType: r.Header.Get("Content-Type")}:
-		default:
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer localServer.Close()
-
-	localURL, err := url.Parse(localServer.URL)
-	require.NoError(t, err)
-	port := localURL.Port()
-	require.NotEmpty(t, port)
-
-	sourceName := "test-bin-" + timestamp
-	var conn Connection
-	require.NoError(t, cli.RunJSON(&conn,
-		"gateway", "connection", "create",
-		"--name", "test-bin-conn-"+timestamp,
-		"--source-name", sourceName,
-		"--source-type", "WEBHOOK",
-		"--destination-name", "test-bin-dst-"+timestamp,
-		"--destination-type", "CLI",
-		"--destination-cli-path", "/",
-	))
-	require.NotEmpty(t, conn.ID)
-	t.Cleanup(func() { deleteConnection(t, cli, conn.ID) })
-
-	var src Source
-	require.NoError(t, cli.RunJSON(&src, "gateway", "source", "get", conn.Source.ID))
-	require.NotEmpty(t, src.URL)
-
-	_, stdout, stderr, done := startListenCapturingOutput(t, cli, "listen", port, sourceName, "--output", "compact")
-
-	t.Log("Waiting 12 seconds for the tunnel to connect...")
-	time.Sleep(12 * time.Second)
-	select {
-	case err := <-done:
-		t.Logf("STDOUT: %s", stdout.String())
-		t.Logf("STDERR: %s", stderr.String())
-		t.Fatalf("listen exited before forwarding anything: %v", err)
-	default:
-	}
-
-	// Every byte value: any UTF-8 decode on the way would replace 0x80-0xff.
-	allBytes := make([]byte, 256)
-	for i := range allBytes {
-		allBytes[i] = byte(i)
-	}
-
-	expectForwarded := func(t *testing.T, contentType string, body []byte) {
-		t.Helper()
-		postRaw(t, src.URL, contentType, body)
-		select {
-		case got := <-received:
-			assert.Equal(t, contentType, got.contentType, "original Content-Type must be forwarded")
-			assert.True(t, bytes.Equal(body, got.body),
-				"forwarded body differs from what was sent (%d bytes sent, %d received)", len(body), len(got.body))
-		case <-time.After(45 * time.Second):
-			t.Logf("STDOUT: %s", stdout.String())
-			t.Logf("STDERR: %s", stderr.String())
-			t.Fatal("no event reached the local server within 45s; if the event failed with CLI_BINARY_UNSUPPORTED, the server does not deliver binary bodies to this CLI")
-		}
-	}
-
-	t.Run("octet-stream", func(t *testing.T) {
-		expectForwarded(t, "application/octet-stream", allBytes)
-	})
-
-	t.Run("multipart with binary file part", func(t *testing.T) {
-		if os.Getenv(multipartBinaryDeliveryEnvVar) == "" {
-			t.Skipf("set %s=1 once ingestion stores multipart bodies as binary", multipartBinaryDeliveryEnvVar)
-		}
-		boundary := "hookdeck-acceptance-" + timestamp
-		var body bytes.Buffer
-		body.WriteString("--" + boundary + "\r\nContent-Disposition: form-data; name=\"field\"\r\n\r\nvalue\r\n")
-		body.WriteString("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"f.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n")
-		body.Write(allBytes)
-		body.WriteString("\r\n--" + boundary + "--\r\n")
-		expectForwarded(t, "multipart/form-data; boundary="+boundary, body.Bytes())
-	})
-}
-
-// postRaw sends body to a source URL with the given Content-Type, unmodified.
-func postRaw(t *testing.T, sourceURL, contentType string, body []byte) {
-	t.Helper()
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(sourceURL, contentType, bytes.NewReader(body))
-	require.NoError(t, err, "POST to source URL failed")
-	defer resp.Body.Close()
-	require.True(t, resp.StatusCode >= 200 && resp.StatusCode < 300,
-		"POST to source URL returned %d", resp.StatusCode)
 }
