@@ -1219,6 +1219,8 @@ $ hookdeck gateway connection create \
   --rule-retry-count 3
 ```
 
+Rules built from `--rule-*` flags follow the order in which each rule type's first flag appears. Filter, transform and deduplicate rules run in that order, so put `--rule-filter-*` before `--rule-transform-*` to filter on the original payload. To set the whole array explicitly, use `--rules` or `--rules-file`.
+
 #### Configure rate limiting
 
 Control the rate of event delivery to your destination:

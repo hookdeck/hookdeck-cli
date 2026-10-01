@@ -71,7 +71,7 @@ var connectionsSpec = mcpcore.ToolSpec{
 			{On: []string{"list"}, Text: "Filters on %s."},
 			{On: []string{"create", "upsert", "update"}, Text: "Links the destination on %s."},
 		}},
-		"rules":    {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset.", Items: &mcpcore.Prop{Type: "object"}, Write: true, Actions: []string{"create", "upsert", "update"}},
+		"rules":    {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset. Order matters: filter, transform and deduplicate rules run in array order, so send the full array in the intended order.", Items: &mcpcore.Prop{Type: "object"}, Write: true, Actions: []string{"create", "upsert", "update"}},
 		"disabled": {Type: "boolean", Desc: "Filter disabled connections (list)", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
 		"limit":    {Type: "integer", Desc: "Max results (list)", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
 		"next":     {Type: "string", Desc: "Next page cursor", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
