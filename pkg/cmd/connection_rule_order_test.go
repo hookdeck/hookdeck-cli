@@ -74,6 +74,16 @@ func TestBuildConnectionRulesFollowsFlagOrder(t *testing.T) {
 			args: []string{"--rule-retry-count", "3", "--rule-filter-body", `{"type":"order"}`, "--rule-retry-strategy", "linear"},
 			want: []string{"retry", "filter"},
 		},
+		{
+			name: "zero-value flag records a position but builds no rule",
+			args: []string{"--rule-delay", "0", "--rule-filter-body", `{"type":"order"}`},
+			want: []string{"filter"},
+		},
+		{
+			name: "zero-value flag position kept when a later flag sets the rule",
+			args: []string{"--rule-delay", "0", "--rule-filter-body", `{"type":"order"}`, "--rule-delay", "500"},
+			want: []string{"delay", "filter"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
