@@ -373,6 +373,11 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	if err != nil {
 		return err
 	}
+	if req.Rules != nil {
+		if err := resolveRuleTransformation(context.Background(), client, &cu.connectionCreateCmd.connectionRuleFlags, *req.Rules); err != nil {
+			return err
+		}
+	}
 
 	// For dry-run mode, preview changes without applying
 	if cu.dryRun {

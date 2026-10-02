@@ -82,9 +82,9 @@ func addConnectionRuleFlags(cmd *cobra.Command, f *connectionRuleFlags) {
 	cmd.Flags().StringVar(&f.RuleFilterQuery, "rule-filter-query", "", "Filter on request query parameters using Hookdeck filter syntax (JSON)")
 	cmd.Flags().StringVar(&f.RuleFilterPath, "rule-filter-path", "", "Filter on request path using Hookdeck filter syntax (JSON)")
 
-	cmd.Flags().StringVar(&f.RuleTransformName, "rule-transform-name", "", "Name or ID of the transformation to apply")
-	cmd.Flags().StringVar(&f.RuleTransformCode, "rule-transform-code", "", "Transformation code (if creating inline)")
-	cmd.Flags().StringVar(&f.RuleTransformEnv, "rule-transform-env", "", "JSON string representing environment variables for transformation")
+	cmd.Flags().StringVar(&f.RuleTransformName, "rule-transform-name", "", "Name or ID of an existing transformation to apply. With --rule-transform-code, an existing transformation's code is replaced, or a new transformation is created with this name")
+	cmd.Flags().StringVar(&f.RuleTransformCode, "rule-transform-code", "", "Transformation code. Creates the transformation named by --rule-transform-name, or replaces its code if it exists")
+	cmd.Flags().StringVar(&f.RuleTransformEnv, "rule-transform-env", "", "JSON string representing environment variables for transformation. Replaces the env of an existing transformation")
 
 	cmd.Flags().IntVar(&f.RuleDelay, "rule-delay", 0, "Delay in milliseconds")
 
