@@ -63,6 +63,17 @@ func startListenCapturingOutput(t *testing.T, cli *CLIRunner, extraArgs ...strin
 	require.NoError(t, buildCmd.Run(), "failed to build CLI binary")
 	t.Cleanup(func() { _ = os.Remove(binary) })
 
+	return startListenBinaryCapturingOutput(t, cli, binary, extraArgs...)
+}
+
+// startListenBinaryCapturingOutput runs `listen` from an already-built CLI
+// binary, for example an older release, with the runner's config file.
+func startListenBinaryCapturingOutput(t *testing.T, cli *CLIRunner, binary string, extraArgs ...string) (*exec.Cmd, *syncBuffer, *syncBuffer, chan error) {
+	t.Helper()
+
+	projectRoot, err := filepath.Abs("../..")
+	require.NoError(t, err, "Failed to get project root")
+
 	cmd := exec.Command(binary, extraArgs...)
 	cmd.Dir = projectRoot
 
