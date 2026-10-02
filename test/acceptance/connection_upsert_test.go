@@ -743,6 +743,54 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 	})
 }
 
+// TestConnectionUpsertRuleOrderFollowsFlags verifies that upsert stores filter and
+// transform rules in flag order on create, and keeps that order when upserted again.
+func TestConnectionUpsertRuleOrderFollowsFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	connName := "test-upsert-order-" + timestamp
+	trnName := "test-trn-upsert-order-" + timestamp
+
+	// Registered first so it runs after the connection is deleted
+	t.Cleanup(func() {
+		deleteTransformation(t, cli, trnName)
+	})
+
+	args := []string{
+		"gateway", "connection", "upsert", connName,
+		"--source-name", "test-upsert-order-src-" + timestamp,
+		"--source-type", "WEBHOOK",
+		"--destination-name", "test-upsert-order-dst-" + timestamp,
+		"--destination-type", "CLI",
+		"--destination-cli-path", "/webhooks",
+		"--rule-filter-body", `{"type":"payment"}`,
+		"--rule-transform-name", trnName,
+		"--rule-transform-code", ruleOrderTransformCode,
+	}
+
+	var conn Connection
+	require.NoError(t, cli.RunJSON(&conn, args...), "Should upsert (create) connection")
+	require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+	t.Cleanup(func() {
+		deleteConnection(t, cli, conn.ID)
+	})
+
+	assert.Equal(t, []string{"filter", "transform"}, getConnectionRuleTypes(t, cli, conn.ID),
+		"Rules should follow flag order on create")
+
+	// Upsert again with the same flags: the order must not change on a second save
+	var again Connection
+	require.NoError(t, cli.RunJSON(&again, args...), "Should upsert (update) connection")
+	assert.Equal(t, conn.ID, again.ID, "Second upsert should update the same connection")
+	assert.Equal(t, []string{"filter", "transform"}, getConnectionRuleTypes(t, cli, conn.ID),
+		"Rules should follow flag order after a second upsert")
+}
+
 // TestConnectionUpsertRejectsEmptySourceWebhookSecret is the connection-side
 // regression test for #335. This is the exact command shape that failed in the
 // hookdeck/evals benchmark: the provider secret lived in a workspace .env that

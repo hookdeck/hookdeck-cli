@@ -1391,6 +1391,77 @@ func TestConnectionWithTransformRule(t *testing.T) {
 	t.Logf("Successfully created and verified connection with transform rule: %s", conn.ID)
 }
 
+// TestConnectionCreateRuleOrderFollowsFlags verifies that filter and transform rules
+// are stored in the order their flags were given. Filter, transform and deduplicate
+// rules run in array order, so filter-then-transform must survive the round trip.
+func TestConnectionCreateRuleOrderFollowsFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	tests := []struct {
+		name  string
+		flags func(trnName string) []string
+		want  []string
+	}{
+		{
+			name: "filter before transform",
+			flags: func(trnName string) []string {
+				return []string{
+					"--rule-filter-body", `{"type":"payment"}`,
+					"--rule-transform-name", trnName,
+					"--rule-transform-code", ruleOrderTransformCode,
+				}
+			},
+			want: []string{"filter", "transform"},
+		},
+		{
+			name: "transform before filter",
+			flags: func(trnName string) []string {
+				return []string{
+					"--rule-transform-name", trnName,
+					"--rule-transform-code", ruleOrderTransformCode,
+					"--rule-filter-body", `{"type":"payment"}`,
+				}
+			},
+			want: []string{"transform", "filter"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cli := NewCLIRunner(t)
+			timestamp := generateTimestamp()
+			trnName := "test-trn-order-" + timestamp
+
+			// Registered first so it runs after the connection is deleted
+			t.Cleanup(func() {
+				deleteTransformation(t, cli, trnName)
+			})
+
+			args := []string{
+				"gateway", "connection", "create",
+				"--name", "test-rule-order-" + timestamp,
+				"--source-name", "test-src-order-" + timestamp,
+				"--source-type", "WEBHOOK",
+				"--destination-name", "test-dst-order-" + timestamp,
+				"--destination-type", "CLI",
+				"--destination-cli-path", "/webhooks",
+			}
+			var conn Connection
+			err := cli.RunJSON(&conn, append(args, tt.flags(trnName)...)...)
+			require.NoError(t, err, "Should create connection with filter and transform rules")
+			require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+			t.Cleanup(func() {
+				deleteConnection(t, cli, conn.ID)
+			})
+
+			assert.Equal(t, tt.want, getConnectionRuleTypes(t, cli, conn.ID), "Rules should follow flag order")
+		})
+	}
+}
+
 // TestConnectionWithDelayRule tests creating a connection with a delay rule
 func TestConnectionWithDelayRule(t *testing.T) {
 	if testing.Short() {
