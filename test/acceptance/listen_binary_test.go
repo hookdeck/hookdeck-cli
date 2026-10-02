@@ -34,20 +34,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// binaryDeliveryEnvVar gates the binary delivery tests. They need server
-// support that ships separately from the CLI: Core must send data_base64 to
-// sessions advertising the binary capability, and ingestion must store these
-// bodies as binary (BINARY_PAYLOADS_ENABLED). Against a server without that,
-// binary events fail with CLI_BINARY_UNSUPPORTED and nothing reaches the local
-// server. Remove the gate once the server side is deployed.
-const binaryDeliveryEnvVar = "HOOKDECK_CLI_TESTING_BINARY_DELIVERY"
-
-// multipartBinaryDeliveryEnvVar additionally enables the multipart cases, which
-// also need ingestion to store multipart/form-data as binary
-// (hookdeck/http-ingestion#547, hookdeck/core#5708). Until then multipart is
-// stored as UTF-8 text and non-UTF-8 file parts cannot survive.
-const multipartBinaryDeliveryEnvVar = "HOOKDECK_CLI_TESTING_MULTIPART_BINARY_DELIVERY"
-
 // legacyCLIVersion is the last release before binary delivery: it sends no
 // X-Hookdeck-CLI-Capabilities header and only reads data_string.
 const legacyCLIVersion = "3.0.3"
@@ -96,23 +82,6 @@ func downloadLegacyCLI(t *testing.T) string {
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 		return binary
-	}
-}
-
-func requireBinaryDelivery(t *testing.T) {
-	t.Helper()
-	if testing.Short() {
-		t.Skip("Skipping acceptance test in short mode")
-	}
-	if os.Getenv(binaryDeliveryEnvVar) == "" {
-		t.Skipf("set %s=1 once the server delivers binary bodies to the CLI", binaryDeliveryEnvVar)
-	}
-}
-
-func requireMultipartBinaryDelivery(t *testing.T) {
-	t.Helper()
-	if os.Getenv(multipartBinaryDeliveryEnvVar) == "" {
-		t.Skipf("set %s=1 once ingestion stores multipart bodies as binary", multipartBinaryDeliveryEnvVar)
 	}
 }
 
@@ -443,7 +412,9 @@ func postRaw(t *testing.T, sourceURL, contentType string, body []byte) {
 // and `hookdeck listen`, and checks the local app can save each one back to a
 // file identical to the original.
 func TestListenForwardsBinaryFilesThatTheAppCanSave(t *testing.T) {
-	requireBinaryDelivery(t)
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
 
 	s := newBinaryListenSetup(t, "test-bin")
 	app := startLocalApp(t)
@@ -462,7 +433,6 @@ func TestListenForwardsBinaryFilesThatTheAppCanSave(t *testing.T) {
 	}
 
 	t.Run("multipart upload with picture and audio", func(t *testing.T) {
-		requireMultipartBinaryDelivery(t)
 		files := []fixture{pngFixture(t), wavFixture(), allBytesFixture()}
 		contentType, body := multipartUpload(t, files...)
 
@@ -481,7 +451,9 @@ func TestListenForwardsBinaryFilesThatTheAppCanSave(t *testing.T) {
 // event, and checks the retried attempt carries the same bytes. Retries resolve
 // the CLI session through a different path from first attempts.
 func TestListenRetriesBinaryBodyByteExact(t *testing.T) {
-	requireBinaryDelivery(t)
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
 
 	s := newBinaryListenSetup(t, "test-bin-retry")
 	app := startLocalApp(t)
@@ -517,7 +489,9 @@ func TestListenRetriesBinaryBodyByteExact(t *testing.T) {
 // the exact bytes, while the old CLI's event fails closed (or, for multipart,
 // is delivered as the lossy text it always got).
 func TestListenBinaryWithOldAndNewCLIListening(t *testing.T) {
-	requireBinaryDelivery(t)
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
 	legacyBinary := downloadLegacyCLI(t)
 
 	s := newBinaryListenSetup(t, "test-bin-mixed")
@@ -541,7 +515,6 @@ func TestListenBinaryWithOldAndNewCLIListening(t *testing.T) {
 	})
 
 	t.Run("multipart upload", func(t *testing.T) {
-		requireMultipartBinaryDelivery(t)
 		files := []fixture{pngFixture(t), wavFixture()}
 		contentType, body := multipartUpload(t, files...)
 		postRaw(t, s.sourceURL, contentType, body)
