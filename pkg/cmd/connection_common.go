@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
@@ -64,6 +65,58 @@ type connectionRuleFlags struct {
 	RuleDeduplicateWindow        int
 	RuleDeduplicateIncludeFields string
 	RuleDeduplicateExcludeFields string
+
+	// ruleOrder records rule types in the order their first --rule-<type>-* flag
+	// appeared on the command line. Filter, transform and deduplicate run in
+	// rules array order, so the flags must not impose a fixed order.
+	ruleOrder []string
+}
+
+// defaultRuleOrder is used for rule types with no recorded flag position, such as
+// when connectionRuleFlags is populated directly rather than from the command line.
+var defaultRuleOrder = []string{"deduplicate", "transform", "filter", "delay", "retry"}
+
+// ruleFlagTypes maps each individual rule flag to the rule type it configures.
+var ruleFlagTypes = map[string]string{
+	"rule-retry-strategy":              "retry",
+	"rule-retry-count":                 "retry",
+	"rule-retry-interval":              "retry",
+	"rule-retry-response-status-codes": "retry",
+	"rule-filter-body":                 "filter",
+	"rule-filter-headers":              "filter",
+	"rule-filter-query":                "filter",
+	"rule-filter-path":                 "filter",
+	"rule-transform-name":              "transform",
+	"rule-transform-code":              "transform",
+	"rule-transform-env":               "transform",
+	"rule-delay":                       "delay",
+	"rule-deduplicate-window":          "deduplicate",
+	"rule-deduplicate-include-fields":  "deduplicate",
+	"rule-deduplicate-exclude-fields":  "deduplicate",
+}
+
+// recordRuleType appends ruleType to the recorded order unless it is already present.
+func (f *connectionRuleFlags) recordRuleType(ruleType string) {
+	for _, t := range f.ruleOrder {
+		if t == ruleType {
+			return
+		}
+	}
+	f.ruleOrder = append(f.ruleOrder, ruleType)
+}
+
+// orderTrackingValue wraps a flag value so that setting it records the flag's rule type.
+type orderTrackingValue struct {
+	pflag.Value
+	onSet func()
+}
+
+func (v *orderTrackingValue) Set(s string) error {
+	if err := v.Value.Set(s); err != nil {
+		return err
+	}
+	v.onSet()
+	return nil
 }
 
 // addConnectionRuleFlags binds rule flags to cmd. Pass a pointer to the flags struct
@@ -91,11 +144,18 @@ func addConnectionRuleFlags(cmd *cobra.Command, f *connectionRuleFlags) {
 	cmd.Flags().IntVar(&f.RuleDeduplicateWindow, "rule-deduplicate-window", 0, "Time window in seconds for deduplication")
 	cmd.Flags().StringVar(&f.RuleDeduplicateIncludeFields, "rule-deduplicate-include-fields", "", "Comma-separated list of fields to include for deduplication")
 	cmd.Flags().StringVar(&f.RuleDeduplicateExcludeFields, "rule-deduplicate-exclude-fields", "", "Comma-separated list of fields to exclude for deduplication")
+
+	for name, ruleType := range ruleFlagTypes {
+		flag := cmd.Flags().Lookup(name)
+		ruleType := ruleType
+		flag.Value = &orderTrackingValue{Value: flag.Value, onSet: func() { f.recordRuleType(ruleType) }}
+	}
 }
 
 // buildConnectionRules builds a slice of rules from connectionRuleFlags.
 // If rulesStr or rulesFile is non-empty, those are parsed as JSON and returned;
-// otherwise individual rule flags are assembled into rules.
+// otherwise individual rule flags are assembled into rules, ordered by the
+// position of the first flag for each rule type.
 // Shared by connection update and (for consistency) can be used by create/upsert.
 func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 	if f.Rules != "" {
@@ -118,8 +178,8 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		return normalizeRulesForAPI(rules), nil
 	}
 
-	// Build each rule type (order matches create: deduplicate -> transform -> filter -> delay -> retry)
-	var rules []hookdeck.Rule
+	// Build each rule type, then order them by flag position
+	built := make(map[string]hookdeck.Rule)
 
 	if f.RuleDeduplicateWindow > 0 {
 		rule := hookdeck.Rule{
@@ -132,7 +192,7 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if f.RuleDeduplicateExcludeFields != "" {
 			rule["exclude_fields"] = strings.Split(f.RuleDeduplicateExcludeFields, ",")
 		}
-		rules = append(rules, rule)
+		built["deduplicate"] = rule
 	}
 
 	hasTransform := f.RuleTransformName != "" || f.RuleTransformCode != "" || f.RuleTransformEnv != ""
@@ -153,7 +213,7 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 			transformConfig["env"] = env
 		}
 		rule["transformation"] = transformConfig
-		rules = append(rules, rule)
+		built["transform"] = rule
 	}
 
 	if f.RuleFilterBody != "" || f.RuleFilterHeaders != "" || f.RuleFilterQuery != "" || f.RuleFilterPath != "" {
@@ -170,14 +230,14 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if f.RuleFilterPath != "" {
 			rule["path"] = parseJSONOrString(f.RuleFilterPath)
 		}
-		rules = append(rules, rule)
+		built["filter"] = rule
 	}
 
 	if f.RuleDelay > 0 {
-		rules = append(rules, hookdeck.Rule{
+		built["delay"] = hookdeck.Rule{
 			"type":  "delay",
 			"delay": f.RuleDelay,
-		})
+		}
 	}
 
 	if f.RuleRetryStrategy != "" {
@@ -211,7 +271,15 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 			}
 			rule["response_status_codes"] = strCodes
 		}
-		rules = append(rules, rule)
+		built["retry"] = rule
+	}
+
+	var rules []hookdeck.Rule
+	for _, ruleType := range append(append([]string{}, f.ruleOrder...), defaultRuleOrder...) {
+		if rule, ok := built[ruleType]; ok {
+			rules = append(rules, rule)
+			delete(built, ruleType)
+		}
 	}
 
 	return rules, nil
