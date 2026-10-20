@@ -207,9 +207,14 @@ func (c *Client) Run(ctx context.Context) {
 			"prefix": "websocket.client.Run",
 		}).Debug("Disconnected from Hookdeck")
 
-		c.ConnectionLost()
 		close(c.stopReadPump)
 		close(c.stopWritePump)
+		// Close the old socket before reconnecting. Otherwise it stays open
+		// until the server's idle check notices it is dead.
+		c.stateMu.Lock()
+		_ = c.conn.Close()
+		c.stateMu.Unlock()
+		c.ConnectionLost()
 		c.wg.Wait()
 	}
 }
@@ -456,6 +461,12 @@ func (c *Client) readPump() {
 			return
 		}
 
+		// Any frame proves the connection is alive, so a busy connection
+		// doesn't drop just because a pong arrived late.
+		if err := c.conn.SetReadDeadline(time.Now().Add(c.cfg.PongWait)); err != nil {
+			c.cfg.Log.Debug("SetReadDeadline error: ", err)
+		}
+
 		c.cfg.Log.WithFields(log.Fields{
 			"prefix":  "websocket.Client.readPump",
 			"message": string(data),
@@ -576,7 +587,7 @@ func NewClient(url string, webSocketID string, CLIKey string, teamID string, con
 	}
 
 	if cfg.PingPeriod == 0 {
-		cfg.PingPeriod = (cfg.PongWait * 9) / 10
+		cfg.PingPeriod = min(defaultPingPeriod, (cfg.PongWait*9)/10)
 	}
 
 	if cfg.WriteWait == 0 {
@@ -610,7 +621,13 @@ func NewClient(url string, webSocketID string, CLIKey string, teamID string, con
 const (
 	defaultConnectAttemptWait = 10 * time.Second
 
-	defaultPongWait = 10 * time.Second
+	// defaultPongWait leaves room for a few late pongs (slow network, busy
+	// server) before the connection is treated as dead.
+	defaultPongWait = 30 * time.Second
+
+	// defaultPingPeriod stays well under the server's idle check so the server
+	// keeps seeing the connection as alive.
+	defaultPingPeriod = 10 * time.Second
 
 	defaultWriteWait = 10 * time.Second
 
