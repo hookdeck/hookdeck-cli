@@ -292,3 +292,95 @@ func TestLastConnectErr(t *testing.T) {
 		}
 	})
 }
+
+// serverWithoutPongs upgrades the connection and reads from it without
+// answering pings, as a server would when its pongs are delayed.
+func serverWithoutPongs(t *testing.T, onConn func(conn *ws.Conn)) *httptest.Server {
+	t.Helper()
+	var captured http.Header
+	return upgradeTestServer(t, &captured, func(conn *ws.Conn) {
+		conn.SetPingHandler(func(string) error { return nil })
+		onConn(conn)
+	})
+}
+
+// Data frames prove the connection is alive, so a connection that keeps
+// receiving messages must not drop when pongs are late.
+func TestIncomingMessagesKeepConnectionAlive(t *testing.T) {
+	server := serverWithoutPongs(t, func(conn *ws.Conn) {
+		go func() {
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}()
+		for i := 0; i < 10; i++ {
+			if err := conn.WriteMessage(ws.TextMessage, []byte(`{}`)); err != nil {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	})
+	defer server.Close()
+
+	client := NewClient(wsURL(server), "cses_test", "cli-key", "tm_test", nil, "", &Config{
+		PongWait:   300 * time.Millisecond,
+		PingPeriod: 100 * time.Millisecond,
+	})
+	startClient(t, client)
+
+	select {
+	case <-client.NotifyExpired:
+		t.Fatal("client dropped a connection that was receiving messages")
+	case <-time.After(900 * time.Millisecond):
+	}
+}
+
+// When the read deadline expires, the client must close its socket before
+// reconnecting rather than leave it open for the server to reap.
+func TestReadTimeoutClosesSocket(t *testing.T) {
+	serverReadErr := make(chan error, 1)
+	server := serverWithoutPongs(t, func(conn *ws.Conn) {
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				serverReadErr <- err
+				return
+			}
+		}
+	})
+	defer server.Close()
+
+	client := NewClient(wsURL(server), "cses_test", "cli-key", "tm_test", nil, "", &Config{
+		PongWait:   300 * time.Millisecond,
+		PingPeriod: 100 * time.Millisecond,
+	})
+	startClient(t, client)
+
+	select {
+	case <-client.NotifyExpired:
+	case <-time.After(5 * time.Second):
+		t.Fatal("client did not report connection loss after the read deadline")
+	}
+
+	select {
+	case err := <-serverReadErr:
+		// A 1000 close would make the server delete the session instead of
+		// keeping it for the reconnect.
+		if !ws.IsCloseError(err, ws.CloseAbnormalClosure) {
+			t.Fatalf("server saw %v, want an abnormal close (1006) so the session survives the reconnect", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("client left the old socket open after the read deadline")
+	}
+}
+
+func TestDefaultKeepalive(t *testing.T) {
+	client := NewClient("ws://127.0.0.1:1", "cses_test", "cli-key", "tm_test", nil, "", nil)
+	if client.cfg.PongWait != 30*time.Second {
+		t.Errorf("PongWait = %s, want 30s", client.cfg.PongWait)
+	}
+	if client.cfg.PingPeriod != 10*time.Second {
+		t.Errorf("PingPeriod = %s, want 10s", client.cfg.PingPeriod)
+	}
+}
