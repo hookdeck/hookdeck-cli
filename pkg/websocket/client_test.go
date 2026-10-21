@@ -364,7 +364,12 @@ func TestReadTimeoutClosesSocket(t *testing.T) {
 	}
 
 	select {
-	case <-serverReadErr:
+	case err := <-serverReadErr:
+		// A 1000 close would make the server delete the session instead of
+		// keeping it for the reconnect.
+		if !ws.IsCloseError(err, ws.CloseAbnormalClosure) {
+			t.Fatalf("server saw %v, want an abnormal close (1006) so the session survives the reconnect", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("client left the old socket open after the read deadline")
 	}

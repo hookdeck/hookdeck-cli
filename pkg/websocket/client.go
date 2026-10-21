@@ -209,14 +209,23 @@ func (c *Client) Run(ctx context.Context) {
 
 		close(c.stopReadPump)
 		close(c.stopWritePump)
-		// Close the old socket before reconnecting. Otherwise it stays open
-		// until the server's idle check notices it is dead.
-		c.stateMu.Lock()
-		_ = c.conn.Close()
-		c.stateMu.Unlock()
+		c.closeForReconnect()
 		c.ConnectionLost()
 		c.wg.Wait()
 	}
+}
+
+// closeForReconnect drops the socket without a close frame so the CLI can
+// reconnect. Otherwise the socket stays open until the server's idle check
+// notices it is dead.
+//
+// It must not send a 1000 close like Stop does. The server treats a 1000 close
+// as an intentional shutdown and deletes the session immediately, whereas an
+// abnormal close (1006) keeps the session for the reconnect grace window.
+func (c *Client) closeForReconnect() {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	_ = c.conn.Close()
 }
 
 // ConnectionLost sends NotifyExpired
