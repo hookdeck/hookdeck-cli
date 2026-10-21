@@ -203,7 +203,7 @@ You can listen to a single source, a comma-separated list of sources, or
 This command will create a new Hookdeck Source if it doesn't exist (single
 source only).
 
-By default the Hookdeck Destination will be named "{source}-cli", and the
+By default the Hookdeck Destination will be named "cli-{source}", and the
 Destination CLI path will be "/". To set the CLI path, use the "`--path`" flag.
 
 Authentication order: "`--cli-key`", then stored credentials from "hookdeck login"
