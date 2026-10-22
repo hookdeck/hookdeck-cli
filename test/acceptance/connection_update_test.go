@@ -150,6 +150,50 @@ func TestConnectionUpdateRules(t *testing.T) {
 	t.Logf("Successfully updated connection rules: %s", connID)
 }
 
+// TestConnectionUpdateRuleOrderFollowsFlags verifies that update stores filter and
+// transform rules in flag order, and that saving again does not change that order.
+func TestConnectionUpdateRuleOrderFollowsFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	trnName := "test-trn-update-order-" + generateTimestamp()
+
+	// Registered first so it runs after the connection is deleted
+	t.Cleanup(func() {
+		deleteTransformation(t, cli, trnName)
+	})
+
+	connID := createTestConnection(t, cli)
+	require.NotEmpty(t, connID, "Connection ID should not be empty")
+
+	t.Cleanup(func() {
+		deleteConnection(t, cli, connID)
+	})
+
+	update := func(flags ...string) {
+		t.Helper()
+		var updated Connection
+		args := append([]string{"gateway", "connection", "update", connID}, flags...)
+		require.NoError(t, cli.RunJSON(&updated, args...), "Should update connection rules")
+	}
+	transformFlags := []string{"--rule-transform-name", trnName, "--rule-transform-code", ruleOrderTransformCode}
+	filterFlags := []string{"--rule-filter-body", `{"type":"payment"}`}
+
+	// Start with transform before filter
+	update(append(append([]string{}, transformFlags...), filterFlags...)...)
+	assert.Equal(t, []string{"transform", "filter"}, getConnectionRuleTypes(t, cli, connID),
+		"Rules should follow flag order")
+
+	// Reorder to filter before transform, then save the same rules again
+	for i := 0; i < 2; i++ {
+		update(append(append([]string{}, filterFlags...), transformFlags...)...)
+		assert.Equal(t, []string{"filter", "transform"}, getConnectionRuleTypes(t, cli, connID),
+			"Rules should follow flag order after save %d", i+1)
+	}
+}
+
 // TestConnectionUpdateNotFound tests error handling when updating a non-existent connection
 func TestConnectionUpdateNotFound(t *testing.T) {
 	if testing.Short() {

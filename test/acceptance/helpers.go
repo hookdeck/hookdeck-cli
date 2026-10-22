@@ -1773,3 +1773,20 @@ func RequireCLIAuthenticationOnce(t *testing.T) string {
 
 	return cachedWhoamiOutput
 }
+
+// ruleOrderTransformCode is a pass-through transformation for rule order tests.
+const ruleOrderTransformCode = `addHandler("transform", (request, context) => request);`
+
+// getConnectionRuleTypes fetches a connection and returns its rule types in stored order.
+func getConnectionRuleTypes(t *testing.T, cli *CLIRunner, id string) []string {
+	t.Helper()
+
+	var conn Connection
+	require.NoError(t, cli.RunJSON(&conn, "gateway", "connection", "get", id), "Should get connection %s", id)
+	types := make([]string, 0, len(conn.Rules))
+	for _, rule := range conn.Rules {
+		ruleType, _ := rule["type"].(string)
+		types = append(types, ruleType)
+	}
+	return types
+}
