@@ -1391,6 +1391,68 @@ func TestConnectionWithTransformRule(t *testing.T) {
 	t.Logf("Successfully created and verified connection with transform rule: %s", conn.ID)
 }
 
+// TestConnectionTransformRuleNameOrID verifies that --rule-transform-name attaches an
+// existing transformation by ID or by name, and that an unknown value without
+// --rule-transform-code is an error instead of an empty transformation being created.
+func TestConnectionTransformRuleNameOrID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	trnID := createTestTransformation(t, cli)
+	t.Cleanup(func() { deleteTransformation(t, cli, trnID) })
+
+	var trn Transformation
+	require.NoError(t, cli.RunJSON(&trn, "gateway", "transformation", "get", trnID))
+	require.NotEmpty(t, trn.Name, "transformation name")
+
+	createArgs := func(suffix string) []string {
+		timestamp := generateTimestamp()
+		return []string{
+			"gateway", "connection", "create",
+			"--name", "test-trn-ref-" + suffix + "-" + timestamp,
+			"--source-name", "test-trn-ref-src-" + timestamp,
+			"--source-type", "WEBHOOK",
+			"--destination-name", "test-trn-ref-dst-" + timestamp,
+			"--destination-type", "CLI",
+			"--destination-cli-path", "/webhooks",
+		}
+	}
+
+	for _, tc := range []struct{ name, value string }{{"by ID", trnID}, {"by name", trn.Name}} {
+		t.Run("attaches existing "+tc.name, func(t *testing.T) {
+			var conn Connection
+			err := cli.RunJSON(&conn, append(createArgs("ok"), "--rule-transform-name", tc.value)...)
+			require.NoError(t, err, "Should create connection referencing an existing transformation")
+			t.Cleanup(func() { deleteConnection(t, cli, conn.ID) })
+
+			var getConn Connection
+			require.NoError(t, cli.RunJSON(&getConn, "gateway", "connection", "get", conn.ID))
+			require.Len(t, getConn.Rules, 1, "Connection should have one rule")
+			assert.Equal(t, trnID, getConn.Rules[0]["transformation_id"],
+				"Rule should reference the existing transformation, not a new one")
+		})
+	}
+
+	for _, value := range []string{"trs_doesnotexist0", "test-trn-missing-" + generateTimestamp()} {
+		t.Run("rejects unknown "+value, func(t *testing.T) {
+			stdout, stderr, err := cli.Run(append(createArgs("missing"), "--rule-transform-name", value)...)
+			require.Error(t, err, "Unknown transformation without code should fail\nstdout: %s", stdout)
+			assert.Contains(t, stderr+stdout, "transformation '"+value+"' not found")
+
+			// Nothing should have been created with that name
+			var list struct {
+				Models []Transformation `json:"models"`
+			}
+			require.NoError(t, cli.RunJSON(&list, "gateway", "transformation", "list", "--name", value))
+			for _, m := range list.Models {
+				assert.NotEqual(t, value, m.Name, "No transformation should be created for an unknown value")
+			}
+		})
+	}
+}
+
 // TestConnectionWithDelayRule tests creating a connection with a delay rule
 func TestConnectionWithDelayRule(t *testing.T) {
 	if testing.Short() {
