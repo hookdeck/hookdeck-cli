@@ -2,6 +2,10 @@ package hookdeck
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -139,4 +143,30 @@ func TestErrorResponseDropsInternalFields(t *testing.T) {
 		assert.NotContains(t, got, leaked)
 	}
 	assert.Equal(t, "dimensions[0] must be [destination_id]", got)
+}
+
+// The MFA refusal names the dashboard page that fixes it. Keeping the path lets
+// the CLI show the link.
+func TestCheckAndPrintErrorKeepsTheRedirect(t *testing.T) {
+	res := &http.Response{
+		StatusCode: http.StatusForbidden,
+		Body: io.NopCloser(strings.NewReader(`{"error":"mfa_setup_required",` +
+			`"message":"Acme requires multi-factor authentication. Please set up MFA to continue.",` +
+			`"blocking_organization":{"id":"org_1","name":"Acme"},` +
+			`"redirect":"/setup-mfa?organization_id=org_1"}`)),
+	}
+
+	var apiErr *APIError
+	require.True(t, errors.As(checkAndPrintError(res), &apiErr))
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	assert.Equal(t, "Acme requires multi-factor authentication. Please set up MFA to continue.", apiErr.Message)
+	assert.Equal(t, "/setup-mfa?organization_id=org_1", apiErr.Redirect)
+}
+
+// A redirect that isn't a string must not turn a readable message into a raw dump.
+func TestErrorResponseIgnoresARedirectThatIsNotAPath(t *testing.T) {
+	var response ErrorResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"message":"nope","redirect":{"to":"x"}}`), &response))
+	assert.Equal(t, "nope", response.Detail())
+	assert.Empty(t, response.Redirect)
 }

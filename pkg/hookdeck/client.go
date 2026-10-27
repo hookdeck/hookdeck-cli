@@ -144,6 +144,10 @@ type ErrorResponse struct {
 	// change — the Outpost API, for instance, returns
 	// {"message":"validation error","data":["topic is invalid"]}.
 	Data []string `json:"data,omitempty"`
+
+	// Redirect is the dashboard path that fixes the error, e.g.
+	// "/setup-mfa?organization_id=org_123" when the organization requires MFA.
+	Redirect string `json:"redirect,omitempty"`
 }
 
 // UnmarshalJSON decodes an error body, accepting every shape "data" is returned
@@ -157,9 +161,10 @@ type ErrorResponse struct {
 func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
 	// A distinct type avoids recursing into this method.
 	var raw struct {
-		Handled bool            `json:"Handled"`
-		Message string          `json:"message"`
-		Data    json.RawMessage `json:"data,omitempty"`
+		Handled  bool            `json:"Handled"`
+		Message  string          `json:"message"`
+		Data     json.RawMessage `json:"data,omitempty"`
+		Redirect json.RawMessage `json:"redirect,omitempty"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -168,6 +173,12 @@ func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
 	e.Handled = raw.Handled
 	e.Message = raw.Message
 	e.Data = flattenErrorData(raw.Data)
+	// Only a string is a path. Anything else is ignored rather than failing the
+	// decode, which would dump the raw body instead of the message.
+	var redirect string
+	if json.Unmarshal(raw.Redirect, &redirect) == nil {
+		e.Redirect = redirect
+	}
 
 	return nil
 }
@@ -261,6 +272,8 @@ func (e *ErrorResponse) Detail() string {
 type APIError struct {
 	StatusCode int
 	Message    string
+	// Redirect is the dashboard path the API pointed to, if any (see ErrorResponse).
+	Redirect string
 }
 
 func (e *APIError) Error() string {
@@ -573,6 +586,7 @@ func checkAndPrintError(res *http.Response) error {
 			return &APIError{
 				StatusCode: res.StatusCode,
 				Message:    detail,
+				Redirect:   response.Redirect,
 			}
 		}
 		return &APIError{
