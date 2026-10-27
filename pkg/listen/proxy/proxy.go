@@ -272,6 +272,14 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 				return nil
 			}
 
+			// Hookdeck won't let this key connect again (revoked, no access to the
+			// project, MFA required). Retrying would loop forever, so stop and say why.
+			if accessErr := wsClient.AccessEndedErr(); accessErr != nil {
+				p.renderer.OnConnectionFailed(accessErr)
+				p.renderer.Cleanup()
+				return accessErr
+			}
+
 			p.renderer.OnDisconnected()
 			// If this attempt connected successfully before dropping (e.g. a
 			// routine server deploy closing with 1001), reset the counter so
