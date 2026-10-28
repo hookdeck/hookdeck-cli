@@ -61,7 +61,10 @@ type UpdateClientInput struct {
 // LoginSession represents an in-progress login flow
 type LoginSession struct {
 	BrowserURL string
-	pollURL    string
+	// UserCode is the code the user types on the browser page to confirm the
+	// login is theirs (RFC 8628 user_code). Empty when the API issued none.
+	UserCode string
+	pollURL  string
 }
 
 // GuestSession represents an in-progress guest login flow
@@ -73,10 +76,15 @@ type GuestSession struct {
 
 // StartLogin initiates the login flow and returns a session to wait for completion
 func (c *Client) StartLogin(deviceName string) (*LoginSession, error) {
+	// with_user_code asks for a code to print here, which the browser page asks
+	// for to confirm the login (RFC 8628 user_code). An API that predates it
+	// drops the unknown field and returns no code.
 	data := struct {
-		DeviceName string `json:"device_name"`
+		DeviceName   string `json:"device_name"`
+		WithUserCode bool   `json:"with_user_code"`
 	}{
-		DeviceName: deviceName,
+		DeviceName:   deviceName,
+		WithUserCode: true,
 	}
 
 	jsonData, err := json.Marshal(data)
@@ -98,6 +106,7 @@ func (c *Client) StartLogin(deviceName string) (*LoginSession, error) {
 	var links struct {
 		BrowserURL string `json:"browser_url"`
 		PollURL    string `json:"poll_url"`
+		UserCode   string `json:"user_code"`
 	}
 	err = json.Unmarshal(body, &links)
 	if err != nil {
@@ -106,6 +115,7 @@ func (c *Client) StartLogin(deviceName string) (*LoginSession, error) {
 
 	return &LoginSession{
 		BrowserURL: links.BrowserURL,
+		UserCode:   links.UserCode,
 		pollURL:    links.PollURL,
 	}, nil
 }
