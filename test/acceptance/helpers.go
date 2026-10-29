@@ -717,10 +717,27 @@ func RunOutpostMCPSubprocess(t *testing.T, projectRoot, configPath string, args 
 	return RunMCPSubprocess(t, projectRoot, configPath, append([]string{"outpost", "mcp"}, args...), extraEnv, stdin, runDuration)
 }
 
-// RunMCPSubprocess builds the CLI binary, runs the given MCP command with optional stdin,
-// lets it run for runDuration, then kills the process. Returns stdout, stderr, and the
-// error from Wait (often non-nil because the process was killed). configPath, when non-empty,
-// is passed as HOOKDECK_CONFIG_FILE. extraEnv entries override the process environment.
+// mcpShutdownGrace is how long a server gets to exit after its stdin is closed
+// before it is killed.
+const mcpShutdownGrace = 5 * time.Second
+
+// RunMCPSubprocess builds the CLI binary and drives the given MCP command over
+// stdio the way an MCP client does. stdin holds newline-delimited JSON-RPC
+// messages. An initialize request is sent on its own, and the messages after it
+// only once the server has answered it. Stdout is read as it arrives, and as soon
+// as every request in stdin has a response, stdin is closed (how a client ends a
+// stdio session) and the process is left to exit.
+//
+// runDuration is an upper bound, not a fixed wait: if the responses have not all
+// arrived by then, the process is killed and the caller sees whatever it did
+// write. With no requests in stdin (none at all, or only notifications) there is
+// nothing to wait for, so the process runs until it exits or runDuration passes.
+// An empty stdin reads as EOF at once, for commands expected to fail before they
+// serve.
+//
+// Returns stdout, stderr, and the error from Wait (non-nil when the process was
+// killed or exited non-zero). configPath, when non-empty, is passed as
+// HOOKDECK_CONFIG_FILE. extraEnv entries override the process environment.
 func RunMCPSubprocess(t *testing.T, projectRoot, configPath string, args []string, extraEnv map[string]string, stdin string, runDuration time.Duration) (stdout, stderr string, err error) {
 	t.Helper()
 	tmpBinary := filepath.Join(projectRoot, "hookdeck-mcp-test-"+generateTimestamp())
@@ -743,44 +760,213 @@ func RunMCPSubprocess(t *testing.T, projectRoot, configPath string, args []strin
 	}
 	cmd.Env = env
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
+	out := newMCPStdout()
+	var stderrBuf bytes.Buffer
+	cmd.Stdout = out
 	cmd.Stderr = &stderrBuf
 
-	closeStdin := func() {}
+	messages := splitMCPMessages(stdin)
+	var stdinPipe io.WriteCloser
 	if stdin != "" {
-		pr, pw, pipeErr := os.Pipe()
+		pipe, pipeErr := cmd.StdinPipe()
 		if pipeErr != nil {
 			return "", "", pipeErr
 		}
-		cmd.Stdin = pr
-		if _, werr := io.WriteString(pw, stdin); werr != nil {
-			_ = pr.Close()
-			_ = pw.Close()
-			return "", "", werr
-		}
-		if !strings.HasSuffix(stdin, "\n") {
-			_, _ = pw.Write([]byte("\n"))
-		}
-		closeStdin = func() {
-			_ = pw.Close()
-			_ = pr.Close()
-		}
+		stdinPipe = pipe
 	}
 
 	if err := cmd.Start(); err != nil {
-		closeStdin()
 		return "", "", err
 	}
+	exited := make(chan struct{})
+	var waitErr error
+	go func() {
+		waitErr = cmd.Wait()
+		close(exited)
+	}()
+	// Killing here, not only signalling, is what bounds a write to a server
+	// that has stopped reading.
+	expired := make(chan struct{})
 	timer := time.AfterFunc(runDuration, func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
+		close(expired)
+		_ = cmd.Process.Kill()
 	})
 	defer timer.Stop()
-	waitErr := cmd.Wait()
-	closeStdin()
-	return stdoutBuf.String(), stderrBuf.String(), waitErr
+
+	// awaitResponses reports whether every id has a response, waiting until
+	// they do, the process exits, or runDuration passes.
+	awaitResponses := func(ids []string) bool {
+		for {
+			if out.hasResponses(ids) {
+				return true
+			}
+			select {
+			case <-out.changed:
+			case <-exited:
+				return out.hasResponses(ids)
+			case <-expired:
+				return false
+			}
+		}
+	}
+
+	requests := mcpRequestIDs(messages)
+	answered := false
+	if stdinPipe != nil {
+		head, tail, initID := splitAtMCPInitialize(messages)
+		writeMCPMessages(stdinPipe, head)
+		if initID == "" || awaitResponses([]string{initID}) {
+			writeMCPMessages(stdinPipe, tail)
+			answered = len(requests) > 0 && awaitResponses(requests)
+		}
+	}
+
+	if answered {
+		_ = stdinPipe.Close()
+		select {
+		case <-exited:
+		case <-expired:
+		case <-time.After(mcpShutdownGrace):
+		}
+	} else {
+		select {
+		case <-exited:
+		case <-expired:
+		}
+	}
+	_ = cmd.Process.Kill()
+	<-exited
+	return out.String(), stderrBuf.String(), waitErr
+}
+
+// mcpStdout collects a server's stdout and tracks which JSON-RPC responses have
+// arrived, so the harness can stop waiting as soon as the one it needs is there.
+type mcpStdout struct {
+	mu        sync.Mutex
+	buf       bytes.Buffer
+	partial   []byte
+	responses map[string]bool
+	// changed is signalled after every write.
+	changed chan struct{}
+}
+
+func newMCPStdout() *mcpStdout {
+	return &mcpStdout{responses: map[string]bool{}, changed: make(chan struct{}, 1)}
+}
+
+func (o *mcpStdout) Write(p []byte) (int, error) {
+	o.mu.Lock()
+	o.buf.Write(p)
+	o.partial = append(o.partial, p...)
+	for {
+		i := bytes.IndexByte(o.partial, '\n')
+		if i < 0 {
+			break
+		}
+		if id, ok := mcpResponseID(o.partial[:i]); ok {
+			o.responses[id] = true
+		}
+		o.partial = o.partial[i+1:]
+	}
+	o.mu.Unlock()
+	select {
+	case o.changed <- struct{}{}:
+	default:
+	}
+	return len(p), nil
+}
+
+func (o *mcpStdout) hasResponses(ids []string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, id := range ids {
+		if !o.responses[id] {
+			return false
+		}
+	}
+	return true
+}
+
+func (o *mcpStdout) String() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.buf.String()
+}
+
+// jsonRPCEnvelope is the part of a JSON-RPC message the harness routes on.
+type jsonRPCEnvelope struct {
+	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
+}
+
+// mcpMessageID returns a JSON-RPC message's id as a comparable key, and whether
+// it has one. The raw JSON is the key, so 2 and "2" stay distinct.
+func mcpMessageID(env jsonRPCEnvelope) (string, bool) {
+	id := strings.TrimSpace(string(env.ID))
+	if id == "" || id == "null" {
+		return "", false
+	}
+	return id, true
+}
+
+// mcpResponseID returns the id of a response line. Requests the server sends to
+// the client carry an id too, so a method rules a line out.
+func mcpResponseID(line []byte) (string, bool) {
+	var env jsonRPCEnvelope
+	if json.Unmarshal(line, &env) != nil || env.Method != "" {
+		return "", false
+	}
+	return mcpMessageID(env)
+}
+
+// splitMCPMessages returns the non-blank lines of stdin, one message each.
+func splitMCPMessages(stdin string) []string {
+	var messages []string
+	for _, line := range strings.Split(stdin, "\n") {
+		if strings.TrimSpace(line) != "" {
+			messages = append(messages, line)
+		}
+	}
+	return messages
+}
+
+// mcpRequestIDs returns the ids of the requests in messages: everything that
+// expects a response. Notifications and lines that are not JSON are skipped.
+func mcpRequestIDs(messages []string) []string {
+	var ids []string
+	for _, message := range messages {
+		var env jsonRPCEnvelope
+		if json.Unmarshal([]byte(message), &env) != nil || env.Method == "" {
+			continue
+		}
+		if id, ok := mcpMessageID(env); ok {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// splitAtMCPInitialize splits messages after the initialize request, returning
+// its id. Without one, everything is head and the id is empty.
+func splitAtMCPInitialize(messages []string) (head, tail []string, initID string) {
+	for i, message := range messages {
+		var env jsonRPCEnvelope
+		if json.Unmarshal([]byte(message), &env) != nil || env.Method != "initialize" {
+			continue
+		}
+		if id, ok := mcpMessageID(env); ok {
+			return messages[:i+1], messages[i+1:], id
+		}
+	}
+	return messages, nil, ""
+}
+
+// writeMCPMessages writes each message as one line. Errors are ignored: a server
+// that has exited cannot read them, and its output says why.
+func writeMCPMessages(w io.Writer, messages []string) {
+	for _, message := range messages {
+		_, _ = io.WriteString(w, message+"\n")
+	}
 }
 
 // MCPToolCallResult is the parsed JSON-RPC response for an MCP tools/call request.
