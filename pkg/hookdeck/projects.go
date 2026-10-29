@@ -12,7 +12,13 @@ type Project struct {
 }
 
 func (c *Client) ListProjects() ([]Project, error) {
-	res, err := c.clientForCLIAuthValidate().Get(context.Background(), APIPathPrefix+"/projects", "", nil)
+	return c.ListProjectsContext(context.Background())
+}
+
+// ListProjectsContext is ListProjects bounded by ctx, for callers that must not
+// wait indefinitely on the API.
+func (c *Client) ListProjectsContext(ctx context.Context) ([]Project, error) {
+	res, err := c.clientForCLIAuthValidate().Get(ctx, APIPathPrefix+"/projects", "", nil)
 	if err != nil {
 		return []Project{}, err
 	}
