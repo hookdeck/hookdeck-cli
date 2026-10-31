@@ -34,7 +34,7 @@ Examples:
 	}
 
 	ic.cmd.Flags().BoolVar(&ic.force, "force", false, "Dismiss without confirmation")
-	ic.cmd.Flags().StringVar(&ic.output, "output", "", "Output format (json)")
+	ic.cmd.Flags().Var(newOutputFormatValue(&ic.output), "output", "Output format (json)")
 
 	return ic
 }

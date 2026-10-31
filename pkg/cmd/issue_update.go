@@ -39,7 +39,7 @@ Examples:
 
 	ic.cmd.Flags().StringVar(&ic.status, "status", "", "New issue status (OPENED, IGNORED, ACKNOWLEDGED, RESOLVED) [required]")
 	ic.cmd.MarkFlagRequired("status")
-	ic.cmd.Flags().StringVar(&ic.output, "output", "", "Output format (json)")
+	ic.cmd.Flags().Var(newOutputFormatValue(&ic.output), "output", "Output format (json)")
 
 	return ic
 }

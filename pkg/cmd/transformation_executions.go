@@ -60,7 +60,7 @@ func newTransformationExecutionsListCmd() *transformationExecutionsListCmd {
 	tc.cmd.Flags().IntVar(&tc.limit, "limit", 100, "Limit number of results")
 	tc.cmd.Flags().StringVar(&tc.next, "next", "", "Pagination cursor for next page")
 	tc.cmd.Flags().StringVar(&tc.prev, "prev", "", "Pagination cursor for previous page")
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }
@@ -153,7 +153,7 @@ func newTransformationExecutionsGetCmd() *transformationExecutionsGetCmd {
 		RunE:  tc.run,
 	}
 
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

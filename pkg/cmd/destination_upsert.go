@@ -63,7 +63,7 @@ Examples:
 	addDestinationDeliveryPolicyFlags(dc.cmd, &dc.destinationConfigFlags)
 	dc.cmd.Flags().StringVar(&dc.HTTPMethod, "http-method", "", "HTTP method for HTTP destinations")
 	dc.cmd.Flags().BoolVar(&dc.dryRun, "dry-run", false, "Preview changes without applying")
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 
 	return dc
 }

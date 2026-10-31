@@ -53,7 +53,7 @@ This requires a portal custom domain to be configured for the project; see
 
 	tc.cmd.Flags().StringVar(&tc.theme, "theme", "", "Portal theme ("+strings.Join(hookdeck.OutpostPortalThemes, ", ")+")")
 	tc.cmd.Flags().BoolVar(&tc.open, "open", false, "Open the portal URL in your browser")
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

@@ -53,7 +53,7 @@ func newOutpostCustomDomainGetCmd() *outpostCustomDomainGetCmd {
   hookdeck outpost config custom-domain get`,
 	}
 
-	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 
 	return cc
 }
@@ -113,7 +113,7 @@ they have propagated and been verified.`,
 		},
 	}
 
-	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 
 	return cc
 }

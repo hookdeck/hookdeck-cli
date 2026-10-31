@@ -35,7 +35,7 @@ func newOutpostDestinationGetCmd(parent *outpostDestinationCmd) *outpostDestinat
 		},
 	}
 
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 
 	return dc
 }

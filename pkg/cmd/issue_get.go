@@ -32,7 +32,7 @@ Examples:
 		RunE: ic.runIssueGetCmd,
 	}
 
-	ic.cmd.Flags().StringVar(&ic.output, "output", "", "Output format (json)")
+	ic.cmd.Flags().Var(newOutputFormatValue(&ic.output), "output", "Output format (json)")
 
 	return ic
 }

@@ -53,7 +53,7 @@ Examples:
 	ic.cmd.Flags().IntVar(&ic.limit, "limit", 100, "Limit number of results (max 250)")
 	ic.cmd.Flags().StringVar(&ic.next, "next", "", "Pagination cursor for next page")
 	ic.cmd.Flags().StringVar(&ic.prev, "prev", "", "Pagination cursor for previous page")
-	ic.cmd.Flags().StringVar(&ic.output, "output", "", "Output format (json)")
+	ic.cmd.Flags().Var(newOutputFormatValue(&ic.output), "output", "Output format (json)")
 
 	return ic
 }

@@ -50,7 +50,7 @@ func newOutpostTenantListCmd() *outpostTenantListCmd {
 	tc.cmd.Flags().StringVar(&tc.dir, "dir", "", "Sort direction (asc, desc)")
 	tc.cmd.Flags().StringVar(&tc.next, "next", "", "Next page cursor")
 	tc.cmd.Flags().StringVar(&tc.prev, "prev", "", "Previous page cursor")
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

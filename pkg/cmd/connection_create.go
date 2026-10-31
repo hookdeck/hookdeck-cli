@@ -237,7 +237,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd.Flags().StringVar(&cc.destinationID, "destination-id", "", "Use existing destination by ID")
 
 	// Output flags
-	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 
 	cc.cmd.MarkFlagRequired("name")
 

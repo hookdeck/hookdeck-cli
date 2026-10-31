@@ -40,7 +40,7 @@ not to be pasted into a shell history or shared.`,
 		},
 	}
 
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

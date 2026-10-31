@@ -72,7 +72,7 @@ create a Project API key in the Hookdeck dashboard under project settings.`,
 	pc.cmd.Flags().StringVar(&pc.dataFile, "data-file", "", "Path to a JSON file containing the event payload")
 	pc.cmd.Flags().StringArrayVar(&pc.metadata, "metadata", nil, "Metadata as key=value (repeatable)")
 	pc.cmd.Flags().BoolVar(&pc.eligibleForRetry, "eligible-for-retry", true, "Whether failed deliveries should be retried")
-	pc.cmd.Flags().StringVar(&pc.output, "output", "", "Output format (json)")
+	pc.cmd.Flags().Var(newOutputFormatValue(&pc.output), "output", "Output format (json)")
 
 	pc.cmd.MarkFlagRequired("tenant-id")
 	pc.cmd.MarkFlagRequired("topic")

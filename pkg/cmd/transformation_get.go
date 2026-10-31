@@ -34,7 +34,7 @@ Examples:
 		RunE: tc.runTransformationGetCmd,
 	}
 
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

@@ -102,7 +102,7 @@ Examples:
 	rc.cmd.Flags().IntVar(&rc.limit, "limit", 100, "Limit number of results")
 	rc.cmd.Flags().StringVar(&rc.next, "next", "", "Pagination cursor for next page")
 	rc.cmd.Flags().StringVar(&rc.prev, "prev", "", "Pagination cursor for previous page")
-	rc.cmd.Flags().StringVar(&rc.output, "output", "", "Output format (json)")
+	rc.cmd.Flags().Var(newOutputFormatValue(&rc.output), "output", "Output format (json)")
 
 	return rc
 }

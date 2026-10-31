@@ -57,7 +57,7 @@ Examples:
 	sc.cmd.Flags().StringVar(&sc.CustomResponseBody, "custom-response-body", "", "Custom response body (max 1000 chars)")
 	sc.cmd.Flags().StringVar(&sc.CustomResponseType, "custom-response-content-type", "", "Custom response content type (json, text, xml)")
 	sc.cmd.Flags().BoolVar(&sc.dryRun, "dry-run", false, "Preview changes without applying")
-	sc.cmd.Flags().StringVar(&sc.output, "output", "", "Output format (json)")
+	sc.cmd.Flags().Var(newOutputFormatValue(&sc.output), "output", "Output format (json)")
 
 	return sc
 }

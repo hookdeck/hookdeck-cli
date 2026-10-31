@@ -86,7 +86,7 @@ to bucket the results over time.`, summary, measures, dimensions),
 	mc.cmd.Flags().StringVar(&mc.measures, "measures", "", "Measures to compute, comma-separated (required)")
 	mc.cmd.Flags().StringVar(&mc.dimensions, "dimensions", "", "Dimensions to group by, comma-separated")
 	mc.cmd.Flags().StringArrayVar(&mc.filters, "filter", nil, "Filter as dimension=value (repeatable)")
-	mc.cmd.Flags().StringVar(&mc.output, "output", "", "Output format (json)")
+	mc.cmd.Flags().Var(newOutputFormatValue(&mc.output), "output", "Output format (json)")
 
 	mc.cmd.MarkFlagRequired("start")
 	mc.cmd.MarkFlagRequired("end")
