@@ -43,7 +43,7 @@ func newOutpostEventGetCmd() *outpostEventGetCmd {
 	}
 
 	ec.cmd.Flags().StringVar(&ec.tenantID, "tenant-id", "", "Tenant the event belongs to")
-	ec.cmd.Flags().StringVar(&ec.output, "output", "", "Output format (json)")
+	ec.cmd.Flags().Var(newOutputFormatValue(&ec.output), "output", "Output format (json)")
 
 	return ec
 }

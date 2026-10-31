@@ -53,7 +53,7 @@ so metadata cannot be cleared here.`,
 		},
 	}
 
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 	addOutpostDestinationFieldFlags(dc.cmd, &dc.fields)
 
 	return dc

@@ -36,7 +36,7 @@ Examples:
 		RunE: dc.runDestinationGetCmd,
 	}
 
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 	addIncludeAuthFlagForDestination(dc.cmd, &dc.includeDestAuth)
 
 	return dc

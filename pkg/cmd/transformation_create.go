@@ -44,7 +44,7 @@ Examples:
 	tc.cmd.Flags().StringVar(&tc.code, "code", "", "JavaScript code string (required if --code-file not set)")
 	tc.cmd.Flags().StringVar(&tc.codeFile, "code-file", "", "Path to JavaScript file (required if --code not set)")
 	tc.cmd.Flags().StringVar(&tc.env, "env", "", "Environment variables as KEY=value,KEY2=value2")
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

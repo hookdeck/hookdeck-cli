@@ -73,7 +73,7 @@ Examples:
 	addConnectionRuleFlags(cu.cmd, &cu.connectionRuleFlags)
 
 	// Output
-	cu.cmd.Flags().StringVar(&cu.output, "output", "", "Output format (json)")
+	cu.cmd.Flags().Var(newOutputFormatValue(&cu.output), "output", "Output format (json)")
 
 	return cu
 }

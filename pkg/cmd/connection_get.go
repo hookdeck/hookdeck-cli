@@ -43,7 +43,7 @@ Examples:
 		"cli.arguments": `[{"name":"connection-id-or-name","type":"string","description":"Connection ID or name","required":true}]`,
 	}
 
-	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 	addIncludeSourceAuthFlagForConnection(cc.cmd, &cc.includeSourceAuth)
 	addIncludeDestinationAuthFlag(cc.cmd, &cc.includeDestinationAuth)
 

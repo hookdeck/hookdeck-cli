@@ -100,7 +100,7 @@ func addMetricsCommonFlags(cmd *cobra.Command, f *metricsCommonFlags, filters ho
 	if filters.IssueID {
 		cmd.Flags().StringVar(&f.issueID, "issue-id", "", "Filter by issue ID (required for per-issue metrics, e.g. when using --dimensions issue_id)")
 	}
-	cmd.Flags().StringVar(&f.output, "output", "", "Output format (json)")
+	cmd.Flags().Var(newOutputFormatValue(&f.output), "output", "Output format (json)")
 	_ = cmd.MarkFlagRequired("start")
 	_ = cmd.MarkFlagRequired("end")
 	// Every metrics endpoint rejects a request without measures, so catch it

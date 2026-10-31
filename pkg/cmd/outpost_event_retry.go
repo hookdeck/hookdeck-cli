@@ -40,7 +40,7 @@ The destination must be enabled and must subscribe to the event's topic.`,
 
 	ec.cmd.Flags().StringVar(&ec.eventID, "event-id", "", "The event to retry (required)")
 	ec.cmd.Flags().StringVar(&ec.destinationID, "destination-id", "", "The destination to deliver to (required)")
-	ec.cmd.Flags().StringVar(&ec.output, "output", "", "Output format (json)")
+	ec.cmd.Flags().Var(newOutputFormatValue(&ec.output), "output", "Output format (json)")
 	ec.cmd.MarkFlagRequired("event-id")
 	ec.cmd.MarkFlagRequired("destination-id")
 

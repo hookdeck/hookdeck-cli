@@ -52,7 +52,7 @@ tenant exists will remove metadata it already had.`,
 
 	tc.cmd.Flags().StringArrayVar(&tc.metadata, "metadata", nil, "Metadata as key=value (repeatable)")
 	tc.cmd.Flags().StringVar(&tc.metadataFile, "metadata-file", "", "Path to a JSON file of metadata key/value pairs")
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }
