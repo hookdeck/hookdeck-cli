@@ -402,7 +402,9 @@ func init() {
 	rootCmd.PersistentFlags().MarkHidden("dashboard-base")
 
 	rootCmd.PersistentFlags().StringVar(&Config.ConsoleBaseURL, "console-base", "", fmt.Sprintf("Sets the web console base URL (default \"%s\")", hookdeck.DefaultConsoleBaseURL))
-	rootCmd.PersistentFlags().MarkHidden("console-base")
+	// Nothing reads it since guest links moved to Hookdeck Inspect. Kept so existing
+	// scripts don't fail on an unknown flag; cobra hides it and prints a warning.
+	rootCmd.PersistentFlags().MarkDeprecated("console-base", "guest links now open Hookdeck Inspect; use --inspect-base instead")
 
 	rootCmd.PersistentFlags().StringVar(&Config.InspectBaseURL, "inspect-base", "", fmt.Sprintf("Sets the Hookdeck Inspect base URL, used for guest links (default \"%s\")", hookdeck.DefaultInspectBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("inspect-base")

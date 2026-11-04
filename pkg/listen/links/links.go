@@ -41,6 +41,24 @@ func (t Target) inspect() bool {
 	return t.ProjectType == config.ProjectTypeConsole
 }
 
+// Name returns what the session's links open, for the labels shown next to
+// them: "Hookdeck Inspect" for guest accounts, "dashboard" otherwise.
+func (t Target) Name() string {
+	if t.inspect() {
+		return "Hookdeck Inspect"
+	}
+	return "dashboard"
+}
+
+// HomeHint returns the sentence printed before the Home link. The dashboard
+// wording is unchanged; Inspect shows the requests a Source received.
+func (t Target) HomeHint(dashboardHint string) string {
+	if t.inspect() {
+		return "View your requests in Hookdeck Inspect"
+	}
+	return dashboardHint
+}
+
 // Home returns the link to the session's events. For the dashboard that is
 // the CLI events view, scoped by team_id when the project id is known. For
 // Inspect it is the page of sourceID, or the Inspect home page when sourceID

@@ -1480,7 +1480,7 @@ There are also hidden flags for development and debugging (not listed in user-fa
 
 *   `--api-base`: Sets the API base URL.
 *   `--dashboard-base`: Sets the web dashboard base URL.
-*   `--console-base`: Sets the web console base URL.
+*   `--console-base`: Deprecated. Guest links now open Hookdeck Inspect; use `--inspect-base`.
 *   `--inspect-base`: Sets the Hookdeck Inspect base URL that `listen` links guest accounts to.
 *   `--ws-base`: Sets the Websocket base URL.
 

@@ -46,6 +46,16 @@ func TestHome(t *testing.T) {
 	})
 }
 
+func TestName(t *testing.T) {
+	assert.Equal(t, "Hookdeck Inspect", inspectTarget("tm_123").Name())
+	assert.Equal(t, "dashboard", dashboardTarget("tm_123").Name())
+}
+
+func TestHomeHint(t *testing.T) {
+	assert.Equal(t, "View your requests in Hookdeck Inspect", inspectTarget("").HomeHint("Open dashboard"))
+	assert.Equal(t, "Open dashboard", dashboardTarget("").HomeHint("Open dashboard"))
+}
+
 func TestHomeDisplay(t *testing.T) {
 	t.Run("dashboard shows events path without team_id", func(t *testing.T) {
 		assert.Equal(t, "https://dashboard.hookdeck.com/events/cli", dashboardTarget("tm_123").HomeDisplay("src_abc123def456"))

@@ -198,7 +198,8 @@ func TestConsoleProjectLinksToInspect(t *testing.T) {
 			printSourcesWithConnections(cfg, "tm_1", sources, connections, targetURL, "")
 		})
 
-		assert.Contains(t, out, "https://inspect.hookdeck.com/abc123def456\n")
+		assert.Contains(t, out, "💡 View your requests in Hookdeck Inspect: https://inspect.hookdeck.com/abc123def456\n")
+		assert.NotContains(t, out, "dashboard")
 		assert.NotContains(t, out, "console.hookdeck.com")
 		assert.NotContains(t, out, "team_id")
 	})
@@ -213,6 +214,6 @@ func TestConsoleProjectLinksToInspect(t *testing.T) {
 			printSourcesWithConnections(cfg, "tm_1", sources, connections, targetURL, "")
 		})
 
-		assert.Contains(t, out, "events: https://inspect.hookdeck.com\n")
+		assert.Contains(t, out, "Hookdeck Inspect: https://inspect.hookdeck.com\n")
 	})
 }

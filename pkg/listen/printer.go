@@ -109,6 +109,7 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 		sourceID := links.SessionSourceID(sources)
 		url := target.Home(sourceID)
 		displayURL := target.HomeDisplay(sourceID)
-		fmt.Printf("💡 Open dashboard to inspect, retry & bookmark events: %s\n", hyperlink(url, displayURL, os.Stdout))
+		hint := target.HomeHint("Open dashboard to inspect, retry & bookmark events")
+		fmt.Printf("💡 %s: %s\n", hint, hyperlink(url, displayURL, os.Stdout))
 	}
 }
