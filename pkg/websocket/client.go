@@ -207,11 +207,25 @@ func (c *Client) Run(ctx context.Context) {
 			"prefix": "websocket.client.Run",
 		}).Debug("Disconnected from Hookdeck")
 
-		c.ConnectionLost()
 		close(c.stopReadPump)
 		close(c.stopWritePump)
+		c.closeForReconnect()
+		c.ConnectionLost()
 		c.wg.Wait()
 	}
+}
+
+// closeForReconnect drops the socket without a close frame so the CLI can
+// reconnect. Otherwise the socket stays open until the server's idle check
+// notices it is dead.
+//
+// It must not send a 1000 close like Stop does. The server treats a 1000 close
+// as an intentional shutdown and deletes the session immediately, whereas an
+// abnormal close (1006) keeps the session for the reconnect grace window.
+func (c *Client) closeForReconnect() {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	_ = c.conn.Close()
 }
 
 // ConnectionLost sends NotifyExpired
@@ -456,6 +470,12 @@ func (c *Client) readPump() {
 			return
 		}
 
+		// Any frame proves the connection is alive, so a busy connection
+		// doesn't drop just because a pong arrived late.
+		if err := c.conn.SetReadDeadline(time.Now().Add(c.cfg.PongWait)); err != nil {
+			c.cfg.Log.Debug("SetReadDeadline error: ", err)
+		}
+
 		c.cfg.Log.WithFields(log.Fields{
 			"prefix":  "websocket.Client.readPump",
 			"message": string(data),
@@ -576,7 +596,7 @@ func NewClient(url string, webSocketID string, CLIKey string, teamID string, con
 	}
 
 	if cfg.PingPeriod == 0 {
-		cfg.PingPeriod = (cfg.PongWait * 9) / 10
+		cfg.PingPeriod = min(defaultPingPeriod, (cfg.PongWait*9)/10)
 	}
 
 	if cfg.WriteWait == 0 {
@@ -610,7 +630,13 @@ func NewClient(url string, webSocketID string, CLIKey string, teamID string, con
 const (
 	defaultConnectAttemptWait = 10 * time.Second
 
-	defaultPongWait = 10 * time.Second
+	// defaultPongWait leaves room for a few late pongs (slow network, busy
+	// server) before the connection is treated as dead.
+	defaultPongWait = 30 * time.Second
+
+	// defaultPingPeriod stays well under the server's idle check so the server
+	// keeps seeing the connection as alive.
+	defaultPingPeriod = 10 * time.Second
 
 	defaultWriteWait = 10 * time.Second
 
