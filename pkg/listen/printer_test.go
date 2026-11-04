@@ -46,7 +46,7 @@ func printerFixture(t *testing.T, numConnections int) (*config.Config, []*hookde
 	targetURL, err := url.Parse("http://localhost:3030")
 	require.NoError(t, err)
 
-	source := &hookdeck.Source{ID: "src_1", Name: "my-source", URL: "https://hkdk.events/src_1"}
+	source := &hookdeck.Source{ID: "src_abc123def456", Name: "my-source", URL: "https://hkdk.events/src_abc123def456"}
 
 	connections := make([]*hookdeck.Connection, 0, numConnections)
 	for i := 0; i < numConnections; i++ {
@@ -61,7 +61,7 @@ func printerFixture(t *testing.T, numConnections int) (*config.Config, []*hookde
 
 	cfg := &config.Config{
 		DashboardBaseURL: "https://dashboard.hookdeck.com",
-		ConsoleBaseURL:   "https://console.hookdeck.com",
+		InspectBaseURL:   "https://inspect.hookdeck.com",
 	}
 
 	return cfg, []*hookdeck.Source{source}, connections, targetURL
@@ -182,5 +182,37 @@ func TestDashboardLinkHyperlinksOnlyOnATerminal(t *testing.T) {
 
 		assert.Contains(t, out, "https://hookdeck.com/signup?x=1")
 		assert.Equal(t, 0, strings.Count(out, "\x1b]8;;"))
+	})
+}
+
+// TestConsoleProjectLinksToInspect covers guest accounts (project type
+// console) that print the events hint: the link goes to the Source's Inspect
+// page, with no team_id, which Inspect does not read.
+func TestConsoleProjectLinksToInspect(t *testing.T) {
+	t.Run("one source links to its Inspect page", func(t *testing.T) {
+		resetColorState(t)
+		cfg, sources, connections, targetURL := printerFixture(t, 1)
+		cfg.Profile.ProjectType = config.ProjectTypeConsole
+
+		out := capturePrinterOutput(t, func() {
+			printSourcesWithConnections(cfg, "tm_1", sources, connections, targetURL, "")
+		})
+
+		assert.Contains(t, out, "https://inspect.hookdeck.com/abc123def456\n")
+		assert.NotContains(t, out, "console.hookdeck.com")
+		assert.NotContains(t, out, "team_id")
+	})
+
+	t.Run("several sources link to Inspect home", func(t *testing.T) {
+		resetColorState(t)
+		cfg, sources, connections, targetURL := printerFixture(t, 1)
+		cfg.Profile.ProjectType = config.ProjectTypeConsole
+		sources = append(sources, &hookdeck.Source{ID: "src_other000000", Name: "other", URL: "https://hkdk.events/src_other000000"})
+
+		out := capturePrinterOutput(t, func() {
+			printSourcesWithConnections(cfg, "tm_1", sources, connections, targetURL, "")
+		})
+
+		assert.Contains(t, out, "events: https://inspect.hookdeck.com\n")
 	})
 }

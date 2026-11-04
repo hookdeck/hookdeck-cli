@@ -100,8 +100,15 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 	if guestURL != "" {
 		fmt.Printf("💡 Sign up to make your webhook URL permanent: %s\n", guestURL)
 	} else {
-		url := links.DashboardHome(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType, projectID)
-		displayURL := links.DashboardHomeDisplay(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType)
+		target := links.Target{
+			DashboardBaseURL: config.DashboardBaseURL,
+			InspectBaseURL:   config.InspectBaseURL,
+			ProjectType:      config.Profile.ProjectType,
+			ProjectID:        projectID,
+		}
+		sourceID := links.SessionSourceID(sources)
+		url := target.Home(sourceID)
+		displayURL := target.HomeDisplay(sourceID)
 		fmt.Printf("💡 Open dashboard to inspect, retry & bookmark events: %s\n", hyperlink(url, displayURL, os.Stdout))
 	}
 }

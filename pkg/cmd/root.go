@@ -318,6 +318,7 @@ var flagNeedsNextArg = map[string]bool{
 	"outpost-api-base": true,
 	"dashboard-base":   true,
 	"console-base":     true,
+	"inspect-base":     true,
 	"ws-base":          true,
 }
 
@@ -402,6 +403,9 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&Config.ConsoleBaseURL, "console-base", "", fmt.Sprintf("Sets the web console base URL (default \"%s\")", hookdeck.DefaultConsoleBaseURL))
 	rootCmd.PersistentFlags().MarkHidden("console-base")
+
+	rootCmd.PersistentFlags().StringVar(&Config.InspectBaseURL, "inspect-base", "", fmt.Sprintf("Sets the Hookdeck Inspect base URL, used for guest links (default \"%s\")", hookdeck.DefaultInspectBaseURL))
+	rootCmd.PersistentFlags().MarkHidden("inspect-base")
 
 	rootCmd.PersistentFlags().StringVar(&Config.WSBaseURL, "ws-base", "", fmt.Sprintf("Sets the Websocket base URL (default \"%s\")", hookdeck.DefaultWebsocektURL))
 	rootCmd.PersistentFlags().MarkHidden("ws-base")

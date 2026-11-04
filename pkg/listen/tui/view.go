@@ -330,43 +330,6 @@ func (m Model) renderStatusBar() string {
 	return statusBarStyle.Width(m.width).Render(connStatus + " " + eventStatusMsg)
 }
 
-// FormatEventLog formats an event into a log line matching the current style
-func FormatEventLog(event EventInfo, dashboardURL, consoleURL, projectMode string) string {
-	localTime := event.Time.Format(timeLayout)
-
-	// Build event URL
-	var url string
-	if projectMode == "console" {
-		url = consoleURL + "/?event_id=" + event.ID
-	} else {
-		url = dashboardURL + "/events/" + event.ID
-	}
-
-	// Format based on whether request failed or succeeded
-	if event.ResponseStatus == 0 && !event.Success {
-		// Request failed completely (no response)
-		return fmt.Sprintf("%s [%s] Failed to %s: network error",
-			faintStyle.Render(localTime),
-			redStyle.Render("ERROR"),
-			event.Data.Body.Request.Method,
-		)
-	}
-
-	// Format normal response
-	durationMs := event.ResponseDuration.Milliseconds()
-	requestURL := fmt.Sprintf("http://localhost%s", event.Data.Body.Path) // Simplified for now
-
-	return fmt.Sprintf("%s [%s] %s %s %s %s %s",
-		faintStyle.Render(localTime),
-		ColorizeStatus(event.ResponseStatus),
-		event.Data.Body.Request.Method,
-		requestURL,
-		faintStyle.Render(fmt.Sprintf("(%dms)", durationMs)),
-		faintStyle.Render("→"),
-		faintStyle.Render(url),
-	)
-}
-
 // renderConnectionInfo renders the sources and connections header
 func (m Model) renderConnectionInfo() string {
 	// If header is collapsed, show compact view

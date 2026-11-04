@@ -43,11 +43,14 @@ func (r AttemptRequest) Body() ([]byte, error) {
 }
 
 type AttemptBody struct {
-	Path         string         `json:"cli_path"`
-	EventID      string         `json:"event_id"`
-	AttemptId    string         `json:"attempt_id"`
-	ConnectionId string         `json:"webhook_id"`
-	Request      AttemptRequest `json:"request"`
+	Path         string `json:"cli_path"`
+	EventID      string `json:"event_id"`
+	AttemptId    string `json:"attempt_id"`
+	ConnectionId string `json:"webhook_id"`
+	// RequestID is the request that created the event. It is optional: servers
+	// that predate it do not send it, and listen links then omit the request.
+	RequestID string         `json:"request_id,omitempty"`
+	Request   AttemptRequest `json:"request"`
 }
 
 type Attempt struct {

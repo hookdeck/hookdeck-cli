@@ -116,7 +116,7 @@ type Config struct {
 	APIKey           string
 	APIBaseURL       string
 	DashboardBaseURL string
-	ConsoleBaseURL   string
+	InspectBaseURL   string
 	ProjectType      string
 	ProjectID        string
 	GuestURL         string

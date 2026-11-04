@@ -10,7 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -51,7 +50,7 @@ func NewInteractiveRenderer(cfg *RendererConfig) *InteractiveRenderer {
 		APIKey:           cfg.APIKey,
 		APIBaseURL:       cfg.APIBaseURL,
 		DashboardBaseURL: cfg.DashboardBaseURL,
-		ConsoleBaseURL:   cfg.ConsoleBaseURL,
+		InspectBaseURL:   cfg.InspectBaseURL,
 		ProjectType:      cfg.ProjectType,
 		ProjectID:        cfg.ProjectID,
 		GuestURL:         cfg.GuestURL,
@@ -145,12 +144,7 @@ func (r *InteractiveRenderer) OnEventComplete(eventID string, attempt *websocket
 	localTime := eventTime.Format(interactiveTimeLayout)
 	color := ansi.Color(os.Stdout)
 
-	var displayURL string
-	if r.cfg.ProjectType == config.ProjectTypeConsole {
-		displayURL = r.cfg.ConsoleBaseURL + "/?event_id=" + eventID
-	} else {
-		displayURL = r.cfg.DashboardBaseURL + "/events/" + eventID
-	}
+	displayURL := r.cfg.eventLinkDisplay(eventID, attempt)
 
 	durationMs := response.Duration.Milliseconds()
 

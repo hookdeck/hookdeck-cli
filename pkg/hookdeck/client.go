@@ -34,7 +34,12 @@ const DefaultDashboardURL = "https://dashboard.hookdeck.com"
 // DefaultDashboardBaseURL is the default base URL for dashboard requests
 const DefaultDashboardBaseURL = "https://dashboard.hookdeck.com"
 
+// DefaultConsoleBaseURL is the default base URL for Hookdeck Console.
 const DefaultConsoleBaseURL = "https://console.hookdeck.com"
+
+// DefaultInspectBaseURL is the default base URL for Hookdeck Inspect, which
+// listen links to for guest accounts (project type "console").
+const DefaultInspectBaseURL = "https://inspect.hookdeck.com"
 
 const DefaultWebsocektURL = "wss://ws.hookdeck.com"
 
