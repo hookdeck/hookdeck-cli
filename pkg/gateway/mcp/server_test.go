@@ -1841,6 +1841,73 @@ func TestLoginTool_InProgressShowsURL(t *testing.T) {
 	assert.Contains(t, text, "https://hookdeck.com/auth?code=xyz")
 }
 
+func TestLoginTool_ShowsUserCode(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=xyz",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=xyz",
+				"user_code":   "WDJB-MJHT",
+			})
+		},
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+
+	unauthClient := newTestClient(api.URL, "")
+	cfg := &config.Config{APIBaseURL: api.URL}
+	srv := NewServer(ServerOptions{Client: unauthClient, Config: cfg})
+
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = srv.Run(ctx, serverTransport) }()
+
+	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	// Both the call that starts the flow and the in-progress reminder carry the code.
+	for _, call := range []string{"start", "in progress"} {
+		result := callTool(t, session, "hookdeck_login", map[string]any{})
+		assert.False(t, result.IsError, call)
+		assert.Contains(t, textContent(t, result), "the user must enter: WDJB-MJHT", call)
+	}
+}
+
+func TestLoginTool_NoCodeLineWithoutUserCode(t *testing.T) {
+	api := mockAPI(t, map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/cli-auth": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{
+				"browser_url": "https://hookdeck.com/auth?code=xyz",
+				"poll_url":    "http://" + r.Host + hookdeck.APIPathPrefix + "/cli-auth/poll?key=xyz",
+			})
+		},
+		hookdeck.APIPathPrefix + "/cli-auth/poll": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode(map[string]any{"claimed": false})
+		},
+	})
+
+	unauthClient := newTestClient(api.URL, "")
+	cfg := &config.Config{APIBaseURL: api.URL}
+	srv := NewServer(ServerOptions{Client: unauthClient, Config: cfg})
+
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = srv.Run(ctx, serverTransport) }()
+
+	mcpClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	result := callTool(t, session, "hookdeck_login", map[string]any{})
+	assert.NotContains(t, textContent(t, result), "code, the user must enter")
+}
+
 func TestLoginTool_PollSurvivesAcrossToolCalls(t *testing.T) {
 	// Regression: the login polling goroutine must use the session-level
 	// context, not the per-request ctx (which is cancelled when the handler

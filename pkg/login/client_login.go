@@ -150,11 +150,20 @@ func Login(config *configpkg.Config, input io.Reader) error {
 	return waitForLoginSession(config, input, session)
 }
 
+// printLoginLink prints the sign-in URL and, when the API issued one, the code
+// the browser page asks for.
+func printLoginLink(session *hookdeck.LoginSession) {
+	fmt.Printf("To authenticate with Hookdeck, please go to: %s\n", session.BrowserURL)
+	if session.UserCode != "" {
+		fmt.Printf("When the page asks for a code, enter: %s\n", session.UserCode)
+	}
+}
+
 func waitForLoginSession(config *configpkg.Config, input io.Reader, session *hookdeck.LoginSession) error {
 	var s *spinner.Spinner
 
 	if isSSH() || !canOpenBrowser() {
-		fmt.Printf("To authenticate with Hookdeck, please go to: %s\n", session.BrowserURL)
+		printLoginLink(session)
 
 		s = ansi.StartNewSpinner("Waiting for confirmation...", os.Stdout)
 	} else {
@@ -168,7 +177,7 @@ func waitForLoginSession(config *configpkg.Config, input io.Reader, session *hoo
 		// is spawned, so a browser that dies straight after - WSL, containers,
 		// VS Code Remote - reports success and leaves the user with a spinner
 		// and no link. The error branch below is the detectable half only.
-		fmt.Printf("To authenticate with Hookdeck, please go to: %s\n", session.BrowserURL)
+		printLoginLink(session)
 
 		if err := openBrowser(session.BrowserURL); err != nil {
 			fmt.Println("Could not open the browser for you; use the link above.")
