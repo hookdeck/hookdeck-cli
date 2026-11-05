@@ -3,9 +3,18 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+)
+
+// The name filter on GET /transformations can return near matches, so the
+// exact name is not necessarily on the first page. The lookup asks for the
+// largest page the API allows and follows pagination.next, up to a bound.
+const (
+	transformationLookupPageLimit = 255
+	transformationLookupMaxPages  = 20
 )
 
 // transformationLookup is the subset of the API client used to resolve
@@ -28,16 +37,28 @@ func findTransformationID(ctx context.Context, client transformationLookup, name
 		}
 	}
 
-	result, err := client.ListTransformations(ctx, map[string]string{"name": nameOrID})
-	if err != nil {
-		return "", fmt.Errorf("failed to look up transformation '%s': %w", nameOrID, err)
+	params := map[string]string{
+		"name":  nameOrID,
+		"limit": strconv.Itoa(transformationLookupPageLimit),
 	}
-	for _, trn := range result.Models {
-		if trn.Name == nameOrID {
-			return trn.ID, nil
+	for page := 0; page < transformationLookupMaxPages; page++ {
+		result, err := client.ListTransformations(ctx, params)
+		if err != nil {
+			return "", fmt.Errorf("failed to look up transformation '%s': %w", nameOrID, err)
 		}
+		for _, trn := range result.Models {
+			if trn.Name == nameOrID {
+				return trn.ID, nil
+			}
+		}
+		next := result.Pagination.Next
+		if next == nil || *next == "" {
+			return "", nil
+		}
+		params["next"] = *next
 	}
-	return "", nil
+	return "", fmt.Errorf("failed to look up transformation '%s': more than %d transformations match the name filter; pass its ID instead",
+		nameOrID, transformationLookupPageLimit*transformationLookupMaxPages)
 }
 
 // resolveRuleTransformation makes --rule-transform-name accept a transformation
