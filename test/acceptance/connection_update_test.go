@@ -392,3 +392,74 @@ func TestConnectionUpdateWithRulesJSON(t *testing.T) {
 
 	t.Logf("Connection update with --rules JSON verified: %s", connID)
 }
+
+// TestConnectionUpdateTransformRuleNameOrID checks that `connection update`
+// resolves --rule-transform-name as an ID or an exact name, attaching the
+// existing transformation by transformation_id instead of creating a new one.
+func TestConnectionUpdateTransformRuleNameOrID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	trnID := createTestTransformation(t, cli)
+	t.Cleanup(func() { deleteTransformation(t, cli, trnID) })
+
+	var trn Transformation
+	require.NoError(t, cli.RunJSON(&trn, "gateway", "transformation", "get", trnID))
+	require.NotEmpty(t, trn.Name, "transformation name")
+
+	assertAttached := func(t *testing.T, connID string) {
+		t.Helper()
+		var fetched Connection
+		require.NoError(t, cli.RunJSON(&fetched, "gateway", "connection", "get", connID))
+		require.Len(t, fetched.Rules, 1, "Connection should have one rule")
+		assert.Equal(t, "transform", fetched.Rules[0]["type"])
+		assert.Equal(t, trnID, fetched.Rules[0]["transformation_id"],
+			"Rule should reference the existing transformation, not a new one")
+	}
+
+	for _, tc := range []struct{ name, value string }{{"by ID", trnID}, {"by name", trn.Name}} {
+		t.Run("attaches existing "+tc.name, func(t *testing.T) {
+			connID := createTestConnection(t, cli)
+			t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+			var updated Connection
+			require.NoError(t, cli.RunJSON(&updated,
+				"gateway", "connection", "update", connID,
+				"--rule-transform-name", tc.value,
+			), "Should update connection to reference an existing transformation")
+			assertAttached(t, connID)
+		})
+	}
+
+	t.Run("code with an ID updates that transformation", func(t *testing.T) {
+		connID := createTestConnection(t, cli)
+		t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+		newCode := `addHandler("transform", (request, context) => { request.headers["x-updated"] = "1"; return request; });`
+		var updated Connection
+		require.NoError(t, cli.RunJSON(&updated,
+			"gateway", "connection", "update", connID,
+			"--rule-transform-name", trnID,
+			"--rule-transform-code", newCode,
+		), "Should update connection with an existing transformation ID and new code")
+		assertAttached(t, connID)
+
+		var after Transformation
+		require.NoError(t, cli.RunJSON(&after, "gateway", "transformation", "get", trnID))
+		assert.Equal(t, newCode, after.Code, "The referenced transformation's code should be replaced")
+		assert.Equal(t, trn.Name, after.Name, "The ID must not be sent as a new name")
+	})
+
+	for _, value := range []string{"trs_doesnotexist0", "test-trn-missing-" + generateTimestamp()} {
+		t.Run("rejects unknown "+value, func(t *testing.T) {
+			connID := createTestConnection(t, cli)
+			t.Cleanup(func() { deleteConnection(t, cli, connID) })
+
+			stdout, stderr, err := cli.Run("gateway", "connection", "update", connID, "--rule-transform-name", value)
+			require.Error(t, err, "Unknown transformation without code should fail\nstdout: %s", stdout)
+			assert.Contains(t, stderr+stdout, "transformation '"+value+"' not found")
+		})
+	}
+}
