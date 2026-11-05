@@ -1391,6 +1391,77 @@ func TestConnectionWithTransformRule(t *testing.T) {
 	t.Logf("Successfully created and verified connection with transform rule: %s", conn.ID)
 }
 
+// TestConnectionCreateRuleOrderFollowsFlags verifies that filter and transform rules
+// are stored in the order their flags were given. Filter, transform and deduplicate
+// rules run in array order, so filter-then-transform must survive the round trip.
+func TestConnectionCreateRuleOrderFollowsFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	tests := []struct {
+		name  string
+		flags func(trnName string) []string
+		want  []string
+	}{
+		{
+			name: "filter before transform",
+			flags: func(trnName string) []string {
+				return []string{
+					"--rule-filter-body", `{"type":"payment"}`,
+					"--rule-transform-name", trnName,
+					"--rule-transform-code", ruleOrderTransformCode,
+				}
+			},
+			want: []string{"filter", "transform"},
+		},
+		{
+			name: "transform before filter",
+			flags: func(trnName string) []string {
+				return []string{
+					"--rule-transform-name", trnName,
+					"--rule-transform-code", ruleOrderTransformCode,
+					"--rule-filter-body", `{"type":"payment"}`,
+				}
+			},
+			want: []string{"transform", "filter"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cli := NewCLIRunner(t)
+			timestamp := generateTimestamp()
+			trnName := "test-trn-order-" + timestamp
+
+			// Registered first so it runs after the connection is deleted
+			t.Cleanup(func() {
+				deleteTransformation(t, cli, trnName)
+			})
+
+			args := []string{
+				"gateway", "connection", "create",
+				"--name", "test-rule-order-" + timestamp,
+				"--source-name", "test-src-order-" + timestamp,
+				"--source-type", "WEBHOOK",
+				"--destination-name", "test-dst-order-" + timestamp,
+				"--destination-type", "CLI",
+				"--destination-cli-path", "/webhooks",
+			}
+			var conn Connection
+			err := cli.RunJSON(&conn, append(args, tt.flags(trnName)...)...)
+			require.NoError(t, err, "Should create connection with filter and transform rules")
+			require.NotEmpty(t, conn.ID, "Connection should have an ID")
+
+			t.Cleanup(func() {
+				deleteConnection(t, cli, conn.ID)
+			})
+
+			assert.Equal(t, tt.want, getConnectionRuleTypes(t, cli, conn.ID), "Rules should follow flag order")
+		})
+	}
+}
+
 // TestConnectionWithDelayRule tests creating a connection with a delay rule
 func TestConnectionWithDelayRule(t *testing.T) {
 	if testing.Short() {
@@ -1495,7 +1566,7 @@ func TestConnectionWithDeduplicateRule(t *testing.T) {
 	t.Logf("Successfully created and verified connection with deduplicate rule: %s", conn.ID)
 }
 
-// TestConnectionWithMultipleRules tests creating a connection with multiple rules and verifies logical ordering
+// TestConnectionWithMultipleRules tests creating a connection with multiple rules and verifies they follow flag order
 func TestConnectionWithMultipleRules(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -1508,8 +1579,7 @@ func TestConnectionWithMultipleRules(t *testing.T) {
 	sourceName := "test-src-multi-" + timestamp
 	destName := "test-dst-multi-" + timestamp
 
-	// Note: Rules are created in logical order (deduplicate -> transform -> filter -> delay -> retry)
-	// This order matches the API's default ordering for proper data flow through the pipeline.
+	// Rules built from --rule-* flags follow the position of each rule type's first flag
 	var conn Connection
 	err := cli.RunJSON(&conn,
 		"gateway", "connection", "create",
@@ -1541,23 +1611,23 @@ func TestConnectionWithMultipleRules(t *testing.T) {
 	require.NotEmpty(t, getConn.Rules, "Connection should have rules")
 	require.Len(t, getConn.Rules, 3, "Connection should have exactly three rules")
 
-	// Verify logical order: filter -> delay -> retry (deduplicate/transform not present in this test)
-	assert.Equal(t, "filter", getConn.Rules[0]["type"], "First rule should be filter (logical order)")
-	assert.Equal(t, "delay", getConn.Rules[1]["type"], "Second rule should be delay (logical order)")
-	assert.Equal(t, "retry", getConn.Rules[2]["type"], "Third rule should be retry (logical order)")
+	// Verify flag order: filter -> retry -> delay
+	assert.Equal(t, "filter", getConn.Rules[0]["type"], "First rule should be filter (flag order)")
+	assert.Equal(t, "retry", getConn.Rules[1]["type"], "Second rule should be retry (flag order)")
+	assert.Equal(t, "delay", getConn.Rules[2]["type"], "Third rule should be delay (flag order)")
 
 	// Verify filter rule details
 	assertFilterRuleFieldMatches(t, getConn.Rules[0]["body"], `{"type":"payment"}`, "body")
 
 	// Verify delay rule details
-	assert.Equal(t, float64(1000), getConn.Rules[1]["delay"], "Delay should be 1000 milliseconds")
+	assert.Equal(t, float64(1000), getConn.Rules[2]["delay"], "Delay should be 1000 milliseconds")
 
 	// Verify retry rule details
-	assert.Equal(t, "exponential", getConn.Rules[2]["strategy"], "Retry strategy should be exponential")
-	assert.Equal(t, float64(5), getConn.Rules[2]["count"], "Retry count should be 5")
-	assert.Equal(t, float64(60000), getConn.Rules[2]["interval"], "Retry interval should be 60000")
+	assert.Equal(t, "exponential", getConn.Rules[1]["strategy"], "Retry strategy should be exponential")
+	assert.Equal(t, float64(5), getConn.Rules[1]["count"], "Retry count should be 5")
+	assert.Equal(t, float64(60000), getConn.Rules[1]["interval"], "Retry interval should be 60000")
 
-	t.Logf("Successfully created and verified connection with multiple rules in logical order: %s", conn.ID)
+	t.Logf("Successfully created and verified connection with multiple rules in flag order: %s", conn.ID)
 }
 
 // TestConnectionWithRateLimiting tests creating a connection with rate limiting
