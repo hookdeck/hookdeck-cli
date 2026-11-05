@@ -8,14 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
-// Both renderers used to build the event link by hand, so guest links stayed
-// on Console after pkg/listen/links moved. These tests pin the log line each
-// renderer prints to the shared builder's output.
+// Both renderers used to build the event link by hand, apart from
+// pkg/listen/links. These tests pin the log line each renderer prints to the
+// shared builder's output.
 
 func linksRendererConfig(t *testing.T, projectType string) *RendererConfig {
 	t.Helper()
@@ -28,7 +27,6 @@ func linksRendererConfig(t *testing.T, projectType string) *RendererConfig {
 		ProjectType:      projectType,
 		ProjectID:        "tm_123",
 		TargetURL:        target,
-		Sources:          []*hookdeck.Source{{ID: "src_abc123def456"}},
 	}
 }
 

@@ -481,7 +481,7 @@ func (m Model) renderConnectionInfo() string {
 		s.WriteString("💡 Sign up to make your webhook URL permanent: ")
 		s.WriteString(m.cfg.GuestURL)
 	} else {
-		displayURL := dashboardHomeURL(m.cfg)
+		displayURL := homeURL(m.cfg)
 		s.WriteString("💡 " + linkTarget(m.cfg).HomeHint("View dashboard to inspect, retry & bookmark events") + ": ")
 		s.WriteString(displayURL)
 	}

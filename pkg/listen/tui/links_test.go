@@ -22,19 +22,19 @@ func linksTestConfig() *Config {
 
 func TestDashboardHomeURLUsesConfigFields(t *testing.T) {
 	cfg := linksTestConfig()
-	assert.Equal(t, "https://dashboard.hookdeck.com/events/cli?team_id=tm_123", dashboardHomeURL(cfg))
+	assert.Equal(t, "https://dashboard.hookdeck.com/events/cli?team_id=tm_123", homeURL(cfg))
 
 	cfg.ProjectType = "console"
-	assert.Equal(t, "https://inspect.hookdeck.com/abc123def456", dashboardHomeURL(cfg))
+	assert.Equal(t, "https://inspect.hookdeck.com/abc123def456", homeURL(cfg))
 
 	cfg.Sources = append(cfg.Sources, &hookdeck.Source{ID: "src_other000000"})
-	assert.Equal(t, "https://inspect.hookdeck.com", dashboardHomeURL(cfg))
+	assert.Equal(t, "https://inspect.hookdeck.com", homeURL(cfg))
 }
 
 func TestEventDashboardURLUsesConfigFields(t *testing.T) {
 	cfg := linksTestConfig()
-	assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1?team_id=tm_123", eventDashboardURL(cfg, "evt_1"))
+	assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1?team_id=tm_123", eventURL(cfg, "evt_1"))
 
 	cfg.ProjectType = "console"
-	assert.Equal(t, "https://inspect.hookdeck.com/?event_id=evt_1&team_id=tm_123", eventDashboardURL(cfg, "evt_1"))
+	assert.Equal(t, "https://inspect.hookdeck.com/?event_id=evt_1&team_id=tm_123", eventURL(cfg, "evt_1"))
 }

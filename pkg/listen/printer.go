@@ -95,7 +95,7 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 		}
 	}
 
-	// Print dashboard hint
+	// Print the sign-up hint, or the link to the session's events
 	fmt.Println()
 	if guestURL != "" {
 		fmt.Printf("💡 Sign up to make your webhook URL permanent: %s\n", guestURL)

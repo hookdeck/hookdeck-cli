@@ -13,15 +13,15 @@ func linkTarget(cfg *Config) links.Target {
 	}
 }
 
-// dashboardHomeURL returns the link to the session's events: the dashboard
+// homeURL returns the link to the session's events: the dashboard
 // events view, or for guest accounts the Inspect page of the session's Source
 // (Inspect home when it listens to several).
-func dashboardHomeURL(cfg *Config) string {
+func homeURL(cfg *Config) string {
 	return linkTarget(cfg).Home(links.SessionSourceID(cfg.Sources))
 }
 
-// eventDashboardURL returns the deep-link for a single event: the dashboard
+// eventURL returns the deep-link for a single event: the dashboard
 // event page, or for guest accounts the Inspect link that opens the event.
-func eventDashboardURL(cfg *Config, eventID string) string {
+func eventURL(cfg *Config, eventID string) string {
 	return linkTarget(cfg).EventURL(eventID)
 }

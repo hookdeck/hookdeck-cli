@@ -288,7 +288,8 @@ func (m Model) retrySelectedEvent() tea.Cmd {
 	}
 }
 
-// openSelectedEventInBrowser opens the event in the dashboard
+// openSelectedEventInBrowser opens the event in the dashboard, or in Hookdeck
+// Inspect for guest accounts
 func (m Model) openSelectedEventInBrowser() tea.Cmd {
 	selectedEvent := m.GetSelectedEvent()
 	if selectedEvent == nil || selectedEvent.ID == "" {
@@ -296,10 +297,10 @@ func (m Model) openSelectedEventInBrowser() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		eventURL := eventDashboardURL(m.cfg, selectedEvent.ID)
+		link := eventURL(m.cfg, selectedEvent.ID)
 
 		// Open in browser
-		err := openBrowser(eventURL)
+		err := openBrowser(link)
 		return openBrowserResultMsg{err: err}
 	}
 }
