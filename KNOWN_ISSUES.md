@@ -1,5 +1,31 @@
 # Known Issues
 
+## Connection rules built from `--rule-*` flags run in a fixed order, not the order you wrote them
+
+**Symptom:** A connection created, updated or upserted with `--rule-*` flags runs its rules in a
+different order from the flags. For example, `--rule-filter-body … --rule-transform-name …`
+produces a transform rule followed by a filter rule, so the filter sees the transformed payload
+instead of the original one.
+
+**Why:** The CLI always built rules as deduplicate, transform, filter, delay, retry, whatever the
+order of the flags. Filter, transform and deduplicate rules run in the order they appear in the
+connection's `rules` array.
+
+**Affected:** v3.1.0 and earlier. `--rules` and `--rules-file` were not affected: they send the
+array exactly as given.
+
+**Recommended fix:** Update to **v3.2.0 or later**. Rules then follow the position of each rule
+type's first flag. If you put filter flags before transform flags and relied on transform running
+first, put the transform flags first.
+
+- npm: `npm install -g hookdeck-cli@latest`
+- Homebrew: `brew upgrade hookdeck`
+
+**Workaround (until you update):** Pass the rules as JSON with `--rules` or `--rules-file`, in the
+order you want them to run.
+
+**Tracking:** #464
+
 ## `hookdeck listen` never prints "Connected" when output is piped or `--color off` is set
 
 **Symptom:** `hookdeck listen` prints the connection banner and then nothing. The documented
