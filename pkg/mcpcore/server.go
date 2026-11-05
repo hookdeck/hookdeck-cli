@@ -270,7 +270,7 @@ func (s *Server) wrapWithTelemetry(toolName string, handler mcpsdk.ToolHandler) 
 			}
 		}()
 
-		FillProjectDisplayNameIfNeeded(s.accountClient, s.client)
+		FillProjectDisplayNameIfNeeded(ctx, s.accountClient, s.client)
 
 		return handler(ctx, req)
 	}
