@@ -1,6 +1,9 @@
 package hookdeck
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 // TestTransformationRunResponse_Failed pins the success predicate against
 // behaviour observed from the live API. The cases below are transcribed from
@@ -80,5 +83,32 @@ func TestTransformationRunResponse_ConsoleText(t *testing.T) {
 				t.Errorf("ConsoleText() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTransformationExecution_KeepsAPIFields(t *testing.T) {
+	body := `{"id":"exec_1","created_at":"2026-01-02T03:04:05Z","webhook_id":"web_1","issue_id":"iss_1","log_level":"error",` +
+		`"original_event_data":{"body":{"a":1}},"transformed_event_data":{"body":{"a":2}},"logs":[{"type":"error","message":"boom"}]}`
+
+	var e TransformationExecution
+	if err := json.Unmarshal([]byte(body), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.WebhookID != "web_1" || e.IssueID != "iss_1" || e.LogLevel != "error" {
+		t.Fatalf("scalar fields lost: %+v", e)
+	}
+
+	out, err := json.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"original_event_data", "transformed_event_data", "logs", "log_level", "webhook_id", "issue_id"} {
+		if _, ok := got[k]; !ok {
+			t.Errorf("field %q missing from re-encoded execution: %s", k, out)
+		}
 	}
 }
