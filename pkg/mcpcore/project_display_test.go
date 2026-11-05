@@ -1,17 +1,110 @@
 package mcpcore
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// stalledAPI answers nothing until the request is abandoned, which is what a
+// slow API looks like to a client with no deadline of its own.
+func stalledAPI(t *testing.T) (*hookdeck.Client, *atomic.Int64) {
+	t.Helper()
+	var requests atomic.Int64
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	t.Cleanup(func() {
+		close(release)
+		server.Close()
+	})
+	baseURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	return &hookdeck.Client{BaseURL: baseURL, APIKey: "k", ProjectID: "tm_1"}, &requests
+}
+
+func shortenProjectDisplayLookup(t *testing.T, d time.Duration) {
+	t.Helper()
+	previous := projectDisplayLookupTimeout
+	projectDisplayLookupTimeout = d
+	t.Cleanup(func() { projectDisplayLookupTimeout = previous })
+}
+
+// TestFillProjectDisplayName_GivesUpOnAStalledAPI: the lookup is cosmetic, so a
+// slow API must cost at most the timeout, not however long the API takes.
+func TestFillProjectDisplayName_GivesUpOnAStalledAPI(t *testing.T) {
+	shortenProjectDisplayLookup(t, 200*time.Millisecond)
+	client, requests := stalledAPI(t)
+
+	start := time.Now()
+	FillProjectDisplayNameIfNeeded(context.Background(), client, client)
+
+	assert.Less(t, time.Since(start), 3*time.Second, "the lookup must give up at its timeout")
+	assert.GreaterOrEqual(t, requests.Load(), int64(1), "the lookup should have been attempted")
+	assert.Empty(t, client.ProjectName, "a lookup that gave up leaves the name for the next call to fill")
+	assert.Empty(t, client.ProjectOrg)
+}
+
+// TestToolCallIsNotHeldByAStalledDisplayNameLookup is the case the acceptance
+// suite kept hitting: a tool that never needs the API (here, one standing in for
+// a write refused in read-only mode) answered nothing, because the lookup ahead
+// of it waited on the API with no deadline.
+func TestToolCallIsNotHeldByAStalledDisplayNameLookup(t *testing.T) {
+	shortenProjectDisplayLookup(t, 200*time.Millisecond)
+	client, _ := stalledAPI(t)
+	s := &Server{client: client, accountClient: client}
+
+	refusal := mcpsdk.ToolHandler(func(ctx context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		return &mcpsdk.CallToolResult{IsError: true}, nil
+	})
+
+	done := make(chan *mcpsdk.CallToolResult, 1)
+	go func() {
+		result, _ := s.wrapWithTelemetry("gateway_sources_read", refusal)(context.Background(), newCallToolRequest(`{"action":"delete"}`))
+		done <- result
+	}()
+
+	select {
+	case result := <-done:
+		require.NotNil(t, result)
+		assert.True(t, result.IsError)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the tool call is still waiting on the display-name lookup")
+	}
+}
+
+// TestFillProjectDisplayName_StopsWhenTheCallIsCancelled: a client that cancels
+// the tool call must not leave the lookup running to its own timeout.
+func TestFillProjectDisplayName_StopsWhenTheCallIsCancelled(t *testing.T) {
+	shortenProjectDisplayLookup(t, time.Minute)
+	client, _ := stalledAPI(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	FillProjectDisplayNameIfNeeded(ctx, client, client)
+
+	assert.Less(t, time.Since(start), 3*time.Second, "cancelling the call must end the lookup")
+	assert.Empty(t, client.ProjectName)
+}
 
 func TestFillProjectDisplayNameIfNeeded_SetsNameFromAPI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,14 +125,14 @@ func TestFillProjectDisplayNameIfNeeded_SetsNameFromAPI(t *testing.T) {
 		APIKey:    "k",
 		ProjectID: "proj_x",
 	}
-	FillProjectDisplayNameIfNeeded(client, client)
+	FillProjectDisplayNameIfNeeded(context.Background(), client, client)
 	require.Equal(t, "Acme", client.ProjectOrg)
 	require.Equal(t, "production", client.ProjectName)
 }
 
 func TestFillProjectDisplayNameIfNeeded_NoOpWhenNameSet(t *testing.T) {
 	client := &hookdeck.Client{ProjectID: "p", ProjectName: "already"}
-	FillProjectDisplayNameIfNeeded(client, client)
+	FillProjectDisplayNameIfNeeded(context.Background(), client, client)
 	require.Equal(t, "already", client.ProjectName)
 }
 
@@ -72,7 +165,7 @@ func TestFillProjectDisplayNameIfNeeded_LooksUpThroughTheAccountClient(t *testin
 	account := &hookdeck.Client{BaseURL: accountURL, APIKey: "k", ProjectID: "proj_x"}
 	product := &hookdeck.Client{BaseURL: productURL, APIKey: "k", ProjectID: "proj_x"}
 
-	FillProjectDisplayNameIfNeeded(account, product)
+	FillProjectDisplayNameIfNeeded(context.Background(), account, product)
 	require.Equal(t, "Acme", product.ProjectOrg)
 	require.Equal(t, "production", product.ProjectName)
 }
@@ -100,7 +193,7 @@ func TestFillProjectDisplayName_ProjectScopedKey(t *testing.T) {
 	require.NoError(t, err)
 	client := &hookdeck.Client{BaseURL: baseURL, APIKey: "ci-key", ProjectID: "tm_1"}
 
-	FillProjectDisplayNameIfNeeded(client, client)
+	FillProjectDisplayNameIfNeeded(context.Background(), client, client)
 
 	assert.Equal(t, "cli outpost testing", client.ProjectName)
 	assert.Equal(t, "Automated Testing", client.ProjectOrg)
@@ -126,7 +219,7 @@ func TestFillProjectDisplayName_FallsBackToListing(t *testing.T) {
 	require.NoError(t, err)
 	client := &hookdeck.Client{BaseURL: baseURL, APIKey: "user-key", ProjectID: "tm_1"}
 
-	FillProjectDisplayNameIfNeeded(client, client)
+	FillProjectDisplayNameIfNeeded(context.Background(), client, client)
 
 	assert.Equal(t, "the active one", client.ProjectName, "the key's own project must not be used when it is not the active one")
 }

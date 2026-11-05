@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -89,10 +90,17 @@ func downloadLegacyCLI(t *testing.T) string {
 // Local app
 // ---------------------------------------------------------------------------
 
+// deliveryIDHeader tags every request these tests send with a value unique to
+// that send. Hookdeck forwards it to the local app, so a step waits for its own
+// delivery rather than whatever arrives next, and a failure can find the
+// request and its event in the API.
+const deliveryIDHeader = "X-Acceptance-Delivery-Id"
+
 // receivedRequest is one request as the local app saw it. Files holds what the
 // app wrote to disk: the raw body for single-file requests, or every file part
 // of a multipart form, keyed by form field name.
 type receivedRequest struct {
+	deliveryID   string
 	contentType  string
 	eventID      string
 	attemptCount int
@@ -126,6 +134,7 @@ func startLocalApp(t *testing.T) *localApp {
 		app.mu.Unlock()
 
 		req := receivedRequest{
+			deliveryID:  r.Header.Get(deliveryIDHeader),
 			contentType: r.Header.Get("Content-Type"),
 			eventID:     r.Header.Get("X-Hookdeck-EventID"),
 			files:       map[string]string{},
@@ -184,17 +193,25 @@ func (a *localApp) setStatus(status func(n int) int) {
 	a.status = status
 }
 
-func (a *localApp) next(t *testing.T, within time.Duration, outputs ...*syncBuffer) receivedRequest {
+// next waits for the delivery of the request sent with deliveryID. A delivery
+// of an earlier step's request is logged and skipped: one arriving late used
+// to be taken as the next step's, so a slow first delivery failed the step
+// after it instead. On timeout it reports how far the request got.
+func (a *localApp) next(t *testing.T, s binaryListenSetup, deliveryID string, within time.Duration, l listenOutput) receivedRequest {
 	t.Helper()
-	select {
-	case r := <-a.received:
-		return r
-	case <-time.After(within):
-		for _, o := range outputs {
-			t.Logf("listen output: %s", o.String())
+	timeout := time.After(within)
+	for {
+		select {
+		case r := <-a.received:
+			if r.deliveryID == deliveryID {
+				return r
+			}
+			t.Logf("local app: skipping a delivery of %q while waiting for %q", r.deliveryID, deliveryID)
+		case <-timeout:
+			l.log(t)
+			t.Fatalf("no request reached the local app within %s.\n%s", within, s.explainMissingDelivery(t, deliveryID))
+			return receivedRequest{}
 		}
-		t.Fatalf("no request reached the local app within %s; if the event failed with CLI_BINARY_UNSUPPORTED, the server does not deliver binary bodies to this CLI", within)
-		return receivedRequest{}
 	}
 }
 
@@ -348,6 +365,7 @@ func assertSavedFile(t *testing.T, path string, want fixture) {
 type binaryListenSetup struct {
 	cli        *CLIRunner
 	sourceName string
+	sourceID   string
 	sourceURL  string
 	connID     string
 }
@@ -369,38 +387,163 @@ func newBinaryListenSetup(t *testing.T, prefix string) binaryListenSetup {
 		"--destination-cli-path", "/",
 	))
 	require.NotEmpty(t, conn.ID)
-	t.Cleanup(func() { deleteConnection(t, cli, conn.ID) })
+	// No cleanup of its own: listen's cleanup deletes the connection by source
+	// name, and a second delete here only logged a 410 warning into every
+	// failure's output.
 
 	var src Source
 	require.NoError(t, cli.RunJSON(&src, "gateway", "source", "get", conn.Source.ID))
 	require.NotEmpty(t, src.URL)
-	return binaryListenSetup{cli: cli, sourceName: sourceName, sourceURL: src.URL, connID: conn.ID}
+	return binaryListenSetup{cli: cli, sourceName: sourceName, sourceID: conn.Source.ID, sourceURL: src.URL, connID: conn.ID}
 }
 
-// waitForTunnel gives listen time to connect and fails fast if it exited.
-func waitForTunnel(t *testing.T, done chan error, outputs ...*syncBuffer) {
+// listenOutput is a running `hookdeck listen` started by these tests.
+type listenOutput struct {
+	stdout, stderr *syncBuffer
+	done           chan error
+}
+
+// listenReadyLine is what listen prints in compact mode once its websocket is
+// connected. Both this CLI and v3.0.3 print it.
+const listenReadyLine = "Connected. Waiting for events..."
+
+// startBinaryListen runs `listen` for the setup's source, forwarding to port,
+// from binary or, when binary is empty, from a fresh build of this CLI. Debug
+// logging is on so a failure can show whether any message reached the
+// session's websocket.
+func startBinaryListen(t *testing.T, cli *CLIRunner, binary, port, sourceName string) listenOutput {
 	t.Helper()
-	t.Log("Waiting 12 seconds for the tunnel to connect...")
-	time.Sleep(12 * time.Second)
-	select {
-	case err := <-done:
-		for _, o := range outputs {
-			t.Logf("listen output: %s", o.String())
+	args := []string{"listen", port, sourceName, "--output", "compact", "--log-level", "debug"}
+	var l listenOutput
+	if binary == "" {
+		_, l.stdout, l.stderr, l.done = startListenCapturingOutput(t, cli, args...)
+	} else {
+		_, l.stdout, l.stderr, l.done = startListenBinaryCapturingOutput(t, cli, binary, args...)
+	}
+	return l
+}
+
+// waitReady waits for listen to report its websocket connected, rather than
+// sleeping a fixed time, and fails fast if listen exits first.
+func (l listenOutput) waitReady(t *testing.T) {
+	t.Helper()
+	const within = 60 * time.Second
+	deadline := time.Now().Add(within)
+	for !strings.Contains(l.stdout.String(), listenReadyLine) {
+		select {
+		case err := <-l.done:
+			l.log(t)
+			t.Fatalf("listen exited before connecting: %v", err)
+		case <-time.After(100 * time.Millisecond):
 		}
-		t.Fatalf("listen exited before forwarding anything: %v", err)
-	default:
+		if time.Now().After(deadline) {
+			l.log(t)
+			t.Fatalf("listen did not print %q within %s", listenReadyLine, within)
+		}
 	}
 }
 
-// postRaw sends body to a source URL with the given Content-Type, unmodified.
-func postRaw(t *testing.T, sourceURL, contentType string, body []byte) {
+// log writes listen's stdout, and the lines of its debug log that say what
+// happened on the websocket: connects, closes, and every incoming message.
+// The rest of the debug log is API traffic and would bury those lines.
+func (l listenOutput) log(t *testing.T) {
 	t.Helper()
+	t.Logf("listen stdout:\n%s", l.stdout.String())
+	var lines []string
+	for _, line := range strings.Split(l.stderr.String(), "\n") {
+		if !strings.Contains(line, "prefix=websocket.") && !strings.Contains(line, "level=error") && !strings.Contains(line, "level=warn") {
+			continue
+		}
+		if len(line) > 300 {
+			line = line[:300] + "..."
+		}
+		lines = append(lines, line)
+	}
+	t.Logf("listen websocket log:\n%s", strings.Join(lines, "\n"))
+}
+
+// postRaw sends body to the setup's source URL with the given Content-Type,
+// unmodified, and returns the delivery id it tagged the request with.
+func (s binaryListenSetup) postRaw(t *testing.T, contentType string, body []byte) string {
+	t.Helper()
+	deliveryID := fmt.Sprintf("%s-%d", s.sourceName, time.Now().UnixNano())
+	req, err := http.NewRequest(http.MethodPost, s.sourceURL, bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set(deliveryIDHeader, deliveryID)
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(sourceURL, contentType, bytes.NewReader(body))
+	resp, err := client.Do(req)
 	require.NoError(t, err, "POST to source URL failed")
 	defer resp.Body.Close()
 	require.True(t, resp.StatusCode >= 200 && resp.StatusCode < 300,
 		"POST to source URL returned %d", resp.StatusCode)
+	return deliveryID
+}
+
+// explainMissingDelivery says how far the request tagged deliveryID got, as
+// the API reports it: whether the source recorded it, whether an event was
+// created for a CLI, and whether that event was ever attempted. Together with
+// the websocket log it separates "never sent to this listen session" from
+// "sent, but not forwarded by the CLI".
+func (s binaryListenSetup) explainMissingDelivery(t *testing.T, deliveryID string) string {
+	t.Helper()
+	var requests struct {
+		Models []struct {
+			ID             string `json:"id"`
+			EventsCount    int    `json:"events_count"`
+			CLIEventsCount int    `json:"cli_events_count"`
+			IgnoredCount   int    `json:"ignored_count"`
+			RejectionCause any    `json:"rejection_cause"`
+		} `json:"models"`
+	}
+	// Search lags a few seconds behind ingestion, so a request sent moments ago
+	// can be missing from it; give it a short while before saying so.
+	for i := 0; i < 10; i++ {
+		if err := s.cli.RunJSON(&requests, "gateway", "request", "list", "--source-id", s.sourceID, "--search-term", deliveryID); err != nil {
+			return fmt.Sprintf("Could not look up the request: %v", err)
+		}
+		if len(requests.Models) > 0 {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	if len(requests.Models) == 0 {
+		return fmt.Sprintf("Source %s has no request tagged %s=%s.", s.sourceID, deliveryIDHeader, deliveryID)
+	}
+	r := requests.Models[0]
+	report := []string{fmt.Sprintf("Request %s: %d event(s), %d CLI event(s), %d ignored, rejection cause %v.",
+		r.ID, r.EventsCount, r.CLIEventsCount, r.IgnoredCount, r.RejectionCause)}
+
+	var events struct {
+		Models []struct {
+			ID        string `json:"id"`
+			CLIID     string `json:"cli_id"`
+			Status    string `json:"status"`
+			Attempts  int    `json:"attempts"`
+			ErrorCode string `json:"error_code"`
+		} `json:"models"`
+	}
+	if err := s.cli.RunJSON(&events, "gateway", "event", "list", "--connection-id", s.connID, "--search-term", deliveryID); err != nil {
+		return strings.Join(append(report, fmt.Sprintf("Could not look up its events: %v", err)), "\n")
+	}
+	if len(events.Models) == 0 {
+		report = append(report, "No event on connection "+s.connID+" carries this request.")
+	}
+	neverAttempted := false
+	for _, e := range events.Models {
+		report = append(report, fmt.Sprintf("Event %s for CLI %s: status %s, %d attempt(s), error code %q.",
+			e.ID, e.CLIID, e.Status, e.Attempts, e.ErrorCode))
+		if e.Attempts == 0 && (e.Status == "QUEUED" || e.Status == "SCHEDULED") {
+			neverAttempted = true
+		}
+		if e.ErrorCode == "CLI_BINARY_UNSUPPORTED" {
+			report = append(report, "CLI_BINARY_UNSUPPORTED: the server does not deliver binary bodies to this CLI.")
+		}
+	}
+	if neverAttempted {
+		report = append(report, "The event was created for a CLI but never attempted, so nothing was sent to the listen session: the delivery stopped before it reached the CLI.")
+	}
+	return strings.Join(report, "\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -418,15 +561,15 @@ func TestListenForwardsBinaryFilesThatTheAppCanSave(t *testing.T) {
 
 	s := newBinaryListenSetup(t, "test-bin")
 	app := startLocalApp(t)
-	_, stdout, stderr, done := startListenCapturingOutput(t, s.cli, "listen", app.port, s.sourceName, "--output", "compact")
-	waitForTunnel(t, done, stdout, stderr)
+	listen := startBinaryListen(t, s.cli, "", app.port, s.sourceName)
+	listen.waitReady(t)
 
 	// Raw bodies: the content types ingestion stores as binary.
 	for _, f := range []fixture{allBytesFixture(), pngFixture(t), jpegFixture(t), pdfFixture()} {
 		f := f
 		t.Run("raw "+f.contentType, func(t *testing.T) {
-			postRaw(t, s.sourceURL, f.contentType, f.data)
-			got := app.next(t, 45*time.Second, stdout, stderr)
+			id := s.postRaw(t, f.contentType, f.data)
+			got := app.next(t, s, id, 45*time.Second, listen)
 			assert.Equal(t, f.contentType, got.contentType, "original Content-Type must be forwarded")
 			assertSavedFile(t, got.files["body"], f)
 		})
@@ -436,8 +579,8 @@ func TestListenForwardsBinaryFilesThatTheAppCanSave(t *testing.T) {
 		files := []fixture{pngFixture(t), wavFixture(), allBytesFixture()}
 		contentType, body := multipartUpload(t, files...)
 
-		postRaw(t, s.sourceURL, contentType, body)
-		got := app.next(t, 45*time.Second, stdout, stderr)
+		id := s.postRaw(t, contentType, body)
+		got := app.next(t, s, id, 45*time.Second, listen)
 
 		assert.Equal(t, contentType, got.contentType, "boundary travels in the original Content-Type")
 		require.Len(t, got.files, len(files), "the app should save every file part")
@@ -463,20 +606,21 @@ func TestListenRetriesBinaryBodyByteExact(t *testing.T) {
 		}
 		return http.StatusOK
 	})
-	_, stdout, stderr, done := startListenCapturingOutput(t, s.cli, "listen", app.port, s.sourceName, "--output", "compact")
-	waitForTunnel(t, done, stdout, stderr)
+	listen := startBinaryListen(t, s.cli, "", app.port, s.sourceName)
+	listen.waitReady(t)
 
 	f := pngFixture(t)
-	postRaw(t, s.sourceURL, f.contentType, f.data)
+	id := s.postRaw(t, f.contentType, f.data)
 
-	first := app.next(t, 45*time.Second, stdout, stderr)
+	first := app.next(t, s, id, 45*time.Second, listen)
 	require.NotEmpty(t, first.eventID, "delivery should carry X-Hookdeck-EventID")
 	assert.Equal(t, 1, first.attemptCount)
 	assertSavedFile(t, first.files["body"], f)
 
 	s.cli.RunExpectSuccess("gateway", "event", "retry", first.eventID)
 
-	second := app.next(t, 45*time.Second, stdout, stderr)
+	// The retry delivers the same request, so it carries the same delivery id.
+	second := app.next(t, s, id, 45*time.Second, listen)
 	assert.Equal(t, first.eventID, second.eventID, "the retry should deliver the same event")
 	assert.Equal(t, 2, second.attemptCount)
 	assert.Equal(t, f.contentType, second.contentType)
@@ -498,16 +642,16 @@ func TestListenBinaryWithOldAndNewCLIListening(t *testing.T) {
 	legacyCLI := newSeparateCLIClient(t, s.cli)
 	newApp := startLocalApp(t)
 	oldApp := startLocalApp(t)
-	_, newOut, newErr, newDone := startListenCapturingOutput(t, s.cli, "listen", newApp.port, s.sourceName, "--output", "compact")
-	_, oldOut, oldErr, oldDone := startListenBinaryCapturingOutput(t, legacyCLI, legacyBinary, "listen", oldApp.port, s.sourceName, "--output", "compact")
-	waitForTunnel(t, newDone, newOut, newErr)
-	waitForTunnel(t, oldDone, oldOut, oldErr)
+	newListen := startBinaryListen(t, s.cli, "", newApp.port, s.sourceName)
+	oldListen := startBinaryListen(t, legacyCLI, legacyBinary, oldApp.port, s.sourceName)
+	newListen.waitReady(t)
+	oldListen.waitReady(t)
 
 	t.Run("raw image", func(t *testing.T) {
 		f := pngFixture(t)
-		postRaw(t, s.sourceURL, f.contentType, f.data)
+		id := s.postRaw(t, f.contentType, f.data)
 
-		got := newApp.next(t, 45*time.Second, newOut, newErr)
+		got := newApp.next(t, s, id, 45*time.Second, newListen)
 		assertSavedFile(t, got.files["body"], f)
 		oldApp.expectNothing(t, 20*time.Second)
 
@@ -517,16 +661,16 @@ func TestListenBinaryWithOldAndNewCLIListening(t *testing.T) {
 	t.Run("multipart upload", func(t *testing.T) {
 		files := []fixture{pngFixture(t), wavFixture()}
 		contentType, body := multipartUpload(t, files...)
-		postRaw(t, s.sourceURL, contentType, body)
+		id := s.postRaw(t, contentType, body)
 
-		got := newApp.next(t, 45*time.Second, newOut, newErr)
+		got := newApp.next(t, s, id, 45*time.Second, newListen)
 		for i, f := range files {
 			assertSavedFile(t, got.files[fmt.Sprintf("file%d", i)], f)
 		}
 
 		// The old CLI still gets the upload, decoded as UTF-8 text as before
 		// multipart moved to binary, so its file parts are not byte-exact.
-		legacy := oldApp.next(t, 45*time.Second, oldOut, oldErr)
+		legacy := oldApp.next(t, s, id, 45*time.Second, oldListen)
 		assert.Equal(t, contentType, legacy.contentType)
 		legacyPNG, err := os.ReadFile(legacy.files["file0"])
 		require.NoError(t, err)
