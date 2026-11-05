@@ -296,7 +296,7 @@ func (m Model) openSelectedEventInBrowser() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		eventURL := eventDashboardURL(m.cfg, *selectedEvent)
+		eventURL := eventDashboardURL(m.cfg, selectedEvent.ID)
 
 		// Open in browser
 		err := openBrowser(eventURL)

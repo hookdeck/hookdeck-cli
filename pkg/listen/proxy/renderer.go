@@ -87,8 +87,8 @@ func (c *RendererConfig) linkTarget() links.Target {
 }
 
 // eventLinkDisplay returns the link printed at the end of an event's log line.
-func (c *RendererConfig) eventLinkDisplay(eventID string, attempt *websocket.Attempt) string {
-	return c.linkTarget().EventDisplay(links.AttemptEvent(eventID, attempt, c.Connections))
+func (c *RendererConfig) eventLinkDisplay(eventID string) string {
+	return c.linkTarget().EventDisplay(eventID)
 }
 
 // NewRenderer creates the appropriate renderer based on output mode

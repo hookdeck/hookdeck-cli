@@ -144,7 +144,7 @@ func (r *InteractiveRenderer) OnEventComplete(eventID string, attempt *websocket
 	localTime := eventTime.Format(interactiveTimeLayout)
 	color := ansi.Color(os.Stdout)
 
-	displayURL := r.cfg.eventLinkDisplay(eventID, attempt)
+	displayURL := r.cfg.eventLinkDisplay(eventID)
 
 	durationMs := response.Duration.Milliseconds()
 

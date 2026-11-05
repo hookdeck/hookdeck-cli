@@ -11,7 +11,6 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
-	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
 // Target describes where a listen session's links point.
@@ -23,18 +22,10 @@ type Target struct {
 	InspectBaseURL string
 	// ProjectType is the profile's project type (config.ProjectType*).
 	ProjectType string
-	// ProjectID scopes dashboard links with team_id. Inspect links ignore it:
-	// an Inspect page is addressed by its Source alone.
+	// ProjectID is the project's team id. Dashboard links are scoped by it,
+	// and Inspect event links carry it so Inspect can check the visitor is in
+	// that project.
 	ProjectID string
-}
-
-// Event identifies one event a link points at. SourceID and RequestID only
-// matter for Inspect, which has no event page: an event is shown as the
-// request that created it, on its Source's page.
-type Event struct {
-	ID        string
-	SourceID  string
-	RequestID string
 }
 
 func (t Target) inspect() bool {
@@ -65,7 +56,7 @@ func (t Target) HomeHint(dashboardHint string) string {
 // is empty (a session listening to several Sources has no single page).
 func (t Target) Home(sourceID string) string {
 	if t.inspect() {
-		return inspectSource(t.InspectBaseURL, sourceID, "")
+		return inspectSource(t.InspectBaseURL, sourceID)
 	}
 	if t.ProjectID == "" {
 		return t.DashboardBaseURL + "/events/cli"
@@ -77,20 +68,20 @@ func (t Target) Home(sourceID string) string {
 // destination without the team_id query parameter.
 func (t Target) HomeDisplay(sourceID string) string {
 	if t.inspect() {
-		return inspectSource(t.InspectBaseURL, sourceID, "")
+		return inspectSource(t.InspectBaseURL, sourceID)
 	}
 	return t.DashboardBaseURL + "/events/cli"
 }
 
 // EventURL returns the deep-link for a single event. For the dashboard that is
 // the event page, scoped by team_id when the project id is known. For Inspect
-// it is the event's Source page, selecting its request when the request id is
-// known, and the Inspect home page when the Source is unknown.
-func (t Target) EventURL(event Event) string {
+// it is the home page with ?event_id= and ?team_id=: Inspect looks the event
+// up and opens the request that created it on its Source's page.
+func (t Target) EventURL(eventID string) string {
 	if t.inspect() {
-		return inspectSource(t.InspectBaseURL, event.SourceID, event.RequestID)
+		return inspectEvent(t.InspectBaseURL, eventID, t.ProjectID)
 	}
-	link := t.DashboardBaseURL + "/events/" + event.ID
+	link := t.DashboardBaseURL + "/events/" + eventID
 	if t.ProjectID != "" {
 		link += "?team_id=" + t.ProjectID
 	}
@@ -98,28 +89,36 @@ func (t Target) EventURL(event Event) string {
 }
 
 // EventDisplay returns the display text for the EventURL link, as printed at
-// the end of each event log line: the same destination without the team_id
-// query parameter.
-func (t Target) EventDisplay(event Event) string {
+// the end of each event log line. The dashboard shows the event page without
+// team_id. Inspect shows the full link, team_id included, because Inspect
+// needs both ids to open the event.
+func (t Target) EventDisplay(eventID string) string {
 	if t.inspect() {
-		return t.EventURL(event)
+		return t.EventURL(eventID)
 	}
-	return t.DashboardBaseURL + "/events/" + event.ID
+	return t.DashboardBaseURL + "/events/" + eventID
 }
 
 // inspectSource builds an Inspect Source page link. Inspect addresses a Source
-// by its id without the "src_" prefix, and selects a request with ?request=.
-// Without a Source it falls back to the Inspect home page.
-func inspectSource(inspectBaseURL, sourceID, requestID string) string {
+// by its id without the "src_" prefix. Without a Source it falls back to the
+// Inspect home page.
+func inspectSource(inspectBaseURL, sourceID string) string {
 	bare := strings.TrimPrefix(sourceID, "src_")
 	if bare == "" {
 		return inspectBaseURL
 	}
-	link := strings.TrimSuffix(inspectBaseURL, "/") + "/" + url.PathEscape(bare)
-	if requestID != "" {
-		link += "?request=" + url.QueryEscape(requestID)
+	return strings.TrimSuffix(inspectBaseURL, "/") + "/" + url.PathEscape(bare)
+}
+
+// inspectEvent builds an Inspect event link: the home page with event_id and,
+// when known, team_id. These are the parameters Console's event links used.
+func inspectEvent(inspectBaseURL, eventID, teamID string) string {
+	query := url.Values{}
+	query.Set("event_id", eventID)
+	if teamID != "" {
+		query.Set("team_id", teamID)
 	}
-	return link
+	return strings.TrimSuffix(inspectBaseURL, "/") + "/?" + query.Encode()
 }
 
 // SessionSourceID returns the id of the one Source a session listens to, or
@@ -129,32 +128,4 @@ func SessionSourceID(sources []*hookdeck.Source) string {
 		return ""
 	}
 	return sources[0].ID
-}
-
-// AttemptEvent returns the Event an attempt delivers: its event id, the
-// Source of its connection (resolved from the connections the session
-// loaded), and its request id when the server sent one.
-func AttemptEvent(eventID string, attempt *websocket.Attempt, connections []*hookdeck.Connection) Event {
-	event := Event{ID: eventID}
-	if attempt == nil {
-		return event
-	}
-	event.SourceID = ConnectionSourceID(connections, attempt.Body.ConnectionId)
-	event.RequestID = attempt.Body.RequestID
-	return event
-}
-
-// ConnectionSourceID returns the id of the Source that connectionID belongs
-// to, from the connections the session loaded, or "" when it is not among
-// them. An attempt names its connection (webhook_id) but not its Source.
-func ConnectionSourceID(connections []*hookdeck.Connection, connectionID string) string {
-	if connectionID == "" {
-		return ""
-	}
-	for _, connection := range connections {
-		if connection != nil && connection.ID == connectionID && connection.Source != nil {
-			return connection.Source.ID
-		}
-	}
-	return ""
 }

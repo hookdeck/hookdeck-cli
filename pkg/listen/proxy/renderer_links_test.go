@@ -22,25 +22,22 @@ func linksRendererConfig(t *testing.T, projectType string) *RendererConfig {
 	target, err := url.Parse("http://localhost:3000")
 	require.NoError(t, err)
 
-	source := &hookdeck.Source{ID: "src_abc123def456"}
 	return &RendererConfig{
 		DashboardBaseURL: "https://dashboard.hookdeck.com",
 		InspectBaseURL:   "https://inspect.hookdeck.com",
 		ProjectType:      projectType,
 		ProjectID:        "tm_123",
 		TargetURL:        target,
-		Sources:          []*hookdeck.Source{source},
-		Connections:      []*hookdeck.Connection{{ID: "web_1", Source: source}},
+		Sources:          []*hookdeck.Source{{ID: "src_abc123def456"}},
 	}
 }
 
-func linksTestAttempt(requestID string) *websocket.Attempt {
+func linksTestAttempt() *websocket.Attempt {
 	return &websocket.Attempt{Body: websocket.AttemptBody{
 		Path:         "/webhooks",
 		EventID:      "evt_1",
 		AttemptId:    "atm_1",
 		ConnectionId: "web_1",
-		RequestID:    requestID,
 		Request:      websocket.AttemptRequest{Method: "POST"},
 	}}
 }
@@ -51,17 +48,15 @@ func TestSimpleRendererEventLink(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		projectType string
-		requestID   string
 		want        string
 	}{
-		{"dashboard is unchanged", "gateway", "req_1", "→ https://dashboard.hookdeck.com/events/evt_1\n"},
-		{"guest links to the Inspect source page and request", "console", "req_1", "→ https://inspect.hookdeck.com/abc123def456?request=req_1\n"},
-		{"guest without request_id links to the source page", "console", "", "→ https://inspect.hookdeck.com/abc123def456\n"},
+		{"dashboard is unchanged", "gateway", "→ https://dashboard.hookdeck.com/events/evt_1\n"},
+		{"guest links to the event in Inspect", "console", "→ https://inspect.hookdeck.com/?event_id=evt_1&team_id=tm_123\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := NewSimpleRenderer(linksRendererConfig(t, tc.projectType), false)
 			out := captureStdout(t, func() {
-				r.OnEventComplete("evt_1", linksTestAttempt(tc.requestID), response, time.Now())
+				r.OnEventComplete("evt_1", linksTestAttempt(), response, time.Now())
 			})
 			assert.Contains(t, out, tc.want)
 			assert.NotContains(t, out, "console.hookdeck.com")
@@ -78,13 +73,13 @@ func TestInteractiveRendererEventLink(t *testing.T) {
 		want        string
 	}{
 		{"dashboard is unchanged", "gateway", "https://dashboard.hookdeck.com/events/evt_1"},
-		{"guest links to the Inspect source page and request", "console", "https://inspect.hookdeck.com/abc123def456?request=req_1"},
+		{"guest links to the event in Inspect", "console", "https://inspect.hookdeck.com/?event_id=evt_1&team_id=tm_123"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r, sent := recordingInteractiveRenderer()
 			r.cfg = linksRendererConfig(t, tc.projectType)
 
-			r.OnEventComplete("evt_1", linksTestAttempt("req_1"), response, time.Now())
+			r.OnEventComplete("evt_1", linksTestAttempt(), response, time.Now())
 
 			require.Len(t, *sent, 1)
 			update, ok := (*sent)[0].(tui.UpdateEventMsg)

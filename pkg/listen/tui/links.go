@@ -21,7 +21,7 @@ func dashboardHomeURL(cfg *Config) string {
 }
 
 // eventDashboardURL returns the deep-link for a single event: the dashboard
-// event page, or for guest accounts the event's Source page in Inspect.
-func eventDashboardURL(cfg *Config, event EventInfo) string {
-	return linkTarget(cfg).EventURL(links.AttemptEvent(event.ID, event.Data, cfg.Connections))
+// event page, or for guest accounts the Inspect link that opens the event.
+func eventDashboardURL(cfg *Config, eventID string) string {
+	return linkTarget(cfg).EventURL(eventID)
 }
