@@ -9,9 +9,10 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
-// The name filter on GET /transformations can return near matches, so the
-// exact name is not necessarily on the first page. The lookup asks for the
-// largest page the API allows and follows pagination.next, up to a bound.
+// The lookup doesn't rely on the name filter on GET /transformations being an
+// exact match. It compares names exactly and, in case the filter matches more
+// than one page, asks for the largest page the API allows and follows
+// pagination.next, up to a bound.
 const (
 	transformationLookupPageLimit = 255
 	transformationLookupMaxPages  = 20
