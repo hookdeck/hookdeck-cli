@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -13,7 +14,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -440,8 +440,27 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		req.Header.Set(key, unquoted_value)
 	}
 
-	req.Body = ioutil.NopCloser(strings.NewReader(webhookEvent.Body.Request.DataString))
-	req.ContentLength = int64(len(webhookEvent.Body.Request.DataString))
+	// Binary bodies (data_base64) are forwarded as the original bytes, with the
+	// original Content-Type (multipart boundary included) already set above.
+	// net/http ignores Content-Length in req.Header and uses ContentLength.
+	body, err := webhookEvent.Body.Request.Body()
+	if err != nil {
+		p.renderer.OnEventError(eventID, webhookEvent, fmt.Errorf("decoding binary request body: %w", err), time.Now())
+		// Fail the attempt now rather than leave Hookdeck waiting for its timeout.
+		if wsClient := p.currentWebSocketClient(); wsClient != nil {
+			wsClient.SendMessage(&websocket.OutgoingMessage{
+				ErrorAttemptResponse: &websocket.ErrorAttemptResponse{
+					Event: "attempt_response",
+					Body: websocket.ErrorAttemptBody{
+						AttemptId: webhookEvent.Body.AttemptId,
+						Error:     true,
+					},
+				}})
+		}
+		return
+	}
+	req.Body = ioutil.NopCloser(bytes.NewReader(body))
+	req.ContentLength = int64(len(body))
 
 	// For interactive mode: start 100ms timer and HTTP request concurrently
 	requestStartTime := time.Now()

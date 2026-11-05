@@ -101,7 +101,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
 
       - name: Run Go Acceptance Tests (slice ${{ matrix.slice }})
         # 30m, not 12m: slice 0 timed out at exactly 720s once the MCP tests
@@ -133,7 +133,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
 
       - name: Run telemetry acceptance tests
         run: go test -tags=telemetry ./test/acceptance/... -v -timeout 12m

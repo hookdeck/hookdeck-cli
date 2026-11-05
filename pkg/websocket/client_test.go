@@ -72,6 +72,9 @@ func TestConnectSendsSessionRecreationHeaders(t *testing.T) {
 	if got := captured.Get("Websocket-Id"); got != "cses_test" {
 		t.Errorf("Websocket-Id = %q, want %q", got, "cses_test")
 	}
+	if got := captured.Get(CapabilitiesHeader); got != CapabilityBinaryBody {
+		t.Errorf("%s = %q, want %q", CapabilitiesHeader, got, CapabilityBinaryBody)
+	}
 	if got := captured.Get("X-Webhook-Ids"); got != "web_abc,web_def" {
 		t.Errorf("X-Webhook-Ids = %q, want %q", got, "web_abc,web_def")
 	}

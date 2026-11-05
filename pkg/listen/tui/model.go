@@ -366,8 +366,11 @@ func (m *Model) buildEventDetailsContent(event *EventInfo) (string, requestCopyC
 		requestCopy.headers = strings.TrimSuffix(requestCopy.headers, "\n")
 		content.WriteString("\n")
 
-		// Request body
-		if event.Data.Body.Request.DataString != "" {
+		// Request body. Binary bodies are summarised rather than printed: they
+		// are not text, and the copied request would not reproduce them.
+		if event.Data.Body.Request.IsBinary() {
+			content.WriteString(faintStyle.Render(binaryBodySummary(event.Data.Body.Request)) + "\n")
+		} else if event.Data.Body.Request.DataString != "" {
 			// Try to pretty print JSON
 			requestCopy.body = m.prettyPrintJSON(event.Data.Body.Request.DataString)
 			content.WriteString(requestCopy.body + "\n")
@@ -436,6 +439,16 @@ func (c *requestCopyContent) buildRequest() {
 		parts = append(parts, c.body)
 	}
 	c.request = strings.Join(parts, "\n\n")
+}
+
+// binaryBodySummary describes a binary request body by size, since its bytes
+// cannot be shown as text.
+func binaryBodySummary(req websocket.AttemptRequest) string {
+	body, err := req.Body()
+	if err != nil {
+		return "(binary body could not be decoded)"
+	}
+	return fmt.Sprintf("(binary body, %d bytes)", len(body))
 }
 
 // prettyPrintJSON attempts to pretty print JSON, returns original if not valid JSON.
