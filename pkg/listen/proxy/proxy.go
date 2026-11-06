@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -379,6 +380,16 @@ func (p *Proxy) createSession(ctx context.Context) (hookdeck.Session, error) {
 	return session, err
 }
 
+// joinForwardPath appends the event's path to the forwarding URL's path with a
+// single "/" between them. A trailing "/" on the forwarding URL is dropped only
+// when the event path starts with one, and the event path itself is left as is.
+func joinForwardPath(base, eventPath string) string {
+	if strings.HasPrefix(eventPath, "/") {
+		base = strings.TrimSuffix(base, "/")
+	}
+	return base + eventPath
+}
+
 func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 	if msg.Attempt == nil {
 		p.cfg.Log.Debug("WebSocket specified for Events received unexpected event")
@@ -392,7 +403,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		"prefix": "proxy.Proxy.processAttempt",
 	}).Debugf("Processing webhook event")
 
-	url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
+	url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + joinForwardPath(p.cfg.URL.Path, webhookEvent.Body.Path)
 
 	// Create request with context for timeout control
 	timeout := webhookEvent.Body.Request.Timeout
