@@ -57,7 +57,7 @@ Examples:
 	sc.cmd.Flags().StringVar(&sc.AllowedHTTPMethods, "allowed-http-methods", "", "Comma-separated allowed HTTP methods (GET, POST, PUT, PATCH, DELETE)")
 	sc.cmd.Flags().StringVar(&sc.CustomResponseBody, "custom-response-body", "", "Custom response body (max 1000 chars)")
 	sc.cmd.Flags().StringVar(&sc.CustomResponseType, "custom-response-content-type", "", "Custom response content type (json, text, xml)")
-	sc.cmd.Flags().StringVar(&sc.output, "output", "", "Output format (json)")
+	sc.cmd.Flags().Var(newOutputFormatValue(&sc.output), "output", "Output format (json)")
 
 	sc.cmd.MarkFlagRequired("name")
 	sc.cmd.MarkFlagRequired("type")

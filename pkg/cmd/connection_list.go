@@ -58,7 +58,7 @@ Examples:
 	cc.cmd.Flags().StringVar(&cc.destinationID, "destination-id", "", "Filter by destination ID")
 	cc.cmd.Flags().BoolVar(&cc.disabled, "disabled", false, "Include disabled connections")
 	cc.cmd.Flags().IntVar(&cc.limit, "limit", 100, "Limit number of results")
-	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 
 	return cc
 }

@@ -35,7 +35,7 @@ Examples:
 		RunE: sc.runSourceGetCmd,
 	}
 
-	sc.cmd.Flags().StringVar(&sc.output, "output", "", "Output format (json)")
+	sc.cmd.Flags().Var(newOutputFormatValue(&sc.output), "output", "Output format (json)")
 	addIncludeSourceAuthFlag(sc.cmd, &sc.includeAuth)
 
 	return sc

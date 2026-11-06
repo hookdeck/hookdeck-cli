@@ -117,7 +117,7 @@ specifically; the filters and results are otherwise the same.`,
 	ac.cmd.Flags().StringVar(&ac.dir, "dir", "", "Sort direction (asc, desc)")
 	ac.cmd.Flags().StringVar(&ac.next, "next", "", "Next page cursor")
 	ac.cmd.Flags().StringVar(&ac.prev, "prev", "", "Previous page cursor")
-	ac.cmd.Flags().StringVar(&ac.output, "output", "", "Output format (json)")
+	ac.cmd.Flags().Var(newOutputFormatValue(&ac.output), "output", "Output format (json)")
 
 	return ac
 }
@@ -215,7 +215,7 @@ func newOutpostAttemptGetCmd() *outpostAttemptGetCmd {
 	ac.cmd.Flags().StringVar(&ac.tenantID, "tenant-id", "", "Tenant the attempt belongs to")
 	ac.cmd.Flags().StringVar(&ac.destinationID, "destination-id", "", "Destination the attempt targeted")
 	ac.cmd.Flags().StringVar(&ac.include, "include", "", "Include related data, comma-separated (event, event.data, response_data, destination)")
-	ac.cmd.Flags().StringVar(&ac.output, "output", "", "Output format (json)")
+	ac.cmd.Flags().Var(newOutputFormatValue(&ac.output), "output", "Output format (json)")
 
 	return ac
 }

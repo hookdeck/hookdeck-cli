@@ -97,7 +97,7 @@ Examples:
 	ec.cmd.Flags().IntVar(&ec.limit, "limit", 100, "Limit number of results")
 	ec.cmd.Flags().StringVar(&ec.next, "next", "", "Pagination cursor for next page")
 	ec.cmd.Flags().StringVar(&ec.prev, "prev", "", "Pagination cursor for previous page")
-	ec.cmd.Flags().StringVar(&ec.output, "output", "", "Output format (json)")
+	ec.cmd.Flags().Var(newOutputFormatValue(&ec.output), "output", "Output format (json)")
 
 	return ec
 }

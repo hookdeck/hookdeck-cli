@@ -167,7 +167,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.destinationID, "destination-id", "", "Use existing destination by ID")
 
 	// Output flags
-	cu.cmd.Flags().StringVar(&cu.output, "output", "", "Output format (json)")
+	cu.cmd.Flags().Var(newOutputFormatValue(&cu.output), "output", "Output format (json)")
 
 	// Upsert-specific flags
 	cu.cmd.Flags().BoolVar(&cu.dryRun, "dry-run", false, "Preview changes without applying them")

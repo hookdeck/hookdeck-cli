@@ -31,7 +31,7 @@ Examples:
 		RunE: ec.runEventGetCmd,
 	}
 
-	ec.cmd.Flags().StringVar(&ec.output, "output", "", "Output format (json)")
+	ec.cmd.Flags().Var(newOutputFormatValue(&ec.output), "output", "Output format (json)")
 
 	return ec
 }
