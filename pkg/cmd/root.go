@@ -249,9 +249,9 @@ func Execute() {
 					fmt.Println(msg)
 				}
 			} else if isMCP {
-				fmt.Fprintln(os.Stderr, err)
+				fmt.Fprintln(os.Stderr, withMFASetupLink(err, Config.DashboardBaseURL))
 			} else {
-				fmt.Println(err)
+				fmt.Println(withMFASetupLink(err, Config.DashboardBaseURL))
 			}
 		}
 
