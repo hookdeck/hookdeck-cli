@@ -51,7 +51,7 @@ type Config struct {
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string
-	ConsoleBaseURL   string
+	InspectBaseURL   string
 	WSBaseURL        string
 	Log              *log.Logger
 	// Force use of unencrypted ws:// protocol instead of wss://

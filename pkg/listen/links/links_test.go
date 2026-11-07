@@ -4,55 +4,110 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 const (
 	dashboardBase = "https://dashboard.hookdeck.com"
-	consoleBase   = "https://console.hookdeck.com"
+	inspectBase   = "https://inspect.hookdeck.com"
 )
 
-func TestDashboardHome(t *testing.T) {
+func dashboardTarget(projectID string) Target {
+	return Target{DashboardBaseURL: dashboardBase, InspectBaseURL: inspectBase, ProjectType: "gateway", ProjectID: projectID}
+}
+
+func inspectTarget(projectID string) Target {
+	return Target{DashboardBaseURL: dashboardBase, InspectBaseURL: inspectBase, ProjectType: "console", ProjectID: projectID}
+}
+
+func TestHome(t *testing.T) {
 	t.Run("dashboard with project id", func(t *testing.T) {
-		assert.Equal(t, "https://dashboard.hookdeck.com/events/cli?team_id=tm_123", DashboardHome(dashboardBase, consoleBase, "inbound", "tm_123"))
+		assert.Equal(t, "https://dashboard.hookdeck.com/events/cli?team_id=tm_123", dashboardTarget("tm_123").Home("src_abc123def456"))
 	})
 
 	t.Run("dashboard without project id omits team_id", func(t *testing.T) {
-		assert.Equal(t, "https://dashboard.hookdeck.com/events/cli", DashboardHome(dashboardBase, consoleBase, "inbound", ""))
+		assert.Equal(t, "https://dashboard.hookdeck.com/events/cli", dashboardTarget("").Home(""))
 	})
 
-	t.Run("console with project id", func(t *testing.T) {
-		assert.Equal(t, "https://console.hookdeck.com?team_id=tm_123", DashboardHome(dashboardBase, consoleBase, "console", "tm_123"))
+	t.Run("inspect with one source links to the source page without src_ or team_id", func(t *testing.T) {
+		assert.Equal(t, "https://inspect.hookdeck.com/abc123def456", inspectTarget("tm_123").Home("src_abc123def456"))
 	})
 
-	t.Run("console without project id omits team_id", func(t *testing.T) {
-		assert.Equal(t, "https://console.hookdeck.com", DashboardHome(dashboardBase, consoleBase, "console", ""))
-	})
-}
-
-func TestDashboardHomeDisplay(t *testing.T) {
-	t.Run("dashboard shows events path", func(t *testing.T) {
-		assert.Equal(t, "https://dashboard.hookdeck.com/events/cli", DashboardHomeDisplay(dashboardBase, consoleBase, "inbound"))
+	t.Run("inspect without a single source links to inspect home", func(t *testing.T) {
+		assert.Equal(t, "https://inspect.hookdeck.com", inspectTarget("tm_123").Home(""))
 	})
 
-	t.Run("console shows console base", func(t *testing.T) {
-		assert.Equal(t, "https://console.hookdeck.com", DashboardHomeDisplay(dashboardBase, consoleBase, "console"))
+	t.Run("inspect base with trailing slash", func(t *testing.T) {
+		target := inspectTarget("")
+		target.InspectBaseURL = "https://inspect-staging.hookdeck.com/"
+		assert.Equal(t, "https://inspect-staging.hookdeck.com/abc123def456", target.Home("src_abc123def456"))
 	})
 }
 
-func TestEvent(t *testing.T) {
+func TestName(t *testing.T) {
+	assert.Equal(t, "Hookdeck Inspect", inspectTarget("tm_123").Name())
+	assert.Equal(t, "dashboard", dashboardTarget("tm_123").Name())
+}
+
+func TestHomeHint(t *testing.T) {
+	assert.Equal(t, "View your requests in Hookdeck Inspect", inspectTarget("").HomeHint("Open dashboard"))
+	assert.Equal(t, "Open dashboard", dashboardTarget("").HomeHint("Open dashboard"))
+}
+
+func TestHomeDisplay(t *testing.T) {
+	t.Run("dashboard shows events path without team_id", func(t *testing.T) {
+		assert.Equal(t, "https://dashboard.hookdeck.com/events/cli", dashboardTarget("tm_123").HomeDisplay("src_abc123def456"))
+	})
+
+	t.Run("inspect shows the source page", func(t *testing.T) {
+		assert.Equal(t, "https://inspect.hookdeck.com/abc123def456", inspectTarget("tm_123").HomeDisplay("src_abc123def456"))
+	})
+
+	t.Run("inspect without a single source shows inspect home", func(t *testing.T) {
+		assert.Equal(t, "https://inspect.hookdeck.com", inspectTarget("tm_123").HomeDisplay(""))
+	})
+}
+
+func TestEventURL(t *testing.T) {
 	t.Run("dashboard with project id", func(t *testing.T) {
-		assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1?team_id=tm_123", Event(dashboardBase, consoleBase, "inbound", "tm_123", "evt_1"))
+		assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1?team_id=tm_123", dashboardTarget("tm_123").EventURL("evt_1"))
 	})
 
 	t.Run("dashboard without project id omits team_id", func(t *testing.T) {
-		assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1", Event(dashboardBase, consoleBase, "inbound", "", "evt_1"))
+		assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1", dashboardTarget("").EventURL("evt_1"))
 	})
 
-	t.Run("console with project id", func(t *testing.T) {
-		assert.Equal(t, "https://console.hookdeck.com/?event_id=evt_1&team_id=tm_123", Event(dashboardBase, consoleBase, "console", "tm_123", "evt_1"))
+	t.Run("inspect links to the event by event_id and team_id", func(t *testing.T) {
+		assert.Equal(t, "https://inspect.hookdeck.com/?event_id=evt_1&team_id=tm_123", inspectTarget("tm_123").EventURL("evt_1"))
 	})
 
-	t.Run("console without project id omits team_id", func(t *testing.T) {
-		assert.Equal(t, "https://console.hookdeck.com/?event_id=evt_1", Event(dashboardBase, consoleBase, "console", "", "evt_1"))
+	t.Run("inspect without project id omits team_id", func(t *testing.T) {
+		assert.Equal(t, "https://inspect.hookdeck.com/?event_id=evt_1", inspectTarget("").EventURL("evt_1"))
 	})
+
+	t.Run("inspect base with trailing slash", func(t *testing.T) {
+		target := inspectTarget("tm_123")
+		target.InspectBaseURL = "https://inspect-staging.hookdeck.com/"
+		assert.Equal(t, "https://inspect-staging.hookdeck.com/?event_id=evt_1&team_id=tm_123", target.EventURL("evt_1"))
+	})
+}
+
+func TestEventDisplay(t *testing.T) {
+	t.Run("dashboard shows the event page without team_id", func(t *testing.T) {
+		assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1", dashboardTarget("tm_123").EventDisplay("evt_1"))
+	})
+
+	t.Run("inspect shows the same link it opens, team_id included", func(t *testing.T) {
+		assert.Equal(t, "https://inspect.hookdeck.com/?event_id=evt_1&team_id=tm_123", inspectTarget("tm_123").EventDisplay("evt_1"))
+	})
+}
+
+func TestSessionSourceID(t *testing.T) {
+	one := &hookdeck.Source{ID: "src_1"}
+	two := &hookdeck.Source{ID: "src_2"}
+
+	assert.Equal(t, "src_1", SessionSourceID([]*hookdeck.Source{one}))
+	assert.Equal(t, "", SessionSourceID([]*hookdeck.Source{one, two}), "several sources have no single page")
+	assert.Equal(t, "", SessionSourceID(nil))
 }

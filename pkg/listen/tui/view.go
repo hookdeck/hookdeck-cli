@@ -294,8 +294,8 @@ func (m Model) renderStatusBar() string {
 			eventStatusMsg = fmt.Sprintf("> %s %s succeeded [%d] | [r] [o] [d] [q]",
 				checkmark, eventType, selectedEvent.Status)
 		} else {
-			eventStatusMsg = fmt.Sprintf("> %s %s succeeded with status %d | [r] Retry • [o] Open in dashboard • [d] Show data • [q] Quit",
-				checkmark, eventType, selectedEvent.Status)
+			eventStatusMsg = fmt.Sprintf("> %s %s succeeded with status %d | [r] Retry • [o] Open in %s • [d] Show data • [q] Quit",
+				checkmark, eventType, selectedEvent.Status, linkTarget(m.cfg).Name())
 		}
 	} else {
 		// Error status
@@ -322,49 +322,12 @@ func (m Model) renderStatusBar() string {
 					xmark, eventType, selectedEvent.Status)
 			}
 		} else {
-			eventStatusMsg = fmt.Sprintf("> %s %s %s | [r] Retry • [o] Open in dashboard • [d] Show event data • [q] Quit",
-				xmark, eventType, statusText)
+			eventStatusMsg = fmt.Sprintf("> %s %s %s | [r] Retry • [o] Open in %s • [d] Show event data • [q] Quit",
+				xmark, eventType, statusText, linkTarget(m.cfg).Name())
 		}
 	}
 
 	return statusBarStyle.Width(m.width).Render(connStatus + " " + eventStatusMsg)
-}
-
-// FormatEventLog formats an event into a log line matching the current style
-func FormatEventLog(event EventInfo, dashboardURL, consoleURL, projectMode string) string {
-	localTime := event.Time.Format(timeLayout)
-
-	// Build event URL
-	var url string
-	if projectMode == "console" {
-		url = consoleURL + "/?event_id=" + event.ID
-	} else {
-		url = dashboardURL + "/events/" + event.ID
-	}
-
-	// Format based on whether request failed or succeeded
-	if event.ResponseStatus == 0 && !event.Success {
-		// Request failed completely (no response)
-		return fmt.Sprintf("%s [%s] Failed to %s: network error",
-			faintStyle.Render(localTime),
-			redStyle.Render("ERROR"),
-			event.Data.Body.Request.Method,
-		)
-	}
-
-	// Format normal response
-	durationMs := event.ResponseDuration.Milliseconds()
-	requestURL := fmt.Sprintf("http://localhost%s", event.Data.Body.Path) // Simplified for now
-
-	return fmt.Sprintf("%s [%s] %s %s %s %s %s",
-		faintStyle.Render(localTime),
-		ColorizeStatus(event.ResponseStatus),
-		event.Data.Body.Request.Method,
-		requestURL,
-		faintStyle.Render(fmt.Sprintf("(%dms)", durationMs)),
-		faintStyle.Render("→"),
-		faintStyle.Render(url),
-	)
 }
 
 // renderConnectionInfo renders the sources and connections header
@@ -518,8 +481,8 @@ func (m Model) renderConnectionInfo() string {
 		s.WriteString("💡 Sign up to make your webhook URL permanent: ")
 		s.WriteString(m.cfg.GuestURL)
 	} else {
-		displayURL := dashboardHomeURL(m.cfg)
-		s.WriteString("💡 View dashboard to inspect, retry & bookmark events: ")
+		displayURL := homeURL(m.cfg)
+		s.WriteString("💡 " + linkTarget(m.cfg).HomeHint("View dashboard to inspect, retry & bookmark events") + ": ")
 		s.WriteString(displayURL)
 	}
 	s.WriteString("\n")

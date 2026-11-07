@@ -459,6 +459,9 @@ func (cc *connectionCreateCmd) runConnectionCreateCmd(cmd *cobra.Command, args [
 	if err != nil {
 		return err
 	}
+	if err := resolveRuleTransformation(context.Background(), client, &cc.connectionRuleFlags, rules); err != nil {
+		return err
+	}
 	if len(rules) > 0 {
 		req.Rules = &rules
 	}

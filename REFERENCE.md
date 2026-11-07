@@ -402,9 +402,9 @@ hookdeck gateway connection create [flags]
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
 | `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
-| `--rule-transform-code` | `string` | Transformation code (if creating inline) |
-| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation |
-| `--rule-transform-name` | `string` | Name or ID of the transformation to apply |
+| `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
+| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
+| `--rule-transform-name` | `string` | Name or ID of an existing transformation to apply. With `--rule-transform-code`, an existing transformation's code is replaced, or a new transformation is created with this name |
 | `--rules` | `string` | JSON string representing the entire rules array |
 | `--rules-file` | `string` | Path to a JSON file containing the rules array |
 | `--source-allowed-http-methods` | `string` | Comma-separated list of allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |
@@ -521,9 +521,9 @@ hookdeck gateway connection update <connection-id> [flags]
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
 | `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
-| `--rule-transform-code` | `string` | Transformation code (if creating inline) |
-| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation |
-| `--rule-transform-name` | `string` | Name or ID of the transformation to apply |
+| `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
+| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
+| `--rule-transform-name` | `string` | Name or ID of an existing transformation to apply. With `--rule-transform-code`, an existing transformation's code is replaced, or a new transformation is created with this name |
 | `--rules` | `string` | JSON string representing the entire rules array |
 | `--rules-file` | `string` | Path to a JSON file containing the rules array |
 | `--source-id` | `string` | Update source by ID |
@@ -661,9 +661,9 @@ hookdeck gateway connection upsert <name> [flags]
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
 | `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
-| `--rule-transform-code` | `string` | Transformation code (if creating inline) |
-| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation |
-| `--rule-transform-name` | `string` | Name or ID of the transformation to apply |
+| `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
+| `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
+| `--rule-transform-name` | `string` | Name or ID of an existing transformation to apply. With `--rule-transform-code`, an existing transformation's code is replaced, or a new transformation is created with this name |
 | `--rules` | `string` | JSON string representing the entire rules array |
 | `--rules-file` | `string` | Path to a JSON file containing the rules array |
 | `--source-allowed-http-methods` | `string` | Comma-separated list of allowed HTTP methods (GET, POST, PUT, PATCH, DELETE) |

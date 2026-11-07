@@ -9,7 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
@@ -142,13 +141,7 @@ func (r *SimpleRenderer) OnEventComplete(eventID string, attempt *websocket.Atte
 	localTime := time.Now().Format(simpleTimeLayout)
 	color := ansi.Color(os.Stdout)
 
-	// Build display URL
-	var displayURL string
-	if r.cfg.ProjectType == config.ProjectTypeConsole {
-		displayURL = r.cfg.ConsoleBaseURL + "/?event_id=" + eventID
-	} else {
-		displayURL = r.cfg.DashboardBaseURL + "/events/" + eventID
-	}
+	displayURL := r.cfg.eventLinkDisplay(eventID)
 
 	durationMs := response.Duration.Milliseconds()
 
