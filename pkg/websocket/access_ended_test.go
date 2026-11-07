@@ -67,7 +67,7 @@ func TestRefusedConnectEndsAccess(t *testing.T) {
 		{
 			name:    "refused key from a server that gives no reason",
 			status:  http.StatusForbidden,
-			message: "Hookdeck refused the connection: this CLI key can't use this project. Run `hookdeck project use` to pick another one, or `hookdeck login`.",
+			message: "The connection was refused (HTTP 403). This CLI key may not have access to this project, or a proxy or firewall blocked it. Run `hookdeck project use` to pick another project, or `hookdeck login`.",
 		},
 	}
 	for _, tc := range cases {

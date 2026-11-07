@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -325,7 +326,9 @@ func (e *AccessEndedError) Error() string {
 	case http.StatusUnauthorized:
 		return "This CLI key is no longer valid. Run `hookdeck login` to log in again."
 	default:
-		return "Hookdeck refused the connection: this CLI key can't use this project. Run `hookdeck project use` to pick another one, or `hookdeck login`."
+		// A proxy or CDN in front of Hookdeck can answer 403 too, so a refusal
+		// that gave no reason names the status and doesn't blame the key.
+		return fmt.Sprintf("The connection was refused (HTTP %d). This CLI key may not have access to this project, or a proxy or firewall blocked it. Run `hookdeck project use` to pick another project, or `hookdeck login`.", e.StatusCode)
 	}
 }
 
