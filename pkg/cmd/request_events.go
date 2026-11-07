@@ -45,6 +45,7 @@ type requestEventsCmd struct {
 	parsedQuery       string
 	orderBy           string
 	dir               string
+	include           string
 }
 
 func newRequestEventsCmd() *requestEventsCmd {
@@ -59,10 +60,14 @@ func newRequestEventsCmd() *requestEventsCmd {
 Filters match ` + "`hookdeck gateway event list`" + `: this command queries the same event
 collection, narrowed to one request.
 
+Use --include data with --output json to get each event's payload in the results. Without
+--limit, the limit is then 10 instead of 100.
+
 Examples:
   hookdeck gateway request events req_abc123
   hookdeck gateway request events req_abc123 --status FAILED
-  hookdeck gateway request events req_abc123 --destination-id des_abc123`,
+  hookdeck gateway request events req_abc123 --destination-id des_abc123
+  hookdeck gateway request events req_abc123 --include data --output json`,
 		RunE: rc.runRequestEventsCmd,
 	}
 
@@ -97,6 +102,7 @@ Examples:
 	rc.cmd.Flags().StringVar(&rc.body, "body", "", "Filter by body (JSON string)")
 	rc.cmd.Flags().StringVar(&rc.path, "path", "", "Filter by path")
 	rc.cmd.Flags().StringVar(&rc.parsedQuery, "parsed-query", "", "Filter by parsed query (JSON string)")
+	rc.cmd.Flags().StringVar(&rc.include, "include", "", includeFlagUsage("event"))
 	rc.cmd.Flags().StringVar(&rc.orderBy, "order-by", "", "Sort key (e.g. created_at)")
 	rc.cmd.Flags().StringVar(&rc.dir, "dir", "", "Sort direction (asc, desc)")
 	rc.cmd.Flags().IntVar(&rc.limit, "limit", 100, "Limit number of results")
@@ -122,7 +128,12 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 	requestID := args[0]
 	client := Config.GetAPIClient()
 	ctx := context.Background()
-	params := map[string]string{"limit": strconv.Itoa(rc.limit)}
+	params := map[string]string{}
+	limit, err := applyIncludeData(cmd, rc.include, rc.output, rc.limit, params)
+	if err != nil {
+		return err
+	}
+	params["limit"] = strconv.Itoa(limit)
 	if rc.next != "" {
 		params["next"] = rc.next
 	}

@@ -140,3 +140,48 @@ func runRequestEventsAgainst(t *testing.T, server *httptest.Server, rc *requestE
 
 	return rc.runRequestEventsCmd(rc.cmd, []string{requestID})
 }
+
+// TestRequestEventsIncludeData: GET /requests/{id}/events declares include, so
+// this command offers it the way event list does, with the same smaller
+// default limit and the same refusal without --output json. It calls
+// applyIncludeData separately from the two list commands, so it is tested
+// separately.
+func TestRequestEventsIncludeData(t *testing.T) {
+	cases := []struct {
+		name      string
+		flags     map[string]string
+		wantLimit string
+	}{
+		{"default limit drops to 10", map[string]string{"include": "data", "output": "json"}, "10"},
+		{"explicit limit is honoured", map[string]string{"include": "data", "output": "json", "limit": "50"}, "50"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var query url.Values
+			var path string
+			server := requestEventsStub(t, &path, &query)
+
+			rc := newRequestEventsCmd()
+			for name, value := range tc.flags {
+				require.NoError(t, rc.cmd.Flags().Set(name, value))
+			}
+			require.NoError(t, runRequestEventsAgainst(t, server, rc, "req_1"))
+
+			assert.Equal(t, "data", query.Get("include"))
+			assert.Equal(t, tc.wantLimit, query.Get("limit"))
+		})
+	}
+
+	t.Run("refused without --output json", func(t *testing.T) {
+		var query url.Values
+		var path string
+		server := requestEventsStub(t, &path, &query)
+
+		rc := newRequestEventsCmd()
+		require.NoError(t, rc.cmd.Flags().Set("include", "data"))
+		err := runRequestEventsAgainst(t, server, rc, "req_1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--output json")
+		assert.Empty(t, path, "no request should be made")
+	})
+}
