@@ -60,7 +60,7 @@ func newEventListCmd() *eventListCmd {
 Use --search-term to find a complete value across the body, headers, parsed query or path
 at once, when you know the value but not which field carries it.
 
-Use --include data with --output json to get each event's payload in the results, instead of
+Use --include=data with --output=json to get each event's payload in the results, instead of
 fetching events one at a time. Without --limit, the limit is then 10 instead of 100.
 
 Examples:

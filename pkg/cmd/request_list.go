@@ -54,7 +54,7 @@ Use --search-term to find a complete value across the body, headers, parsed quer
 at once. --events-count 0 finds requests that produced no events, which is the usual reason a
 webhook appears to have gone missing.
 
-Use --include data with --output json to get each request's payload in the results, instead of
+Use --include=data with --output=json to get each request's payload in the results, instead of
 fetching requests one at a time. Without --limit, the limit is then 10 instead of 100.
 
 Examples:

@@ -1593,7 +1593,7 @@ List events (processed webhook deliveries). Filter by connection ID, source, des
 Use `--search-term` to find a complete value across the body, headers, parsed query or path
 at once, when you know the value but not which field carries it.
 
-Use `--include` data with `--output` json to get each event's payload in the results, instead of
+Use `--include`=data with `--output`=json to get each event's payload in the results, instead of
 fetching events one at a time. Without `--limit`, the limit is then 10 instead of 100.
 
 **Usage:**
@@ -1748,7 +1748,7 @@ Use `--search-term` to find a complete value across the body, headers, parsed qu
 at once. `--events-count` 0 finds requests that produced no events, which is the usual reason a
 webhook appears to have gone missing.
 
-Use `--include` data with `--output` json to get each request's payload in the results, instead of
+Use `--include`=data with `--output`=json to get each request's payload in the results, instead of
 fetching requests one at a time. Without `--limit`, the limit is then 10 instead of 100.
 
 **Usage:**
@@ -1845,8 +1845,10 @@ List events (deliveries) created from a request.
 Filters match `hookdeck gateway event list`: this command queries the same event
 collection, narrowed to one request.
 
-Use `--include` data with `--output` json to get each event's payload in the results. Without
-`--limit`, the limit is then 10 instead of 100.
+Use `--include`=data with `--output`=json to get each event's payload in the results. Without
+`--limit`, the limit is then 10 instead of 100. This command prints no pagination cursor, so if
+a request may have produced more than 10 events, pass `--limit`; when the default fills the
+page, a note on stderr says so.
 
 **Usage:**
 

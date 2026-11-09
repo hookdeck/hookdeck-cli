@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -184,4 +186,74 @@ func TestRequestEventsIncludeData(t *testing.T) {
 		assert.Contains(t, err.Error(), "--output json")
 		assert.Empty(t, path, "no request should be made")
 	})
+
+	// The negative control: without --include, nothing changes. Without it, a
+	// regression that sent include on every call would pass every case above.
+	t.Run("without include nothing changes", func(t *testing.T) {
+		var query url.Values
+		var path string
+		server := requestEventsStub(t, &path, &query)
+
+		rc := newRequestEventsCmd()
+		require.NoError(t, runRequestEventsAgainst(t, server, rc, "req_1"))
+
+		assert.NotContains(t, query, "include")
+		assert.Equal(t, "100", query.Get("limit"))
+	})
+}
+
+// TestRequestEventsWarnsWhenTheIncludeDefaultFillsThePage: this command prints
+// no pagination cursor, so a page cut at the --include default looks complete.
+// The note goes to stderr so the JSON on stdout stays parseable.
+func TestRequestEventsWarnsWhenTheIncludeDefaultFillsThePage(t *testing.T) {
+	cases := []struct {
+		name     string
+		returned int
+		flags    map[string]string
+		wantNote bool
+	}{
+		{"default fills the page", 10, map[string]string{"include": "data", "output": "json"}, true},
+		{"default does not fill the page", 3, map[string]string{"include": "data", "output": "json"}, false},
+		{"explicit limit fills the page", 10, map[string]string{"include": "data", "output": "json", "limit": "10"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			models := make([]hookdeck.Event, tc.returned)
+			for i := range models {
+				models[i] = hookdeck.Event{ID: "evt_" + strconv.Itoa(i)}
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(hookdeck.EventListResponse{Models: models})
+			}))
+			t.Cleanup(server.Close)
+
+			rc := newRequestEventsCmd()
+			for name, value := range tc.flags {
+				require.NoError(t, rc.cmd.Flags().Set(name, value))
+			}
+
+			oldStdout, oldStderr := os.Stdout, os.Stderr
+			rOut, wOut, err := os.Pipe()
+			require.NoError(t, err)
+			rErr, wErr, err := os.Pipe()
+			require.NoError(t, err)
+			os.Stdout, os.Stderr = wOut, wErr
+			runErr := runRequestEventsAgainst(t, server, rc, "req_1")
+			require.NoError(t, wOut.Close())
+			require.NoError(t, wErr.Close())
+			os.Stdout, os.Stderr = oldStdout, oldStderr
+			stdout, stderr := drainPipe(rOut), drainPipe(rErr)
+
+			require.NoError(t, runErr)
+			var printed []hookdeck.Event
+			require.NoError(t, json.Unmarshal([]byte(stdout), &printed), "stdout must stay valid JSON: %s", stdout)
+			if tc.wantNote {
+				assert.Contains(t, stderr, "there may be more")
+				assert.Contains(t, stderr, "--limit")
+			} else {
+				assert.Empty(t, stderr)
+			}
+		})
+	}
 }

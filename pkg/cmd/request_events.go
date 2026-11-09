@@ -60,8 +60,10 @@ func newRequestEventsCmd() *requestEventsCmd {
 Filters match ` + "`hookdeck gateway event list`" + `: this command queries the same event
 collection, narrowed to one request.
 
-Use --include data with --output json to get each event's payload in the results. Without
---limit, the limit is then 10 instead of 100.
+Use --include=data with --output=json to get each event's payload in the results. Without
+--limit, the limit is then 10 instead of 100. This command prints no pagination cursor, so if
+a request may have produced more than 10 events, pass --limit; when the default fills the
+page, a note on stderr says so.
 
 Examples:
   hookdeck gateway request events req_abc123
@@ -220,6 +222,13 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 	resp, err := client.GetRequestEvents(ctx, requestID, params)
 	if err != nil {
 		return fmt.Errorf("failed to list request events: %w", err)
+	}
+
+	// This command prints no pagination cursor, so a page cut short by the
+	// --include default would look complete. Say so on stderr, which leaves
+	// the JSON on stdout intact. An explicit --limit was the caller's choice.
+	if rc.include != "" && !cmd.Flags().Changed("limit") && len(resp.Models) >= limit {
+		fmt.Fprintf(os.Stderr, "Showing the first %d events, the default with --include; there may be more. Pass --limit for a bigger page.\n", limit)
 	}
 
 	if rc.output == "json" {
