@@ -25,9 +25,15 @@ type recordedRequest struct {
 	Body   map[string]interface{}
 }
 
+// stubStatus makes runGatewayAgainstStub answer with a non-200 status.
+type stubStatus struct {
+	Code int
+	Body interface{}
+}
+
 // runGatewayAgainstStub runs `hookdeck gateway <args>` against a stub API. respond returns the
-// JSON body for a request (nil means `{}`). Every request except the credential check is
-// recorded and returned.
+// JSON body for a request (nil means `{}`, a stubStatus sets the status code). Every request
+// except the credential check is recorded and returned.
 func runGatewayAgainstStub(t *testing.T, respond func(r *http.Request) interface{}, args ...string) ([]recordedRequest, error) {
 	t.Helper()
 
@@ -45,6 +51,10 @@ func runGatewayAgainstStub(t *testing.T, respond func(r *http.Request) interface
 		requests = append(requests, rec)
 
 		body := respond(r)
+		if st, ok := body.(stubStatus); ok {
+			w.WriteHeader(st.Code)
+			body = st.Body
+		}
 		if body == nil {
 			body = map[string]interface{}{}
 		}

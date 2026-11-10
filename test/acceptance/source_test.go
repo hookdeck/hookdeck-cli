@@ -126,6 +126,42 @@ func TestSourceUpsertUpdate(t *testing.T) {
 	assert.Contains(t, stdout, newDesc)
 }
 
+// TestSourceUpsertWithoutTypeKeepsTypeAndAuth: PUT /sources defaults a missing
+// type to WEBHOOK, so an upsert without --type used to convert an existing
+// STRIPE source into a WEBHOOK source and drop its verification. The CLI now
+// sends the stored type; read the source back to prove both survived.
+func TestSourceUpsertWithoutTypeKeepsTypeAndAuth(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	name := "test-src-upsert-keep-type-" + generateTimestamp()
+	webhookSecret := "whsec_acceptance_keep_type"
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "upsert", name,
+		"--type", "STRIPE", "--webhook-secret", webhookSecret)
+	require.NoError(t, err)
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+	require.Equal(t, "STRIPE", src.Type)
+
+	var updated Source
+	err = cli.RunJSON(&updated, "gateway", "source", "upsert", name, "--description", "kept")
+	require.NoError(t, err)
+	assert.Equal(t, src.ID, updated.ID)
+	assert.Equal(t, "STRIPE", updated.Type, "upsert without --type must keep the existing type")
+
+	stdout, _, err := cli.Run("gateway", "source", "get", src.ID, "--output", "json", "--include-auth")
+	require.NoError(t, err)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &got))
+	assert.Equal(t, "STRIPE", got["type"])
+	assert.Equal(t, "kept", got["description"])
+	assert.Contains(t, stdout, webhookSecret, "upsert without --type must keep the existing verification")
+}
+
 func TestSourceEnableDisable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")
@@ -616,8 +652,8 @@ func TestSourceDeleteWithoutForceFailsNonInteractively(t *testing.T) {
 }
 
 // TestSourceUpsertWebhookAuthFlags covers auth flags on WEBHOOK sources, which the API rejects
-// without config.auth_type ("config.auth is not allowed") - including upsert without --type,
-// which the API treats as WEBHOOK, and update without --type, which must send the stored type.
+// without config.auth_type ("config.auth is not allowed") - including upsert and update without
+// --type, which must both send the stored type.
 func TestSourceUpsertWebhookAuthFlags(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping acceptance test in short mode")

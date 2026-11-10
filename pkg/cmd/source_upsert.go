@@ -35,7 +35,10 @@ func newSourceUpsertCmd() *sourceUpsertCmd {
 		Short: ShortUpsert(ResourceSource),
 		Long: LongUpsertIntro(ResourceSource) + `
 
-Without --type, the API treats the source as WEBHOOK: a new source is created as WEBHOOK, and an existing source of another type is converted to WEBHOOK, losing its verification. Pass --type to keep an existing type.
+When --type is omitted and the source already exists, its current type is kept,
+along with its verification unless you pass new auth flags or config. When the
+source does not exist, it is created as a WEBHOOK source. Pass --type to change
+an existing source's type.
 
 ` + LongSourceAuthType("--config") + `
 
@@ -94,34 +97,51 @@ func (sc *sourceUpsertCmd) runSourceUpsertCmd(cmd *cobra.Command, args []string)
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	// Without --type the API upserts as WEBHOOK and validates config as WEBHOOK config, so
-	// build it for that type too.
-	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, sourceTypeOrAPIDefault(sc.sourceType))
+	// Look the source up when --dry-run needs to preview it, or when --type is
+	// omitted. PUT /sources validates against the create schema, where type
+	// defaults to WEBHOOK, so an upsert body without a type converts an
+	// existing source of any other type into a WEBHOOK source and drops its
+	// verification. Sending the stored type keeps it.
+	var existing *hookdeck.Source
+	if sc.dryRun || sc.sourceType == "" {
+		var err error
+		existing, err = findSourceByName(ctx, client, sc.name)
+		if err != nil {
+			if sc.dryRun {
+				return fmt.Errorf("dry-run: failed to check existing source: %w", err)
+			}
+			return fmt.Errorf("failed to look up existing source %q to keep its type (pass --type to skip the lookup): %w", sc.name, err)
+		}
+	}
+
+	sourceType := strings.ToUpper(sc.sourceType)
+	if sourceType == "" && existing != nil {
+		sourceType = existing.Type
+	}
+
+	// Build config for the type the API will apply: the stored or given type,
+	// or WEBHOOK when a new source is created without --type.
+	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, sourceTypeOrAPIDefault(sourceType))
 	if err != nil {
 		return err
 	}
 
 	req := &hookdeck.SourceCreateRequest{
 		Name: sc.name,
+		// Empty only when --type is omitted and no source has this name; the
+		// API then creates a WEBHOOK source.
+		Type: sourceType,
 	}
 	if sc.description != "" {
 		req.Description = &sc.description
-	}
-	if sc.sourceType != "" {
-		req.Type = strings.ToUpper(sc.sourceType)
 	}
 	if len(config) > 0 {
 		req.Config = config
 	}
 
 	if sc.dryRun {
-		params := map[string]string{"name": sc.name}
-		existing, err := client.ListSources(ctx, params)
-		if err != nil {
-			return fmt.Errorf("dry-run: failed to check existing source: %w", err)
-		}
-		if existing.Models != nil && len(existing.Models) > 0 {
-			fmt.Printf("-- Dry Run: UPDATE --\nSource '%s' (%s) would be updated.\n", sc.name, existing.Models[0].ID)
+		if existing != nil {
+			fmt.Printf("-- Dry Run: UPDATE --\nSource '%s' (%s) would be updated.\n", sc.name, existing.ID)
 		} else {
 			fmt.Printf("-- Dry Run: CREATE --\nSource '%s' would be created.\n", sc.name)
 		}
@@ -147,4 +167,20 @@ func (sc *sourceUpsertCmd) runSourceUpsertCmd(cmd *cobra.Command, args []string)
 	fmt.Printf("Type:  %s\n", src.Type)
 	fmt.Printf("URL:   %s\n", src.URL)
 	return nil
+}
+
+// findSourceByName returns the source with exactly this name, or nil when there
+// is none. disabled=true includes disabled sources: the API upserts a disabled
+// source by name too, so missing one here would convert it to WEBHOOK.
+func findSourceByName(ctx context.Context, client *hookdeck.Client, name string) (*hookdeck.Source, error) {
+	resp, err := client.ListSources(ctx, map[string]string{"name": name, "disabled": "true"})
+	if err != nil {
+		return nil, err
+	}
+	for i := range resp.Models {
+		if resp.Models[i].Name == name {
+			return &resp.Models[i], nil
+		}
+	}
+	return nil, nil
 }
