@@ -54,42 +54,11 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 		return nil, nil
 	}
 	config := make(map[string]interface{})
-	sourceTypeUpper := strings.ToUpper(strings.TrimSpace(sourceType))
 
 	// Auth: config.auth shape depends on source type. auth_type is added at the end for the
 	// types that require it (see ensureSourceConfigAuthType).
-	if f.WebhookSecret != "" {
-		if sourceTypeUpper == "STRIPE" {
-			config["auth"] = map[string]interface{}{"webhook_secret_key": f.WebhookSecret}
-		} else {
-			config["auth"] = map[string]interface{}{
-				"algorithm":          "sha256",
-				"encoding":           "hex",
-				"header_key":         "x-webhook-signature",
-				"webhook_secret_key": f.WebhookSecret,
-			}
-		}
-	} else if f.HMACSecret != "" {
-		algo := "sha256"
-		if f.HMACAlgo != "" {
-			algo = strings.ToLower(f.HMACAlgo)
-		}
-		config["auth"] = map[string]interface{}{
-			"algorithm":          algo,
-			"encoding":           "hex",
-			"header_key":         "x-webhook-signature",
-			"webhook_secret_key": f.HMACSecret,
-		}
-	} else if f.APIKey != "" {
-		config["auth"] = map[string]interface{}{
-			"header_key": "x-api-key",
-			"api_key":    f.APIKey,
-		}
-	} else if f.BasicAuthUser != "" || f.BasicAuthPass != "" {
-		config["auth"] = map[string]interface{}{
-			"username": f.BasicAuthUser,
-			"password": f.BasicAuthPass,
-		}
+	if auth := sourceAuthFromFlags(f, sourceType); auth != nil {
+		config["auth"] = auth
 	}
 
 	if f.AllowedHTTPMethods != "" {
@@ -127,6 +96,49 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 	}
 	ensureSourceConfigAuthType(config, sourceType)
 	return config, nil
+}
+
+// sourceAuthFromFlags builds config.auth from the auth flags, or returns nil when none is set.
+// Only the first set flag counts, in this order: webhook secret, HMAC secret, API key, basic auth.
+//
+// Single-method types get the generic keys too (algorithm, header_key, ...): the API strips
+// keys a type's auth does not take, so only a missing required key is a problem. STRIPE gets
+// its bare webhook_secret_key.
+func sourceAuthFromFlags(f *sourceConfigFlags, sourceType string) map[string]interface{} {
+	switch {
+	case f.WebhookSecret != "":
+		if strings.ToUpper(strings.TrimSpace(sourceType)) == "STRIPE" {
+			return map[string]interface{}{"webhook_secret_key": f.WebhookSecret}
+		}
+		return map[string]interface{}{
+			"algorithm":          "sha256",
+			"encoding":           "hex",
+			"header_key":         "x-webhook-signature",
+			"webhook_secret_key": f.WebhookSecret,
+		}
+	case f.HMACSecret != "":
+		algo := "sha256"
+		if f.HMACAlgo != "" {
+			algo = strings.ToLower(f.HMACAlgo)
+		}
+		return map[string]interface{}{
+			"algorithm":          algo,
+			"encoding":           "hex",
+			"header_key":         "x-webhook-signature",
+			"webhook_secret_key": f.HMACSecret,
+		}
+	case f.APIKey != "":
+		return map[string]interface{}{
+			"header_key": "x-api-key",
+			"api_key":    f.APIKey,
+		}
+	case f.BasicAuthUser != "" || f.BasicAuthPass != "":
+		return map[string]interface{}{
+			"username": f.BasicAuthUser,
+			"password": f.BasicAuthPass,
+		}
+	}
+	return nil
 }
 
 // apiDefaultSourceType is the type the API applies when a source create or upsert omits it
@@ -294,23 +306,45 @@ type sourceAuthFlags struct {
 	HMACSecret    string
 }
 
-// optionalAuthSourceTypes are source types where authentication can be turned on or off
-// but is not required. We do not reject these when auth flags are missing.
-var optionalAuthSourceTypes = map[string]bool{"STRIPE": true}
+// optionalAuthSourceTypes are source types the spec reads as auth-required although
+// verification is optional. The spec marks a type's config required when any feature is
+// required (see sources.ParseSourceTypes), and ONFLEET's required feature is its handshake.
+var optionalAuthSourceTypes = map[string]bool{"ONFLEET": true}
 
-// validateSourceAuthFromSpec uses the cached OpenAPI spec (FetchSourceTypes) to validate
-// that the given source type has the required auth flags set. Used by source create/upsert
-// (flagPrefix "") and connection create (flagPrefix "source-"). If configSet, skip validation.
-// Types in optionalAuthSourceTypes are not required to have auth set. If FetchSourceTypes
-// fails or the type is unknown, returns nil so the API can validate.
+// loadSourceTypes returns each source type's auth rules from the cached OpenAPI spec.
+// A variable so tests serve a fixture instead of downloading the spec.
+var loadSourceTypes = sources.FetchSourceTypes
+
+// authFlagOptions are the auth flags a validation error can point to, each with sample values
+// so sourceAuthFromFlags reports the config.auth keys it sets. --hmac-secret sets the same keys
+// as --webhook-secret, so it is not listed separately.
+var authFlagOptions = []struct {
+	names []string
+	flags sourceConfigFlags
+}{
+	{[]string{"webhook-secret"}, sourceConfigFlags{WebhookSecret: "-"}},
+	{[]string{"api-key"}, sourceConfigFlags{APIKey: "-"}},
+	{[]string{"basic-auth-user", "basic-auth-pass"}, sourceConfigFlags{BasicAuthUser: "-", BasicAuthPass: "-"}},
+}
+
+// validateSourceAuthFromSpec checks the auth flags against the source type's config.auth
+// fields in the cached OpenAPI spec (FetchSourceTypes). Used by source create/upsert
+// (flagPrefix "") and connection create (flagPrefix "source-").
+//
+// It rejects two cases, both of which the API would reject:
+//   - no auth flag, for a type that requires auth (AIRCALL, ZOOM, ...), and
+//   - an auth flag that does not set a field the type's auth requires (--api-key for STRIPE),
+//     since the API strips the keys it does not take and then finds the required one missing.
+//
+// The error names the flag that sets the fields, or --config when no flag does (ALIPAY's
+// public_key, for example). Types offering a choice of method (WEBHOOK, HTTP, ...) are left to
+// the API. If configSet, the user wrote config.auth themselves and nothing is checked. If the
+// spec cannot be fetched or the type is not in it, returns nil so the API can validate.
 func validateSourceAuthFromSpec(sourceType string, configSet bool, auth sourceAuthFlags, flagPrefix string) error {
 	if sourceType == "" || configSet {
 		return nil
 	}
-	if optionalAuthSourceTypes[strings.ToUpper(sourceType)] {
-		return nil
-	}
-	sourceTypes, err := sources.FetchSourceTypes()
+	sourceTypes, err := loadSourceTypes()
 	if err != nil {
 		// stderr, not stdout. This is advisory — validation is skipped and the
 		// API still checks — but on stdout it lands ahead of the command's own
@@ -324,28 +358,103 @@ func validateSourceAuthFromSpec(sourceType string, configSet bool, auth sourceAu
 		fmt.Fprintf(os.Stderr, "Warning: could not fetch source types for validation: %v\n", err)
 		return nil
 	}
-	st, ok := sourceTypes[strings.ToUpper(sourceType)]
+	st, ok := sources.SourceTypeFor(sourceTypes, sourceType)
 	if !ok {
 		return nil
 	}
 	pre := "--" + flagPrefix
-	switch st.AuthScheme {
-	case "webhook_secret":
-		if auth.WebhookSecret == "" {
-			return fmt.Errorf("%swebhook-secret is required for source type %s", pre, sourceType)
+
+	given := sourceAuthFromFlags(&sourceConfigFlags{
+		WebhookSecret: auth.WebhookSecret,
+		APIKey:        auth.APIKey,
+		BasicAuthUser: auth.BasicAuthUser,
+		BasicAuthPass: auth.BasicAuthPass,
+		HMACSecret:    auth.HMACSecret,
+	}, sourceType)
+
+	if given == nil {
+		if !st.AuthRequired || optionalAuthSourceTypes[st.Name] {
+			return nil
 		}
-	case "api_key":
-		if auth.APIKey == "" {
-			return fmt.Errorf("%sapi-key is required for source type %s", pre, sourceType)
+		// A required auth whose fields are all optional still needs one of them to say anything.
+		need := st.RequiredAuthFields
+		if len(need) == 0 {
+			need = st.AuthFields
 		}
-	case "basic_auth":
-		if auth.BasicAuthUser == "" || auth.BasicAuthPass == "" {
-			return fmt.Errorf("%sbasic-auth-user and %sbasic-auth-pass are required for source type %s", pre, pre, sourceType)
+		if flags := authFlagsSetting(need, sourceType, pre); flags != nil {
+			verb := "is"
+			if len(flags) > 1 {
+				verb = "are"
+			}
+			return fmt.Errorf("%s %s required for source type %s", strings.Join(flags, " and "), verb, sourceType)
 		}
-	case "hmac":
-		if auth.HMACSecret == "" {
-			return fmt.Errorf("%shmac-secret is required for source type %s", pre, sourceType)
+		return fmt.Errorf("source type %s requires config.auth %s, which no flag sets: %s",
+			sourceType, strings.Join(need, ", "), configHint(need, pre))
+	}
+
+	var missing []string
+	for _, field := range st.RequiredAuthFields {
+		if _, ok := given[field]; !ok {
+			missing = append(missing, field)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	used := pre + givenAuthFlag(auth)
+	if flags := authFlagsSetting(st.RequiredAuthFields, sourceType, pre); flags != nil {
+		return fmt.Errorf("%s does not set config.auth %s, which source type %s requires: use %s",
+			used, strings.Join(missing, ", "), sourceType, strings.Join(flags, " and "))
+	}
+	return fmt.Errorf("%s does not set config.auth %s, which source type %s requires: %s",
+		used, strings.Join(missing, ", "), sourceType, configHint(st.RequiredAuthFields, pre))
+}
+
+// authFlagsSetting returns the flags (with "--" and prefix) whose config.auth carries every one
+// of fields, or nil when no flag does.
+func authFlagsSetting(fields []string, sourceType, pre string) []string {
+	for _, opt := range authFlagOptions {
+		keys := sourceAuthFromFlags(&opt.flags, sourceType)
+		covers := true
+		for _, field := range fields {
+			if _, ok := keys[field]; !ok {
+				covers = false
+				break
+			}
+		}
+		if covers {
+			out := make([]string, len(opt.names))
+			for i, name := range opt.names {
+				out[i] = pre + name
+			}
+			return out
 		}
 	}
 	return nil
+}
+
+// givenAuthFlag names the auth flag sourceAuthFromFlags used, in its precedence order.
+func givenAuthFlag(auth sourceAuthFlags) string {
+	switch {
+	case auth.WebhookSecret != "":
+		return "webhook-secret"
+	case auth.HMACSecret != "":
+		return "hmac-secret"
+	case auth.APIKey != "":
+		return "api-key"
+	case auth.BasicAuthUser != "":
+		return "basic-auth-user"
+	default:
+		return "basic-auth-pass"
+	}
+}
+
+// configHint shows how to pass config.auth fields no flag sets.
+func configHint(fields []string, pre string) string {
+	parts := make([]string, len(fields))
+	for i, field := range fields {
+		parts[i] = fmt.Sprintf("%q:\"...\"", field)
+	}
+	return fmt.Sprintf("pass them with %sconfig '{\"auth\":{%s}}' or %sconfig-file",
+		pre, strings.Join(parts, ","), pre)
 }

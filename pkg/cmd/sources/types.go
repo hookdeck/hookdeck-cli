@@ -3,13 +3,15 @@ package sources
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 var (
@@ -18,142 +20,179 @@ var (
 	// upgrading within the 24 hour TTL served source types parsed from the
 	// previous spec - stale auth schemes and required fields, used to validate
 	// `source create`.
+	//
+	// The "_v2" marks the cached shape. Versions that read SourceCreateRequest wrote an empty
+	// map under the unversioned name, and a different struct; a new name means neither is read.
 	openapiURL    = "https://api.hookdeck.com" + hookdeck.APIPathPrefix + "/openapi"
-	cacheFileName = "hookdeck_source_types" + strings.ReplaceAll(hookdeck.APIPathPrefix, "/", "_") + ".json"
+	cacheFileName = "hookdeck_source_types_v2" + strings.ReplaceAll(hookdeck.APIPathPrefix, "/", "_") + ".json"
 	cacheTTL      = 24 * time.Hour
 )
 
-// SourceType holds the validation rules for a single source type.
+// SourceType holds what the OpenAPI spec says about one source type's config.auth.
 type SourceType struct {
-	Name           string   `json:"name"`
-	AuthScheme     string   `json:"auth_scheme"`
-	RequiredFields []string `json:"required_fields"`
+	// Name is the type as the API spells it (PROPERTY-FINDER, not the schema's PROPERTYFINDER).
+	Name string `json:"name"`
+	// AuthRequired is true when a source of this type cannot be created without config.auth.
+	AuthRequired bool `json:"auth_required"`
+	// AuthFields are the fields config.auth takes, and RequiredAuthFields those of them it must
+	// carry when sent. Both are empty for types offering a choice of method (WEBHOOK, HTTP, ...):
+	// their fields depend on config.auth_type, see FetchSourceAuthMethods.
+	AuthFields         []string `json:"auth_fields"`
+	RequiredAuthFields []string `json:"required_auth_fields"`
 }
 
-// FetchSourceTypes downloads the OpenAPI spec, parses it to extract source type information,
-// and caches the result. It returns a map of source types.
+// FetchSourceTypes downloads the OpenAPI spec, parses each source type's auth rules, and caches
+// the result for cacheTTL. The map is keyed by normalized type name: look types up with
+// SourceTypeFor.
+//
+// An empty parse is an error and is not cached: it means the spec no longer has the shape this
+// parser reads, and caching it would switch validation off for a day without a word.
 func FetchSourceTypes() (map[string]SourceType, error) {
 	cachePath := filepath.Join(os.TempDir(), cacheFileName)
 
-	// Check for a valid cache file first
-	if info, err := os.Stat(cachePath); err == nil {
-		if time.Since(info.ModTime()) < cacheTTL {
-			file, err := os.Open(cachePath)
-			if err == nil {
-				defer file.Close()
-				var sourceTypes map[string]SourceType
-				if json.NewDecoder(file).Decode(&sourceTypes) == nil {
-					return sourceTypes, nil
-				}
+	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < cacheTTL {
+		if data, err := os.ReadFile(cachePath); err == nil {
+			var cached map[string]SourceType
+			if json.Unmarshal(data, &cached) == nil && len(cached) > 0 {
+				return cached, nil
 			}
 		}
 	}
 
-	// If cache is invalid or doesn't exist, fetch from URL
+	body, err := downloadOpenAPISpec()
+	if err != nil {
+		return nil, err
+	}
+	sourceTypes, err := ParseSourceTypes(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse OpenAPI spec: %w", err)
+	}
+	if len(sourceTypes) == 0 {
+		return nil, fmt.Errorf("failed to parse OpenAPI spec: no source types found")
+	}
+
+	if data, err := json.Marshal(sourceTypes); err == nil {
+		_ = os.WriteFile(cachePath, data, 0o600)
+	}
+	return sourceTypes, nil
+}
+
+// downloadOpenAPISpec fetches the API's OpenAPI spec.
+func downloadOpenAPISpec() ([]byte, error) {
 	resp, err := http.Get(openapiURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download OpenAPI spec: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to download OpenAPI spec: received status code %d", resp.StatusCode)
 	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read OpenAPI spec body: %w", err)
 	}
-
-	sourceTypes, err := parseOpenAPISpec(body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse OpenAPI spec: %w", err)
-	}
-
-	// Cache the result
-	file, err := os.Create(cachePath)
-	if err == nil {
-		defer file.Close()
-		json.NewEncoder(file).Encode(sourceTypes)
-	}
-
-	return sourceTypes, nil
+	return body, nil
 }
 
-// parseOpenAPISpec extracts source type information from the OpenAPI JSON spec.
-func parseOpenAPISpec(specData []byte) (map[string]SourceType, error) {
+// ParseSourceTypes extracts each source type's auth rules from the OpenAPI spec.
+//
+// Every SourceTypeConfig<TYPE> schema is a source type. Its auth property is either a single
+// object (a type with one fixed verification method, e.g. STRIPE) or, alongside an auth_type
+// enum, a oneOf of methods (WEBHOOK, HTTP, ...).
+//
+// Whether auth is required is not on SourceTypeConfig<TYPE>: that schema is shared by request
+// and response, so its auth is always nullable. The request-side rule shows up as
+// "x-required": true on the type's entry in SourceTypeConfig.oneOf. That flag means the type's
+// config is required, which the API sets when any feature is required - verification, or a
+// handshake (STRAVA, MONDAY, ONFLEET, ...). So auth counts as required only when, as well:
+//
+//   - the type has one fixed method: for a choice of method the API always accepts
+//     auth_type null with no auth, and
+//   - that method has fields: a handshake-only type's auth is an empty object, nothing to send.
+//
+// A "required" list naming auth on SourceTypeConfig<TYPE> also counts, should the spec start
+// stating it there. One handshake type still reads as auth-required (ONFLEET: handshake
+// required, verification optional, an auth with a secret field); callers correct for it.
+func ParseSourceTypes(specData []byte) (map[string]SourceType, error) {
 	var spec struct {
 		Components struct {
-			Schemas struct {
-				SourceCreateRequest struct {
-					Properties struct {
-						Type struct {
-							Enum []string `json:"enum"`
-						} `json:"type"`
-						VerificationConfigs struct {
-							OneOf []struct {
-								Properties map[string]struct {
-									Required []string `json:"required"`
-								} `json:"properties"`
-								Required []string `json:"required"`
-							} `json:"oneOf"`
-						} `json:"verification_configs"`
-					} `json:"properties"`
-				} `json:"SourceCreateRequest"`
-			} `json:"schemas"`
+			Schemas map[string]specSchema `json:"schemas"`
 		} `json:"components"`
 	}
-
 	if err := json.Unmarshal(specData, &spec); err != nil {
 		return nil, err
 	}
-
-	sourceTypes := make(map[string]SourceType)
-	sourceTypeNames := spec.Components.Schemas.SourceCreateRequest.Properties.Type.Enum
-
-	for _, name := range sourceTypeNames {
-		sourceTypes[name] = SourceType{Name: name}
+	schemas := spec.Components.Schemas
+	resolve := func(s specSchema) specSchema {
+		if s.Ref == "" {
+			return s
+		}
+		return schemas[refName(s.Ref)]
 	}
 
-	verificationConfigs := spec.Components.Schemas.SourceCreateRequest.Properties.VerificationConfigs.OneOf
-	for _, config := range verificationConfigs {
-		if len(config.Required) != 1 {
+	configRequired := map[string]bool{}
+	for _, entry := range schemas[sourceTypeConfigPrefix].OneOf {
+		if entry.XRequired && entry.Ref != "" {
+			configRequired[refName(entry.Ref)] = true
+		}
+	}
+
+	out := map[string]SourceType{}
+	for schemaName, schema := range schemas {
+		if !strings.HasPrefix(schemaName, sourceTypeConfigPrefix) || schemaName == sourceTypeConfigPrefix {
 			continue
 		}
-		authScheme := config.Required[0]
-
-		var requiredFields []string
-		if props, ok := config.Properties[authScheme]; ok {
-			requiredFields = props.Required
+		name := schema.DocsType
+		if name == "" {
+			name = strings.TrimPrefix(schemaName, sourceTypeConfigPrefix)
 		}
+		st := SourceType{Name: name}
 
-		// This part is tricky as the OpenAPI spec doesn't directly link the verification config to the type enum.
-		// We make an assumption based on common patterns. For now, we will have to manually map them or improve this logic later.
-		// A simple heuristic: if a config is for a specific provider, its name might be part of the authScheme.
-		// This is a placeholder for a more robust mapping logic.
-		// For now, let's apply a generic scheme and required fields.
-		// A better approach would be to have this mapping defined explicitly in the spec.
+		_, hasAuthType := schema.Properties["auth_type"]
+		authProp, hasAuth := schema.Properties["auth"]
+		if hasAuth && !hasAuthType {
+			auth := resolve(authProp)
+			st.AuthFields = sortedKeys(auth.Properties)
+			st.RequiredAuthFields = sortedCopy(auth.Required)
+			required := configRequired[schemaName] || contains(schema.Required, "auth")
+			st.AuthRequired = required && len(st.AuthFields) > 0
+		}
+		out[normalizeTypeName(name)] = st
+	}
+	return out, nil
+}
 
-		// Let's assume a simple mapping for now for demonstration.
-		// In a real scenario, this would need a more sophisticated parsing logic.
-		for _, name := range sourceTypeNames {
-			st := sourceTypes[name]
-			// This is a simplified logic. A real implementation would need to inspect the discriminator or other properties.
-			// For now, we'll just assign the first found scheme to all for demonstration.
-			if st.AuthScheme == "" { // Assign only if not already set
-				st.AuthScheme = authScheme
-				st.RequiredFields = requiredFields
-				sourceTypes[name] = st
-			}
+// SourceTypeFor returns the rules for sourceType, in any case or spelling the API accepts.
+func SourceTypeFor(sourceTypes map[string]SourceType, sourceType string) (SourceType, bool) {
+	st, ok := sourceTypes[normalizeTypeName(sourceType)]
+	return st, ok
+}
+
+// refName returns the schema name a "#/components/schemas/<name>" reference points to.
+func refName(ref string) string {
+	return ref[strings.LastIndex(ref, "/")+1:]
+}
+
+func sortedKeys(m map[string]specSchema) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedCopy(s []string) []string {
+	out := append([]string{}, s...)
+	sort.Strings(out)
+	return out
+}
+
+func contains(s []string, v string) bool {
+	for _, x := range s {
+		if x == v {
+			return true
 		}
 	}
-
-	// Manually correcting Stripe for the sake of the test
-	if st, ok := sourceTypes["STRIPE"]; ok {
-		st.AuthScheme = "webhook_secret"
-		st.RequiredFields = []string{"secret"}
-		sourceTypes["STRIPE"] = st
-	}
-
-	return sourceTypes, nil
+	return false
 }

@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,127 +9,196 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const mockOpenAPISpec = `
-{
-  "components": {
-    "schemas": {
-      "SourceCreateRequest": {
-        "properties": {
-          "type": {
-            "enum": [
-              "STRIPE",
-              "GITHUB",
-              "TWILIO"
-            ]
-          },
-          "verification_configs": {
-            "oneOf": [
-              {
-                "properties": {
-                  "webhook_secret": {
-                    "required": ["secret"]
-                  }
-                },
-                "required": ["webhook_secret"]
-              },
-              {
-                "properties": {
-                  "api_key": {
-                    "required": ["key"]
-                  }
-                },
-                "required": ["api_key"]
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-`
+// The fixture (testdata/openapi_source_auth.json, cut from the 2026-09-01 spec) holds, for
+// FetchSourceTypes: the SourceTypeConfig umbrella with its x-required markers, and types that
+// require verification (AIRCALL, CLOUDSIGNAL, ALIPAY, TIKTOK_SHOP, VERCEL_LOG_DRAINS), types
+// where it is optional (STRIPE, GITHUB, POSTMARK, ACUMATICA), types whose config is required
+// for a handshake rather than verification (STRAVA, ONFLEET, AZURE_EVENT_GRID), and types
+// offering a choice of method (WEBHOOK, HTTP, ...).
 
-func TestFetchSourceTypes_Parsing(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, mockOpenAPISpec)
-	}))
-	defer server.Close()
-
-	// Temporarily override the openapiURL to point to the mock server
-	originalURL := openapiURL
-	defer func() { openapiURL = originalURL }()
-	openapiURL = server.URL
-
-	// Clear any existing cache to ensure we hit the mock server
-	cachePath := filepath.Join(os.TempDir(), cacheFileName)
-	os.Remove(cachePath)
-
-	sourceTypes, err := FetchSourceTypes()
-
-	assert.NoError(t, err)
-	assert.NotNil(t, sourceTypes)
-	assert.Len(t, sourceTypes, 3)
-
-	// The parsing logic is simplified and has a manual correction for STRIPE, let's test that
-	stripeType, ok := sourceTypes["STRIPE"]
-	assert.True(t, ok)
-	assert.Equal(t, "STRIPE", stripeType.Name)
-	assert.Equal(t, "webhook_secret", stripeType.AuthScheme)
-	assert.Equal(t, []string{"secret"}, stripeType.RequiredFields)
-
-	githubType, ok := sourceTypes["GITHUB"]
-	assert.True(t, ok)
-	assert.Equal(t, "GITHUB", githubType.Name)
-	// This assertion depends on the simplified parsing logic which assigns the first scheme found
-	assert.Equal(t, "webhook_secret", githubType.AuthScheme)
+func loadSpecFixture(t *testing.T) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "openapi_source_auth.json"))
+	require.NoError(t, err)
+	return data
 }
 
-func TestFetchSourceTypes_Caching(t *testing.T) {
-	requestCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
-		fmt.Fprint(w, mockOpenAPISpec)
-	}))
-	defer server.Close()
+func parseFixtureSourceTypes(t *testing.T) map[string]SourceType {
+	t.Helper()
+	types, err := ParseSourceTypes(loadSpecFixture(t))
+	require.NoError(t, err)
+	return types
+}
 
-	// Temporarily override the openapiURL
+func lookup(t *testing.T, types map[string]SourceType, name string) SourceType {
+	t.Helper()
+	st, ok := SourceTypeFor(types, name)
+	require.True(t, ok, "%s is a source type", name)
+	return st
+}
+
+func TestParseSourceTypesListsEveryTypeConfigSchema(t *testing.T) {
+	types := parseFixtureSourceTypes(t)
+
+	assert.Len(t, types, 21, "one per SourceTypeConfig<TYPE> schema, not the umbrella")
+	assert.Equal(t, "PROPERTY-FINDER", lookup(t, types, "PROPERTY-FINDER").Name,
+		"named as the API spells it, although its schema name drops the hyphen")
+	assert.Equal(t, "STRIPE", lookup(t, types, " stripe ").Name, "lookup ignores case and spaces")
+	_, ok := SourceTypeFor(types, "NOT_A_TYPE")
+	assert.False(t, ok)
+}
+
+func TestParseSourceTypesAuthRules(t *testing.T) {
+	types := parseFixtureSourceTypes(t)
+
+	tests := []struct {
+		name         string
+		required     bool
+		fields       []string
+		requiredKeys []string
+	}{
+		// Verification required: x-required, one fixed method with fields.
+		{"AIRCALL", true, []string{"webhook_secret_key"}, []string{"webhook_secret_key"}},
+		{"CLOUDSIGNAL", true, []string{"api_key"}, []string{"api_key"}},
+		{"ALIPAY", true, []string{"public_key"}, []string{"public_key"}},
+		{"TIKTOK_SHOP", true, []string{"app_key", "webhook_secret_key"}, []string{"app_key", "webhook_secret_key"}},
+		{"VERCEL_LOG_DRAINS", true, []string{"webhook_secret_key"}, []string{}},
+
+		// Verification optional: the fields are still required whenever auth is sent.
+		{"STRIPE", false, []string{"webhook_secret_key"}, []string{"webhook_secret_key"}},
+		{"GITHUB", false, []string{"webhook_secret_key"}, []string{"webhook_secret_key"}},
+		{"POSTMARK", false, []string{"password", "username"}, []string{"password", "username"}},
+		{"ACUMATICA", false, []string{"api_key", "header_key"}, []string{"api_key", "header_key"}},
+
+		// x-required for a handshake: STRAVA's auth has no fields, AZURE_EVENT_GRID offers a
+		// choice of method (the API accepts auth_type null with no auth).
+		{"STRAVA", false, []string{}, []string{}},
+		{"AZURE_EVENT_GRID", false, nil, nil},
+
+		// A choice of method: fields depend on auth_type, which FetchSourceAuthMethods covers.
+		{"WEBHOOK", false, nil, nil},
+		{"HTTP", false, nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := lookup(t, types, tt.name)
+			assert.Equal(t, tt.required, st.AuthRequired, "AuthRequired")
+			assert.Equal(t, tt.fields, st.AuthFields, "AuthFields")
+			assert.Equal(t, tt.requiredKeys, st.RequiredAuthFields, "RequiredAuthFields")
+		})
+	}
+}
+
+// ONFLEET's config is required for its handshake, not verification, but the spec cannot tell
+// the two apart for a type whose auth has fields. The cmd package corrects for it; this pins
+// the limitation so a spec that starts telling them apart shows up here.
+func TestParseSourceTypesReadsOnfleetAsAuthRequired(t *testing.T) {
+	st := lookup(t, parseFixtureSourceTypes(t), "ONFLEET")
+	assert.True(t, st.AuthRequired)
+}
+
+func TestParseSourceTypesHonoursRequiredOnTypeSchema(t *testing.T) {
+	spec := `{"components":{"schemas":{
+		"SourceTypeConfigACME":{"x-docs-type":"ACME","required":["auth"],"properties":{"auth":{"$ref":"#/components/schemas/AcmeAuth"}}},
+		"AcmeAuth":{"properties":{"token":{"type":"string"}},"required":["token"]}
+	}}}`
+	types, err := ParseSourceTypes([]byte(spec))
+	require.NoError(t, err)
+	st := lookup(t, types, "ACME")
+	assert.True(t, st.AuthRequired, "a required list naming auth counts without x-required")
+	assert.Equal(t, []string{"token"}, st.RequiredAuthFields)
+}
+
+// The spec shape the previous parser read. It is gone from the API, which is how
+// FetchSourceTypes came to return an empty map that the old tests, built on this shape,
+// never noticed.
+const legacySourceCreateRequestSpec = `{"components":{"schemas":{"SourceCreateRequest":{"properties":{
+	"type":{"enum":["STRIPE","GITHUB"]},
+	"verification_configs":{"oneOf":[{"properties":{"webhook_secret":{"required":["secret"]}},"required":["webhook_secret"]}]}
+}}}}}`
+
+func TestParseSourceTypesFindsNothingInLegacyShape(t *testing.T) {
+	types, err := ParseSourceTypes([]byte(legacySourceCreateRequestSpec))
+	require.NoError(t, err)
+	assert.Empty(t, types)
+}
+
+// serveSpec points FetchSourceTypes at a test server returning body (per request, so a test
+// can change it) and at a fresh cache directory. It returns the request count and cache path.
+func serveSpec(t *testing.T, body *string) (*int, string) {
+	t.Helper()
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		_, _ = w.Write([]byte(*body))
+	}))
+	t.Cleanup(server.Close)
+
 	originalURL := openapiURL
-	defer func() { openapiURL = originalURL }()
+	t.Cleanup(func() { openapiURL = originalURL })
 	openapiURL = server.URL
 
-	cachePath := filepath.Join(os.TempDir(), cacheFileName)
-	os.Remove(cachePath) // Ensure no cache from previous runs
+	t.Setenv("TMPDIR", t.TempDir()) // os.TempDir, where the cache lives
+	return &requests, filepath.Join(os.TempDir(), cacheFileName)
+}
 
-	// 1. First call: should fetch from the server and create a cache file
-	sourceTypes1, err1 := FetchSourceTypes()
-	assert.NoError(t, err1)
-	assert.NotNil(t, sourceTypes1)
-	assert.Equal(t, 1, requestCount, "Server should be hit on the first call")
+func TestFetchSourceTypesParsesAndCaches(t *testing.T) {
+	body := string(loadSpecFixture(t))
+	requests, cachePath := serveSpec(t, &body)
 
-	// Verify cache file was created
-	_, err := os.Stat(cachePath)
-	assert.NoError(t, err, "Cache file should exist after the first call")
+	first, err := FetchSourceTypes()
+	require.NoError(t, err)
+	assert.True(t, lookup(t, first, "AIRCALL").AuthRequired)
+	assert.Equal(t, 1, *requests)
+	_, err = os.Stat(cachePath)
+	require.NoError(t, err, "a good parse is cached")
 
-	// 2. Second call: should load from cache, not hit the server
-	sourceTypes2, err2 := FetchSourceTypes()
-	assert.NoError(t, err2)
-	assert.NotNil(t, sourceTypes2)
-	assert.Equal(t, 1, requestCount, "Server should not be hit on the second call")
-	assert.Equal(t, sourceTypes1, sourceTypes2, "Data from cache should match original data")
+	second, err := FetchSourceTypes()
+	require.NoError(t, err)
+	assert.Equal(t, 1, *requests, "second call is served from the cache")
+	assert.Equal(t, first, second)
 
-	// 3. Third call: after cache expires, should hit the server again
-	// Manually set the modification time of the cache file to be older than the TTL
-	oldTime := time.Now().Add(-(cacheTTL + time.Hour))
-	err = os.Chtimes(cachePath, oldTime, oldTime)
-	assert.NoError(t, err)
+	expired := time.Now().Add(-(cacheTTL + time.Hour))
+	require.NoError(t, os.Chtimes(cachePath, expired, expired))
+	_, err = FetchSourceTypes()
+	require.NoError(t, err)
+	assert.Equal(t, 2, *requests, "an expired cache is refetched")
+}
 
-	sourceTypes3, err3 := FetchSourceTypes()
-	assert.NoError(t, err3)
-	assert.NotNil(t, sourceTypes3)
-	assert.Equal(t, 2, requestCount, "Server should be hit again after cache expires")
+func TestFetchSourceTypesDoesNotCacheEmptyOrFailedParse(t *testing.T) {
+	for name, spec := range map[string]string{
+		"no source type schemas": legacySourceCreateRequestSpec,
+		"invalid JSON":           `{"components":`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := spec
+			requests, cachePath := serveSpec(t, &body)
 
-	// Cleanup
-	os.Remove(cachePath)
+			_, err := FetchSourceTypes()
+			require.Error(t, err)
+			_, statErr := os.Stat(cachePath)
+			assert.True(t, os.IsNotExist(statErr), "nothing is cached")
+
+			body = string(loadSpecFixture(t))
+			types, err := FetchSourceTypes()
+			require.NoError(t, err, "the next call fetches again")
+			assert.NotEmpty(t, types)
+			assert.Equal(t, 2, *requests)
+		})
+	}
+}
+
+func TestFetchSourceTypesIgnoresEmptyCacheFile(t *testing.T) {
+	body := string(loadSpecFixture(t))
+	requests, cachePath := serveSpec(t, &body)
+	// What the SourceCreateRequest parser left behind against the current spec.
+	require.NoError(t, os.WriteFile(cachePath, []byte("{}"), 0o600))
+
+	types, err := FetchSourceTypes()
+	require.NoError(t, err)
+	assert.NotEmpty(t, types)
+	assert.Equal(t, 1, *requests, "an empty cache file is not served")
 }

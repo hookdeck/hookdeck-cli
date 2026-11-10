@@ -3,8 +3,6 @@ package sources
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -43,17 +41,9 @@ func FetchSourceAuthMethods() (map[string][]AuthMethod, error) {
 		}
 	}
 
-	resp, err := http.Get(openapiURL)
+	body, err := downloadOpenAPISpec()
 	if err != nil {
-		return nil, fmt.Errorf("failed to download OpenAPI spec: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download OpenAPI spec: received status code %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read OpenAPI spec body: %w", err)
+		return nil, err
 	}
 
 	methods, err := ParseSourceAuthMethods(body)
@@ -79,6 +69,8 @@ type specSchema struct {
 	Enum       []string              `json:"enum"`
 	OneOf      []specSchema          `json:"oneOf"`
 	DocsType   string                `json:"x-docs-type"`
+	// XRequired marks a oneOf entry whose schema the API requires (joi-to-swagger's x-required).
+	XRequired bool `json:"x-required"`
 }
 
 const sourceTypeConfigPrefix = "SourceTypeConfig"
@@ -106,7 +98,7 @@ func ParseSourceAuthMethods(specData []byte) (map[string][]AuthMethod, error) {
 		if s.Ref == "" {
 			return s
 		}
-		return schemas[s.Ref[strings.LastIndex(s.Ref, "/")+1:]]
+		return schemas[refName(s.Ref)]
 	}
 
 	sourceTypes := map[string]bool{}

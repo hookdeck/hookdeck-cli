@@ -17,6 +17,24 @@
     },
     "type": "array"
    },
+   "SourceConfigAcumaticaAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "header_key",
+     "api_key"
+    ],
+    "type": "object",
+    "x-docs-type": "Acumatica"
+   },
    "SourceConfigAircallAuth": {
     "additionalProperties": false,
     "nullable": true,
@@ -30,6 +48,20 @@
     ],
     "type": "object",
     "x-docs-type": "Aircall"
+   },
+   "SourceConfigAlipayAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "public_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "public_key"
+    ],
+    "type": "object",
+    "x-docs-type": "Alipay"
    },
    "SourceConfigAzureEventGridAuth": {
     "additionalProperties": false,
@@ -157,6 +189,34 @@
     "nullable": true,
     "x-docs-hide": true,
     "x-docs-nullable": true
+   },
+   "SourceConfigCloudSignalAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "api_key"
+    ],
+    "type": "object",
+    "x-docs-type": "Cloud Signal"
+   },
+   "SourceConfigGitHubAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "GitHub"
    },
    "SourceConfigGitLabAuth": {
     "additionalProperties": false,
@@ -371,6 +431,21 @@
     "type": "object",
     "x-docs-type": "STANDARD_WEBHOOKS"
    },
+   "SourceConfigOnfleetAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "webhook_secret_key": {
+      "pattern": "^(?:[a-f0-9]{2})+$/",
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "Onfleet"
+   },
    "SourceConfigOrdinalAuth": {
     "additionalProperties": false,
     "oneOf": [
@@ -417,6 +492,24 @@
     "nullable": true,
     "x-docs-hide": true,
     "x-docs-nullable": true
+   },
+   "SourceConfigPostmarkAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "username",
+     "password"
+    ],
+    "type": "object",
+    "x-docs-type": "Postmark"
    },
    "SourceConfigPrometheusAlertmanagerAuth": {
     "additionalProperties": false,
@@ -556,6 +649,13 @@
     "type": "object",
     "x-docs-type": "HMAC"
    },
+   "SourceConfigStravaAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {},
+    "type": "object",
+    "x-docs-type": "Strava"
+   },
    "SourceConfigStripeAuth": {
     "additionalProperties": false,
     "nullable": true,
@@ -569,6 +669,35 @@
     ],
     "type": "object",
     "x-docs-type": "Stripe"
+   },
+   "SourceConfigTikTokShopAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "app_key": {
+      "type": "string"
+     },
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key",
+     "app_key"
+    ],
+    "type": "object",
+    "x-docs-type": "TikTok Shop"
+   },
+   "SourceConfigVercelDrainsAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "Vercel Drains"
    },
    "SourceConfigWebhookAuth": {
     "additionalProperties": false,
@@ -3120,6 +3249,104 @@
     ],
     "type": "string"
    },
+   "SourceTypeConfig": {
+    "additionalProperties": false,
+    "default": {},
+    "description": "The type configs for the specified type",
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigAIRCALL",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigWEBHOOK"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigHTTP"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigCLOUDSIGNAL",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigAZURE_EVENT_GRID",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigSTRIPE"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigPROPERTYFINDER"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigGITHUB"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigPOSTMARK"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigGITLAB"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigSENDGRID_INBOUND"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigACUMATICA"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigPROMETHEUS_ALERTMANAGER"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigVERCEL_LOG_DRAINS",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigTIKTOK_SHOP",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigALIPAY",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigSTRAVA",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigONFLEET",
+      "x-required": true
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigBETTER_STACK"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigGRAFANA"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigORDINAL"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceTypeConfigACUMATICA": {
+    "additionalProperties": false,
+    "description": "The type config for ACUMATICA. Requires type to be `ACUMATICA`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigAcumaticaAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://help.myob.com.au/advanced/Docs/Published/IntegrationDevelopmentGuide/IntegrationDev_PushNotifications_Destinations.html",
+    "x-docs-type": "ACUMATICA"
+   },
    "SourceTypeConfigAIRCALL": {
     "additionalProperties": false,
     "description": "The type config for AIRCALL. Requires type to be `AIRCALL`.",
@@ -3137,6 +3364,24 @@
     "type": "object",
     "x-docs-external-url": "https://developer.aircall.io/docs/setup-webhooks",
     "x-docs-type": "AIRCALL"
+   },
+   "SourceTypeConfigALIPAY": {
+    "additionalProperties": false,
+    "description": "The type config for ALIPAY. Requires type to be `ALIPAY`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigAlipayAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://docs.alipayplus.com/alipayplus/alipayplus/api_acq_tile/signature",
+    "x-docs-type": "ALIPAY"
    },
    "SourceTypeConfigAZURE_EVENT_GRID": {
     "additionalProperties": false,
@@ -3190,6 +3435,41 @@
     "type": "object",
     "x-docs-external-url": "https://betterstack.com/docs/uptime/webhooks/",
     "x-docs-type": "BETTER_STACK"
+   },
+   "SourceTypeConfigCLOUDSIGNAL": {
+    "additionalProperties": false,
+    "description": "The type config for CLOUDSIGNAL. Requires type to be `CLOUDSIGNAL`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigCloudSignalAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "CLOUDSIGNAL"
+   },
+   "SourceTypeConfigGITHUB": {
+    "additionalProperties": false,
+    "description": "The type config for GITHUB. Requires type to be `GITHUB`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigGitHubAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries",
+    "x-docs-type": "GITHUB"
    },
    "SourceTypeConfigGITLAB": {
     "additionalProperties": false,
@@ -3271,6 +3551,24 @@
     "type": "object",
     "x-docs-type": "HTTP"
    },
+   "SourceTypeConfigONFLEET": {
+    "additionalProperties": false,
+    "description": "The type config for ONFLEET. Requires type to be `ONFLEET`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigOnfleetAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://docs.onfleet.com/reference/secrets",
+    "x-docs-type": "ONFLEET"
+   },
    "SourceTypeConfigORDINAL": {
     "additionalProperties": false,
     "description": "The type config for ORDINAL. Requires type to be `ORDINAL`.",
@@ -3296,6 +3594,23 @@
     "type": "object",
     "x-docs-external-url": "https://docs.tryordinal.com/integrations/webhooks/introduction",
     "x-docs-type": "ORDINAL"
+   },
+   "SourceTypeConfigPOSTMARK": {
+    "additionalProperties": false,
+    "description": "The type config for POSTMARK. Requires type to be `POSTMARK`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigPostmarkAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "POSTMARK"
    },
    "SourceTypeConfigPROMETHEUS_ALERTMANAGER": {
     "additionalProperties": false,
@@ -3366,6 +3681,23 @@
     "type": "object",
     "x-docs-type": "SENDGRID_INBOUND"
    },
+   "SourceTypeConfigSTRAVA": {
+    "additionalProperties": false,
+    "description": "The type config for STRAVA. Requires type to be `STRAVA`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigStravaAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "STRAVA"
+   },
    "SourceTypeConfigSTRIPE": {
     "additionalProperties": false,
     "description": "The type config for STRIPE. Requires type to be `STRIPE`.",
@@ -3383,6 +3715,41 @@
     "type": "object",
     "x-docs-external-url": "https://docs.stripe.com/webhooks?verify=verify-manually",
     "x-docs-type": "STRIPE"
+   },
+   "SourceTypeConfigTIKTOK_SHOP": {
+    "additionalProperties": false,
+    "description": "The type config for TIKTOK_SHOP. Requires type to be `TIKTOK_SHOP`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigTikTokShopAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "TIKTOK_SHOP"
+   },
+   "SourceTypeConfigVERCEL_LOG_DRAINS": {
+    "additionalProperties": false,
+    "description": "The type config for VERCEL_LOG_DRAINS. Requires type to be `VERCEL_LOG_DRAINS`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigVercelDrainsAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://vercel.com/docs/rest-api#securing-your-log-drains",
+    "x-docs-type": "VERCEL_LOG_DRAINS"
    },
    "SourceTypeConfigWEBHOOK": {
     "additionalProperties": false,
