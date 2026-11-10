@@ -300,23 +300,21 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 //
 // It is needed when:
 //  1. Dry-run mode (to show the preview)
-//  2. Partial update (source/destination config fields without name/type)
+//  2. Either side - source or destination - is not named by the flags, so it
+//     has to come from the stored connection
 //  3. A name is given without a type, which is filled in from the stored record
 //  4. A create-time default would otherwise be applied to a stored destination
 func (cu *connectionUpsertCmd) needsExistingConnection() bool {
-	hasSourceConfigOnly := (cu.SourceWebhookSecret != "" || cu.SourceAPIKey != "" ||
-		cu.SourceBasicAuthUser != "" || cu.SourceBasicAuthPass != "" ||
-		cu.SourceHMACSecret != "" || cu.SourceHMACAlgo != "" ||
-		cu.SourceAllowedHTTPMethods != "" || cu.SourceCustomResponseType != "" ||
-		cu.SourceCustomResponseBody != "" || cu.SourceConfig != "" || cu.SourceConfigFile != "") &&
-		cu.sourceName == "" && cu.sourceType == "" && cu.sourceID == ""
-
-	hasDestinationConfigOnly := (cu.destinationURL != "" || cu.destinationCliPath != "" ||
-		cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
-		cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" || cu.DestinationDeliveryGroupKey != "" ||
-		cu.DestinationDeliveryGroupRate != 0 || cu.DestinationDeliveryGroupRatePeriod != "" ||
-		cu.DestinationDeliveryGroupOverrides != "" || cu.DestinationAuthMethod != "") &&
-		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
+	// PUT /connections must carry a source and a destination, each either by ID
+	// or inline. A side the flags do not name (no --*-id, --*-name or --*-type)
+	// can only be supplied from the stored connection: carried over by ID when
+	// it has no flags at all, or rebuilt with config flags merged in otherwise.
+	// Without the lookup it is left out of the request, and the API rejects the
+	// update with "must contain at least one of [destination_id, destination]".
+	// This covers the no-flags and config-only cases, and the one that was
+	// missed: an inline source with no destination flags, or the reverse.
+	sourceUnnamed := cu.sourceID == "" && cu.sourceName == "" && cu.sourceType == ""
+	destinationUnnamed := cu.destinationID == "" && cu.destinationName == "" && cu.destinationType == ""
 
 	// Also need to fetch existing when name is provided without type (to fill in the type)
 	hasPartialSourceInline := (cu.sourceName != "" && cu.sourceType == "" && cu.sourceID == "")
@@ -340,8 +338,7 @@ func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 			cu.DestinationDeliveryGroupRatePeriod != "")
 
 	return cu.dryRun ||
-		(!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) ||
-		hasSourceConfigOnly || hasDestinationConfigOnly ||
+		sourceUnnamed || destinationUnnamed ||
 		hasPartialSourceInline || hasPartialDestinationInline ||
 		cliPathDefaultWouldApply || groupsWouldDropOverrides
 }
