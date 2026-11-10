@@ -386,7 +386,7 @@ hookdeck gateway connection create [flags]
 | `--destination-path-forwarding-disabled` | `string` | Disable path forwarding for HTTP destinations (true/false) |
 | `--destination-rate-limit` | `int` | Rate limit for destination (requests per period) (default "0") |
 | `--destination-rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
-| `--destination-type` | `string` | Destination type (CLI, HTTP, MOCK) |
+| `--destination-type` | `string` | Destination type (CLI, HTTP, MOCK_API) |
 | `--destination-url` | `string` | URL for HTTP destinations |
 | `--name` | `string` | Connection name (required) |
 | `--output` | `string` | Output format (json) |
@@ -645,7 +645,7 @@ hookdeck gateway connection upsert <name> [flags]
 | `--destination-path-forwarding-disabled` | `string` | Disable path forwarding for HTTP destinations (true/false) |
 | `--destination-rate-limit` | `int` | Rate limit for destination (requests per period) (default "0") |
 | `--destination-rate-limit-period` | `string` | Rate limit period (second, minute, hour, concurrent) |
-| `--destination-type` | `string` | Destination type (CLI, HTTP, MOCK) |
+| `--destination-type` | `string` | Destination type (CLI, HTTP, MOCK_API) |
 | `--destination-url` | `string` | URL for HTTP destinations |
 | `--dry-run` | `bool` | Preview changes without applying them |
 | `--output` | `string` | Output format (json) |
