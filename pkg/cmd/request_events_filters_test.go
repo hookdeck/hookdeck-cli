@@ -202,19 +202,25 @@ func TestRequestEventsIncludeData(t *testing.T) {
 	})
 }
 
-// TestRequestEventsWarnsWhenTheIncludeDefaultFillsThePage: this command prints
-// no pagination cursor, so a page cut at the --include default looks complete.
-// The note goes to stderr so the JSON on stdout stays parseable.
-func TestRequestEventsWarnsWhenTheIncludeDefaultFillsThePage(t *testing.T) {
+// TestRequestEventsPointsAtTheNextPage: the output of this command carries no
+// pagination cursor, so a page the API cut short looks complete. The note is
+// driven by the API's own next cursor, not by guessing from the page size: a
+// full page with no next cursor is complete and gets no note. It goes to
+// stderr so the JSON on stdout stays parseable, and it applies with or without
+// --include.
+func TestRequestEventsPointsAtTheNextPage(t *testing.T) {
+	cursor := "cur_next_page"
 	cases := []struct {
 		name     string
 		returned int
+		next     *string
 		flags    map[string]string
 		wantNote bool
 	}{
-		{"default fills the page", 10, map[string]string{"include": "data", "output": "json"}, true},
-		{"default does not fill the page", 3, map[string]string{"include": "data", "output": "json"}, false},
-		{"explicit limit fills the page", 10, map[string]string{"include": "data", "output": "json", "limit": "10"}, false},
+		{"include, more pages", 10, &cursor, map[string]string{"include": "data", "output": "json"}, true},
+		{"no include, more pages", 3, &cursor, map[string]string{"output": "json"}, true},
+		{"full page, no more", 10, nil, map[string]string{"include": "data", "output": "json"}, false},
+		{"short page, no more", 3, nil, map[string]string{"output": "json"}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -224,7 +230,10 @@ func TestRequestEventsWarnsWhenTheIncludeDefaultFillsThePage(t *testing.T) {
 			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(hookdeck.EventListResponse{Models: models})
+				_ = json.NewEncoder(w).Encode(hookdeck.EventListResponse{
+					Models:     models,
+					Pagination: hookdeck.PaginationResponse{Limit: tc.returned, Next: tc.next},
+				})
 			}))
 			t.Cleanup(server.Close)
 
@@ -234,23 +243,25 @@ func TestRequestEventsWarnsWhenTheIncludeDefaultFillsThePage(t *testing.T) {
 			}
 
 			oldStdout, oldStderr := os.Stdout, os.Stderr
+			// Restore even if a require below fails, so later tests do not
+			// write into closed pipes.
+			t.Cleanup(func() { os.Stdout, os.Stderr = oldStdout, oldStderr })
 			rOut, wOut, err := os.Pipe()
 			require.NoError(t, err)
 			rErr, wErr, err := os.Pipe()
 			require.NoError(t, err)
 			os.Stdout, os.Stderr = wOut, wErr
 			runErr := runRequestEventsAgainst(t, server, rc, "req_1")
+			os.Stdout, os.Stderr = oldStdout, oldStderr
 			require.NoError(t, wOut.Close())
 			require.NoError(t, wErr.Close())
-			os.Stdout, os.Stderr = oldStdout, oldStderr
 			stdout, stderr := drainPipe(rOut), drainPipe(rErr)
 
 			require.NoError(t, runErr)
 			var printed []hookdeck.Event
 			require.NoError(t, json.Unmarshal([]byte(stdout), &printed), "stdout must stay valid JSON: %s", stdout)
 			if tc.wantNote {
-				assert.Contains(t, stderr, "there may be more")
-				assert.Contains(t, stderr, "--limit")
+				assert.Contains(t, stderr, "--next "+cursor, "the note must give the cursor")
 			} else {
 				assert.Empty(t, stderr)
 			}

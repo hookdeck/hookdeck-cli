@@ -1846,9 +1846,10 @@ Filters match `hookdeck gateway event list`: this command queries the same event
 collection, narrowed to one request.
 
 Use `--include`=data with `--output`=json to get each event's payload in the results. Without
-`--limit`, the limit is then 10 instead of 100. This command prints no pagination cursor, so if
-a request may have produced more than 10 events, pass `--limit`; when the default fills the
-page, a note on stderr says so.
+`--limit`, the limit is then 10 instead of 100.
+
+When the request has more events than fit on one page, a note on stderr gives the cursor to
+pass to `--next` for the following page.
 
 **Usage:**
 

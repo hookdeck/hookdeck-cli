@@ -48,8 +48,9 @@ type EventData struct {
 	Path            string      `json:"path,omitempty"`
 	Query           *string     `json:"query,omitempty"`
 	ParsedQuery     interface{} `json:"parsed_query,omitempty"`
-	// IsLargePayload says the payload is large and not searchable. Kept so a
-	// caller can tell a withheld or truncated body from an empty one.
+	// IsLargePayload is the API's flag for a payload it considers large and
+	// does not index for search. Kept so callers see it rather than having it
+	// dropped in decoding.
 	IsLargePayload *bool `json:"is_large_payload,omitempty"`
 }
 

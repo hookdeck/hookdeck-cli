@@ -14,8 +14,8 @@ import (
 // With include=data a list carries one payload per record, decoded into
 // EventData / RequestData. The spec allows headers and parsed_query to be a
 // string as well as an object, so a record in the string form must decode
-// rather than fail the whole page. is_large_payload must survive too: it is how
-// a caller tells a withheld body from an empty one.
+// rather than fail the whole page. is_large_payload, the API's flag for a
+// payload it does not index for search, must survive decoding too.
 const listWithMixedDataShapes = `{"models":[
   {"id":"rec_object","data":{"headers":{"x-a":"1"},"parsed_query":{"q":"1"},"body":{"k":"v"},"path":"/a"}},
   {"id":"rec_string","data":{"headers":"x-a: 1","parsed_query":"q=1","body":"raw","path":"/b","query":"q=1","is_large_payload":true}}

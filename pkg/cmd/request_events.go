@@ -61,9 +61,10 @@ Filters match ` + "`hookdeck gateway event list`" + `: this command queries the 
 collection, narrowed to one request.
 
 Use --include=data with --output=json to get each event's payload in the results. Without
---limit, the limit is then 10 instead of 100. This command prints no pagination cursor, so if
-a request may have produced more than 10 events, pass --limit; when the default fills the
-page, a note on stderr says so.
+--limit, the limit is then 10 instead of 100.
+
+When the request has more events than fit on one page, a note on stderr gives the cursor to
+pass to --next for the following page.
 
 Examples:
   hookdeck gateway request events req_abc123
@@ -224,11 +225,13 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 		return fmt.Errorf("failed to list request events: %w", err)
 	}
 
-	// This command prints no pagination cursor, so a page cut short by the
-	// --include default would look complete. Say so on stderr, which leaves
-	// the JSON on stdout intact. An explicit --limit was the caller's choice.
-	if rc.include != "" && !cmd.Flags().Changed("limit") && len(resp.Models) >= limit {
-		fmt.Fprintf(os.Stderr, "Showing the first %d events, the default with --include; there may be more. Pass --limit for a bigger page.\n", limit)
+	// The output carries no pagination cursor (the JSON is a bare array), so a
+	// page the API cut short would look complete. When the API says there is
+	// more, say so on stderr, which leaves the JSON on stdout intact, and give
+	// the cursor --next takes. This applies with or without --include: the
+	// --include default of 10 makes it likelier, but 100 events is also a page.
+	if next := resp.Pagination.Next; next != nil && *next != "" {
+		fmt.Fprintf(os.Stderr, "More events exist for this request. Pass --next %s for the next page, or a larger --limit.\n", *next)
 	}
 
 	if rc.output == "json" {
