@@ -61,6 +61,24 @@ Examples:
 	return sc
 }
 
+// applyStoredSourceType is used by source update when --type is omitted. The API validates
+// config against the source type and rejects config sent without type ("config is not
+// allowed"), and WEBHOOK/HTTP auth also needs config.auth_type, inferred per type. So when
+// config is being sent, it looks up the stored source and uses its type for both. Without
+// config there is nothing type-dependent, and no lookup is made.
+func applyStoredSourceType(req *hookdeck.SourceUpdateRequest, config map[string]interface{}, lookup func() (*hookdeck.Source, error)) error {
+	if len(config) == 0 {
+		return nil
+	}
+	existing, err := lookup()
+	if err != nil {
+		return fmt.Errorf("failed to get source: %w", err)
+	}
+	req.Type = existing.Type
+	ensureSourceConfigAuthType(config, existing.Type)
+	return nil
+}
+
 // sourceUpdateRequestEmpty reports whether the update request has no fields set (all omitted).
 // OpenAPI .plans/openapi-2025-07-01.json PUT /sources/{id} allows name, type, description, config.
 func sourceUpdateRequestEmpty(req *hookdeck.SourceUpdateRequest) bool {
@@ -102,8 +120,12 @@ func (sc *sourceUpdateCmd) runSourceUpdateCmd(cmd *cobra.Command, args []string)
 	if err != nil {
 		return err
 	}
-	if config != nil {
-		ensureSourceConfigAuthTypeForHTTP(config, sc.sourceType)
+	if sc.sourceType == "" {
+		if err := applyStoredSourceType(req, config, func() (*hookdeck.Source, error) {
+			return client.GetSource(ctx, sourceID, nil)
+		}); err != nil {
+			return err
+		}
 	}
 	if len(config) > 0 {
 		req.Config = config

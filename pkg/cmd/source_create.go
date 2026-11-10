@@ -96,9 +96,6 @@ func (sc *sourceCreateCmd) runSourceCreateCmd(cmd *cobra.Command, args []string)
 	if err != nil {
 		return err
 	}
-	if config != nil {
-		ensureSourceConfigAuthTypeForHTTP(config, sc.sourceType)
-	}
 
 	req := &hookdeck.SourceCreateRequest{
 		Name: sc.name,

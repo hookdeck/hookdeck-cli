@@ -43,7 +43,8 @@ func flagRef(prefix, name string) string {
 
 // buildSourceConfigFromIndividualFlags builds source config from individual flags.
 // Source-level type (WEBHOOK, STRIPE, etc.) determines which config schema applies; config.auth
-// contents depend on that type (per OpenAPI SourceTypeConfig oneOf). No auth_type field—only auth.
+// contents depend on that type (per OpenAPI SourceTypeConfig oneOf). For WEBHOOK and HTTP the API
+// also requires config.auth_type naming the method; ensureSourceConfigAuthType adds it.
 // Shared by source create/upsert/update (prefix "") and connection create/upsert (prefix "source-").
 // flagPrefix is used only in error messages so connection errors mention --source-*.
 func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sourceType string) (map[string]interface{}, error) {
@@ -53,7 +54,8 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 	config := make(map[string]interface{})
 	sourceTypeUpper := strings.ToUpper(strings.TrimSpace(sourceType))
 
-	// Auth: only config.auth; shape depends on source type (API infers from type + auth keys).
+	// Auth: config.auth shape depends on source type. auth_type is added at the end for the
+	// generic types that require it (see ensureSourceConfigAuthType).
 	if f.WebhookSecret != "" {
 		if sourceTypeUpper == "STRIPE" {
 			config["auth"] = map[string]interface{}{"webhook_secret_key": f.WebhookSecret}
@@ -121,17 +123,31 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 			"body":         f.CustomResponseBody,
 		}
 	}
+	ensureSourceConfigAuthType(config, sourceType)
 	return config, nil
 }
 
-// ensureSourceConfigAuthTypeForHTTP sets config.auth_type when source type is HTTP and config
-// has auth. The connection API requires auth_type in config for HTTP sources. Values: API_KEY,
-// BASIC_AUTH, HMAC. No-op if auth_type already set or source type is not HTTP.
-func ensureSourceConfigAuthTypeForHTTP(config map[string]interface{}, sourceType string) {
-	if config == nil || strings.ToUpper(strings.TrimSpace(sourceType)) != "HTTP" {
-		return
-	}
-	if _, hasAuth := config["auth"]; !hasAuth {
+// sourceTypesWithAuthMethodChoice are the generic source types whose config offers a choice of
+// verification method (HMAC, BASIC_AUTH, API_KEY, STANDARD_WEBHOOKS). For these types the API
+// validates config.auth against the method named in config.auth_type, and rejects config.auth
+// with "config.auth is not allowed" when auth_type is missing. Provider types (STRIPE, GITHUB,
+// ...) have a single fixed method and take no auth_type, so it must not be added for them.
+var sourceTypesWithAuthMethodChoice = map[string]bool{
+	"WEBHOOK": true,
+	"HTTP":    true,
+}
+
+// ensureSourceConfigAuthType sets config.auth_type for WEBHOOK and HTTP sources when config has
+// auth but no auth_type, inferring the method from the auth keys:
+//   - api_key                                   -> API_KEY
+//   - username / password                       -> BASIC_AUTH
+//   - webhook_secret_key with algorithm etc.    -> HMAC
+//   - webhook_secret_key alone                  -> STANDARD_WEBHOOKS
+//
+// No-op if auth_type is already set, auth is absent/not an object, or the source type does not
+// offer a choice of method.
+func ensureSourceConfigAuthType(config map[string]interface{}, sourceType string) {
+	if config == nil || !sourceTypesWithAuthMethodChoice[strings.ToUpper(strings.TrimSpace(sourceType))] {
 		return
 	}
 	if _, hasType := config["auth_type"]; hasType {
@@ -145,18 +161,27 @@ func ensureSourceConfigAuthTypeForHTTP(config map[string]interface{}, sourceType
 		config["auth_type"] = "API_KEY"
 		return
 	}
-	if _, ok := auth["username"]; ok {
+	_, hasUser := auth["username"]
+	_, hasPass := auth["password"]
+	if hasUser || hasPass {
 		config["auth_type"] = "BASIC_AUTH"
 		return
 	}
 	if _, ok := auth["webhook_secret_key"]; ok {
-		config["auth_type"] = "HMAC"
+		_, hasAlgo := auth["algorithm"]
+		_, hasEncoding := auth["encoding"]
+		_, hasHeader := auth["header_key"]
+		if hasAlgo || hasEncoding || hasHeader {
+			config["auth_type"] = "HMAC"
+		} else {
+			config["auth_type"] = "STANDARD_WEBHOOKS"
+		}
 	}
 }
 
 // normalizeSourceConfigAuth converts legacy flat auth keys (webhook_secret, api_key, etc.)
-// into the API shape: config.auth only (no auth_type; type is source-level, auth shape depends on it).
-// Idempotent if auth already set.
+// into the API shape config.auth (auth shape depends on the source-level type). It does not set
+// auth_type; callers run ensureSourceConfigAuthType afterwards. Idempotent if auth already set.
 func normalizeSourceConfigAuth(config map[string]interface{}, sourceType string) {
 	if config == nil || config["auth"] != nil {
 		return
@@ -208,7 +233,8 @@ func normalizeSourceConfigAuth(config map[string]interface{}, sourceType string)
 // or from individual flags. sourceType (e.g. WEBHOOK, STRIPE) is used for correct auth shape.
 // When configStr or configFile is set, that takes precedence.
 // Used by source create, upsert, and update. Returns (nil, nil) when nothing is set.
-// Normalizes legacy flat auth keys to auth_type + auth so the API accepts the payload.
+// Normalizes legacy flat auth keys to config.auth and, for WEBHOOK/HTTP, sets config.auth_type
+// so the API accepts the payload.
 func buildSourceConfigFromFlags(configStr, configFile string, individual *sourceConfigFlags, sourceType string) (map[string]interface{}, error) {
 	if configStr != "" {
 		var out map[string]interface{}
@@ -216,6 +242,7 @@ func buildSourceConfigFromFlags(configStr, configFile string, individual *source
 			return nil, fmt.Errorf("invalid JSON in --config: %w", err)
 		}
 		normalizeSourceConfigAuth(out, sourceType)
+		ensureSourceConfigAuthType(out, sourceType)
 		return out, nil
 	}
 	if configFile != "" {
@@ -228,6 +255,7 @@ func buildSourceConfigFromFlags(configStr, configFile string, individual *source
 			return nil, fmt.Errorf("invalid JSON in config file: %w", err)
 		}
 		normalizeSourceConfigAuth(out, sourceType)
+		ensureSourceConfigAuthType(out, sourceType)
 		return out, nil
 	}
 	return buildSourceConfigFromIndividualFlags(individual, "", sourceType)
