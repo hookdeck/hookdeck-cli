@@ -400,7 +400,7 @@ hookdeck gateway connection create [flags]
 | `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
-| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes or expressions to retry on: codes (404), ranges (500-599), comparisons (&gt;400, &lt;=499) and exclusions (!401), e.g. "429,500-599" |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
 | `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
 | `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
@@ -519,7 +519,7 @@ hookdeck gateway connection update <connection-id> [flags]
 | `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
-| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes or expressions to retry on: codes (404), ranges (500-599), comparisons (&gt;400, &lt;=499) and exclusions (!401), e.g. "429,500-599" |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
 | `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
 | `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
@@ -659,7 +659,7 @@ hookdeck gateway connection upsert <name> [flags]
 | `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
-| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes or expressions to retry on: codes (404), ranges (500-599), comparisons (&gt;400, &lt;=499) and exclusions (!401), e.g. "429,500-599" |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
 | `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
 | `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
