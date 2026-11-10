@@ -342,6 +342,8 @@ Create a connection between a source and destination.
 	
 	You can either reference existing resources by ID or create them inline.
 
+	Source types that offer a choice of verification method (WEBHOOK, HTTP and others) need auth_type beside auth in the source config. When `--source-config` or the auth flags leave it out, it is set from the auth fields: header_key and api_key -> API_KEY, username and password -> BASIC_AUTH, webhook_secret_key with algorithm, encoding and header_key -> HMAC, and webhook_secret_key alone -> STANDARD_WEBHOOKS (Standard Webhooks signatures, not HMAC). Set auth_type in `--source-config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -595,6 +597,8 @@ Create a new connection or update an existing one by name (idempotent).
 	
 	Use `--dry-run` to preview changes without applying them.
 
+	Source types that offer a choice of verification method (WEBHOOK, HTTP and others) need auth_type beside auth in the source config. When `--source-config` or the auth flags leave it out, it is set from the auth fields: header_key and api_key -> API_KEY, username and password -> BASIC_AUTH, webhook_secret_key with algorithm, encoding and header_key -> HMAC, and webhook_secret_key alone -> STANDARD_WEBHOOKS (Standard Webhooks signatures, not HMAC). Set auth_type in `--source-config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -838,6 +842,8 @@ Create a new source.
 
 Requires `--name` and `--type`. Use `--config` or `--config-file` for authentication (e.g. webhook_secret, api_key).
 
+Source types that offer a choice of verification method (WEBHOOK, HTTP and others) need auth_type beside auth in the source config. When `--config` or the auth flags leave it out, it is set from the auth fields: header_key and api_key -> API_KEY, username and password -> BASIC_AUTH, webhook_secret_key with algorithm, encoding and header_key -> HMAC, and webhook_secret_key alone -> STANDARD_WEBHOOKS (Standard Webhooks signatures, not HMAC). Set auth_type in `--config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -899,6 +905,10 @@ hookdeck gateway source get my-source --include-auth
 
 Update an existing source by its ID.
 
+Config flags without `--type` are applied to the source's current type, which is looked up first.
+
+Source types that offer a choice of verification method (WEBHOOK, HTTP and others) need auth_type beside auth in the source config. When `--config` or the auth flags leave it out, it is set from the auth fields: header_key and api_key -> API_KEY, username and password -> BASIC_AUTH, webhook_secret_key with algorithm, encoding and header_key -> HMAC, and webhook_secret_key alone -> STANDARD_WEBHOOKS (Standard Webhooks signatures, not HMAC). Set auth_type in `--config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -957,6 +967,10 @@ hookdeck gateway source delete src_abc123 --force
 ### hookdeck gateway source upsert
 
 Create a new source or update an existing one by name (idempotent).
+
+Without `--type`, the API treats the source as WEBHOOK: a new source is created as WEBHOOK, and an existing source of another type is converted to WEBHOOK, losing its verification. Pass `--type` to keep an existing type.
+
+Source types that offer a choice of verification method (WEBHOOK, HTTP and others) need auth_type beside auth in the source config. When `--config` or the auth flags leave it out, it is set from the auth fields: header_key and api_key -> API_KEY, username and password -> BASIC_AUTH, webhook_secret_key with algorithm, encoding and header_key -> HMAC, and webhook_secret_key alone -> STANDARD_WEBHOOKS (Standard Webhooks signatures, not HMAC). Set auth_type in `--config` to choose the method yourself.
 
 **Usage:**
 

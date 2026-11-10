@@ -35,6 +35,10 @@ func newSourceUpsertCmd() *sourceUpsertCmd {
 		Short: ShortUpsert(ResourceSource),
 		Long: LongUpsertIntro(ResourceSource) + `
 
+Without --type, the API treats the source as WEBHOOK: a new source is created as WEBHOOK, and an existing source of another type is converted to WEBHOOK, losing its verification. Pass --type to keep an existing type.
+
+` + LongSourceAuthType("--config") + `
+
 Examples:
   hookdeck gateway source upsert my-webhook --type WEBHOOK
   hookdeck gateway source upsert stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'
@@ -90,7 +94,9 @@ func (sc *sourceUpsertCmd) runSourceUpsertCmd(cmd *cobra.Command, args []string)
 	client := Config.GetAPIClient()
 	ctx := context.Background()
 
-	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, sc.sourceType)
+	// Without --type the API upserts as WEBHOOK and validates config as WEBHOOK config, so
+	// build it for that type too.
+	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, sourceTypeOrAPIDefault(sc.sourceType))
 	if err != nil {
 		return err
 	}

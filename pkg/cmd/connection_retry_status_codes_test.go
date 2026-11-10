@@ -59,3 +59,15 @@ func TestRetryResponseStatusCodesRejectsInvalidExpressions(t *testing.T) {
 		})
 	}
 }
+
+func TestRetryResponseStatusCodesLimit(t *testing.T) {
+	build := func(value string) error {
+		f := parseRuleFlags(t, []string{"--rule-retry-strategy", "linear", "--rule-retry-response-status-codes", value})
+		_, err := buildConnectionRules(f)
+		return err
+	}
+	assert.NoError(t, build("500,501,502,503,504,505,506,507,508,509"), "10 entries is the API maximum")
+	err := build("500,501,502,503,504,505,506,507,508,509,510")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at most 10")
+}

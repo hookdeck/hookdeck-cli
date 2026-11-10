@@ -36,6 +36,8 @@ func newSourceCreateCmd() *sourceCreateCmd {
 
 Requires --name and --type. Use --config or --config-file for authentication (e.g. webhook_secret, api_key).
 
+` + LongSourceAuthType("--config") + `
+
 Examples:
   hookdeck gateway source create --name my-webhook --type WEBHOOK
   hookdeck gateway source create --name stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'`,

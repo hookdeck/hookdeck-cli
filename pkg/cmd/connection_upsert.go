@@ -39,6 +39,8 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 		 - Preserves existing properties that aren't specified
 	
 	Use --dry-run to preview changes without applying them.
+
+	` + LongSourceAuthType("--source-config") + `
 	
 	Examples:
 		 # Create or update a connection with inline source and destination
@@ -583,10 +585,23 @@ func (cu *connectionUpsertCmd) buildSourceInputForUpdate(existingSource *hookdec
 		}
 	}
 
-	// Build new config from flags (this will override existing values)
-	newConfig, err := cu.buildSourceConfig()
+	// Build new config from flags (this will override existing values). Shape it for the
+	// stored type: no --source-type was given, and both the auth fields and the auth_type to
+	// infer depend on the type.
+	newConfig, err := cu.buildSourceConfigForType(existingSource.Type)
 	if err != nil {
 		return nil, err
+	}
+
+	// The stored config carries auth_type (the method the source verifies with) but not the
+	// auth credentials. Sending that auth_type back without auth fails validation, and keeping
+	// it beside new auth names the old method for the new credentials. So it goes unless the
+	// stored auth is going back with it; new auth brings its own (inferred) auth_type.
+	if _, newAuth := newConfig["auth"]; newAuth {
+		delete(sourceConfig, "auth")
+		delete(sourceConfig, "auth_type")
+	} else if _, storedAuth := sourceConfig["auth"]; !storedAuth {
+		delete(sourceConfig, "auth_type")
 	}
 
 	// Merge new config into existing config

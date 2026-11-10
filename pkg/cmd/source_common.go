@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/hookdeck/hookdeck-cli/pkg/cmd/sources"
 )
 
@@ -43,8 +45,8 @@ func flagRef(prefix, name string) string {
 
 // buildSourceConfigFromIndividualFlags builds source config from individual flags.
 // Source-level type (WEBHOOK, STRIPE, etc.) determines which config schema applies; config.auth
-// contents depend on that type (per OpenAPI SourceTypeConfig oneOf). For WEBHOOK and HTTP the API
-// also requires config.auth_type naming the method; ensureSourceConfigAuthType adds it.
+// contents depend on that type (per OpenAPI SourceTypeConfig oneOf). Types offering a choice of
+// method (WEBHOOK, HTTP, ...) also need config.auth_type; ensureSourceConfigAuthType adds it.
 // Shared by source create/upsert/update (prefix "") and connection create/upsert (prefix "source-").
 // flagPrefix is used only in error messages so connection errors mention --source-*.
 func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sourceType string) (map[string]interface{}, error) {
@@ -55,7 +57,7 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 	sourceTypeUpper := strings.ToUpper(strings.TrimSpace(sourceType))
 
 	// Auth: config.auth shape depends on source type. auth_type is added at the end for the
-	// generic types that require it (see ensureSourceConfigAuthType).
+	// types that require it (see ensureSourceConfigAuthType).
 	if f.WebhookSecret != "" {
 		if sourceTypeUpper == "STRIPE" {
 			config["auth"] = map[string]interface{}{"webhook_secret_key": f.WebhookSecret}
@@ -127,55 +129,76 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 	return config, nil
 }
 
-// sourceTypesWithAuthMethodChoice are the generic source types whose config offers a choice of
-// verification method (HMAC, BASIC_AUTH, API_KEY, STANDARD_WEBHOOKS). For these types the API
-// validates config.auth against the method named in config.auth_type, and rejects config.auth
-// with "config.auth is not allowed" when auth_type is missing. Provider types (STRIPE, GITHUB,
-// ...) have a single fixed method and take no auth_type, so it must not be added for them.
-var sourceTypesWithAuthMethodChoice = map[string]bool{
-	"WEBHOOK": true,
-	"HTTP":    true,
+// apiDefaultSourceType is the type the API applies when a source create or upsert omits it
+// (the create schema defaults type to WEBHOOK), so that is the type its config is validated
+// against. Building config for an omitted type must use the same one.
+const apiDefaultSourceType = "WEBHOOK"
+
+// sourceTypeOrAPIDefault returns sourceType, or apiDefaultSourceType when it is empty.
+// Only for create/upsert paths: an update of an existing source keeps the stored type.
+func sourceTypeOrAPIDefault(sourceType string) string {
+	if strings.TrimSpace(sourceType) == "" {
+		return apiDefaultSourceType
+	}
+	return sourceType
 }
 
-// ensureSourceConfigAuthType sets config.auth_type for WEBHOOK and HTTP sources when config has
-// auth but no auth_type, inferring the method from the auth keys:
-//   - api_key                                   -> API_KEY
-//   - username / password                       -> BASIC_AUTH
-//   - webhook_secret_key with algorithm etc.    -> HMAC
-//   - webhook_secret_key alone                  -> STANDARD_WEBHOOKS
+// loadSourceAuthMethods returns each source type's auth methods from the cached OpenAPI spec.
+// A variable so tests serve a fixture instead of downloading the spec.
+var loadSourceAuthMethods = sources.FetchSourceAuthMethods
+
+// builtinGenericAuthMethods are the WEBHOOK and HTTP auth methods as the API defines them,
+// used when the spec cannot be fetched so the auth flags keep working offline for the two
+// generic types. Other types need the spec.
+var builtinGenericAuthMethods = []sources.AuthMethod{
+	{Name: "HMAC", Properties: []string{"algorithm", "encoding", "header_key", "webhook_secret_key"}, Required: []string{"algorithm", "encoding", "header_key", "webhook_secret_key"}},
+	{Name: "BASIC_AUTH", Properties: []string{"password", "username"}, Required: []string{"username", "password"}},
+	{Name: "API_KEY", Properties: []string{"api_key", "header_key"}, Required: []string{"header_key", "api_key"}},
+	{Name: "STANDARD_WEBHOOKS", Properties: []string{"webhook_secret_key"}, Required: []string{"webhook_secret_key"}},
+}
+
+// ensureSourceConfigAuthType sets config.auth_type when config has auth but no auth_type and
+// the source type offers a choice of verification method.
 //
-// No-op if auth_type is already set, auth is absent/not an object, or the source type does not
-// offer a choice of method.
+// For those types (WEBHOOK, HTTP, ORDINAL, PROMETHEUS_ALERTMANAGER and others, as listed in the
+// OpenAPI spec) the API validates config.auth against the method named in config.auth_type,
+// and rejects config.auth without it ("config.auth is not allowed"). Types with one fixed
+// method (STRIPE, GITHUB, ...) take no auth_type, so nothing is added for them.
+//
+// The method is the one whose fields fit the auth keys (sources.InferAuthType). For example,
+// on WEBHOOK: api_key + header_key -> API_KEY, username + password -> BASIC_AUTH, a secret with
+// algorithm/encoding/header_key -> HMAC, and a bare webhook_secret_key -> STANDARD_WEBHOOKS
+// (HMAC requires the other fields, so Standard Webhooks is the only method that accepts it).
+// When no single method fits, auth_type is left unset and the API reports the problem.
 func ensureSourceConfigAuthType(config map[string]interface{}, sourceType string) {
-	if config == nil || !sourceTypesWithAuthMethodChoice[strings.ToUpper(strings.TrimSpace(sourceType))] {
+	if config == nil || strings.TrimSpace(sourceType) == "" {
 		return
 	}
 	if _, hasType := config["auth_type"]; hasType {
 		return
 	}
 	auth, _ := config["auth"].(map[string]interface{})
-	if auth == nil {
+	if len(auth) == 0 {
 		return
 	}
-	if _, ok := auth["api_key"]; ok {
-		config["auth_type"] = "API_KEY"
-		return
-	}
-	_, hasUser := auth["username"]
-	_, hasPass := auth["password"]
-	if hasUser || hasPass {
-		config["auth_type"] = "BASIC_AUTH"
-		return
-	}
-	if _, ok := auth["webhook_secret_key"]; ok {
-		_, hasAlgo := auth["algorithm"]
-		_, hasEncoding := auth["encoding"]
-		_, hasHeader := auth["header_key"]
-		if hasAlgo || hasEncoding || hasHeader {
-			config["auth_type"] = "HMAC"
-		} else {
-			config["auth_type"] = "STANDARD_WEBHOOKS"
+
+	var methods []sources.AuthMethod
+	if all, err := loadSourceAuthMethods(); err == nil {
+		methods = sources.AuthMethodsFor(all, sourceType)
+	} else {
+		upper := strings.ToUpper(strings.TrimSpace(sourceType))
+		if upper == "WEBHOOK" || upper == "HTTP" {
+			methods = builtinGenericAuthMethods
 		}
+		log.WithError(err).Debug("could not load source auth methods from the OpenAPI spec; config.auth_type inferred only for WEBHOOK and HTTP")
+	}
+
+	keys := make([]string, 0, len(auth))
+	for k := range auth {
+		keys = append(keys, k)
+	}
+	if authType := sources.InferAuthType(methods, keys); authType != "" {
+		config["auth_type"] = authType
 	}
 }
 
@@ -233,8 +256,8 @@ func normalizeSourceConfigAuth(config map[string]interface{}, sourceType string)
 // or from individual flags. sourceType (e.g. WEBHOOK, STRIPE) is used for correct auth shape.
 // When configStr or configFile is set, that takes precedence.
 // Used by source create, upsert, and update. Returns (nil, nil) when nothing is set.
-// Normalizes legacy flat auth keys to config.auth and, for WEBHOOK/HTTP, sets config.auth_type
-// so the API accepts the payload.
+// Normalizes legacy flat auth keys to config.auth and, for types offering a choice of auth
+// method, sets config.auth_type so the API accepts the payload.
 func buildSourceConfigFromFlags(configStr, configFile string, individual *sourceConfigFlags, sourceType string) (map[string]interface{}, error) {
 	if configStr != "" {
 		var out map[string]interface{}

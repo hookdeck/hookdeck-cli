@@ -62,3 +62,14 @@ func LongEnableIntro(resource string) string {
 func LongUpsertIntro(resource string) string {
 	return "Create a new " + resource + " or update an existing one by name (idempotent)."
 }
+
+// LongSourceAuthType explains how config.auth_type is filled in for source auth. configFlag is
+// the flag that takes source config JSON ("--config" or "--source-config").
+func LongSourceAuthType(configFlag string) string {
+	return "Source types that offer a choice of verification method (WEBHOOK, HTTP and others) need " +
+		"auth_type beside auth in the source config. When " + configFlag + " or the auth flags leave it " +
+		"out, it is set from the auth fields: header_key and api_key -> API_KEY, username and password -> " +
+		"BASIC_AUTH, webhook_secret_key with algorithm, encoding and header_key -> HMAC, and " +
+		"webhook_secret_key alone -> STANDARD_WEBHOOKS (Standard Webhooks signatures, not HMAC). " +
+		"Set auth_type in " + configFlag + " to choose the method yourself."
+}

@@ -19,6 +19,9 @@ import (
 // or a code with optional exclusion ("404", "!401"). Codes are 200-599.
 var retryStatusCodeExpr = regexp.MustCompile(`^(?:([2-5]\d{2})-([2-5]\d{2})|([><=]{1,2})([2-5]\d{2})|!?([2-5]\d{2}))$`)
 
+// maxRetryStatusCodes is the API's limit on entries in a retry rule's response_status_codes.
+const maxRetryStatusCodes = 10
+
 // shouldShowConnectionDeprecation returns true when the user invoked the
 // root-level alias (hookdeck connection / hookdeck connections) and we
 // should print a deprecation notice. Returns false when:
@@ -271,6 +274,9 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 					return nil, fmt.Errorf("invalid HTTP status code expression %q in --rule-retry-response-status-codes: use a code (404), range (500-599), comparison (>400, <=499) or exclusion (!401), with codes 200-599", part)
 				}
 				strCodes = append(strCodes, part)
+			}
+			if len(strCodes) > maxRetryStatusCodes {
+				return nil, fmt.Errorf("--rule-retry-response-status-codes accepts at most %d entries (got %d); use ranges such as 500-599 to cover more codes", maxRetryStatusCodes, len(strCodes))
 			}
 			rule["response_status_codes"] = strCodes
 		}

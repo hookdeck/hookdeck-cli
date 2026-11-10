@@ -1,0 +1,3418 @@
+{
+ "components": {
+  "schemas": {
+   "SourceAllowedHTTPMethod": {
+    "description": "List of allowed HTTP methods. Defaults to PUT, POST, PATCH, DELETE. GET and HEAD are opt-in.",
+    "items": {
+     "enum": [
+      "GET",
+      "HEAD",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "QUERY"
+     ],
+     "type": "string"
+    },
+    "type": "array"
+   },
+   "SourceConfigAircallAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "Aircall"
+   },
+   "SourceConfigAzureEventGridAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigAzureEventGridAuthHMAC"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigAzureEventGridAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigAzureEventGridAuthAPIKey"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigAzureEventGridAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigAzureEventGridAuthAPIKey": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "API_KEY"
+   },
+   "SourceConfigAzureEventGridAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigAzureEventGridAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigAzureEventGridAuthHMAC": {
+    "additionalProperties": false,
+    "properties": {
+     "algorithm": {
+      "enum": [
+       "sha1",
+       "sha256",
+       "sha512",
+       "md5"
+      ],
+      "type": "string"
+     },
+     "encoding": {
+      "enum": [
+       "base64",
+       "base64url",
+       "hex"
+      ],
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     },
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "HMAC"
+   },
+   "SourceConfigBetterStackAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigBetterStackAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigBetterStackAuthCustomheader"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigBetterStackAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigBetterStackAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigBetterStackAuthCustomheader": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "API_KEY"
+   },
+   "SourceConfigBetterStackAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigGitLabAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigGitLabAuthSigningtokenStandardWebhooks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigGitLabAuthSecrettokenXGitlabToken"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigGitLabAuthEmpty"
+     },
+     {
+      "additionalProperties": false,
+      "nullable": true,
+      "properties": {
+       "api_key": {
+        "type": "string"
+       },
+       "webhook_secret_key": {
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigGitLabAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigGitLabAuthSecrettokenXGitlabToken": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "GITLAB"
+   },
+   "SourceConfigGitLabAuthSigningtokenStandardWebhooks": {
+    "additionalProperties": false,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "STANDARD_WEBHOOKS"
+   },
+   "SourceConfigGrafanaAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigGrafanaAuthHMACsignature"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigGrafanaAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigGrafanaAuthAuthorizationheader"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigGrafanaAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigGrafanaAuthAuthorizationheader": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "API_KEY"
+   },
+   "SourceConfigGrafanaAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigGrafanaAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigGrafanaAuthHMACsignature": {
+    "additionalProperties": false,
+    "properties": {
+     "header_key": {
+      "type": "string"
+     },
+     "timestamp_header": {
+      "type": "string"
+     },
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "GRAFANA"
+   },
+   "SourceConfigHTTPAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigHTTPAuthHMAC"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigHTTPAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigHTTPAuthAPIKey"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigHTTPAuthStandardWebhooks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigHTTPAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigHTTPAuthAPIKey": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "API_KEY"
+   },
+   "SourceConfigHTTPAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigHTTPAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigHTTPAuthHMAC": {
+    "additionalProperties": false,
+    "properties": {
+     "algorithm": {
+      "enum": [
+       "sha1",
+       "sha256",
+       "sha512",
+       "md5"
+      ],
+      "type": "string"
+     },
+     "encoding": {
+      "enum": [
+       "base64",
+       "base64url",
+       "hex"
+      ],
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     },
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "HMAC"
+   },
+   "SourceConfigHTTPAuthStandardWebhooks": {
+    "additionalProperties": false,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "STANDARD_WEBHOOKS"
+   },
+   "SourceConfigOrdinalAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigOrdinalAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigOrdinalAuthAPIKey"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigOrdinalAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigOrdinalAuthAPIKey": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "API_KEY"
+   },
+   "SourceConfigOrdinalAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigOrdinalAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigPrometheusAlertmanagerAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigPrometheusAlertmanagerAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigPrometheusAlertmanagerAuthBearertoken"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigPrometheusAlertmanagerAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigPrometheusAlertmanagerAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigPrometheusAlertmanagerAuthBearertoken": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "PROMETHEUS_ALERTMANAGER"
+   },
+   "SourceConfigPrometheusAlertmanagerAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigPropertyFinderAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "Property Finder"
+   },
+   "SourceConfigSendGridInboundParseAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigSendGridInboundParseAuthHMAC"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigSendGridInboundParseAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigSendGridInboundParseAuthAPIKey"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigSendGridInboundParseAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigSendGridInboundParseAuthAPIKey": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "API_KEY"
+   },
+   "SourceConfigSendGridInboundParseAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigSendGridInboundParseAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigSendGridInboundParseAuthHMAC": {
+    "additionalProperties": false,
+    "properties": {
+     "algorithm": {
+      "enum": [
+       "sha1",
+       "sha256",
+       "sha512",
+       "md5"
+      ],
+      "type": "string"
+     },
+     "encoding": {
+      "enum": [
+       "base64",
+       "base64url",
+       "hex"
+      ],
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     },
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "HMAC"
+   },
+   "SourceConfigStripeAuth": {
+    "additionalProperties": false,
+    "nullable": true,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "Stripe"
+   },
+   "SourceConfigWebhookAuth": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHMAC"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBasicAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAPIKey"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStandardWebhooks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAiprise"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAircall"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAlchemy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAttentive"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDocuSign"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthIntercom"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMCPEvents"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSanity"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBigCommerce"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClaude"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOpenAI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDelivereasy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLoyaltyLion"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPayt"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSemaphoreCI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUploadcare"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOhDear"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLettermint"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthButtondown"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOpnForm"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthQlikCloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthReditus"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTutorCruncher"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHintHealth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHighMobility"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDeliverect"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMemberful"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPayTabs"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTreet"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFelloh"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPlanetScale"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPlane"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAgentset"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthXtremepush"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBump.sh"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAyrshare"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMorta"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSendX"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDojah"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTeachfloor"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSpikeAPI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTop.gg"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFreemius"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMewsPOS"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthViolet"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLogto"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHackerOne"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCloudsmith"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuth1PasswordDeviceTrustKolide"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZITADEL"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTokity"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBigMailer"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFormspree"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLearnHouse"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSahha"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHIFI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPreczn"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRyft"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAuthgear"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFingerprint"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGitBook"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDub"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUpPromote"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthThoughtIndustries"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSurvicate"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMedplum"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthvivenu"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRoot"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGOV.UKPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPolar"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBridgeStablecoins"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBridgeAPI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthChargebeeBilling"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthChaindots"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCloudSignal"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCoinbase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCourier"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCursor"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMeraki"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFireblocks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFrontApp"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZoom"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthX"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRecharge"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCronofy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRecurly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRetell"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRevolut"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRingCentral"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStripe"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCloudinary"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPropertyFinder"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthQuo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthQuoter"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShopify"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTwilio"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGitHub"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPostmark"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTally"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTypeform"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPicqer"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthXero"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSvix"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthResend"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGoogleGemini"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDeck"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthincident.io"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthQuickBooks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAttio"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLINE"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClickUp"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCal.com"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSumsub"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMux"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShippo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEtsy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthReducto"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAdyen"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAkeneo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWooCommerce"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOkta"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOura"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCommerceLayer"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCommunity.com"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHubspot"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHasura"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPrefect"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKoBoToolbox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFireberry"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHightouch"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOneLogin"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthParagon"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRev.ai"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStuart"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSigfox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNium"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuth360dialog"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBitrise"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDatoCMS"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthIterable"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOneSpan"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthparcelLab"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZuora"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAmazonEventBridge"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthProxyclickEpturaVisitor"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBraze"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJumpCloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOpsgenie"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaxos"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRudderStack"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTray.io"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCopper"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBelvo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPubNub"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAmplitude"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBringg"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDoorDashDrive"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMake"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOry"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSocure"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVTEX"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCurrents"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthApify"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBuilder.io"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFourKites"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNewRelic"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOyster"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthproject44"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSpeechmatics"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWorkato"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthInvoiceNinja"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthForm.io"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWorkspaceONEOmnissa"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAzureDevOps"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFreshsales"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOmnisend"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaperform"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRailway"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStrapi"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthYouCanBookMe"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailerSend"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailgun"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPersona"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPipedrive"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSendgrid"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWorkOS"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSynctera"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAWSSNS"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuth3dEye"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTwitch"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthElevenLabs"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEnode"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFanvue"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFaundit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFavro"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuth8x8"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAxiom"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCloudentitySecureAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGrist"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMetabase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthProcore"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthROLLER"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTorii"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAcumatica"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBaserow"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDynatrace"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHaloPSA"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLessonly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPax8"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBitdefender"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCyberimpact"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFactorial"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNextcloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthQuickbase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAimfox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCin7Core"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDattoRMM"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFirstbase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJamfPro"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNexthink"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPeopleDataLabs"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRapidAPI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTripletex"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDemodesk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJamie"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMaximizer"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPingOne"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRedo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStreak"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVideoAsk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAuvik"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClickHouse"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDocument360"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJobAdder"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMeilisearch"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPostscript"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRocketlane"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSwoogo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWiza"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLinear"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShipBob"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShipHero"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShopline"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWhatnot"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWix"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNMIPaymentGateway"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNeon"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOrb"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPylon"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNomod"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOpenlayer"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSoharHealth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCerebrum"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAirweave"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRelay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNitrosend"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJunction"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAgntix"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMemos"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCuuro"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNovu"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBayouEnergy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCelitech"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRequesty"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSpeed"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCrossmint"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTensorlake"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNotifuse"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFormbricks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMeetingBaaS"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVersive"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWebiny"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVern"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthepilot"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVoiceflow"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSurge"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNextPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLinq"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPineLabs"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLiveblocks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPrivy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClemta"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFlexprice"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthiSnap"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGlobalStack"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGeneralTranslation"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTrunk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDoubleword"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOuthire"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBasiq"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBindbee"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRazorpay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRepay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSquare"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSolidgate"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTrello"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEbay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStorekit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSkovik"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPrividium"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDodoPayments"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRecurrente"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMonerium"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSaladCloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTrackstar"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRuna"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAxilio"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSupertab"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHelcim"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTolt"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSuperwall"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHireHive"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJustt"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthScalekit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPinata"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLasoFinance"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthChargeblast"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPipecatCloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthpganalyze"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDots"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthcamelAI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSalsa"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBlindPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGoody"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSpacebring"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHexclave"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthsajn"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOrigami"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSwipelux"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTravtus"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOmnara"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLayerswap"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVelt"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthArgil"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTerminal"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTelnyx"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClickPost"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRebilly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHoneycomb"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSoniox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDigitalSamba"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthArgoCD"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthConnecteam"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthArcadia"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGOV.UKNotify"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMeasureOne"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMono"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSwan"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPayrixPro"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHarbor"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVellum"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEstuary"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuth100ms"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNavattic"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGumlet"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGCNotify"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPAY.JP"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTabby"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPayroc"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTrendyol"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPlunk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSMTP2GO"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClickatell"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKibana"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRebrandly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthParticle"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAuroraSolar"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPalmettoFinance"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShip24"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZoop"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCelcoin"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLeonardo.Ai"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSevalla"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSublimeSecurity"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFirstPromoter"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMightyNetworks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHostaway"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthIncode"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDatacake"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVentrata"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDiscord"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTokenIO"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFiserv"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEmporix"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCoverGenius"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHoneybadger"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMiddesk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOnceHub"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSalesloft"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTrigger.dev"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAssemblyAI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFoursquare"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCartesia"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthIncrease"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMistral"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOutreach"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSavvyCal"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStigg"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUnit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWorkable"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLokalise"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthConfluenceDataCenter"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaysafe"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSendbird"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStoryblok"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWave"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTruework"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDocumenso"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMoonPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPostHog"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShopware"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStreamgetstream.io"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthXendit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMedusa"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNorthflank"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPrintify"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShortcut"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthtawk.to"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthYousign"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCoterie"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFootprint"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMercury"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRecruitee"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSignNow"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTodoist"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZohoSign"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFusionAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBondsmith"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVercelDrains"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVercelWebhooks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTebex"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSlack"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSmartcar"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBelco"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHyperswitch"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOnramper"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthQonto"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZiina"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSpacelift"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLangfuse"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOptimizely"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthConvox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRewardful"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthReferralHero"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFountain"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStorylane"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTerraAPI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKatanaMRP"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOxaPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthReturnless"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBVNK"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPulumiCloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAgora"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailcoach"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthChameleon"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTaskade"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthComplyCube"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthapi.video"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCheckoutPage"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKhipu"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRootFiCommenda"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthColumn"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSonarQube"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBaseten"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFluxCD"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthArgyle"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMeetGeek"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthiDenfy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthThinkific"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSocotra"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthProof"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCreem"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKOMOJU"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaypercut"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTerminal49"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCryptoProcessing"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthForgejo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWistia"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthConvex"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLearnUpon"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSurveyMethods"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPartnero"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNorthpass"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTexture"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailchimp"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNuvemshop"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaddle"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaypal"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaymob"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPaystack"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthModemPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBitculator"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthScrapfly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPortal"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTreezor"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPraxis"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCustomer.IO"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthExactOnline"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFacebook"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWhatsApp"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthReplicate"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTikTok"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTikTokShop"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAirwallex"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAscend"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAlipay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBird"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPropelAuth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailerLite"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGo1"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHCPTerraform"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBlandAI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDoppler"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGitea"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLoopReturns"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCodat"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSendcloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthToggl"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBoldSign"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthExpo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHeyGen"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLuma"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStedi"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAcuityScheduling"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSmartsheet"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVGSVeryGoodSecurity"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBreezyHR"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFirecrawl"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJFrog"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCloudTalk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthExa"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWAHA"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMautic"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthYapily"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCensusFivetranActivations"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFireHydrant"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKombo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGranola"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHelpScout"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCheck"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSeaTable"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAbly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCheckly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFlagsmith"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKustomer"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDuffel"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTaiga"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDescope"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFourthwall"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLago"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZendesk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUpollo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSmile"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNylas"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClio"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGoCardless"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGooglePubSub"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLinkedIn"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLithic"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOnfleet"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUtila"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAffonso"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthArdoq"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBambooHR"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBreakcold"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBugSmash"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCampfire"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCashfree"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCharityStack"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthChatim"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthChiliPiper"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCoassemble"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthConfigCat"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCyera"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFeaturebase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGreenshades"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHume"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthInfiniteGiving"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLob"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLodgix"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMagicHour"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMetronome"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMICEtribe"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOnshape"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOpenRouter"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPayNow"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPodium"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPurchasely"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthQuicknode"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRemote"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSchematic"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSent"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSinch"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSpherePay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSpreeCommerce"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTidio"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTiltify"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTwenty"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTypefully"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUltravox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUploadPost"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthuseSend"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVitableHealth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWHOOP"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGreenDot"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZeroHash"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAirtable"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAsana"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAshby"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFastSpring"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPayProGlobal"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUSPS"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWalmart"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFireflies.ai"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFlexport"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUber"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWeChatPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBunnyStream"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthShipStation"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCircle"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStatsig"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVapi"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVolume"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFormstack"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAfterShip"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAuth0"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBitbucket"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCalendly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAbsorbLMS"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAppstleSubscriptions"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthfolk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHolded"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNooks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPlanningCenter"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSemble"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZigpoll"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthathenahealth"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBasin"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDentally"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLiveTennisAPI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPennylane"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPriveRecurlyCommerce"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTremendous"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAgentcard"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCanny"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFullEnrich"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHumaans"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailtrap"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTeamwork.com"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAgentLine"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAutosana"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCertn"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEnvoy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGlean"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHuntress"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTextUs"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVimeo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAnarlog"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAutotask"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCircleback"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHail"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJazzHR"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMissive"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPipelineCRM"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRoam"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTheirStack"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAutumn"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCompanyCam"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFiberAI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHitPay"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJobber"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMoneybird"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPlain"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRocketReach"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthThreads"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTriNetZenefits"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCheckout.com"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCircleCI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthClerk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDeepgram"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNeedle"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthActOn"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUKGReady"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAmpersand"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEgnyte"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthbeehiiv"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthYouMail"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthINGENIOUS.BUILD"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSimpro"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSafeBase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKnowBe4"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTanium"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSAPSuccessFactors"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTIMIFY"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWebinarJam"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSAPEmarsys"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLumos"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHuggingFace"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthJira"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKlaviyo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthKnock"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMollie"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNotion"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPolytomic"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPagerDuty"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOnfido"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDwolla"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDidit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPusher"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLaunchDarkly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVeriff"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZernio"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMongoDBAtlas"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTailscale"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHeroku"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMaxioChargify"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRutter"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBolt"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSignalSciencesFastlyNextGenWAF"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMaintainX"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCallRail"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLemonSqueezy"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthModernTreasury"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCastle"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHiBob"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMotive"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthdbtCloud"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFivetran"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWebex"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRamp"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBuildkite"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDropbox"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStytch"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDaytona"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGopuff"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWhop"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCloudflare"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMarketo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNinjaOne"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailjet"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGravityForms"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZoomInfo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUnipile"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMailparser"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthHelius"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDatabricks"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAppsFlyer"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAsaas"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOpenClaw"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthMicrosoftDynamics365"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDrata"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSnipcart"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSparkPost"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSupabase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRevenueCat"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPipedream"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTelegram"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRecall.ai"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFathom"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPleo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBrowserbase"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthYoco"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNash"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthVanta"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGuesty"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAda"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAgentMail"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthCrusoe"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthLoop"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthOpenMeter"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSendoso"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSovos"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthStitch"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthTaskRabbit"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthUphold"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWeTravel"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthNango"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthSegment"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthn8n"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthZapier"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthAzureLogicApps"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthBrevo"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGorgias"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGreenAPI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFreshdesk"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthFillout"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthInstantly"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthDealHub"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthRubrik"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthGoogleWorkspace"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthWebflow"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthPapergames"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthbundle.social"
+     },
+     {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuthEmpty"
+     }
+    ],
+    "properties": {},
+    "type": "object"
+   },
+   "SourceConfigWebhookAuthAPIKey": {
+    "additionalProperties": false,
+    "properties": {
+     "api_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "header_key",
+     "api_key"
+    ],
+    "type": "object",
+    "x-docs-type": "API_KEY"
+   },
+   "SourceConfigWebhookAuthAircall": {
+    "additionalProperties": false,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "AIRCALL"
+   },
+   "SourceConfigWebhookAuthBasicAuth": {
+    "additionalProperties": false,
+    "properties": {
+     "password": {
+      "type": "string"
+     },
+     "username": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "username",
+     "password"
+    ],
+    "type": "object",
+    "x-docs-type": "BASIC_AUTH"
+   },
+   "SourceConfigWebhookAuthEmpty": {
+    "nullable": true,
+    "x-docs-hide": true,
+    "x-docs-nullable": true
+   },
+   "SourceConfigWebhookAuthHMAC": {
+    "additionalProperties": false,
+    "properties": {
+     "algorithm": {
+      "enum": [
+       "sha1",
+       "sha256",
+       "sha512",
+       "md5"
+      ],
+      "type": "string"
+     },
+     "encoding": {
+      "enum": [
+       "base64",
+       "base64url",
+       "hex"
+      ],
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     },
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "algorithm",
+     "encoding",
+     "header_key",
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "HMAC"
+   },
+   "SourceConfigWebhookAuthPropertyFinder": {
+    "additionalProperties": false,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "PROPERTY-FINDER"
+   },
+   "SourceConfigWebhookAuthStandardWebhooks": {
+    "additionalProperties": false,
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "type": "object",
+    "x-docs-type": "STANDARD_WEBHOOKS"
+   },
+   "SourceCustomResponse": {
+    "additionalProperties": false,
+    "description": "Custom response object",
+    "nullable": true,
+    "properties": {
+     "body": {
+      "description": "Body of the custom response",
+      "maxLength": 1000,
+      "type": "string"
+     },
+     "content_type": {
+      "$ref": "#/components/schemas/SourceCustomResponseContentType"
+     }
+    },
+    "required": [
+     "content_type",
+     "body"
+    ],
+    "type": "object"
+   },
+   "SourceCustomResponseContentType": {
+    "description": "Content type of the custom response",
+    "enum": [
+     "json",
+     "text",
+     "xml"
+    ],
+    "type": "string"
+   },
+   "SourceTypeConfigAIRCALL": {
+    "additionalProperties": false,
+    "description": "The type config for AIRCALL. Requires type to be `AIRCALL`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigAircallAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://developer.aircall.io/docs/setup-webhooks",
+    "x-docs-type": "AIRCALL"
+   },
+   "SourceTypeConfigAZURE_EVENT_GRID": {
+    "additionalProperties": false,
+    "description": "The type config for AZURE_EVENT_GRID. Requires type to be `AZURE_EVENT_GRID`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigAzureEventGridAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "HMAC",
+       "BASIC_AUTH",
+       "API_KEY"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://learn.microsoft.com/en-us/azure/event-grid/end-point-validation-cloud-events-schema",
+    "x-docs-type": "AZURE_EVENT_GRID"
+   },
+   "SourceTypeConfigBETTER_STACK": {
+    "additionalProperties": false,
+    "description": "The type config for BETTER_STACK. Requires type to be `BETTER_STACK`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigBetterStackAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "BASIC_AUTH",
+       "API_KEY"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://betterstack.com/docs/uptime/webhooks/",
+    "x-docs-type": "BETTER_STACK"
+   },
+   "SourceTypeConfigGITLAB": {
+    "additionalProperties": false,
+    "description": "The type config for GITLAB. Requires type to be `GITLAB`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigGitLabAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "STANDARD_WEBHOOKS",
+       "GITLAB"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://docs.gitlab.com/user/project/integrations/webhooks/#signing-tokens",
+    "x-docs-type": "GITLAB"
+   },
+   "SourceTypeConfigGRAFANA": {
+    "additionalProperties": false,
+    "description": "The type config for GRAFANA. Requires type to be `GRAFANA`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigGrafanaAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "GRAFANA",
+       "BASIC_AUTH",
+       "API_KEY"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/integrations/webhook-notifier/#hmac-signature",
+    "x-docs-type": "GRAFANA"
+   },
+   "SourceTypeConfigHTTP": {
+    "additionalProperties": false,
+    "description": "The type config for HTTP. Requires type to be `HTTP`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigHTTPAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "HMAC",
+       "BASIC_AUTH",
+       "API_KEY",
+       "STANDARD_WEBHOOKS"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "HTTP"
+   },
+   "SourceTypeConfigORDINAL": {
+    "additionalProperties": false,
+    "description": "The type config for ORDINAL. Requires type to be `ORDINAL`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigOrdinalAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "BASIC_AUTH",
+       "API_KEY"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://docs.tryordinal.com/integrations/webhooks/introduction",
+    "x-docs-type": "ORDINAL"
+   },
+   "SourceTypeConfigPROMETHEUS_ALERTMANAGER": {
+    "additionalProperties": false,
+    "description": "The type config for PROMETHEUS_ALERTMANAGER. Requires type to be `PROMETHEUS_ALERTMANAGER`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigPrometheusAlertmanagerAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "BASIC_AUTH",
+       "PROMETHEUS_ALERTMANAGER"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://prometheus.io/docs/alerting/latest/configuration/",
+    "x-docs-type": "PROMETHEUS_ALERTMANAGER"
+   },
+   "SourceTypeConfigPROPERTYFINDER": {
+    "additionalProperties": false,
+    "description": "The type config for PROPERTY-FINDER. Requires type to be `PROPERTY-FINDER`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigPropertyFinderAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "PROPERTY-FINDER"
+   },
+   "SourceTypeConfigSENDGRID_INBOUND": {
+    "additionalProperties": false,
+    "description": "The type config for SENDGRID_INBOUND. Requires type to be `SENDGRID_INBOUND`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigSendGridInboundParseAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "HMAC",
+       "BASIC_AUTH",
+       "API_KEY"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "SENDGRID_INBOUND"
+   },
+   "SourceTypeConfigSTRIPE": {
+    "additionalProperties": false,
+    "description": "The type config for STRIPE. Requires type to be `STRIPE`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigStripeAuth"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-external-url": "https://docs.stripe.com/webhooks?verify=verify-manually",
+    "x-docs-type": "STRIPE"
+   },
+   "SourceTypeConfigWEBHOOK": {
+    "additionalProperties": false,
+    "description": "The type config for WEBHOOK. Requires type to be `WEBHOOK`.",
+    "properties": {
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigWebhookAuth"
+     },
+     "auth_type": {
+      "enum": [
+       "HMAC",
+       "BASIC_AUTH",
+       "API_KEY",
+       "STANDARD_WEBHOOKS",
+       "AIRCALL",
+       "PROPERTY-FINDER"
+      ],
+      "nullable": true,
+      "type": "string"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "type": "object",
+    "x-docs-type": "WEBHOOK"
+   }
+  }
+ }
+}

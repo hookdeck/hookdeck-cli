@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/cmd/sources"
 )
 
 // The API validates config.auth on WEBHOOK and HTTP sources against the method named in
@@ -29,7 +29,14 @@ func TestBuildSourceConfigFromIndividualFlagsSetsAuthType(t *testing.T) {
 		{name: "WEBHOOK webhook secret", sourceType: "WEBHOOK", flags: sourceConfigFlags{WebhookSecret: "s"}, wantAuthType: "HMAC"},
 		{name: "HTTP api key", sourceType: "HTTP", flags: sourceConfigFlags{APIKey: "k"}, wantAuthType: "API_KEY"},
 		{name: "HTTP basic auth", sourceType: "HTTP", flags: sourceConfigFlags{BasicAuthUser: "u", BasicAuthPass: "p"}, wantAuthType: "BASIC_AUTH"},
+		{name: "ORDINAL api key", sourceType: "ORDINAL", flags: sourceConfigFlags{APIKey: "k"}, wantAuthType: "API_KEY"},
+		{name: "AZURE_EVENT_GRID basic auth", sourceType: "AZURE_EVENT_GRID", flags: sourceConfigFlags{BasicAuthUser: "u", BasicAuthPass: "p"}, wantAuthType: "BASIC_AUTH"},
+		{name: "PROMETHEUS_ALERTMANAGER basic auth", sourceType: "PROMETHEUS_ALERTMANAGER", flags: sourceConfigFlags{BasicAuthUser: "u", BasicAuthPass: "p"}, wantAuthType: "BASIC_AUTH"},
+		// --api-key builds {header_key, api_key}; Prometheus's bearer method takes api_key only,
+		// so no method fits and the API, not a guess, reports it.
+		{name: "PROMETHEUS_ALERTMANAGER api key flag fits no method", sourceType: "PROMETHEUS_ALERTMANAGER", flags: sourceConfigFlags{APIKey: "k"}},
 		{name: "STRIPE webhook secret takes no auth_type", sourceType: "STRIPE", flags: sourceConfigFlags{WebhookSecret: "whsec"}},
+		{name: "empty type infers nothing", sourceType: "", flags: sourceConfigFlags{APIKey: "k"}},
 		{name: "WEBHOOK without auth flags", sourceType: "WEBHOOK", flags: sourceConfigFlags{AllowedHTTPMethods: "POST"}},
 	}
 	for _, tt := range tests {
@@ -113,6 +120,12 @@ func TestBuildSourceConfigFromFlagsJSONAuthType(t *testing.T) {
 			wantAuthType: "STANDARD_WEBHOOKS",
 		},
 		{
+			name:         "PROMETHEUS_ALERTMANAGER bearer credentials",
+			sourceType:   "PROMETHEUS_ALERTMANAGER",
+			input:        `{"auth":{"api_key":"token"}}`,
+			wantAuthType: "PROMETHEUS_ALERTMANAGER",
+		},
+		{
 			name:       "provider type is left alone",
 			sourceType: "GITHUB",
 			input:      `{"auth":{"webhook_secret_key":"s"}}`,
@@ -136,46 +149,36 @@ func TestBuildSourceConfigFromFlagsJSONAuthType(t *testing.T) {
 	}
 }
 
-// source update normally omits --type; the API rejects config without type, and WEBHOOK auth
-// needs auth_type. applyStoredSourceType fills both from the stored source.
-func TestApplyStoredSourceType(t *testing.T) {
-	stored := &hookdeck.Source{ID: "src_1", Type: "WEBHOOK"}
+// The connection's inline source defaults to WEBHOOK, the type the API applies to a new source
+// created without one, so --source-api-key works without --source-type.
+func TestConnectionBuildSourceConfigOmittedTypeIsWebhook(t *testing.T) {
+	cc := &connectionCreateCmd{}
+	cc.SourceAPIKey = "KEY"
 
-	t.Run("config without --type takes the stored type and auth_type", func(t *testing.T) {
-		req := &hookdeck.SourceUpdateRequest{}
-		config, err := buildSourceConfigFromIndividualFlags(&sourceConfigFlags{APIKey: "KEY"}, "", "")
+	config, err := cc.buildSourceConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "API_KEY", config["auth_type"])
+}
+
+// Without the spec (offline, or a spec-shape change), WEBHOOK and HTTP still get auth_type from
+// the built-in methods; other types are left for the API to validate.
+func TestEnsureSourceConfigAuthTypeWithoutSpec(t *testing.T) {
+	original := loadSourceAuthMethods
+	t.Cleanup(func() { loadSourceAuthMethods = original })
+	loadSourceAuthMethods = func() (map[string][]sources.AuthMethod, error) {
+		return nil, errors.New("offline")
+	}
+
+	for sourceType, want := range map[string]interface{}{"WEBHOOK": "API_KEY", "http": "API_KEY", "ORDINAL": nil} {
+		config, err := buildSourceConfigFromIndividualFlags(&sourceConfigFlags{APIKey: "k"}, "", sourceType)
 		require.NoError(t, err)
-		require.NotContains(t, config, "auth_type", "type is unknown until the lookup")
-
-		err = applyStoredSourceType(req, config, func() (*hookdeck.Source, error) { return stored, nil })
-		require.NoError(t, err)
-		assert.Equal(t, "WEBHOOK", req.Type)
-		assert.Equal(t, "API_KEY", config["auth_type"])
-	})
-
-	t.Run("non-auth config still sends the stored type", func(t *testing.T) {
-		req := &hookdeck.SourceUpdateRequest{}
-		config := map[string]interface{}{"allowed_http_methods": []string{"POST"}}
-		err := applyStoredSourceType(req, config, func() (*hookdeck.Source, error) { return stored, nil })
-		require.NoError(t, err)
-		assert.Equal(t, "WEBHOOK", req.Type)
-		assert.NotContains(t, config, "auth_type")
-	})
-
-	t.Run("no config means no lookup", func(t *testing.T) {
-		req := &hookdeck.SourceUpdateRequest{Name: "renamed"}
-		err := applyStoredSourceType(req, nil, func() (*hookdeck.Source, error) {
-			t.Fatal("a name-only update must not spend an API call")
-			return nil, nil
-		})
-		require.NoError(t, err)
-		assert.Empty(t, req.Type)
-	})
-
-	t.Run("lookup failure is surfaced", func(t *testing.T) {
-		err := applyStoredSourceType(&hookdeck.SourceUpdateRequest{}, map[string]interface{}{"auth": map[string]interface{}{"api_key": "k"}},
-			func() (*hookdeck.Source, error) { return nil, errors.New("boom") })
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "boom")
-	})
+		if want == nil {
+			assert.NotContains(t, config, "auth_type", sourceType)
+		} else {
+			assert.Equal(t, want, config["auth_type"], sourceType)
+		}
+	}
+	config, err := buildSourceConfigFromFlags(`{"auth":{"webhook_secret_key":"whsec_x"}}`, "", nil, "WEBHOOK")
+	require.NoError(t, err)
+	assert.Equal(t, "STANDARD_WEBHOOKS", config["auth_type"])
 }

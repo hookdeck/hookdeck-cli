@@ -614,3 +614,41 @@ func TestSourceDeleteWithoutForceFailsNonInteractively(t *testing.T) {
 	require.NoError(t, cli.RunJSON(&check, "gateway", "source", "get", src.ID))
 	assert.Equal(t, src.ID, check.ID, "source must not have been deleted")
 }
+
+// TestSourceUpsertWebhookAuthFlags covers auth flags on WEBHOOK sources, which the API rejects
+// without config.auth_type ("config.auth is not allowed") - including upsert without --type,
+// which the API treats as WEBHOOK, and update without --type, which must send the stored type.
+func TestSourceUpsertWebhookAuthFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	name := "test-src-webhook-auth-" + generateTimestamp()
+
+	authType := func(id string) string {
+		t.Helper()
+		var resp map[string]interface{}
+		require.NoError(t, cli.RunJSON(&resp, "gateway", "source", "get", id, "--include-auth"))
+		config, ok := resp["config"].(map[string]interface{})
+		require.True(t, ok, "source must include config")
+		v, _ := config["auth_type"].(string)
+		return v
+	}
+
+	var src Source
+	err := cli.RunJSON(&src, "gateway", "source", "upsert", name, "--type", "WEBHOOK", "--api-key", "test_key_abc123")
+	require.NoError(t, err, "source upsert --type WEBHOOK --api-key should be accepted")
+	require.NotEmpty(t, src.ID)
+	t.Cleanup(func() { deleteSource(t, cli, src.ID) })
+	assert.Equal(t, "API_KEY", authType(src.ID))
+
+	err = cli.RunJSON(&src, "gateway", "source", "upsert", name, "--basic-auth-user", "user", "--basic-auth-pass", "pass")
+	require.NoError(t, err, "source upsert without --type should be accepted")
+	assert.Equal(t, "WEBHOOK", strings.ToUpper(src.Type))
+	assert.Equal(t, "BASIC_AUTH", authType(src.ID))
+
+	err = cli.RunJSON(&src, "gateway", "source", "update", src.ID, "--api-key", "test_key_def456")
+	require.NoError(t, err, "source update without --type should be accepted")
+	assert.Equal(t, "API_KEY", authType(src.ID))
+}
