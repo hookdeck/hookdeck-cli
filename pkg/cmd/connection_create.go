@@ -796,6 +796,9 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 			return nil, fmt.Errorf("invalid JSON in --source-config: %w", err)
 		}
 		normalizeSourceConfigAuth(config, cc.sourceType)
+		if err := validateSourceConfigAuthShape(config); err != nil {
+			return nil, err
+		}
 		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 		return config, nil
 	}
@@ -809,6 +812,9 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 			return nil, fmt.Errorf("invalid JSON in --source-config-file: %w", err)
 		}
 		normalizeSourceConfigAuth(config, cc.sourceType)
+		if err := validateSourceConfigAuthShape(config); err != nil {
+			return nil, err
+		}
 		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 		return config, nil
 	}

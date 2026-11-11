@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -55,16 +56,7 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 
 	// Auth: only config.auth; shape depends on source type (API infers from type + auth keys).
 	if f.WebhookSecret != "" {
-		if sourceTypeUpper == "STRIPE" {
-			config["auth"] = map[string]interface{}{"webhook_secret_key": f.WebhookSecret}
-		} else {
-			config["auth"] = map[string]interface{}{
-				"algorithm":          "sha256",
-				"encoding":           "hex",
-				"header_key":         "x-webhook-signature",
-				"webhook_secret_key": f.WebhookSecret,
-			}
-		}
+		config["auth"] = webhookSecretAuth(sourceTypeUpper, f.WebhookSecret)
 	} else if f.HMACSecret != "" {
 		algo := "sha256"
 		if f.HMACAlgo != "" {
@@ -124,6 +116,81 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 	return config, nil
 }
 
+// genericHMACSourceTypes are the source types with no provider defaults on the API side:
+// the caller must supply header_key, algorithm and encoding for HMAC verification.
+// Every other type (STRIPE, VAPI, ...) has defaults for them, which the API applies to unset fields.
+var genericHMACSourceTypes = map[string]bool{"": true, "WEBHOOK": true, "HTTP": true}
+
+// webhookSecretAuth builds config.auth for the webhook-secret shorthand. For provider source
+// types it sends only the secret so the API applies that type's own header, algorithm and
+// encoding defaults (for example VAPI uses x-signature). Explicit values would override those
+// defaults and break verification of real provider requests. The generic WEBHOOK and HTTP
+// types have no such defaults, so they get the conventional x-webhook-signature / sha256 / hex.
+// sourceTypeUpper must already be upper-cased and trimmed.
+func webhookSecretAuth(sourceTypeUpper, secret string) map[string]interface{} {
+	if !genericHMACSourceTypes[sourceTypeUpper] {
+		return map[string]interface{}{"webhook_secret_key": secret}
+	}
+	return map[string]interface{}{
+		"algorithm":          "sha256",
+		"encoding":           "hex",
+		"header_key":         "x-webhook-signature",
+		"webhook_secret_key": secret,
+	}
+}
+
+// authFieldKeys are auth settings that belong under config.auth. At the top level of source
+// config the API silently drops them (it strips unknown keys), leaving the source unverified.
+var authFieldKeys = []string{
+	"webhook_secret_key", "algorithm", "encoding", "header_key", "trim_payload",
+	"api_key", "username", "password",
+}
+
+// validateSourceConfigAuthShape returns an error when auth fields sit at the top level of the
+// source config instead of under "auth". It runs after normalizeSourceConfigAuth, which already
+// moves the legacy shorthand keys, so what remains here would otherwise be dropped by the API.
+// The error shows the corrected JSON.
+func validateSourceConfigAuthShape(config map[string]interface{}) error {
+	var misplaced []string
+	for _, k := range authFieldKeys {
+		if _, ok := config[k]; ok {
+			misplaced = append(misplaced, k)
+		}
+	}
+	if len(misplaced) == 0 {
+		return nil
+	}
+	auth := map[string]interface{}{}
+	if existing, ok := config["auth"].(map[string]interface{}); ok {
+		for k, v := range existing {
+			auth[k] = v
+		}
+	}
+	fixed := map[string]interface{}{}
+	for k, v := range config {
+		fixed[k] = v
+	}
+	for _, k := range misplaced {
+		auth[k] = fixed[k]
+		delete(fixed, k)
+	}
+	fixed["auth"] = auth
+	// Do not echo secrets back in the suggestion.
+	for _, k := range []string{"webhook_secret_key", "api_key", "password"} {
+		if _, ok := auth[k]; ok {
+			auth[k] = "<" + k + ">"
+		}
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false) // keep the <placeholder> text readable
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(fixed)
+	suggestion := strings.TrimRight(buf.String(), "\n")
+	return fmt.Errorf("source config has auth settings at the top level (%s); the API ignores them there, so the source would be created without verification.\nMove them under \"auth\":\n%s",
+		strings.Join(misplaced, ", "), suggestion)
+}
+
 // ensureSourceConfigAuthTypeForHTTP sets config.auth_type when source type is HTTP and config
 // has auth. The connection API requires auth_type in config for HTTP sources. Values: API_KEY,
 // BASIC_AUTH, HMAC. No-op if auth_type already set or source type is not HTTP.
@@ -163,14 +230,7 @@ func normalizeSourceConfigAuth(config map[string]interface{}, sourceType string)
 	}
 	sourceTypeUpper := strings.ToUpper(strings.TrimSpace(sourceType))
 	if v, ok := config["webhook_secret"].(string); ok && v != "" {
-		if sourceTypeUpper == "STRIPE" {
-			config["auth"] = map[string]interface{}{"webhook_secret_key": v}
-		} else {
-			config["auth"] = map[string]interface{}{
-				"algorithm": "sha256", "encoding": "hex",
-				"header_key": "x-webhook-signature", "webhook_secret_key": v,
-			}
-		}
+		config["auth"] = webhookSecretAuth(sourceTypeUpper, v)
 		delete(config, "webhook_secret")
 		return
 	}
@@ -216,6 +276,9 @@ func buildSourceConfigFromFlags(configStr, configFile string, individual *source
 			return nil, fmt.Errorf("invalid JSON in --config: %w", err)
 		}
 		normalizeSourceConfigAuth(out, sourceType)
+		if err := validateSourceConfigAuthShape(out); err != nil {
+			return nil, err
+		}
 		return out, nil
 	}
 	if configFile != "" {
@@ -228,6 +291,9 @@ func buildSourceConfigFromFlags(configStr, configFile string, individual *source
 			return nil, fmt.Errorf("invalid JSON in config file: %w", err)
 		}
 		normalizeSourceConfigAuth(out, sourceType)
+		if err := validateSourceConfigAuthShape(out); err != nil {
+			return nil, err
+		}
 		return out, nil
 	}
 	return buildSourceConfigFromIndividualFlags(individual, "", sourceType)
