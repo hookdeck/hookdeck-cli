@@ -175,7 +175,13 @@ func (c *Client) withoutProjectScope() *Client {
 
 // ValidateAPIKey validates an API key and returns user/project information
 func (c *Client) ValidateAPIKey() (*ValidateAPIKeyResponse, error) {
-	res, err := c.clientForCLIAuthValidate().Get(context.Background(), APIPathPrefix+"/cli-auth/validate", "", nil)
+	return c.ValidateAPIKeyContext(context.Background())
+}
+
+// ValidateAPIKeyContext is ValidateAPIKey bounded by ctx, for callers that must
+// not wait indefinitely on the API.
+func (c *Client) ValidateAPIKeyContext(ctx context.Context) (*ValidateAPIKeyResponse, error) {
+	res, err := c.clientForCLIAuthValidate().Get(ctx, APIPathPrefix+"/cli-auth/validate", "", nil)
 	if err != nil {
 		return nil, err
 	}
