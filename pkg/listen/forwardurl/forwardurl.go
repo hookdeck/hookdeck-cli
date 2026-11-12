@@ -13,7 +13,14 @@ import (
 // the event path starts with one, and the event path itself is left as is: a
 // receiver may route on its own trailing slash, which is why path.Join is not
 // used.
+//
+// When the forwarding URL has no path, the event path is appended straight
+// after the host, so an event path that does not start with "/", "?" or "#"
+// would be read as part of the host. It gets a "/" in front instead.
 func JoinPath(base, eventPath string) string {
+	if base == "" && eventPath != "" && !strings.ContainsRune("/?#", rune(eventPath[0])) {
+		eventPath = "/" + eventPath
+	}
 	if strings.HasPrefix(eventPath, "/") {
 		base = strings.TrimSuffix(base, "/")
 	}

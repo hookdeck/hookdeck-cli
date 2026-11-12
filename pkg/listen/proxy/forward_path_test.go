@@ -25,6 +25,7 @@ func TestProcessAttemptJoinsForwardingURLPathAndEventPath(t *testing.T) {
 		{"forwarding URL without a trailing slash", "/base", "/webhook", "/base/webhook"},
 		{"forwarding URL is the root", "/", "/webhook", "/webhook"},
 		{"forwarding URL has no path", "", "/webhook", "/webhook"},
+		{"forwarding URL has no path and the event path has no leading slash", "", "@other.example/x", "/@other.example/x"},
 		{"event path keeps its own trailing slash", "/base/", "/webhook/", "/base/webhook/"},
 		{"event path is empty", "/base/", "", "/base/"},
 	}
