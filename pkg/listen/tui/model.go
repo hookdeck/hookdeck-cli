@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	configpkg "github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/forwardurl"
 	"github.com/hookdeck/hookdeck-cli/pkg/login"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -116,7 +117,7 @@ type Config struct {
 	APIKey           string
 	APIBaseURL       string
 	DashboardBaseURL string
-	ConsoleBaseURL   string
+	InspectBaseURL   string
 	ProjectType      string
 	ProjectID        string
 	GuestURL         string
@@ -347,7 +348,7 @@ func (m *Model) buildEventDetailsContent(event *EventInfo) (string, requestCopyC
 		content.WriteString("\n\n")
 
 		// HTTP request line: METHOD URL
-		requestURL := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host + event.Data.Body.Path
+		requestURL := forwardurl.Build(m.cfg.TargetURL, event.Data.Body.Path)
 		requestCopy.requestLine = event.Data.Body.Request.Method + " " + requestURL
 		content.WriteString(requestCopy.requestLine + "\n\n")
 

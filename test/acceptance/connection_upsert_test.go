@@ -850,3 +850,59 @@ func TestConnectionUpsertRejectsEmptySourceWebhookSecret(t *testing.T) {
 		assert.Contains(t, stdout+stderr, "--source-webhook-secret")
 	})
 }
+
+// TestConnectionUpsertTransformRuleNameOrID checks that `connection upsert`
+// resolves --rule-transform-name as an ID or an exact name, attaching the
+// existing transformation by transformation_id instead of creating a new one.
+func TestConnectionUpsertTransformRuleNameOrID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	trnID := createTestTransformation(t, cli)
+	t.Cleanup(func() { deleteTransformation(t, cli, trnID) })
+
+	var trn Transformation
+	require.NoError(t, cli.RunJSON(&trn, "gateway", "transformation", "get", trnID))
+	require.NotEmpty(t, trn.Name, "transformation name")
+
+	existingConnection := func(t *testing.T) Connection {
+		t.Helper()
+		connID := createTestConnection(t, cli)
+		t.Cleanup(func() { deleteConnection(t, cli, connID) })
+		var conn Connection
+		require.NoError(t, cli.RunJSON(&conn, "gateway", "connection", "get", connID))
+		require.NotEmpty(t, conn.Name, "connection name")
+		return conn
+	}
+
+	for _, tc := range []struct{ name, value string }{{"by ID", trnID}, {"by name", trn.Name}} {
+		t.Run("attaches existing "+tc.name, func(t *testing.T) {
+			conn := existingConnection(t)
+
+			var upserted Connection
+			require.NoError(t, cli.RunJSON(&upserted,
+				"gateway", "connection", "upsert", conn.Name,
+				"--rule-transform-name", tc.value,
+			), "Should upsert connection to reference an existing transformation")
+
+			var fetched Connection
+			require.NoError(t, cli.RunJSON(&fetched, "gateway", "connection", "get", conn.ID))
+			require.Len(t, fetched.Rules, 1, "Connection should have one rule")
+			assert.Equal(t, "transform", fetched.Rules[0]["type"])
+			assert.Equal(t, trnID, fetched.Rules[0]["transformation_id"],
+				"Rule should reference the existing transformation, not a new one")
+		})
+	}
+
+	for _, value := range []string{"trs_doesnotexist0", "test-trn-missing-" + generateTimestamp()} {
+		t.Run("rejects unknown "+value, func(t *testing.T) {
+			conn := existingConnection(t)
+
+			stdout, stderr, err := cli.Run("gateway", "connection", "upsert", conn.Name, "--rule-transform-name", value)
+			require.Error(t, err, "Unknown transformation without code should fail\nstdout: %s", stdout)
+			assert.Contains(t, stderr+stdout, "transformation '"+value+"' not found")
+		})
+	}
+}

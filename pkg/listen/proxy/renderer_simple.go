@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
-	"github.com/hookdeck/hookdeck-cli/pkg/config"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/forwardurl"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
@@ -142,13 +142,7 @@ func (r *SimpleRenderer) OnEventComplete(eventID string, attempt *websocket.Atte
 	localTime := time.Now().Format(simpleTimeLayout)
 	color := ansi.Color(os.Stdout)
 
-	// Build display URL
-	var displayURL string
-	if r.cfg.ProjectType == config.ProjectTypeConsole {
-		displayURL = r.cfg.ConsoleBaseURL + "/?event_id=" + eventID
-	} else {
-		displayURL = r.cfg.DashboardBaseURL + "/events/" + eventID
-	}
+	displayURL := r.cfg.eventLinkDisplay(eventID)
 
 	durationMs := response.Duration.Milliseconds()
 
@@ -156,7 +150,7 @@ func (r *SimpleRenderer) OnEventComplete(eventID string, attempt *websocket.Atte
 		color.Faint(localTime),
 		ansi.ColorizeStatus(response.StatusCode),
 		attempt.Body.Request.Method,
-		r.cfg.TargetURL.Scheme+"://"+r.cfg.TargetURL.Host+r.cfg.TargetURL.Path+attempt.Body.Path,
+		forwardurl.Build(r.cfg.TargetURL, attempt.Body.Path),
 		color.Faint(fmt.Sprintf("(%dms)", durationMs)),
 		color.Faint("→"),
 		color.Faint(displayURL),
