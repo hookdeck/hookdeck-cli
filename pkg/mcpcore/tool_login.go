@@ -34,6 +34,7 @@ const (
 // close provides the happens-before guarantee — no separate mutex needed.
 type loginState struct {
 	browserURL string        // URL the user must open
+	userCode   string        // code the page asks for; empty if the API issued none
 	done       chan struct{} // closed when polling finishes
 	err        error         // non-nil if polling failed
 }
@@ -180,8 +181,8 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 			default:
 				// Still polling — remind the agent about the URL.
 				return TextResult(fmt.Sprintf(
-					"Login is already in progress. Waiting for the user to complete authentication.\n\nThe user needs to open this URL in their browser:\n\n%s\n\nCall %s again to check status.",
-					state.browserURL, loginTool,
+					"Login is already in progress. Waiting for the user to complete authentication.\n\nThe user needs to open this URL in their browser:\n\n%s%s\n\nCall %s again to check status.",
+					state.browserURL, userCodeInstruction(state.userCode), loginTool,
 				)), nil
 			}
 		}
@@ -205,6 +206,7 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 		// Set up background polling state.
 		state = &loginState{
 			browserURL: session.BrowserURL,
+			userCode:   session.UserCode,
 			done:       make(chan struct{}),
 		}
 
@@ -292,10 +294,20 @@ func handleLogin(srv *Server) mcpsdk.ToolHandler {
 
 		// Return the URL immediately so the agent can show it to the user.
 		return TextResult(fmt.Sprintf(
-			"%sLogin initiated. The user must open the following URL in their browser to authenticate:\n\n%s\n\nOnce the user completes authentication in the browser, all Hookdeck tools will become available.\nCall %s again to check if authentication has completed.",
+			"%sLogin initiated. The user must open the following URL in their browser to authenticate:\n\n%s%s\n\nOnce the user completes authentication in the browser, all Hookdeck tools will become available.\nCall %s again to check if authentication has completed.",
 			loginPrefix,
 			session.BrowserURL,
+			userCodeInstruction(session.UserCode),
 			loginTool,
 		)), nil
 	}
+}
+
+// userCodeInstruction tells the agent which code the user must type on the
+// sign-in page, or nothing when the API issued none.
+func userCodeInstruction(userCode string) string {
+	if userCode == "" {
+		return ""
+	}
+	return fmt.Sprintf("\n\nWhen the page asks for a code, the user must enter: %s", userCode)
 }
