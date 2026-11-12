@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/forwardurl"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/links"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/summary"
 )
@@ -61,7 +62,7 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 				if cliPath != nil {
 					path = *cliPath
 				}
-				fullPath := targetURL.Scheme + "://" + targetURL.Host + path
+				fullPath := forwardurl.Build(targetURL, path)
 
 				// Get connection name from FullName (format: "source -> destination")
 				// Split on "->" and take the second part (destination)
