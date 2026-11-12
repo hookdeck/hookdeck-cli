@@ -4,31 +4,37 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
 
 // Construction rules are covered in pkg/listen/links; these tests only guard
 // the wiring from Config fields to the shared helpers.
 
-func TestDashboardHomeURLUsesConfigFields(t *testing.T) {
-	cfg := &Config{
+func linksTestConfig() *Config {
+	return &Config{
 		DashboardBaseURL: "https://dashboard.hookdeck.com",
-		ConsoleBaseURL:   "https://console.hookdeck.com",
+		InspectBaseURL:   "https://inspect.hookdeck.com",
 		ProjectID:        "tm_123",
+		Sources:          []*hookdeck.Source{{ID: "src_abc123def456"}},
 	}
-	assert.Equal(t, "https://dashboard.hookdeck.com/events/cli?team_id=tm_123", dashboardHomeURL(cfg))
+}
+
+func TestDashboardHomeURLUsesConfigFields(t *testing.T) {
+	cfg := linksTestConfig()
+	assert.Equal(t, "https://dashboard.hookdeck.com/events/cli?team_id=tm_123", homeURL(cfg))
 
 	cfg.ProjectType = "console"
-	assert.Equal(t, "https://console.hookdeck.com?team_id=tm_123", dashboardHomeURL(cfg))
+	assert.Equal(t, "https://inspect.hookdeck.com/abc123def456", homeURL(cfg))
+
+	cfg.Sources = append(cfg.Sources, &hookdeck.Source{ID: "src_other000000"})
+	assert.Equal(t, "https://inspect.hookdeck.com", homeURL(cfg))
 }
 
 func TestEventDashboardURLUsesConfigFields(t *testing.T) {
-	cfg := &Config{
-		DashboardBaseURL: "https://dashboard.hookdeck.com",
-		ConsoleBaseURL:   "https://console.hookdeck.com",
-		ProjectID:        "tm_123",
-	}
-	assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1?team_id=tm_123", eventDashboardURL(cfg, "evt_1"))
+	cfg := linksTestConfig()
+	assert.Equal(t, "https://dashboard.hookdeck.com/events/evt_1?team_id=tm_123", eventURL(cfg, "evt_1"))
 
 	cfg.ProjectType = "console"
-	assert.Equal(t, "https://console.hookdeck.com/?event_id=evt_1&team_id=tm_123", eventDashboardURL(cfg, "evt_1"))
+	assert.Equal(t, "https://inspect.hookdeck.com/?event_id=evt_1&team_id=tm_123", eventURL(cfg, "evt_1"))
 }

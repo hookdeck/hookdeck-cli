@@ -51,7 +51,7 @@ type Config struct {
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string
-	ConsoleBaseURL   string
+	InspectBaseURL   string
 	WSBaseURL        string
 	Log              *log.Logger
 	// Force use of unencrypted ws:// protocol instead of wss://
@@ -270,6 +270,14 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 			if shuttingDown.Load() {
 				p.renderer.Cleanup()
 				return nil
+			}
+
+			// Hookdeck won't let this key connect again (revoked, no access to the
+			// project, MFA required). Retrying would loop forever, so stop and say why.
+			if accessErr := wsClient.AccessEndedErr(); accessErr != nil {
+				p.renderer.OnConnectionFailed(accessErr)
+				p.renderer.Cleanup()
+				return accessErr
 			}
 
 			p.renderer.OnDisconnected()

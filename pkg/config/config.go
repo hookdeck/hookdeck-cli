@@ -39,6 +39,7 @@ type Config struct {
 	OutpostAPIBaseURL string
 	DashboardBaseURL  string
 	ConsoleBaseURL    string
+	InspectBaseURL    string
 	WSBaseURL         string
 	Insecure          bool
 
@@ -404,6 +405,7 @@ func (c *Config) constructConfig() {
 	c.OutpostAPIBaseURL = stringCoalesce(c.OutpostAPIBaseURL, c.viper.GetString(("outpost_api_base")), hookdeck.DefaultOutpostAPIBaseURL)
 	c.DashboardBaseURL = stringCoalesce(c.DashboardBaseURL, c.viper.GetString(("dashboard_base")), hookdeck.DefaultDashboardBaseURL)
 	c.ConsoleBaseURL = stringCoalesce(c.ConsoleBaseURL, c.viper.GetString(("console_base")), hookdeck.DefaultConsoleBaseURL)
+	c.InspectBaseURL = stringCoalesce(c.InspectBaseURL, c.viper.GetString(("inspect_base")), hookdeck.DefaultInspectBaseURL)
 	c.WSBaseURL = stringCoalesce(c.WSBaseURL, c.viper.GetString(("ws_base")), hookdeck.DefaultWebsocektURL)
 	c.Profile.Name = stringCoalesce(c.Profile.Name, c.viper.GetString(("profile")), hookdeck.DefaultProfileName)
 	// Needs to support both profile-based config

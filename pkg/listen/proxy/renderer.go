@@ -6,6 +6,7 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/links"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
 
@@ -62,7 +63,7 @@ type RendererConfig struct {
 	APIKey           string
 	APIBaseURL       string
 	DashboardBaseURL string
-	ConsoleBaseURL   string
+	InspectBaseURL   string
 	ProjectType      string
 	ProjectID        string
 	GuestURL         string
@@ -73,6 +74,21 @@ type RendererConfig struct {
 	Filters          *hookdeck.SessionFilters
 	APIClient        *hookdeck.Client
 	AppConfig        *config.Config
+}
+
+// linkTarget returns where this session's links point.
+func (c *RendererConfig) linkTarget() links.Target {
+	return links.Target{
+		DashboardBaseURL: c.DashboardBaseURL,
+		InspectBaseURL:   c.InspectBaseURL,
+		ProjectType:      c.ProjectType,
+		ProjectID:        c.ProjectID,
+	}
+}
+
+// eventLinkDisplay returns the link printed at the end of an event's log line.
+func (c *RendererConfig) eventLinkDisplay(eventID string) string {
+	return c.linkTarget().EventDisplay(eventID)
 }
 
 // NewRenderer creates the appropriate renderer based on output mode
