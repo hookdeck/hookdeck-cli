@@ -22,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/forwardurl"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/healthcheck"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -51,7 +52,7 @@ type Config struct {
 	URL              *url.URL
 	APIBaseURL       string
 	DashboardBaseURL string
-	ConsoleBaseURL   string
+	InspectBaseURL   string
 	WSBaseURL        string
 	Log              *log.Logger
 	// Force use of unencrypted ws:// protocol instead of wss://
@@ -272,6 +273,14 @@ func (p *Proxy) Run(parentCtx context.Context) error {
 				return nil
 			}
 
+			// Hookdeck won't let this key connect again (revoked, no access to the
+			// project, MFA required). Retrying would loop forever, so stop and say why.
+			if accessErr := wsClient.AccessEndedErr(); accessErr != nil {
+				p.renderer.OnConnectionFailed(accessErr)
+				p.renderer.Cleanup()
+				return accessErr
+			}
+
 			p.renderer.OnDisconnected()
 			// If this attempt connected successfully before dropping (e.g. a
 			// routine server deploy closing with 1001), reset the counter so
@@ -392,7 +401,7 @@ func (p *Proxy) processAttempt(msg websocket.IncomingMessage) {
 		"prefix": "proxy.Proxy.processAttempt",
 	}).Debugf("Processing webhook event")
 
-	url := p.cfg.URL.Scheme + "://" + p.cfg.URL.Host + p.cfg.URL.Path + webhookEvent.Body.Path
+	url := forwardurl.Build(p.cfg.URL, webhookEvent.Body.Path)
 
 	// Create request with context for timeout control
 	timeout := webhookEvent.Body.Request.Timeout

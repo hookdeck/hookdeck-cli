@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/forwardurl"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/links"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/summary"
 )
@@ -61,7 +62,7 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 				if cliPath != nil {
 					path = *cliPath
 				}
-				fullPath := targetURL.Scheme + "://" + targetURL.Host + path
+				fullPath := forwardurl.Build(targetURL, path)
 
 				// Get connection name from FullName (format: "source -> destination")
 				// Split on "->" and take the second part (destination)
@@ -95,13 +96,21 @@ func printSourcesWithConnections(config *config.Config, projectID string, source
 		}
 	}
 
-	// Print dashboard hint
+	// Print the sign-up hint, or the link to the session's events
 	fmt.Println()
 	if guestURL != "" {
 		fmt.Printf("💡 Sign up to make your webhook URL permanent: %s\n", guestURL)
 	} else {
-		url := links.DashboardHome(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType, projectID)
-		displayURL := links.DashboardHomeDisplay(config.DashboardBaseURL, config.ConsoleBaseURL, config.Profile.ProjectType)
-		fmt.Printf("💡 Open dashboard to inspect, retry & bookmark events: %s\n", hyperlink(url, displayURL, os.Stdout))
+		target := links.Target{
+			DashboardBaseURL: config.DashboardBaseURL,
+			InspectBaseURL:   config.InspectBaseURL,
+			ProjectType:      config.Profile.ProjectType,
+			ProjectID:        projectID,
+		}
+		sourceID := links.SessionSourceID(sources)
+		url := target.Home(sourceID)
+		displayURL := target.HomeDisplay(sourceID)
+		hint := target.HomeHint("Open dashboard to inspect, retry & bookmark events")
+		fmt.Printf("💡 %s: %s\n", hint, hyperlink(url, displayURL, os.Stdout))
 	}
 }

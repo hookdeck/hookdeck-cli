@@ -118,6 +118,9 @@ func (cu *connectionUpdateCmd) runConnectionUpdateCmd(cmd *cobra.Command, args [
 	if err != nil {
 		return err
 	}
+	if err := resolveRuleTransformation(ctx, client, &cu.connectionRuleFlags, rules); err != nil {
+		return err
+	}
 	// Keyed off whether the flag was given rather than whether it produced any
 	// rules, so that an explicit empty array reaches the API and clears the
 	// ruleset instead of being read as "no rules mentioned".
