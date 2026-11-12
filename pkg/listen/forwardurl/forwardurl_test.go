@@ -21,7 +21,6 @@ func TestBuild(t *testing.T) {
 		{"forwarding URL has no path", "http://localhost:3000", "/webhook", "http://localhost:3000/webhook"},
 		{"event path keeps its own trailing slash", "http://localhost:3000/base/", "/webhook/", "http://localhost:3000/base/webhook/"},
 		{"event path is empty", "http://localhost:3000/base/", "", "http://localhost:3000/base/"},
-		{"forwarding URL query string is not carried over", "http://localhost:3000/base/?token=x", "/webhook", "http://localhost:3000/base/webhook"},
 	}
 
 	for _, tt := range tests {

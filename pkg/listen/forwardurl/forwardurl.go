@@ -21,8 +21,7 @@ func JoinPath(base, eventPath string) string {
 }
 
 // Build returns the full URL for an event: the forwarding URL's scheme, host
-// and path, then the event's path. The forwarding URL's query string is not
-// carried over.
+// and path, then the event's path.
 func Build(target *url.URL, eventPath string) string {
 	return target.Scheme + "://" + target.Host + JoinPath(target.Path, eventPath)
 }
