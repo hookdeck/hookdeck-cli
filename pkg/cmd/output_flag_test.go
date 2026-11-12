@@ -33,10 +33,18 @@ func TestJSONOutputFlagsRejectUnknownFormat(t *testing.T) {
 		if f := c.Flags().Lookup("output"); f != nil {
 			if _, ok := f.Value.(*outputFormatValue); ok {
 				checked++
+				// The command tree is shared by every test in this package, so put the
+				// flag back as it was: a later test running this command would
+				// otherwise see --output json that it never passed.
+				prevValue, prevChanged := f.Value.String(), f.Changed
 				assert.Error(t, c.Flags().Set("output", "yaml"),
 					"command %q accepted --output yaml", c.CommandPath())
 				assert.NoError(t, c.Flags().Set("output", "json"),
 					"command %q rejected --output json", c.CommandPath())
+				assert.NoError(t, f.Value.Set(prevValue))
+				f.Changed = prevChanged
+				assert.Equal(t, prevValue, f.Value.String(),
+					"command %q: --output was not restored", c.CommandPath())
 			}
 		}
 		for _, child := range c.Commands() {
