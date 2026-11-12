@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/ansi"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/forwardurl"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/tui"
 	"github.com/hookdeck/hookdeck-cli/pkg/websocket"
 )
@@ -152,7 +153,7 @@ func (r *InteractiveRenderer) OnEventComplete(eventID string, attempt *websocket
 		color.Faint(localTime),
 		ansi.ColorizeStatus(response.StatusCode),
 		attempt.Body.Request.Method,
-		r.cfg.TargetURL.Scheme+"://"+r.cfg.TargetURL.Host+r.cfg.TargetURL.Path+attempt.Body.Path,
+		forwardurl.Build(r.cfg.TargetURL, attempt.Body.Path),
 		color.Faint(fmt.Sprintf("(%dms)", durationMs)),
 		color.Faint("→"),
 		color.Faint(displayURL),

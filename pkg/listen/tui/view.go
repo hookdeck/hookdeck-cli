@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
+	"github.com/hookdeck/hookdeck-cli/pkg/listen/forwardurl"
 	"github.com/hookdeck/hookdeck-cli/pkg/listen/summary"
 )
 
@@ -410,7 +411,7 @@ func (m Model) renderConnectionInfo() string {
 			if conns, exists := sourceConnections[source.ID]; exists {
 				numConns := len(conns)
 				for j, conn := range conns {
-					fullPath := m.cfg.TargetURL.Scheme + "://" + m.cfg.TargetURL.Host + conn.cliPath
+					fullPath := forwardurl.Build(m.cfg.TargetURL, conn.cliPath)
 
 					connDisplay := ""
 					if conn.destName != "" {
