@@ -345,10 +345,9 @@ func TestReadOnlyModeHidesWriteOnlyPropsAndProse(t *testing.T) {
 // like filters we simply forgot, which is exactly how they would get added —
 // this pins the omission as intentional.
 //
-// include is the exception. It carries x-docs-hide too, but Hookdeck's API
-// team has confirmed it can be exposed, and without it an agent that needs
-// payloads fetches every event by ID, one call each. It is pinned the other
-// way round by TestListToolsOfferIncludeData.
+// include is not in this list: the API documents it on these endpoints, and
+// without it an agent that needs payloads fetches every event by ID, one call
+// each. It is pinned the other way round by TestListToolsOfferIncludeData.
 func TestPluralToolsOmitParametersHiddenFromTheAPIDocs(t *testing.T) {
 	session := connectInMemory(t, newTestClient("https://api.hookdeck.com", "test-key"))
 	tools := listTools(t, session)

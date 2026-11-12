@@ -138,8 +138,8 @@ func TestListFiltersAreOmittedWhenUnset(t *testing.T) {
 // intentional. The MCP side is pinned by
 // TestPluralToolsOmitParametersHiddenFromTheAPIDocs.
 //
-// include is the exception. It carries x-docs-hide too, but Hookdeck's API team
-// has confirmed it can be exposed; see TestListIncludeData.
+// include is not in this list: the API documents it on these endpoints, and
+// the CLI offers it as --include; see TestListIncludeData.
 func TestListCommandsOmitFlagsHiddenFromTheAPIDocs(t *testing.T) {
 	root := &cobra.Command{Use: "hookdeck"}
 	root.AddCommand(newGatewayCmd().cmd)

@@ -170,13 +170,11 @@ const (
 
 // descIncludeData describes include on the events and requests list tools.
 //
-// The API declares include on GET /events, GET /requests and
-// GET /requests/{id}/events. It carries x-docs-hide, which is why the MCP
-// omitted it until now. Hookdeck's API team has since confirmed it can be
-// documented and exposed, with the caveat that it can return a lot of data.
-// Without it, an agent that needs payloads has to fetch each event by ID, one
-// call per event, and a fast agent can hit the rate limit doing so. The size
-// warning is that caveat, stated where the agent chooses the argument.
+// The API documents include on GET /events, GET /requests and
+// GET /requests/{id}/events. It can return a lot of data, so the description
+// warns about size where the agent chooses the argument. Without it, an agent
+// that needs payloads has to fetch each event by ID, one call per event, and
+// a fast agent can hit the rate limit doing so.
 func descIncludeData(resource, singularTool string) string {
 	return "Set to \"data\" to return each " + resource + "'s payload (headers, body, path, parsed_query) as a data object on every result, " +
 		"instead of fetching each one with " + singularTool + ". " +
