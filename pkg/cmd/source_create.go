@@ -36,6 +36,8 @@ func newSourceCreateCmd() *sourceCreateCmd {
 
 Requires --name and --type. Use --config or --config-file for authentication (e.g. webhook_secret, api_key).
 
+` + LongSourceAuthType("--config") + `
+
 Examples:
   hookdeck gateway source create --name my-webhook --type WEBHOOK
   hookdeck gateway source create --name stripe-prod --type STRIPE --config '{"webhook_secret":"whsec_xxx"}'`,
@@ -48,7 +50,7 @@ Examples:
 	sc.cmd.Flags().StringVar(&sc.sourceType, "type", "", "Source type (e.g. WEBHOOK, STRIPE) (required)")
 	sc.cmd.Flags().StringVar(&sc.config, "config", "", "JSON object for source config (overrides individual flags if set)")
 	sc.cmd.Flags().StringVar(&sc.configFile, "config-file", "", "Path to JSON file for source config (overrides individual flags if set)")
-	sc.cmd.Flags().StringVar(&sc.WebhookSecret, "webhook-secret", "", "Webhook secret for source verification (e.g., Stripe)")
+	sc.cmd.Flags().StringVar(&sc.WebhookSecret, "webhook-secret", "", "Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only")
 	sc.cmd.Flags().StringVar(&sc.APIKey, "api-key", "", "API key for source authentication")
 	sc.cmd.Flags().StringVar(&sc.BasicAuthUser, "basic-auth-user", "", "Username for Basic authentication")
 	sc.cmd.Flags().StringVar(&sc.BasicAuthPass, "basic-auth-pass", "", "Password for Basic authentication")
@@ -95,9 +97,6 @@ func (sc *sourceCreateCmd) runSourceCreateCmd(cmd *cobra.Command, args []string)
 	config, err := buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, sc.sourceType)
 	if err != nil {
 		return err
-	}
-	if config != nil {
-		ensureSourceConfigAuthTypeForHTTP(config, sc.sourceType)
 	}
 
 	req := &hookdeck.SourceCreateRequest{

@@ -34,6 +34,10 @@ func newSourceUpdateCmd() *sourceUpdateCmd {
 		Short: ShortUpdate(ResourceSource),
 		Long: LongUpdateIntro(ResourceSource) + `
 
+Config flags without --type are applied to the source's current type, which is looked up first.
+
+` + LongSourceAuthType("--config") + `
+
 Examples:
   hookdeck gateway source update src_abc123 --name new-name
   hookdeck gateway source update src_abc123 --description "Updated"
@@ -47,7 +51,7 @@ Examples:
 	sc.cmd.Flags().StringVar(&sc.sourceType, "type", "", "Source type (e.g. WEBHOOK, STRIPE)")
 	sc.cmd.Flags().StringVar(&sc.config, "config", "", "JSON object for source config (overrides individual flags if set)")
 	sc.cmd.Flags().StringVar(&sc.configFile, "config-file", "", "Path to JSON file for source config (overrides individual flags if set)")
-	sc.cmd.Flags().StringVar(&sc.WebhookSecret, "webhook-secret", "", "Webhook secret for source verification (e.g., Stripe)")
+	sc.cmd.Flags().StringVar(&sc.WebhookSecret, "webhook-secret", "", "Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only")
 	sc.cmd.Flags().StringVar(&sc.APIKey, "api-key", "", "API key for source authentication")
 	sc.cmd.Flags().StringVar(&sc.BasicAuthUser, "basic-auth-user", "", "Username for Basic authentication")
 	sc.cmd.Flags().StringVar(&sc.BasicAuthPass, "basic-auth-pass", "", "Password for Basic authentication")
@@ -102,8 +106,20 @@ func (sc *sourceUpdateCmd) runSourceUpdateCmd(cmd *cobra.Command, args []string)
 	if err != nil {
 		return err
 	}
-	if config != nil {
-		ensureSourceConfigAuthTypeForHTTP(config, sc.sourceType)
+	if len(config) > 0 && sc.sourceType == "" {
+		// The API validates config against the source type and rejects config sent without
+		// type ("config is not allowed"). Without --type, use the stored source's type: send it,
+		// and rebuild config for it, since the auth shape and the auth_type to infer both
+		// depend on it.
+		existing, err := client.GetSource(ctx, sourceID, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get source: %w", err)
+		}
+		req.Type = existing.Type
+		config, err = buildSourceConfigFromFlags(sc.config, sc.configFile, &sc.sourceConfigFlags, existing.Type)
+		if err != nil {
+			return err
+		}
 	}
 	if len(config) > 0 {
 		req.Config = config

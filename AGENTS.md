@@ -185,7 +185,8 @@ func validateTypeA(flags map[string]interface{}) error {
 
 ### Using the cached OpenAPI spec
 - Source type enum and auth rules are available via **`pkg/cmd/sources.FetchSourceTypes()`** (fetches from the API OpenAPI URL, caches under temp with TTL). Use it for **source management** (e.g. `source create`, `source upsert`) and **connection management** (e.g. `connection create` inline source) to validate `--type` and type-specific required auth flags.
-- If `FetchSourceTypes()` fails (network, parse), **warn and continue**—do not block the command; let the API validate. If the given type is not in the cached enum, let the API validate.
+- It parses the `SourceTypeConfig<TYPE>` schemas: which types require `config.auth` (from `x-required` on the `SourceTypeConfig` oneOf entry) and which fields each type's `config.auth` requires. `validateSourceAuthFromSpec` (`pkg/cmd/source_common.go`) checks the auth flags against those fields. `x-required` also marks types whose *handshake* is required; `optionalAuthSourceTypes` lists the one that still reads as auth-required (ONFLEET).
+- If `FetchSourceTypes()` fails (network, parse, or a spec with no source types), **warn and continue**—do not block the command; let the API validate. A failed or empty parse is never cached. If the given type is not in the cached enum, let the API validate.
 - Prefer this over hardcoding type lists or required-auth rules so the CLI stays aligned with the API.
 
 ### Validation Layers (in order)

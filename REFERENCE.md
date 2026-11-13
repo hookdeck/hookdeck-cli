@@ -342,6 +342,8 @@ Create a connection between a source and destination.
 	
 	You can either reference existing resources by ID or create them inline.
 
+	The auth flags build config.auth from the source type's own verification methods in the API spec. `--webhook-secret` sends webhook_secret_key; on WEBHOOK and HTTP it adds the HMAC settings those types need (sha256, hex, header x-webhook-signature), and on every other type it sends the secret alone so the provider's own header and algorithm apply. `--hmac-secret` sends that HMAC shape (with `--hmac-algo`) wherever the type's method takes an algorithm, and otherwise behaves like `--webhook-secret`. `--api-key` sends api_key; WEBHOOK and HTTP also get header x-api-key, while a type that needs its own header name is refused, because no flag sets it: pass config.auth with header_key through `--source-config`. Types that offer a choice of method (WEBHOOK, HTTP, GITLAB, GRAFANA and others) also need auth_type; the flags set it to the method they used. A flag no method of the type can express is refused, with the methods the type accepts. When auth comes from `--source-config` without auth_type, it is set only if the auth fields fit exactly one method (for example, webhook_secret_key alone is STANDARD_WEBHOOKS on WEBHOOK). Set auth_type in `--source-config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -400,7 +402,7 @@ hookdeck gateway connection create [flags]
 | `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
-| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes or expressions to retry on: codes (404), ranges (500-599), comparisons (&gt;400, &lt;=499) and exclusions (!401), e.g. "429,500-599" |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
 | `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
 | `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
@@ -421,7 +423,7 @@ hookdeck gateway connection create [flags]
 | `--source-id` | `string` | Use existing source by ID |
 | `--source-name` | `string` | Source name for inline creation |
 | `--source-type` | `string` | Source type (WEBHOOK, STRIPE, etc.) |
-| `--source-webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+| `--source-webhook-secret` | `string` | Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only |
 
 **Examples:**
 
@@ -506,7 +508,7 @@ hookdeck gateway connection update <connection-id> [flags]
 | Flag | Type | Description |
 |------|------|-------------|
 | `--description` | `string` | Connection description |
-| `--destination-id` | `string` | Update destination by ID |
+| `--destination-id` | `string` | Destination ID the connection already uses (a different value is rejected: a connection's destination cannot be changed) |
 | `--name` | `string` | New connection name |
 | `--output` | `string` | Output format (json) |
 | `--rule-deduplicate-exclude-fields` | `string` | Comma-separated list of fields to exclude for deduplication |
@@ -519,14 +521,14 @@ hookdeck gateway connection update <connection-id> [flags]
 | `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
-| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes or expressions to retry on: codes (404), ranges (500-599), comparisons (&gt;400, &lt;=499) and exclusions (!401), e.g. "429,500-599" |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
 | `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
 | `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
 | `--rule-transform-name` | `string` | Name or ID of an existing transformation to apply. With `--rule-transform-code`, an existing transformation's code is replaced, or a new transformation is created with this name |
 | `--rules` | `string` | JSON string representing the entire rules array |
 | `--rules-file` | `string` | Path to a JSON file containing the rules array |
-| `--source-id` | `string` | Update source by ID |
+| `--source-id` | `string` | Source ID the connection already uses (a different value is rejected: a connection's source cannot be changed) |
 
 **Examples:**
 
@@ -537,8 +539,9 @@ hookdeck gateway connection update web_abc123 --name "new-name"
 # Update description
 hookdeck gateway connection update web_abc123 --description "Updated description"
 
-# Change the source on a connection
-hookdeck gateway connection update web_abc123 --source-id src_def456
+# A connection's source and destination cannot be changed. --source-id and
+# --destination-id are accepted only when they match the stored values;
+# to use a different one, create a new connection.
 
 # Update rules
 hookdeck gateway connection update web_abc123 \
@@ -593,7 +596,17 @@ Create a new connection or update an existing one by name (idempotent).
 		 - Only updates properties that are explicitly provided
 		 - Preserves existing properties that aren't specified
 	
+	An existing connection's destination cannot be changed. If the destination
+	you name (by ID or by name) differs from the one the connection already uses,
+	the command fails before changing anything. Settings of the current
+	destination can still be updated. The source can be changed.
+
+	Rules are replaced as a whole when `--rules` or `--rules-file` is given, and
+	left alone otherwise. Pass `--rules` '[]' to remove all rules.
+
 	Use `--dry-run` to preview changes without applying them.
+
+	The auth flags build config.auth from the source type's own verification methods in the API spec. `--webhook-secret` sends webhook_secret_key; on WEBHOOK and HTTP it adds the HMAC settings those types need (sha256, hex, header x-webhook-signature), and on every other type it sends the secret alone so the provider's own header and algorithm apply. `--hmac-secret` sends that HMAC shape (with `--hmac-algo`) wherever the type's method takes an algorithm, and otherwise behaves like `--webhook-secret`. `--api-key` sends api_key; WEBHOOK and HTTP also get header x-api-key, while a type that needs its own header name is refused, because no flag sets it: pass config.auth with header_key through `--source-config`. Types that offer a choice of method (WEBHOOK, HTTP, GITLAB, GRAFANA and others) also need auth_type; the flags set it to the method they used. A flag no method of the type can express is refused, with the methods the type accepts. When auth comes from `--source-config` without auth_type, it is set only if the auth fields fit exactly one method (for example, webhook_secret_key alone is STANDARD_WEBHOOKS on WEBHOOK). Set auth_type in `--source-config` to choose the method yourself.
 
 **Usage:**
 
@@ -659,7 +672,7 @@ hookdeck gateway connection upsert <name> [flags]
 | `--rule-filter-query` | `string` | Filter on request query parameters using Hookdeck filter syntax (JSON) |
 | `--rule-retry-count` | `int` | Number of retry attempts (default "0") |
 | `--rule-retry-interval` | `int` | Interval between retries in milliseconds (default "0") |
-| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes to retry on |
+| `--rule-retry-response-status-codes` | `string` | Comma-separated HTTP status codes or expressions to retry on: codes (404), ranges (500-599), comparisons (&gt;400, &lt;=499) and exclusions (!401), e.g. "429,500-599" |
 | `--rule-retry-strategy` | `string` | Retry strategy (linear, exponential) |
 | `--rule-transform-code` | `string` | Transformation code. Creates the transformation named by `--rule-transform-name`, or replaces its code if it exists |
 | `--rule-transform-env` | `string` | JSON string representing environment variables for transformation. Replaces the env of an existing transformation |
@@ -680,7 +693,7 @@ hookdeck gateway connection upsert <name> [flags]
 | `--source-id` | `string` | Use existing source by ID |
 | `--source-name` | `string` | Source name for inline creation |
 | `--source-type` | `string` | Source type (WEBHOOK, STRIPE, etc.) |
-| `--source-webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+| `--source-webhook-secret` | `string` | Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only |
 
 **Examples:**
 
@@ -838,6 +851,8 @@ Create a new source.
 
 Requires `--name` and `--type`. Use `--config` or `--config-file` for authentication (e.g. webhook_secret, api_key).
 
+The auth flags build config.auth from the source type's own verification methods in the API spec. `--webhook-secret` sends webhook_secret_key; on WEBHOOK and HTTP it adds the HMAC settings those types need (sha256, hex, header x-webhook-signature), and on every other type it sends the secret alone so the provider's own header and algorithm apply. `--hmac-secret` sends that HMAC shape (with `--hmac-algo`) wherever the type's method takes an algorithm, and otherwise behaves like `--webhook-secret`. `--api-key` sends api_key; WEBHOOK and HTTP also get header x-api-key, while a type that needs its own header name is refused, because no flag sets it: pass config.auth with header_key through `--config`. Types that offer a choice of method (WEBHOOK, HTTP, GITLAB, GRAFANA and others) also need auth_type; the flags set it to the method they used. A flag no method of the type can express is refused, with the methods the type accepts. When auth comes from `--config` without auth_type, it is set only if the auth fields fit exactly one method (for example, webhook_secret_key alone is STANDARD_WEBHOOKS on WEBHOOK). Set auth_type in `--config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -862,7 +877,7 @@ hookdeck gateway source create [flags]
 | `--name` | `string` | Source name (required) |
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) (required) |
-| `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+| `--webhook-secret` | `string` | Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only |
 
 **Examples:**
 
@@ -899,6 +914,10 @@ hookdeck gateway source get my-source --include-auth
 
 Update an existing source by its ID.
 
+Config flags without `--type` are applied to the source's current type, which is looked up first.
+
+The auth flags build config.auth from the source type's own verification methods in the API spec. `--webhook-secret` sends webhook_secret_key; on WEBHOOK and HTTP it adds the HMAC settings those types need (sha256, hex, header x-webhook-signature), and on every other type it sends the secret alone so the provider's own header and algorithm apply. `--hmac-secret` sends that HMAC shape (with `--hmac-algo`) wherever the type's method takes an algorithm, and otherwise behaves like `--webhook-secret`. `--api-key` sends api_key; WEBHOOK and HTTP also get header x-api-key, while a type that needs its own header name is refused, because no flag sets it: pass config.auth with header_key through `--config`. Types that offer a choice of method (WEBHOOK, HTTP, GITLAB, GRAFANA and others) also need auth_type; the flags set it to the method they used. A flag no method of the type can express is refused, with the methods the type accepts. When auth comes from `--config` without auth_type, it is set only if the auth fields fit exactly one method (for example, webhook_secret_key alone is STANDARD_WEBHOOKS on WEBHOOK). Set auth_type in `--config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -923,7 +942,7 @@ hookdeck gateway source update <source-id> [flags]
 | `--name` | `string` | New source name |
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) |
-| `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+| `--webhook-secret` | `string` | Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only |
 
 **Examples:**
 
@@ -958,6 +977,13 @@ hookdeck gateway source delete src_abc123 --force
 
 Create a new source or update an existing one by name (idempotent).
 
+When `--type` is omitted and the source already exists, its current type is kept,
+along with its verification unless you pass new auth flags or config. When the
+source does not exist, it is created as a WEBHOOK source. Pass `--type` to change
+an existing source's type.
+
+The auth flags build config.auth from the source type's own verification methods in the API spec. `--webhook-secret` sends webhook_secret_key; on WEBHOOK and HTTP it adds the HMAC settings those types need (sha256, hex, header x-webhook-signature), and on every other type it sends the secret alone so the provider's own header and algorithm apply. `--hmac-secret` sends that HMAC shape (with `--hmac-algo`) wherever the type's method takes an algorithm, and otherwise behaves like `--webhook-secret`. `--api-key` sends api_key; WEBHOOK and HTTP also get header x-api-key, while a type that needs its own header name is refused, because no flag sets it: pass config.auth with header_key through `--config`. Types that offer a choice of method (WEBHOOK, HTTP, GITLAB, GRAFANA and others) also need auth_type; the flags set it to the method they used. A flag no method of the type can express is refused, with the methods the type accepts. When auth comes from `--config` without auth_type, it is set only if the auth fields fit exactly one method (for example, webhook_secret_key alone is STANDARD_WEBHOOKS on WEBHOOK). Set auth_type in `--config` to choose the method yourself.
+
 **Usage:**
 
 ```bash
@@ -982,7 +1008,7 @@ hookdeck gateway source upsert <name> [flags]
 | `--hmac-secret` | `string` | HMAC secret for signature verification |
 | `--output` | `string` | Output format (json) |
 | `--type` | `string` | Source type (e.g. WEBHOOK, STRIPE) |
-| `--webhook-secret` | `string` | Webhook secret for source verification (e.g., Stripe) |
+| `--webhook-secret` | `string` | Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only |
 
 **Examples:**
 
