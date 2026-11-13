@@ -178,54 +178,48 @@ func ensureSourceConfigAuthType(config map[string]interface{}, sourceType string
 	}
 }
 
-// normalizeSourceConfigAuth converts legacy flat auth keys (webhook_secret, api_key, etc.)
-// into the API shape config.auth (auth shape depends on the source-level type). It does not set
-// auth_type; callers run ensureSourceConfigAuthType afterwards. Idempotent if auth already set.
-func normalizeSourceConfigAuth(config map[string]interface{}, sourceType string) {
+// normalizeSourceConfigAuth converts the legacy top-level auth keys in a source config
+// (webhook_secret, api_key, basic_auth, hmac) into config.auth, and config.auth_type where the
+// type offers a choice of method. It builds them exactly as the matching flags do
+// (webhook_secret as --webhook-secret, api_key as --api-key, hmac as --hmac-secret, basic_auth as
+// the basic auth flags), so the same per-type shapes and refusals apply. Does nothing when
+// config.auth is already set. An explicit config.auth_type is kept.
+func normalizeSourceConfigAuth(config map[string]interface{}, sourceType string) error {
 	if config == nil || config["auth"] != nil {
-		return
+		return nil
 	}
-	sourceTypeUpper := strings.ToUpper(strings.TrimSpace(sourceType))
+	var flags *sourceConfigFlags
+	var legacyKey string
 	if v, ok := config["webhook_secret"].(string); ok && v != "" {
-		if sourceTypeUpper == "STRIPE" {
-			config["auth"] = map[string]interface{}{"webhook_secret_key": v}
-		} else {
-			config["auth"] = map[string]interface{}{
-				"algorithm": "sha256", "encoding": "hex",
-				"header_key": "x-webhook-signature", "webhook_secret_key": v,
-			}
-		}
-		delete(config, "webhook_secret")
-		return
-	}
-	if v, ok := config["api_key"].(string); ok && v != "" {
-		config["auth"] = map[string]interface{}{"header_key": "x-api-key", "api_key": v}
-		delete(config, "api_key")
-		return
-	}
-	if m, ok := config["basic_auth"].(map[string]interface{}); ok {
+		flags, legacyKey = &sourceConfigFlags{WebhookSecret: v}, "webhook_secret"
+	} else if v, ok := config["api_key"].(string); ok && v != "" {
+		flags, legacyKey = &sourceConfigFlags{APIKey: v}, "api_key"
+	} else if m, ok := config["basic_auth"].(map[string]interface{}); ok {
 		u, _ := m["username"].(string)
 		p, _ := m["password"].(string)
 		if u != "" || p != "" {
-			config["auth"] = map[string]interface{}{"username": u, "password": p}
-			delete(config, "basic_auth")
+			flags, legacyKey = &sourceConfigFlags{BasicAuthUser: u, BasicAuthPass: p}, "basic_auth"
 		}
-		return
-	}
-	if m, ok := config["hmac"].(map[string]interface{}); ok {
+	} else if m, ok := config["hmac"].(map[string]interface{}); ok {
 		secret, _ := m["secret"].(string)
 		if secret != "" {
-			algo := "sha256"
-			if a, _ := m["algorithm"].(string); a != "" {
-				algo = strings.ToLower(a)
-			}
-			config["auth"] = map[string]interface{}{
-				"algorithm": algo, "encoding": "hex",
-				"header_key": "x-webhook-signature", "webhook_secret_key": secret,
-			}
-			delete(config, "hmac")
+			algo, _ := m["algorithm"].(string)
+			flags, legacyKey = &sourceConfigFlags{HMACSecret: secret, HMACAlgo: algo}, "hmac"
 		}
 	}
+	if flags == nil {
+		return nil
+	}
+	auth, authType, err := sourceAuthFromFlags(flags, "", sourceType)
+	if err != nil {
+		return fmt.Errorf("config key %q: %w", legacyKey, err)
+	}
+	config["auth"] = auth
+	if _, has := config["auth_type"]; !has && authType != "" {
+		config["auth_type"] = authType
+	}
+	delete(config, legacyKey)
+	return nil
 }
 
 // buildSourceConfigFromFlags parses source config from --config/--config-file (JSON)
@@ -240,7 +234,9 @@ func buildSourceConfigFromFlags(configStr, configFile string, individual *source
 		if err := json.Unmarshal([]byte(configStr), &out); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --config: %w", err)
 		}
-		normalizeSourceConfigAuth(out, sourceType)
+		if err := normalizeSourceConfigAuth(out, sourceType); err != nil {
+			return nil, err
+		}
 		ensureSourceConfigAuthType(out, sourceType)
 		return out, nil
 	}
@@ -253,7 +249,9 @@ func buildSourceConfigFromFlags(configStr, configFile string, individual *source
 		if err := json.Unmarshal(data, &out); err != nil {
 			return nil, fmt.Errorf("invalid JSON in config file: %w", err)
 		}
-		normalizeSourceConfigAuth(out, sourceType)
+		if err := normalizeSourceConfigAuth(out, sourceType); err != nil {
+			return nil, err
+		}
 		ensureSourceConfigAuthType(out, sourceType)
 		return out, nil
 	}

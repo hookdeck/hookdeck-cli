@@ -807,7 +807,9 @@ func (cc *connectionCreateCmd) buildSourceConfigForType(sourceType string) (map[
 		if err := json.Unmarshal([]byte(cc.SourceConfig), &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config: %w", err)
 		}
-		normalizeSourceConfigAuth(config, sourceType)
+		if err := normalizeSourceConfigAuth(config, sourceType); err != nil {
+			return nil, err
+		}
 		ensureSourceConfigAuthType(config, sourceType)
 		return config, nil
 	}
@@ -820,7 +822,9 @@ func (cc *connectionCreateCmd) buildSourceConfigForType(sourceType string) (map[
 		if err := json.Unmarshal(data, &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config-file: %w", err)
 		}
-		normalizeSourceConfigAuth(config, sourceType)
+		if err := normalizeSourceConfigAuth(config, sourceType); err != nil {
+			return nil, err
+		}
 		ensureSourceConfigAuthType(config, sourceType)
 		return config, nil
 	}

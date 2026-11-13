@@ -103,6 +103,67 @@ func TestSourceAuthFromFlagsPerType(t *testing.T) {
 	}
 }
 
+// The legacy top-level keys in --config go through the same per-type builder as the flags, so
+// webhook_secret on VAPI does not store a header_key that replaces VAPI's x-signature.
+func TestLegacyConfigKeysUsePerTypeAuth(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceType string
+		input      string
+		wantConfig map[string]interface{}
+		wantErr    string
+	}{
+		{"WEBHOOK webhook_secret", "WEBHOOK", `{"webhook_secret":"S"}`,
+			map[string]interface{}{"auth": genericHMAC("sha256"), "auth_type": "HMAC"}, ""},
+		{"VAPI webhook_secret", "VAPI", `{"webhook_secret":"S"}`,
+			map[string]interface{}{"auth": secretOnly}, ""},
+		{"GITLAB webhook_secret", "GITLAB", `{"webhook_secret":"S"}`,
+			map[string]interface{}{"auth": secretOnly, "auth_type": "STANDARD_WEBHOOKS"}, ""},
+		{"WEBHOOK api_key", "WEBHOOK", `{"api_key":"K"}`,
+			map[string]interface{}{"auth": map[string]interface{}{"header_key": "x-api-key", "api_key": "K"}, "auth_type": "API_KEY"}, ""},
+		{"GITLAB api_key", "GITLAB", `{"api_key":"K"}`,
+			map[string]interface{}{"auth": map[string]interface{}{"api_key": "K"}, "auth_type": "GITLAB"}, ""},
+		{"WEBHOOK hmac", "WEBHOOK", `{"hmac":{"secret":"S","algorithm":"SHA512"}}`,
+			map[string]interface{}{"auth": genericHMAC("sha512"), "auth_type": "HMAC"}, ""},
+		{"VAPI hmac", "VAPI", `{"hmac":{"secret":"S"}}`,
+			map[string]interface{}{"auth": genericHMAC("sha256")}, ""},
+		{"GRAFANA basic_auth", "GRAFANA", `{"basic_auth":{"username":"u","password":"p"}}`,
+			map[string]interface{}{"auth": map[string]interface{}{"username": "u", "password": "p"}, "auth_type": "BASIC_AUTH"}, ""},
+		{"explicit auth_type is kept", "WEBHOOK", `{"auth_type":"STANDARD_WEBHOOKS","webhook_secret":"S"}`,
+			map[string]interface{}{"auth": genericHMAC("sha256"), "auth_type": "STANDARD_WEBHOOKS"}, ""},
+		{"refused type", "BETTER_STACK", `{"webhook_secret":"S"}`, nil, `config key "webhook_secret"`},
+		{"refused header", "ORDINAL", `{"api_key":"K"}`, nil, "header_key"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := buildSourceConfigFromFlags(tt.input, "", nil, tt.sourceType)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantConfig, config)
+		})
+	}
+}
+
+// Offline, the legacy keys still work for WEBHOOK and HTTP and give provider types the bare secret.
+func TestLegacyConfigKeysWithoutSpec(t *testing.T) {
+	origMethods, origTypes := loadSourceAuthMethods, loadSourceTypes
+	t.Cleanup(func() { loadSourceAuthMethods, loadSourceTypes = origMethods, origTypes })
+	loadSourceAuthMethods = func() (map[string][]sources.AuthMethod, error) { return nil, errors.New("offline") }
+	loadSourceTypes = func() (map[string]sources.SourceType, error) { return nil, errors.New("offline") }
+
+	config, err := buildSourceConfigFromFlags(`{"webhook_secret":"S"}`, "", nil, "WEBHOOK")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"auth": genericHMAC("sha256"), "auth_type": "HMAC"}, config)
+
+	config, err = buildSourceConfigFromFlags(`{"webhook_secret":"S"}`, "", nil, "VAPI")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"auth": secretOnly}, config)
+}
+
 func TestSourceAuthFromFlagsNoFlag(t *testing.T) {
 	auth, authType, err := sourceAuthFromFlags(&sourceConfigFlags{AllowedHTTPMethods: "POST"}, "", "VAPI")
 	require.NoError(t, err)
