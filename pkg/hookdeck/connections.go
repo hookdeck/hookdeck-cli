@@ -86,6 +86,30 @@ func (c *Client) ListConnections(ctx context.Context, params map[string]string) 
 	return &result, nil
 }
 
+// FindConnectionByName returns the connection whose name is exactly name, or nil
+// when there is none.
+//
+// The list endpoint's name filter is an exact, case-sensitive match today, but
+// its documentation only says "Filter by connection name". Taking the first
+// result unchecked would let a partial or differently-cased match stand in for
+// the connection the caller named, and an upsert would then update the wrong
+// one, so the name is compared again here.
+func (c *Client) FindConnectionByName(ctx context.Context, name string) (*Connection, error) {
+	result, err := c.ListConnections(ctx, map[string]string{"name": name})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, nil
+	}
+	for i := range result.Models {
+		if m := result.Models[i]; m.Name != nil && *m.Name == name {
+			return &result.Models[i], nil
+		}
+	}
+	return nil, nil
+}
+
 // GetConnection retrieves a single connection by ID
 func (c *Client) GetConnection(ctx context.Context, id string) (*Connection, error) {
 	path, err := apiPath("connections", id)

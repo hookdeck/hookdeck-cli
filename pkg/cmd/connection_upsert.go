@@ -354,15 +354,13 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	var isUpdate bool
 
 	if cu.needsExistingConnection() {
-		connections, err := client.ListConnections(context.Background(), map[string]string{
-			"name": name,
-		})
+		found, err := client.FindConnectionByName(context.Background(), name)
 		if err != nil {
 			return fmt.Errorf("failed to check if connection exists: %w", err)
 		}
 
-		if connections != nil && len(connections.Models) > 0 {
-			existing = &connections.Models[0]
+		if found != nil {
+			existing = found
 			isUpdate = true
 		}
 	}
