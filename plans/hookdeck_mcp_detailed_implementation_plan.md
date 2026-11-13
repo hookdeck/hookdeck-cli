@@ -29,7 +29,7 @@ This document maps the high-level MCP build-out plan against the existing hookde
 | Part 4 | MCP Tool Implementations | **COMPLETE** |
 | Part 5 | Integration Testing & Polish | **COMPLETE** |
 
-**What's done:** All 5 parts are complete. The MCP server is fully functional with all 11 resource tools and the `hookdeck_login` tool. 80 unit/integration tests cover all tools, actions, error scenarios (404, 422, 429), auth guards, and project switching. Acceptance test suite passes with no regressions from MCP changes (transient 502s and listen-test timeouts are pre-existing issues). Tool descriptions have been polished for accuracy (event-centric terminology, destination types: HTTP/CLI/MOCK). AGENTS.md updated with acceptance test setup guidance.
+**What's done:** All 5 parts are complete. The MCP server is fully functional with all 11 resource tools and the `hookdeck_login` tool. 80 unit/integration tests cover all tools, actions, error scenarios (404, 422, 429), auth guards, and project switching. Acceptance test suite passes with no regressions from MCP changes (transient 502s and listen-test timeouts are pre-existing issues). Tool descriptions have been polished for accuracy (event-centric terminology, destination types: HTTP/CLI/MOCK_API). AGENTS.md updated with acceptance test setup guidance.
 
 ---
 

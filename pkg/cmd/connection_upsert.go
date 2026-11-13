@@ -94,7 +94,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 
 	// Destination inline creation flags
 	cu.cmd.Flags().StringVar(&cu.destinationName, "destination-name", "", "Destination name for inline creation")
-	cu.cmd.Flags().StringVar(&cu.destinationType, "destination-type", "", "Destination type (CLI, HTTP, MOCK)")
+	cu.cmd.Flags().StringVar(&cu.destinationType, "destination-type", "", "Destination type (CLI, HTTP, MOCK_API)")
 	cu.cmd.Flags().StringVar(&cu.destinationDescription, "destination-description", "", "Destination description")
 	cu.cmd.Flags().StringVar(&cu.destinationURL, "destination-url", "", "URL for HTTP destinations")
 	cu.cmd.Flags().StringVar(&cu.destinationCliPath, "destination-cli-path", "", "CLI path for CLI destinations (default: / for new connections)")

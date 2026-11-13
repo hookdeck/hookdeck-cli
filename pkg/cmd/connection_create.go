@@ -168,7 +168,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 
 	// Destination inline creation flags
 	cc.cmd.Flags().StringVar(&cc.destinationName, "destination-name", "", "Destination name for inline creation")
-	cc.cmd.Flags().StringVar(&cc.destinationType, "destination-type", "", "Destination type (CLI, HTTP, MOCK)")
+	cc.cmd.Flags().StringVar(&cc.destinationType, "destination-type", "", "Destination type (CLI, HTTP, MOCK_API)")
 	cc.cmd.Flags().StringVar(&cc.destinationDescription, "destination-description", "", "Destination description")
 	cc.cmd.Flags().StringVar(&cc.destinationURL, "destination-url", "", "URL for HTTP destinations")
 	cc.cmd.Flags().StringVar(&cc.destinationCliPath, "destination-cli-path", "/", "CLI path for CLI destinations (default: /)")
