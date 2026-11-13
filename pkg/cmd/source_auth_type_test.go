@@ -29,12 +29,10 @@ func TestBuildSourceConfigFromIndividualFlagsSetsAuthType(t *testing.T) {
 		{name: "WEBHOOK webhook secret", sourceType: "WEBHOOK", flags: sourceConfigFlags{WebhookSecret: "s"}, wantAuthType: "HMAC"},
 		{name: "HTTP api key", sourceType: "HTTP", flags: sourceConfigFlags{APIKey: "k"}, wantAuthType: "API_KEY"},
 		{name: "HTTP basic auth", sourceType: "HTTP", flags: sourceConfigFlags{BasicAuthUser: "u", BasicAuthPass: "p"}, wantAuthType: "BASIC_AUTH"},
-		{name: "ORDINAL api key", sourceType: "ORDINAL", flags: sourceConfigFlags{APIKey: "k"}, wantAuthType: "API_KEY"},
 		{name: "AZURE_EVENT_GRID basic auth", sourceType: "AZURE_EVENT_GRID", flags: sourceConfigFlags{BasicAuthUser: "u", BasicAuthPass: "p"}, wantAuthType: "BASIC_AUTH"},
 		{name: "PROMETHEUS_ALERTMANAGER basic auth", sourceType: "PROMETHEUS_ALERTMANAGER", flags: sourceConfigFlags{BasicAuthUser: "u", BasicAuthPass: "p"}, wantAuthType: "BASIC_AUTH"},
-		// --api-key builds {header_key, api_key}; Prometheus's bearer method takes api_key only,
-		// so no method fits and the API, not a guess, reports it.
-		{name: "PROMETHEUS_ALERTMANAGER api key flag fits no method", sourceType: "PROMETHEUS_ALERTMANAGER", flags: sourceConfigFlags{APIKey: "k"}},
+		// --api-key sends api_key only to Prometheus, whose bearer method takes no header_key.
+		{name: "PROMETHEUS_ALERTMANAGER api key", sourceType: "PROMETHEUS_ALERTMANAGER", flags: sourceConfigFlags{APIKey: "k"}, wantAuthType: "PROMETHEUS_ALERTMANAGER"},
 		{name: "STRIPE webhook secret takes no auth_type", sourceType: "STRIPE", flags: sourceConfigFlags{WebhookSecret: "whsec"}},
 		{name: "empty type infers nothing", sourceType: "", flags: sourceConfigFlags{APIKey: "k"}},
 		{name: "WEBHOOK without auth flags", sourceType: "WEBHOOK", flags: sourceConfigFlags{AllowedHTTPMethods: "POST"}},

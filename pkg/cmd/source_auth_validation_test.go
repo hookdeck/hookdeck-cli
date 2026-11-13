@@ -56,11 +56,14 @@ func TestValidateSourceAuthFromSpec(t *testing.T) {
 		{name: "wrong flag on a handshake type", sourceType: "ONFLEET", auth: sourceAuthFlags{APIKey: "k"}, prefix: "source-",
 			wantErr: "--source-api-key does not set config.auth webhook_secret_key, which source type ONFLEET requires: use --source-webhook-secret"},
 
+		// The header name is the provider's contract and no flag sets it.
+		{name: "api key for a type with a user-defined header", sourceType: "ACUMATICA", auth: sourceAuthFlags{APIKey: "k"},
+			wantErr: `--api-key does not set config.auth header_key, which source type ACUMATICA requires: pass them with --config '{"auth":{"header_key":"...","api_key":"..."}}' or --config-file`},
+
 		// Not rejected.
 		{name: "optional auth omitted", sourceType: "STRIPE"},
 		{name: "optional auth given", sourceType: "STRIPE", auth: sourceAuthFlags{WebhookSecret: "whsec"}},
 		{name: "optional basic auth given", sourceType: "POSTMARK", auth: sourceAuthFlags{BasicAuthUser: "u", BasicAuthPass: "p"}},
-		{name: "api key flag sets header_key too", sourceType: "ACUMATICA", auth: sourceAuthFlags{APIKey: "k"}},
 		{name: "handshake type, auth with fields", sourceType: "ONFLEET"},
 		{name: "handshake type, auth without fields", sourceType: "STRAVA"},
 		{name: "handshake type with a choice of method", sourceType: "AZURE_EVENT_GRID"},

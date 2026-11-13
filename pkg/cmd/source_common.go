@@ -57,8 +57,15 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 
 	// Auth: config.auth shape depends on source type. auth_type is added at the end for the
 	// types that require it (see ensureSourceConfigAuthType).
-	if auth := sourceAuthFromFlags(f, sourceType); auth != nil {
+	auth, authType, err := sourceAuthFromFlags(f, flagPrefix, sourceType)
+	if err != nil {
+		return nil, err
+	}
+	if auth != nil {
 		config["auth"] = auth
+		if authType != "" {
+			config["auth_type"] = authType
+		}
 	}
 
 	if f.AllowedHTTPMethods != "" {
@@ -96,49 +103,6 @@ func buildSourceConfigFromIndividualFlags(f *sourceConfigFlags, flagPrefix, sour
 	}
 	ensureSourceConfigAuthType(config, sourceType)
 	return config, nil
-}
-
-// sourceAuthFromFlags builds config.auth from the auth flags, or returns nil when none is set.
-// Only the first set flag counts, in this order: webhook secret, HMAC secret, API key, basic auth.
-//
-// Single-method types get the generic keys too (algorithm, header_key, ...): the API strips
-// keys a type's auth does not take, so only a missing required key is a problem. STRIPE gets
-// its bare webhook_secret_key.
-func sourceAuthFromFlags(f *sourceConfigFlags, sourceType string) map[string]interface{} {
-	switch {
-	case f.WebhookSecret != "":
-		if strings.ToUpper(strings.TrimSpace(sourceType)) == "STRIPE" {
-			return map[string]interface{}{"webhook_secret_key": f.WebhookSecret}
-		}
-		return map[string]interface{}{
-			"algorithm":          "sha256",
-			"encoding":           "hex",
-			"header_key":         "x-webhook-signature",
-			"webhook_secret_key": f.WebhookSecret,
-		}
-	case f.HMACSecret != "":
-		algo := "sha256"
-		if f.HMACAlgo != "" {
-			algo = strings.ToLower(f.HMACAlgo)
-		}
-		return map[string]interface{}{
-			"algorithm":          algo,
-			"encoding":           "hex",
-			"header_key":         "x-webhook-signature",
-			"webhook_secret_key": f.HMACSecret,
-		}
-	case f.APIKey != "":
-		return map[string]interface{}{
-			"header_key": "x-api-key",
-			"api_key":    f.APIKey,
-		}
-	case f.BasicAuthUser != "" || f.BasicAuthPass != "":
-		return map[string]interface{}{
-			"username": f.BasicAuthUser,
-			"password": f.BasicAuthPass,
-		}
-	}
-	return nil
 }
 
 // apiDefaultSourceType is the type the API applies when a source create or upsert omits it
@@ -316,8 +280,8 @@ var optionalAuthSourceTypes = map[string]bool{"ONFLEET": true}
 var loadSourceTypes = sources.FetchSourceTypes
 
 // authFlagOptions are the auth flags a validation error can point to, each with sample values
-// so sourceAuthFromFlags reports the config.auth keys it sets. --hmac-secret sets the same keys
-// as --webhook-secret, so it is not listed separately.
+// so sourceAuthFromFlags reports the config.auth keys it sets. --hmac-secret is not listed: it
+// sets a secret like --webhook-secret does, and the message points at the plainer flag.
 var authFlagOptions = []struct {
 	names []string
 	flags sourceConfigFlags
@@ -364,13 +328,16 @@ func validateSourceAuthFromSpec(sourceType string, configSet bool, auth sourceAu
 	}
 	pre := "--" + flagPrefix
 
-	given := sourceAuthFromFlags(&sourceConfigFlags{
+	given, _, err := sourceAuthFromFlags(&sourceConfigFlags{
 		WebhookSecret: auth.WebhookSecret,
 		APIKey:        auth.APIKey,
 		BasicAuthUser: auth.BasicAuthUser,
 		BasicAuthPass: auth.BasicAuthPass,
 		HMACSecret:    auth.HMACSecret,
-	}, sourceType)
+	}, flagPrefix, sourceType)
+	if err != nil {
+		return err
+	}
 
 	if given == nil {
 		if !st.AuthRequired || optionalAuthSourceTypes[st.Name] {
@@ -414,7 +381,10 @@ func validateSourceAuthFromSpec(sourceType string, configSet bool, auth sourceAu
 // of fields, or nil when no flag does.
 func authFlagsSetting(fields []string, sourceType, pre string) []string {
 	for _, opt := range authFlagOptions {
-		keys := sourceAuthFromFlags(&opt.flags, sourceType)
+		keys, _, err := sourceAuthFromFlags(&opt.flags, "", sourceType)
+		if err != nil {
+			continue
+		}
 		covers := true
 		for _, field := range fields {
 			if _, ok := keys[field]; !ok {

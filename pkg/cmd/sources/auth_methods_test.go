@@ -13,7 +13,7 @@ import (
 )
 
 // testdata/openapi_source_auth.json is cut from the 2026-09-01 OpenAPI spec: the source types
-// that offer a choice of auth method, STRIPE (one fixed method), and two of WEBHOOK's legacy
+// that offer a choice of auth method, STRIPE, VAPI and FORMSTACK (one fixed method), and two of WEBHOOK's legacy
 // provider methods (AIRCALL, and PROPERTY-FINDER whose schema name drops the hyphen).
 func loadFixture(t *testing.T) map[string][]AuthMethod {
 	t.Helper()

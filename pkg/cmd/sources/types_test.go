@@ -43,7 +43,7 @@ func lookup(t *testing.T, types map[string]SourceType, name string) SourceType {
 func TestParseSourceTypesListsEveryTypeConfigSchema(t *testing.T) {
 	types := parseFixtureSourceTypes(t)
 
-	assert.Len(t, types, 21, "one per SourceTypeConfig<TYPE> schema, not the umbrella")
+	assert.Len(t, types, 23, "one per SourceTypeConfig<TYPE> schema, not the umbrella")
 	assert.Equal(t, "PROPERTY-FINDER", lookup(t, types, "PROPERTY-FINDER").Name,
 		"named as the API spells it, although its schema name drops the hyphen")
 	assert.Equal(t, "STRIPE", lookup(t, types, " stripe ").Name, "lookup ignores case and spaces")

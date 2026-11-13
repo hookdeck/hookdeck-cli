@@ -3324,6 +3324,12 @@
      },
      {
       "$ref": "#/components/schemas/SourceTypeConfigORDINAL"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigVAPI"
+     },
+     {
+      "$ref": "#/components/schemas/SourceTypeConfigFORMSTACK"
      }
     ],
     "properties": {},
@@ -3779,6 +3785,95 @@
     },
     "type": "object",
     "x-docs-type": "WEBHOOK"
+   },
+   "SourceTypeConfigVAPI": {
+    "type": "object",
+    "properties": {
+     "trim_payload": {
+      "type": "boolean"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigVapiAuth"
+     },
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "additionalProperties": false,
+    "description": "The type config for VAPI. Requires type to be `VAPI`.",
+    "x-docs-type": "VAPI",
+    "x-docs-external-url": "https://docs.vapi.ai/server-url/server-authentication"
+   },
+   "SourceConfigVapiAuth": {
+    "type": "object",
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     },
+     "algorithm": {
+      "type": "string",
+      "enum": [
+       "sha256",
+       "sha1",
+       "sha512"
+      ]
+     },
+     "encoding": {
+      "type": "string",
+      "enum": [
+       "hex",
+       "base64",
+       "base64url"
+      ]
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "additionalProperties": false,
+    "nullable": true,
+    "x-docs-type": "Vapi"
+   },
+   "SourceTypeConfigFORMSTACK": {
+    "type": "object",
+    "properties": {
+     "auth": {
+      "$ref": "#/components/schemas/SourceConfigFormstackAuth"
+     },
+     "allowed_http_methods": {
+      "$ref": "#/components/schemas/SourceAllowedHTTPMethod"
+     },
+     "custom_response": {
+      "$ref": "#/components/schemas/SourceCustomResponse"
+     }
+    },
+    "additionalProperties": false,
+    "description": "The type config for FORMSTACK. Requires type to be `FORMSTACK`.",
+    "x-docs-type": "FORMSTACK",
+    "x-docs-external-url": "https://help.formstack.com/hc/en-us/articles/44592535914387-WebHook-Submit-Actions"
+   },
+   "SourceConfigFormstackAuth": {
+    "type": "object",
+    "properties": {
+     "webhook_secret_key": {
+      "type": "string"
+     },
+     "header_key": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "webhook_secret_key"
+    ],
+    "additionalProperties": false,
+    "nullable": true,
+    "x-docs-type": "Formstack"
    }
   }
  }
