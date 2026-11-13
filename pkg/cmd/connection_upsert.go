@@ -38,6 +38,14 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 		 - Only updates properties that are explicitly provided
 		 - Preserves existing properties that aren't specified
 	
+	An existing connection's destination cannot be changed. If the destination
+	you name (by ID or by name) differs from the one the connection already uses,
+	the command fails before changing anything. Settings of the current
+	destination can still be updated. The source can be changed.
+
+	Rules are replaced as a whole when --rules or --rules-file is given, and
+	left alone otherwise. Pass --rules '[]' to remove all rules.
+
 	Use --dry-run to preview changes without applying them.
 
 	` + LongSourceAuthType("--source-config") + `
@@ -304,6 +312,8 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 //     has to come from the stored connection
 //  3. A name is given without a type, which is filled in from the stored record
 //  4. A create-time default would otherwise be applied to a stored destination
+//  5. A destination is named by ID or name, so it can be checked against the
+//     stored one (upsert cannot change an existing connection's destination)
 func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 	// PUT /connections must carry a source and a destination, each either by ID
 	// or inline. A side the flags do not name (no --*-id, --*-name or --*-type)
@@ -337,7 +347,16 @@ func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 		(cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
 			cu.DestinationDeliveryGroupRatePeriod != "")
 
-	return cu.dryRun ||
+	// A destination named by ID or by name has to be compared with the stored
+	// one: upsert never re-points an existing connection's destination (#466),
+	// and without the comparison the change is dropped while the command reports
+	// success. The lookup also has to happen before an inline destination is
+	// upserted, or a rejected change leaves that destination behind unattached.
+	// The source is not compared: upsert does change it, by ID or by inline name
+	// (verified against the live API).
+	sideNamed := cu.destinationID != "" || cu.destinationName != ""
+
+	return cu.dryRun || sideNamed ||
 		sourceUnnamed || destinationUnnamed ||
 		hasPartialSourceInline || hasPartialDestinationInline ||
 		cliPathDefaultWouldApply || groupsWouldDropOverrides
@@ -354,16 +373,28 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	var isUpdate bool
 
 	if cu.needsExistingConnection() {
-		connections, err := client.ListConnections(context.Background(), map[string]string{
-			"name": name,
-		})
+		candidates, err := client.FindConnectionsByName(context.Background(), name)
 		if err != nil {
 			return fmt.Errorf("failed to check if connection exists: %w", err)
 		}
+		found, sameConnection, err := hookdeck.SelectConnectionForUpsert(candidates, name, cu.sourceID, cu.sourceName)
+		if err != nil {
+			return err
+		}
 
-		if connections != nil && len(connections.Models) > 0 {
-			existing = &connections.Models[0]
+		if found != nil {
+			existing = found
 			isUpdate = true
+
+			// Checked before anything is written, so a rejected change creates no
+			// inline source or destination that nothing then points at. Skipped when
+			// a different source is named: the API treats that as a different
+			// connection with the same name, which may have any destination.
+			if sameConnection {
+				if err := hookdeck.CheckConnectionSidesUnchanged(existing, "", "", cu.destinationID, cu.destinationName); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -556,7 +587,15 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	if err != nil {
 		return nil, err
 	}
-	if len(rules) > 0 {
+	// Keyed off whether --rules or --rules-file was given rather than whether it
+	// produced any rules, so an explicit empty array reaches the API and clears
+	// the ruleset, as it does for `connection update` (#472).
+	if cu.Rules != "" || cu.RulesFile != "" {
+		if rules == nil {
+			rules = []hookdeck.Rule{}
+		}
+		req.Rules = &rules
+	} else if len(rules) > 0 {
 		req.Rules = &rules
 	}
 
@@ -742,7 +781,10 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		}
 
 		// Check rules changes
-		if req.Rules != nil && len(*req.Rules) > 0 {
+		if req.Rules != nil && len(*req.Rules) == 0 {
+			changes++
+			fmt.Printf("  • Rules: will be cleared (%d rules → none)\n", len(existing.Rules))
+		} else if req.Rules != nil {
 			changes++
 			rulesJSON, _ := json.MarshalIndent(req.Rules, "    ", "  ")
 			fmt.Printf("  • Rules:\n")
@@ -761,7 +803,7 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		if req.DestinationID == nil && req.Destination == nil && existing.Destination != nil {
 			fmt.Printf("  • Destination: %s (unchanged)\n", existing.Destination.Name)
 		}
-		if (req.Rules == nil || len(*req.Rules) == 0) && len(existing.Rules) > 0 {
+		if req.Rules == nil && len(existing.Rules) > 0 {
 			fmt.Printf("  • Rules: %d rules (unchanged)\n", len(existing.Rules))
 		}
 	} else {

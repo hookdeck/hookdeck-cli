@@ -214,8 +214,9 @@ func TestConnectionsUpdateSendsAnExplicitlyEmptyRuleset(t *testing.T) {
 // Upsert keys on the name, so it goes to the collection rather than to an id,
 // and a POST here would create a duplicate on every call.
 func TestConnectionsUpsertIsAPutToTheCollection(t *testing.T) {
-	var got wireRequest
+	var got, lookup wireRequest
 	session := writeSession(t, map[string]http.HandlerFunc{
+		"GET /2026-09-01/connections": ok(&lookup, listResponse()),
 		"PUT /2026-09-01/connections": ok(&got, connectionBody()),
 	})
 
@@ -1667,4 +1668,119 @@ func contains(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+// storedConnection is a connection with the sides the guard tests compare
+// against.
+func storedConnection() map[string]any {
+	return map[string]any{
+		"id": "web_1", "name": "stripe-to-backend",
+		"source":      map[string]any{"id": "src_1", "name": "stripe"},
+		"destination": map[string]any{"id": "des_1", "name": "backend"},
+	}
+}
+
+// The API never re-points an existing connection, so a different source_id or
+// destination_id has to be refused before the write rather than dropped and
+// reported as applied (#466). The write handler fails the test if it is hit.
+func TestConnectionsUpsertRejectsAChangedSide(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"destination", map[string]any{"source_id": "src_1", "destination_id": "des_other"}, "destination"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var lookup wireRequest
+			session := writeSession(t, map[string]http.HandlerFunc{
+				"GET /2026-09-01/connections": ok(&lookup, listResponse(storedConnection())),
+				"PUT /2026-09-01/connections": func(w http.ResponseWriter, r *http.Request) {
+					t.Errorf("a rejected change must not reach the API: %s %s", r.Method, r.URL.Path)
+				},
+			})
+			args := map[string]any{"action": "upsert", "name": "stripe-to-backend"}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+
+			result := callTool(t, session, "gateway_connections_write", args)
+
+			require.True(t, result.IsError)
+			assert.Contains(t, textContent(t, result), "cannot be changed")
+			assert.Contains(t, textContent(t, result), tc.want)
+			assert.Contains(t, lookup.query, "name=stripe-to-backend")
+		})
+	}
+}
+
+// Unlike the destination, the API does re-point an existing connection's source
+// on upsert (checked against the live API), so that must not be refused.
+func TestConnectionsUpsertCanChangeTheSource(t *testing.T) {
+	var got, lookup wireRequest
+	session := writeSession(t, map[string]http.HandlerFunc{
+		"GET /2026-09-01/connections": ok(&lookup, listResponse(storedConnection())),
+		"PUT /2026-09-01/connections": ok(&got, connectionBody()),
+	})
+
+	succeeds(t, session, "gateway_connections_write", map[string]any{
+		"action": "upsert", "name": "stripe-to-backend", "source_id": "src_other", "destination_id": "des_1",
+	})
+
+	assert.Equal(t, "src_other", got.decodeBody(t)["source_id"])
+}
+
+// Negative control: the stored IDs go through.
+func TestConnectionsUpsertAcceptsTheStoredSides(t *testing.T) {
+	var got, lookup wireRequest
+	session := writeSession(t, map[string]http.HandlerFunc{
+		"GET /2026-09-01/connections": ok(&lookup, listResponse(storedConnection())),
+		"PUT /2026-09-01/connections": ok(&got, connectionBody()),
+	})
+
+	succeeds(t, session, "gateway_connections_write", map[string]any{
+		"action": "upsert", "name": "stripe-to-backend", "source_id": "src_1", "destination_id": "des_1",
+	})
+
+	assert.Equal(t, http.MethodPut, got.method)
+}
+
+func TestConnectionsUpdateRejectsAChangedSide(t *testing.T) {
+	for _, key := range []string{"source_id", "destination_id"} {
+		key := key
+		t.Run(key, func(t *testing.T) {
+			session := writeSession(t, map[string]http.HandlerFunc{
+				"GET /2026-09-01/connections/web_1": ok(&wireRequest{}, storedConnection()),
+				"PUT /2026-09-01/connections/web_1": func(w http.ResponseWriter, r *http.Request) {
+					t.Errorf("a rejected change must not reach the API: %s %s", r.Method, r.URL.Path)
+				},
+			})
+
+			result := callTool(t, session, "gateway_connections_write", map[string]any{
+				"action": "update", "id": "web_1", key: "other_id",
+			})
+
+			require.True(t, result.IsError)
+			assert.Contains(t, textContent(t, result), "cannot be changed")
+		})
+	}
+}
+
+// Negative control: stored IDs are accepted and are not sent.
+func TestConnectionsUpdateAcceptsTheStoredSides(t *testing.T) {
+	var got wireRequest
+	session := writeSession(t, map[string]http.HandlerFunc{
+		"GET /2026-09-01/connections/web_1": ok(&wireRequest{}, storedConnection()),
+		"PUT /2026-09-01/connections/web_1": ok(&got, connectionBody()),
+	})
+
+	succeeds(t, session, "gateway_connections_write", map[string]any{
+		"action": "update", "id": "web_1", "source_id": "src_1", "destination_id": "des_1", "description": "d",
+	})
+
+	body := got.decodeBody(t)
+	assert.Equal(t, "d", body["description"])
+	assert.NotContains(t, body, "source_id")
+	assert.NotContains(t, body, "destination_id")
 }
