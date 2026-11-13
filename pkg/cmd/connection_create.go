@@ -152,7 +152,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd.Flags().StringVar(&cc.sourceDescription, "source-description", "", "Source description")
 
 	// Universal source authentication flags
-	cc.cmd.Flags().StringVar(&cc.SourceWebhookSecret, "source-webhook-secret", "", "Webhook secret for source verification (e.g., Stripe)")
+	cc.cmd.Flags().StringVar(&cc.SourceWebhookSecret, "source-webhook-secret", "", "Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only")
 	cc.cmd.Flags().StringVar(&cc.SourceAPIKey, "source-api-key", "", "API key for source authentication")
 	cc.cmd.Flags().StringVar(&cc.SourceBasicAuthUser, "source-basic-auth-user", "", "Username for Basic authentication")
 	cc.cmd.Flags().StringVar(&cc.SourceBasicAuthPass, "source-basic-auth-pass", "", "Password for Basic authentication")
