@@ -43,6 +43,9 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	connection already uses, the command fails before changing anything.
 	Settings of the current source and destination can still be updated.
 
+	Rules are replaced as a whole when --rules or --rules-file is given, and
+	left alone otherwise. Pass --rules '[]' to remove all rules.
+
 	Use --dry-run to preview changes without applying them.
 
 	` + LongSourceAuthType("--source-config") + `
@@ -575,7 +578,15 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	if err != nil {
 		return nil, err
 	}
-	if len(rules) > 0 {
+	// Keyed off whether --rules or --rules-file was given rather than whether it
+	// produced any rules, so an explicit empty array reaches the API and clears
+	// the ruleset, as it does for `connection update` (#472).
+	if cu.Rules != "" || cu.RulesFile != "" {
+		if rules == nil {
+			rules = []hookdeck.Rule{}
+		}
+		req.Rules = &rules
+	} else if len(rules) > 0 {
 		req.Rules = &rules
 	}
 
@@ -761,7 +772,10 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		}
 
 		// Check rules changes
-		if req.Rules != nil && len(*req.Rules) > 0 {
+		if req.Rules != nil && len(*req.Rules) == 0 {
+			changes++
+			fmt.Printf("  • Rules: will be cleared (%d rules → none)\n", len(existing.Rules))
+		} else if req.Rules != nil {
 			changes++
 			rulesJSON, _ := json.MarshalIndent(req.Rules, "    ", "  ")
 			fmt.Printf("  • Rules:\n")
@@ -780,7 +794,7 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		if req.DestinationID == nil && req.Destination == nil && existing.Destination != nil {
 			fmt.Printf("  • Destination: %s (unchanged)\n", existing.Destination.Name)
 		}
-		if (req.Rules == nil || len(*req.Rules) == 0) && len(existing.Rules) > 0 {
+		if req.Rules == nil && len(existing.Rules) > 0 {
 			fmt.Printf("  • Rules: %d rules (unchanged)\n", len(existing.Rules))
 		}
 	} else {
