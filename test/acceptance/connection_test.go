@@ -3036,3 +3036,90 @@ func TestConnectionDeleteWithoutForceFailsNonInteractively(t *testing.T) {
 	require.NoError(t, cli.RunJSON(&check, "gateway", "connection", "get", connID))
 	assert.Equal(t, connID, check.ID, "connection must not have been deleted")
 }
+
+// connectionSourceAuthType returns the source's config.auth_type for a connection.
+func connectionSourceAuthType(t *testing.T, cli *CLIRunner, connID string) string {
+	t.Helper()
+	var resp map[string]interface{}
+	require.NoError(t, cli.RunJSON(&resp, "gateway", "connection", "get", connID, "--include-source-auth"))
+	source, ok := resp["source"].(map[string]interface{})
+	require.True(t, ok, "connection response must include source")
+	config, ok := source["config"].(map[string]interface{})
+	require.True(t, ok, "source must include config")
+	authType, _ := config["auth_type"].(string)
+	return authType
+}
+
+// TestConnectionUpsertWebhookSourceAuthFlags covers --source-* auth flags on a WEBHOOK source.
+// The API rejects config.auth on WEBHOOK without config.auth_type ("source.config.auth is not
+// allowed"), so the CLI must send it - on create, and on a partial update of an existing
+// connection, where the stored auth_type comes back without the credentials.
+func TestConnectionUpsertWebhookSourceAuthFlags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+	connName := "test-webhook-auth-conn-" + timestamp
+
+	var conn Connection
+	err := cli.RunJSON(&conn, "gateway", "connection", "upsert", connName,
+		"--source-name", "test-webhook-auth-src-"+timestamp,
+		"--source-type", "WEBHOOK",
+		"--source-api-key", "test_key_abc123",
+		"--destination-name", "test-webhook-auth-dst-"+timestamp,
+		"--destination-type", "HTTP",
+		"--destination-url", "https://api.example.com/webhook")
+	require.NoError(t, err, "WEBHOOK source with --source-api-key should be accepted")
+	require.NotEmpty(t, conn.ID)
+	t.Cleanup(func() { deleteConnection(t, cli, conn.ID) })
+	assert.Equal(t, "API_KEY", connectionSourceAuthType(t, cli, conn.ID))
+
+	// Partial update: only source auth flags, no --source-name/--source-type.
+	err = cli.RunJSON(&conn, "gateway", "connection", "upsert", connName,
+		"--source-basic-auth-user", "user", "--source-basic-auth-pass", "pass")
+	require.NoError(t, err, "switching the source's auth method on an existing connection should be accepted")
+	assert.Equal(t, "BASIC_AUTH", connectionSourceAuthType(t, cli, conn.ID))
+
+	// Partial update of a non-auth field keeps the stored method.
+	err = cli.RunJSON(&conn, "gateway", "connection", "upsert", connName,
+		"--source-allowed-http-methods", "POST,PUT")
+	require.NoError(t, err, "a non-auth source update on an authenticated source should be accepted")
+	assert.Equal(t, "BASIC_AUTH", connectionSourceAuthType(t, cli, conn.ID))
+}
+
+// TestConnectionRetryResponseStatusCodeExpressions verifies --rule-retry-response-status-codes
+// accepts the API's expressions (ranges, exclusions), not only integer codes.
+func TestConnectionRetryResponseStatusCodeExpressions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping acceptance test in short mode")
+	}
+
+	cli := NewCLIRunner(t)
+	timestamp := generateTimestamp()
+
+	var conn Connection
+	err := cli.RunJSON(&conn, "gateway", "connection", "create",
+		"--name", "test-retry-expr-"+timestamp,
+		"--source-name", "test-retry-expr-src-"+timestamp,
+		"--source-type", "WEBHOOK",
+		"--destination-name", "test-retry-expr-dst-"+timestamp,
+		"--destination-type", "HTTP",
+		"--destination-url", "https://api.example.com/webhook",
+		"--rule-retry-strategy", "linear",
+		"--rule-retry-count", "3",
+		"--rule-retry-interval", "5000",
+		"--rule-retry-response-status-codes", "429,500-599,!501")
+	require.NoError(t, err, "retry status code expressions should be accepted")
+	require.NotEmpty(t, conn.ID)
+	t.Cleanup(func() { deleteConnection(t, cli, conn.ID) })
+
+	for _, rule := range conn.Rules {
+		if rule["type"] == "retry" {
+			assertResponseStatusCodesMatch(t, rule["response_status_codes"], "429", "500-599", "!501")
+			return
+		}
+	}
+	t.Fatal("expected a retry rule")
+}

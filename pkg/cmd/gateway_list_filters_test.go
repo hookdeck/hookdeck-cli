@@ -26,6 +26,16 @@ import (
 // filter, because the answer looks right.
 func captureListQuery(t *testing.T, args ...string) url.Values {
 	t.Helper()
+	got, err := runListQuery(t, args...)
+	require.NoError(t, err)
+	require.NotNil(t, got, "the command made no list request")
+	return got
+}
+
+// runListQuery is captureListQuery for a command that may fail: it returns the
+// error and the query sent, which is nil when no list request was made.
+func runListQuery(t *testing.T, args ...string) (url.Values, error) {
+	t.Helper()
 
 	var got url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,9 +70,8 @@ func captureListQuery(t *testing.T, args ...string) url.Values {
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 
-	require.NoError(t, root.Execute())
-	require.NotNil(t, got, "the command made no list request")
-	return got
+	err := root.Execute()
+	return got, err
 }
 
 func TestEventListSendsNewFilters(t *testing.T) {
@@ -128,13 +137,16 @@ func TestListFiltersAreOmittedWhenUnset(t *testing.T) {
 // forgot, which is how they would get added — this pins the omission as
 // intentional. The MCP side is pinned by
 // TestPluralToolsOmitParametersHiddenFromTheAPIDocs.
+//
+// include is not in this list: the API documents it on these endpoints, and
+// the CLI offers it as --include; see TestListIncludeData.
 func TestListCommandsOmitFlagsHiddenFromTheAPIDocs(t *testing.T) {
 	root := &cobra.Command{Use: "hookdeck"}
 	root.AddCommand(newGatewayCmd().cmd)
 
 	cases := map[string][]string{
-		"event":   {"bulk-retry-id", "include", "progressive", "event-data-id", "cli-user-id"},
-		"request": {"bulk-retry-id", "include", "progressive"},
+		"event":   {"bulk-retry-id", "progressive", "event-data-id", "cli-user-id"},
+		"request": {"bulk-retry-id", "progressive"},
 	}
 
 	for resource, hidden := range cases {
@@ -148,6 +160,40 @@ func TestListCommandsOmitFlagsHiddenFromTheAPIDocs(t *testing.T) {
 					"gateway %s list must not offer --%s: it carries x-docs-hide in the API spec",
 					resource, name)
 			}
+		})
+	}
+}
+
+// TestListIncludeData covers --include on both list commands, which share
+// applyIncludeData but each call it separately, so each is tested.
+func TestListIncludeData(t *testing.T) {
+	for _, resource := range []string{"event", "request"} {
+		t.Run(resource+" sends include and the smaller default limit", func(t *testing.T) {
+			query := captureListQuery(t, "gateway", resource, "list", "--include", "data", "--output", "json")
+			assert.Equal(t, "data", query.Get("include"))
+			assert.Equal(t, "10", query.Get("limit"),
+				"a page of payloads must not default to 100")
+		})
+
+		t.Run(resource+" honours an explicit limit", func(t *testing.T) {
+			query := captureListQuery(t, "gateway", resource, "list", "--include", "data", "--output", "json", "--limit", "50")
+			assert.Equal(t, "data", query.Get("include"))
+			assert.Equal(t, "50", query.Get("limit"))
+		})
+
+		t.Run(resource+" without include is unchanged", func(t *testing.T) {
+			query := captureListQuery(t, "gateway", resource, "list")
+			assert.NotContains(t, query, "include")
+			assert.Equal(t, "100", query.Get("limit"))
+		})
+
+		// The list output prints IDs and a summary line, so payloads fetched
+		// for it would be thrown away. Refused before any request is made.
+		t.Run(resource+" refuses include without --output json", func(t *testing.T) {
+			query, err := runListQuery(t, "gateway", resource, "list", "--include", "data")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "--output json")
+			assert.Nil(t, query, "no list request should be made")
 		})
 	}
 }

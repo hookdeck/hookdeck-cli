@@ -29,6 +29,7 @@ type requestListCmd struct {
 	path           string
 	parsedQuery    string
 	searchTerm     string
+	include        string
 	eventsCount    string
 	ignoredCount   string
 	cliEventsCount string
@@ -53,11 +54,15 @@ Use --search-term to find a complete value across the body, headers, parsed quer
 at once. --events-count 0 finds requests that produced no events, which is the usual reason a
 webhook appears to have gone missing.
 
+Use --include=data with --output=json to get each request's payload in the results, instead of
+fetching requests one at a time. Without --limit, the limit is then 10 instead of 100.
+
 Examples:
   hookdeck gateway request list
   hookdeck gateway request list --source-id src_abc123 --limit 20
   hookdeck gateway request list --search-term cus_1234
-  hookdeck gateway request list --events-count 0`,
+  hookdeck gateway request list --events-count 0
+  hookdeck gateway request list --source-id src_abc123 --include data --output json`,
 		RunE: rc.runRequestListCmd,
 	}
 
@@ -78,6 +83,7 @@ Examples:
 	rc.cmd.Flags().StringVar(&rc.eventsCount, "events-count", "", "Filter by number of events produced. A whole number, e.g. 0 for requests that produced none")
 	rc.cmd.Flags().StringVar(&rc.ignoredCount, "ignored-count", "", "Filter by number of ignored events. A whole number")
 	rc.cmd.Flags().StringVar(&rc.cliEventsCount, "cli-events-count", "", "Filter by number of CLI events. A whole number")
+	rc.cmd.Flags().StringVar(&rc.include, "include", "", includeFlagUsage("request"))
 	rc.cmd.Flags().StringVar(&rc.orderBy, "order-by", "", "Sort key (e.g. created_at)")
 	rc.cmd.Flags().StringVar(&rc.dir, "dir", "", "Sort direction (asc, desc)")
 	rc.cmd.Flags().IntVar(&rc.limit, "limit", 100, "Limit number of results")
@@ -160,7 +166,11 @@ func (rc *requestListCmd) runRequestListCmd(cmd *cobra.Command, args []string) e
 	if rc.dir != "" {
 		params["dir"] = rc.dir
 	}
-	params["limit"] = strconv.Itoa(rc.limit)
+	limit, err := applyIncludeData(cmd, rc.include, rc.output, rc.limit, params)
+	if err != nil {
+		return err
+	}
+	params["limit"] = strconv.Itoa(limit)
 	if rc.next != "" {
 		params["next"] = rc.next
 	}

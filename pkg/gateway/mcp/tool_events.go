@@ -27,6 +27,8 @@ var eventsSpec = mcpcore.ToolSpec{
 		"List supports the same filters as `hookdeck gateway event list` (metadata, date range, payload search, sort). " +
 		"To act on a specific event you already have an ID for, use " + eventToolName + " (singular). This tool only searches. " +
 		"To see the events one request produced, pass request_id — this tool queries the request's own events route, which takes these same filters. " +
+		"Pass include: \"data\" with action list to get each event's payload (headers, body, path, parsed_query) in the list itself, rather than calling " + eventToolName + " once per event. " +
+		"Payloads make the response much larger, so keep limit small when you include them; without a limit, it defaults to 10. " +
 		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions: eventsActions,
 	Props: map[string]mcpcore.Prop{
@@ -55,6 +57,7 @@ var eventsSpec = mcpcore.ToolSpec{
 		"parsed_query":        {Type: "string", JSONValue: true, Desc: "Filter by parsed query as JSON. " + descJSONFilter},
 		"path":                {Type: "string", Desc: descPathFilter},
 		"search_term":         {Type: "string", Desc: descSearchTerm},
+		"include":             {Type: "string", Enum: []string{"data"}, Desc: descIncludeData("event", eventToolName), Actions: []string{"list"}},
 		"limit":               {Type: "integer", Desc: "Max results", Actions: []string{"list", "list_ignored"}},
 		"order_by":            {Type: "string", Desc: "Sort field"},
 		"dir":                 {Type: "string", Desc: "Sort direction: asc or desc"},
@@ -89,6 +92,20 @@ Payload search:
                 Not a substring: a field holding "pat@example.test" matches that exact string, not "example".
   Example: {"action":"list","body":{"type":"charge.succeeded"}}
   Example: {"action":"list","search_term":"cus_1234"}
+
+Including payloads:
+  By default list returns each event's metadata only. include: "data" adds a data object to every
+  event: the event's own headers, body, path and parsed_query. That is the payload after any
+  transformation the connection applied, so it can differ from the request's; for the inbound
+  payload, list requests with include instead. Use it when you need the payloads of several
+  events, instead of fetching each one with ` + eventToolName + ` get or raw_body: one list call
+  replaces one call per event, which makes the rate limit far less likely to bite.
+  The response grows with every payload, and webhook bodies can be large, so keep limit small and
+  page with next rather than asking for one big page. If you set include without a limit, limit
+  defaults to 10 instead of the API's default page size, so a page of 10 does not mean there are
+  no more: check pagination.next. For a bigger page, pass limit explicitly.
+  Example: {"action":"list","status":"FAILED","include":"data","limit":5}
+  Not available on list_ignored: GET /requests/{id}/ignored_events does not declare include.
 
 Delivery group:
   delivery_group filters by the group an event was delivered in; comma-separate several.
@@ -259,7 +276,8 @@ func eventsListing(ctx context.Context, client *hookdeck.Client, in mcpcore.Inpu
 	mcpcore.SetIfNonEmpty(params, "last_attempt_at[lte]", in.String("last_attempt_before"))
 	mcpcore.SetIfNonEmpty(params, "next_attempt_at[gte]", in.String("next_attempt_after"))
 	mcpcore.SetIfNonEmpty(params, "next_attempt_at[lte]", in.String("next_attempt_before"))
-	mcpcore.SetInt(params, "limit", in.Int("limit", 0))
+	mcpcore.SetIfNonEmpty(params, "include", in.String("include"))
+	mcpcore.SetInt(params, "limit", listLimit(in))
 	mcpcore.SetIfNonEmpty(params, "order_by", in.String("order_by"))
 	mcpcore.SetIfNonEmpty(params, "dir", in.String("dir"))
 	mcpcore.SetIfNonEmpty(params, "next", in.String("next"))

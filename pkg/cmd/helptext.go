@@ -62,3 +62,20 @@ func LongEnableIntro(resource string) string {
 func LongUpsertIntro(resource string) string {
 	return "Create a new " + resource + " or update an existing one by name (idempotent)."
 }
+
+// LongSourceAuthType explains what the source auth flags send and when config.auth_type is set.
+// configFlag is the flag that takes source config JSON ("--config" or "--source-config").
+func LongSourceAuthType(configFlag string) string {
+	return "The auth flags build config.auth from the source type's own verification methods in the API spec. " +
+		"--webhook-secret sends webhook_secret_key; on WEBHOOK and HTTP it adds the HMAC settings those types need " +
+		"(sha256, hex, header x-webhook-signature), and on every other type it sends the secret alone so the " +
+		"provider's own header and algorithm apply. --hmac-secret sends that HMAC shape (with --hmac-algo) wherever the " +
+		"type's method takes an algorithm, and otherwise behaves like --webhook-secret. --api-key sends api_key; WEBHOOK " +
+		"and HTTP also get header x-api-key, while a type that needs its own header name is refused, because no flag " +
+		"sets it: pass config.auth with header_key through " + configFlag + ". " +
+		"Types that offer a choice of method (WEBHOOK, HTTP, GITLAB, GRAFANA and others) also need auth_type; the flags " +
+		"set it to the method they used. A flag no method of the type can express is refused, with the methods the type " +
+		"accepts. When auth comes from " + configFlag + " without auth_type, it is set only if the auth fields fit " +
+		"exactly one method (for example, webhook_secret_key alone is STANDARD_WEBHOOKS on WEBHOOK). " +
+		"Set auth_type in " + configFlag + " to choose the method yourself."
+}

@@ -26,12 +26,22 @@ type Request struct {
 	TeamID              string       `json:"team_id"`
 }
 
-// RequestData holds optional request snapshot
+// RequestData is the payload on a request (the spec's ShortEventData),
+// returned by GET /requests with include=data and on a single request.
+//
+// headers and parsed_query are typed `any` for the reason given on EventData:
+// the spec allows a string or an object, and one record in the string form
+// would otherwise fail a whole page. body_format is left out because it
+// carries x-docs-hide.
 type RequestData struct {
-	Headers     map[string]interface{} `json:"headers,omitempty"`
-	Body        interface{}            `json:"body,omitempty"`
-	Path        string                 `json:"path,omitempty"`
-	ParsedQuery map[string]interface{} `json:"parsed_query,omitempty"`
+	Headers     interface{} `json:"headers,omitempty"`
+	Body        interface{} `json:"body,omitempty"`
+	Path        string      `json:"path,omitempty"`
+	Query       *string     `json:"query,omitempty"`
+	ParsedQuery interface{} `json:"parsed_query,omitempty"`
+	// IsLargePayload is the API's flag for a payload it considers large and
+	// does not index for search.
+	IsLargePayload *bool `json:"is_large_payload,omitempty"`
 }
 
 // RequestListResponse is the response from listing requests

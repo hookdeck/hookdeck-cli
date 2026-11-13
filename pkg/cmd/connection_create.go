@@ -114,6 +114,8 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 		Long: `Create a connection between a source and destination.
 	
 	You can either reference existing resources by ID or create them inline.
+
+	` + LongSourceAuthType("--source-config") + `
 	
 	Examples:
 		 # Create with inline source and destination
@@ -150,7 +152,7 @@ func newConnectionCreateCmd() *connectionCreateCmd {
 	cc.cmd.Flags().StringVar(&cc.sourceDescription, "source-description", "", "Source description")
 
 	// Universal source authentication flags
-	cc.cmd.Flags().StringVar(&cc.SourceWebhookSecret, "source-webhook-secret", "", "Webhook secret for source verification (e.g., Stripe)")
+	cc.cmd.Flags().StringVar(&cc.SourceWebhookSecret, "source-webhook-secret", "", "Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only")
 	cc.cmd.Flags().StringVar(&cc.SourceAPIKey, "source-api-key", "", "API key for source authentication")
 	cc.cmd.Flags().StringVar(&cc.SourceBasicAuthUser, "source-basic-auth-user", "", "Username for Basic authentication")
 	cc.cmd.Flags().StringVar(&cc.SourceBasicAuthPass, "source-basic-auth-pass", "", "Password for Basic authentication")
@@ -530,10 +532,12 @@ func (cc *connectionCreateCmd) buildSourceInput() (*hookdeck.SourceCreateInput, 
 		return nil, fmt.Errorf("error building source config: %w", err)
 	}
 
+	// The API rejects an empty source.type, so a source given only --source-name (possible with
+	// upsert of a new connection) is sent as WEBHOOK, the type its config was built for.
 	return &hookdeck.SourceCreateInput{
 		Name:        cc.sourceName,
 		Description: description,
-		Type:        strings.ToUpper(cc.sourceType),
+		Type:        strings.ToUpper(sourceTypeOrAPIDefault(cc.sourceType)),
 		Config:      sourceConfig,
 	}, nil
 }
@@ -788,15 +792,25 @@ func (cc *connectionCreateCmd) buildAuthConfig() (map[string]interface{}, error)
 	return authConfig, nil
 }
 
+// buildSourceConfig builds config for the inline source. An omitted --source-type is built as
+// the type the API applies to a new source (WEBHOOK).
 func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, error) {
+	return cc.buildSourceConfigForType(sourceTypeOrAPIDefault(cc.sourceType))
+}
+
+// buildSourceConfigForType builds source config from --source-config, --source-config-file or
+// the individual --source-* flags, shaped for sourceType.
+func (cc *connectionCreateCmd) buildSourceConfigForType(sourceType string) (map[string]interface{}, error) {
 	// Handle JSON config first (same precedence as source commands)
 	if cc.SourceConfig != "" {
 		var config map[string]interface{}
 		if err := json.Unmarshal([]byte(cc.SourceConfig), &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config: %w", err)
 		}
-		normalizeSourceConfigAuth(config, cc.sourceType)
-		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
+		if err := normalizeSourceConfigAuth(config, sourceType); err != nil {
+			return nil, err
+		}
+		ensureSourceConfigAuthType(config, sourceType)
 		return config, nil
 	}
 	if cc.SourceConfigFile != "" {
@@ -808,8 +822,10 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 		if err := json.Unmarshal(data, &config); err != nil {
 			return nil, fmt.Errorf("invalid JSON in --source-config-file: %w", err)
 		}
-		normalizeSourceConfigAuth(config, cc.sourceType)
-		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
+		if err := normalizeSourceConfigAuth(config, sourceType); err != nil {
+			return nil, err
+		}
+		ensureSourceConfigAuthType(config, sourceType)
 		return config, nil
 	}
 	// Build from individual --source-* flags using shared logic
@@ -824,12 +840,9 @@ func (cc *connectionCreateCmd) buildSourceConfig() (map[string]interface{}, erro
 		CustomResponseBody: cc.SourceCustomResponseBody,
 		CustomResponseType: cc.SourceCustomResponseType,
 	}
-	config, err := buildSourceConfigFromIndividualFlags(f, "source-", cc.sourceType)
+	config, err := buildSourceConfigFromIndividualFlags(f, "source-", sourceType)
 	if err != nil {
 		return nil, err
-	}
-	if config != nil {
-		ensureSourceConfigAuthTypeForHTTP(config, cc.sourceType)
 	}
 	if len(config) == 0 {
 		return make(map[string]interface{}), nil

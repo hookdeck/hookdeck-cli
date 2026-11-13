@@ -32,12 +32,26 @@ type Event struct {
 	TeamID         string     `json:"team_id"`
 }
 
-// EventData holds optional request snapshot on the event
+// EventData is the payload on an event, returned by GET /events with
+// include=data and on a single event.
+//
+// headers and parsed_query are typed `any` because the spec allows each to be
+// an object or a string. A map field would fail to decode the string form, and
+// on a list that one record would fail the whole page. body_format is left out
+// because it carries x-docs-hide.
 type EventData struct {
-	Headers     map[string]interface{} `json:"headers,omitempty"`
-	Body        interface{}            `json:"body,omitempty"`
-	Path        string                 `json:"path,omitempty"`
-	ParsedQuery map[string]interface{} `json:"parsed_query,omitempty"`
+	URL             string      `json:"url,omitempty"`
+	Method          string      `json:"method,omitempty"`
+	Headers         interface{} `json:"headers,omitempty"`
+	AppendedHeaders []string    `json:"appended_headers,omitempty"`
+	Body            interface{} `json:"body,omitempty"`
+	Path            string      `json:"path,omitempty"`
+	Query           *string     `json:"query,omitempty"`
+	ParsedQuery     interface{} `json:"parsed_query,omitempty"`
+	// IsLargePayload is the API's flag for a payload it considers large and
+	// does not index for search. Kept so callers see it rather than having it
+	// dropped in decoding.
+	IsLargePayload *bool `json:"is_large_payload,omitempty"`
 }
 
 // EventListResponse is the response from listing events

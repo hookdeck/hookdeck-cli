@@ -39,6 +39,7 @@ type eventListCmd struct {
 	path              string
 	parsedQuery       string
 	searchTerm        string
+	include           string
 	orderBy           string
 	dir               string
 	limit             int
@@ -59,12 +60,16 @@ func newEventListCmd() *eventListCmd {
 Use --search-term to find a complete value across the body, headers, parsed query or path
 at once, when you know the value but not which field carries it.
 
+Use --include=data with --output=json to get each event's payload in the results, instead of
+fetching events one at a time. Without --limit, the limit is then 10 instead of 100.
+
 Examples:
   hookdeck gateway event list
   hookdeck gateway event list --connection-id web_abc123
   hookdeck gateway event list --status FAILED --limit 20
   hookdeck gateway event list --search-term cus_1234
-  hookdeck gateway event list --status QUEUED --next-attempt-at-before 2026-01-01T00:00:00Z`,
+  hookdeck gateway event list --status QUEUED --next-attempt-at-before 2026-01-01T00:00:00Z
+  hookdeck gateway event list --status FAILED --include data --output json`,
 		RunE: ec.runEventListCmd,
 	}
 
@@ -92,6 +97,7 @@ Examples:
 	ec.cmd.Flags().StringVar(&ec.path, "path", "", "Filter by path")
 	ec.cmd.Flags().StringVar(&ec.parsedQuery, "parsed-query", "", "Filter by parsed query (JSON string)")
 	ec.cmd.Flags().StringVar(&ec.searchTerm, "search-term", "", "Match a whole value in body, headers, parsed query or path. Not a substring (min 3 characters)")
+	ec.cmd.Flags().StringVar(&ec.include, "include", "", includeFlagUsage("event"))
 	ec.cmd.Flags().StringVar(&ec.orderBy, "order-by", "", "Sort key (e.g. created_at)")
 	ec.cmd.Flags().StringVar(&ec.dir, "dir", "", "Sort direction (asc, desc)")
 	ec.cmd.Flags().IntVar(&ec.limit, "limit", 100, "Limit number of results")
@@ -197,7 +203,11 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	if ec.dir != "" {
 		params["dir"] = ec.dir
 	}
-	params["limit"] = strconv.Itoa(ec.limit)
+	limit, err := applyIncludeData(cmd, ec.include, ec.output, ec.limit, params)
+	if err != nil {
+		return err
+	}
+	params["limit"] = strconv.Itoa(limit)
 	if ec.next != "" {
 		params["next"] = ec.next
 	}
