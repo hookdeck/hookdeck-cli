@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -139,4 +141,130 @@ func runRequestEventsAgainst(t *testing.T, server *httptest.Server, rc *requestE
 	Config.Profile.ProjectId = "proj_1"
 
 	return rc.runRequestEventsCmd(rc.cmd, []string{requestID})
+}
+
+// TestRequestEventsIncludeData: GET /requests/{id}/events declares include, so
+// this command offers it the way event list does, with the same smaller
+// default limit and the same refusal without --output json. It calls
+// applyIncludeData separately from the two list commands, so it is tested
+// separately.
+func TestRequestEventsIncludeData(t *testing.T) {
+	cases := []struct {
+		name      string
+		flags     map[string]string
+		wantLimit string
+	}{
+		{"default limit drops to 10", map[string]string{"include": "data", "output": "json"}, "10"},
+		{"explicit limit is honoured", map[string]string{"include": "data", "output": "json", "limit": "50"}, "50"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var query url.Values
+			var path string
+			server := requestEventsStub(t, &path, &query)
+
+			rc := newRequestEventsCmd()
+			for name, value := range tc.flags {
+				require.NoError(t, rc.cmd.Flags().Set(name, value))
+			}
+			require.NoError(t, runRequestEventsAgainst(t, server, rc, "req_1"))
+
+			assert.Equal(t, "data", query.Get("include"))
+			assert.Equal(t, tc.wantLimit, query.Get("limit"))
+		})
+	}
+
+	t.Run("refused without --output json", func(t *testing.T) {
+		var query url.Values
+		var path string
+		server := requestEventsStub(t, &path, &query)
+
+		rc := newRequestEventsCmd()
+		require.NoError(t, rc.cmd.Flags().Set("include", "data"))
+		err := runRequestEventsAgainst(t, server, rc, "req_1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--output json")
+		assert.Empty(t, path, "no request should be made")
+	})
+
+	// The negative control: without --include, nothing changes. Without it, a
+	// regression that sent include on every call would pass every case above.
+	t.Run("without include nothing changes", func(t *testing.T) {
+		var query url.Values
+		var path string
+		server := requestEventsStub(t, &path, &query)
+
+		rc := newRequestEventsCmd()
+		require.NoError(t, runRequestEventsAgainst(t, server, rc, "req_1"))
+
+		assert.NotContains(t, query, "include")
+		assert.Equal(t, "100", query.Get("limit"))
+	})
+}
+
+// TestRequestEventsPointsAtTheNextPage: the output of this command carries no
+// pagination cursor, so a page the API cut short looks complete. The note is
+// driven by the API's own next cursor, not by guessing from the page size: a
+// full page with no next cursor is complete and gets no note. It goes to
+// stderr so the JSON on stdout stays parseable, and it applies with or without
+// --include.
+func TestRequestEventsPointsAtTheNextPage(t *testing.T) {
+	cursor := "cur_next_page"
+	cases := []struct {
+		name     string
+		returned int
+		next     *string
+		flags    map[string]string
+		wantNote bool
+	}{
+		{"include, more pages", 10, &cursor, map[string]string{"include": "data", "output": "json"}, true},
+		{"no include, more pages", 3, &cursor, map[string]string{"output": "json"}, true},
+		{"full page, no more", 10, nil, map[string]string{"include": "data", "output": "json"}, false},
+		{"short page, no more", 3, nil, map[string]string{"output": "json"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			models := make([]hookdeck.Event, tc.returned)
+			for i := range models {
+				models[i] = hookdeck.Event{ID: "evt_" + strconv.Itoa(i)}
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(hookdeck.EventListResponse{
+					Models:     models,
+					Pagination: hookdeck.PaginationResponse{Limit: tc.returned, Next: tc.next},
+				})
+			}))
+			t.Cleanup(server.Close)
+
+			rc := newRequestEventsCmd()
+			for name, value := range tc.flags {
+				require.NoError(t, rc.cmd.Flags().Set(name, value))
+			}
+
+			oldStdout, oldStderr := os.Stdout, os.Stderr
+			// Restore even if a require below fails, so later tests do not
+			// write into closed pipes.
+			t.Cleanup(func() { os.Stdout, os.Stderr = oldStdout, oldStderr })
+			rOut, wOut, err := os.Pipe()
+			require.NoError(t, err)
+			rErr, wErr, err := os.Pipe()
+			require.NoError(t, err)
+			os.Stdout, os.Stderr = wOut, wErr
+			runErr := runRequestEventsAgainst(t, server, rc, "req_1")
+			os.Stdout, os.Stderr = oldStdout, oldStderr
+			require.NoError(t, wOut.Close())
+			require.NoError(t, wErr.Close())
+			stdout, stderr := drainPipe(rOut), drainPipe(rErr)
+
+			require.NoError(t, runErr)
+			var printed []hookdeck.Event
+			require.NoError(t, json.Unmarshal([]byte(stdout), &printed), "stdout must stay valid JSON: %s", stdout)
+			if tc.wantNote {
+				assert.Contains(t, stderr, "--next "+cursor, "the note must give the cursor")
+			} else {
+				assert.Empty(t, stderr)
+			}
+		})
+	}
 }

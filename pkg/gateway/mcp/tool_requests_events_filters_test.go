@@ -46,6 +46,7 @@ var eventFilterForwarding = []struct {
 	{"headers", `{"x-trace":"1"}`, "headers", `{"x-trace":"1"}`},
 	{"parsed_query", `{"q":"1"}`, "parsed_query", `{"q":"1"}`},
 	{"path", "/hook", "path", "/hook"},
+	{"include", "data", "include", "data"},
 	{"order_by", "created_at", "order_by", "created_at"},
 	{"dir", "asc", "dir", "asc"},
 	{"limit", float64(5), "limit", "5"},
@@ -116,7 +117,7 @@ func TestEventsIgnoredForwardsOnlyWhatTheRouteDeclares(t *testing.T) {
 // is the house rule — a wrong answer that reads like a right one is the failure
 // this package keeps finding.
 func TestEventsIgnoredRefusesFiltersTheRouteDrops(t *testing.T) {
-	for _, arg := range []string{"status", "source_id", "destination_id", "attempts", "search_term", "created_after"} {
+	for _, arg := range []string{"status", "source_id", "destination_id", "attempts", "search_term", "created_after", "include"} {
 		t.Run(arg, func(t *testing.T) {
 			session := mockAPIWithClient(t, map[string]http.HandlerFunc{
 				hookdeck.APIPathPrefix + "/requests/req_1/ignored_events": func(w http.ResponseWriter, r *http.Request) {
@@ -124,8 +125,14 @@ func TestEventsIgnoredRefusesFiltersTheRouteDrops(t *testing.T) {
 				},
 			})
 			value := any("x")
-			if arg == "created_after" {
+			switch arg {
+			case "created_after":
 				value = "2025-01-01T00:00:00Z"
+			case "include":
+				// The one valid value: anything else is refused by the enum
+				// check first, which would pass this test without exercising
+				// the action scoping it is here for.
+				value = "data"
 			}
 			result := callTool(t, session, eventsToolName, map[string]any{
 				"action": "list_ignored", "request_id": "req_1", arg: value,

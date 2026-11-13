@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -104,6 +105,11 @@ type Client struct {
 	// stateMu: written by Run, read by LastConnectErr from the proxy goroutine.
 	lastConnectErr error
 
+	// accessEndedErr is set when Hookdeck refused this key for good: a connect
+	// answered 401 or 403, or a live connection closed with 4003. Guarded by
+	// stateMu, like lastConnectErr.
+	accessEndedErr *AccessEndedError
+
 	NotifyExpired chan struct{}
 	notifyClose   chan error
 	send          chan *OutgoingMessage
@@ -145,6 +151,20 @@ func (c *Client) LastConnectErr() error {
 func (c *Client) setLastConnectErr(err error) {
 	c.stateMu.Lock()
 	c.lastConnectErr = err
+	c.stateMu.Unlock()
+}
+
+// AccessEndedErr returns why Hookdeck won't let this key connect again, or nil.
+// Retrying can't change the answer, so the caller should stop and show it.
+func (c *Client) AccessEndedErr() *AccessEndedError {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	return c.accessEndedErr
+}
+
+func (c *Client) setAccessEndedErr(err *AccessEndedError) {
+	c.stateMu.Lock()
+	c.accessEndedErr = err
 	c.stateMu.Unlock()
 }
 
@@ -207,11 +227,25 @@ func (c *Client) Run(ctx context.Context) {
 			"prefix": "websocket.client.Run",
 		}).Debug("Disconnected from Hookdeck")
 
-		c.ConnectionLost()
 		close(c.stopReadPump)
 		close(c.stopWritePump)
+		c.closeForReconnect()
+		c.ConnectionLost()
 		c.wg.Wait()
 	}
+}
+
+// closeForReconnect drops the socket without a close frame so the CLI can
+// reconnect. Otherwise the socket stays open until the server's idle check
+// notices it is dead.
+//
+// It must not send a 1000 close like Stop does. The server treats a 1000 close
+// as an intentional shutdown and deletes the session immediately, whereas an
+// abnormal close (1006) keeps the session for the reconnect grace window.
+func (c *Client) closeForReconnect() {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	_ = c.conn.Close()
 }
 
 // ConnectionLost sends NotifyExpired
@@ -285,6 +319,33 @@ func readWSConnectErrorMessage(resp *http.Response) string {
 	return se.InnerError.Message
 }
 
+// AccessEndedError means Hookdeck won't let this CLI key connect again, so
+// retrying can't help: the key was revoked or expired, it can't reach the
+// project any more, or the organization requires MFA the user hasn't set up.
+type AccessEndedError struct {
+	// StatusCode is the HTTP status of the refused connect, or 0 when the server
+	// closed a live connection because the key was revoked.
+	StatusCode int
+	// Message is Hookdeck's explanation, when it sent one.
+	Message string
+}
+
+func (e *AccessEndedError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	switch e.StatusCode {
+	case 0:
+		return "Your CLI key was revoked. Run `hookdeck login` to log in again."
+	case http.StatusUnauthorized:
+		return "This CLI key is no longer valid. Run `hookdeck login` to log in again."
+	default:
+		// A proxy or CDN in front of Hookdeck can answer 403 too, so a refusal
+		// that gave no reason names the status and doesn't blame the key.
+		return fmt.Sprintf("The connection was refused (HTTP %d). This CLI key may not have access to this project, or a proxy or firewall blocked it. Run `hookdeck project use` to pick another project, or `hookdeck login`.", e.StatusCode)
+	}
+}
+
 var unknownIDMessage string = "Unknown WebSocket ID."
 
 // ErrUnknownID can occur when the websocket session is expired or invalid
@@ -339,6 +400,14 @@ func (c *Client) connect(ctx context.Context) error {
 		}).Debug("Websocket connection error")
 		if message == unknownIDMessage {
 			return ErrUnknownID
+		}
+		// 401 and 403 mean the key can't connect: revoked, expired, no access to
+		// the project, or MFA required. Hookdeck answers 503 for anything a retry
+		// could fix.
+		if resp != nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+			accessErr := &AccessEndedError{StatusCode: resp.StatusCode, Message: message}
+			c.setAccessEndedErr(accessErr)
+			return accessErr
 		}
 		return err
 	}
@@ -433,6 +502,13 @@ func (c *Client) readPump() {
 					c.cfg.Log.WithFields(log.Fields{
 						"prefix": "websocket.Client.Close",
 					}).Debug("session expired on server, reconnecting to recreate it: ", err)
+				case closeErr.Code == closeCodeCLIKeyRevoked:
+					// 4003 CLI_KEY_REVOKED: the key was revoked while connected.
+					// Reconnecting would be refused, so the caller stops and says so.
+					c.setAccessEndedErr(&AccessEndedError{})
+					c.cfg.Log.WithFields(log.Fields{
+						"prefix": "websocket.Client.Close",
+					}).Debug("CLI key revoked, not reconnecting: ", err)
 				case closeErr.Code == ws.CloseAbnormalClosure:
 					// 1006: the connection dropped without a close handshake — a network
 					// blip, laptop sleep, load balancer idle timeout, or a pod killed
@@ -454,6 +530,12 @@ func (c *Client) readPump() {
 			}
 
 			return
+		}
+
+		// Any frame proves the connection is alive, so a busy connection
+		// doesn't drop just because a pong arrived late.
+		if err := c.conn.SetReadDeadline(time.Now().Add(c.cfg.PongWait)); err != nil {
+			c.cfg.Log.Debug("SetReadDeadline error: ", err)
 		}
 
 		c.cfg.Log.WithFields(log.Fields{
@@ -576,7 +658,7 @@ func NewClient(url string, webSocketID string, CLIKey string, teamID string, con
 	}
 
 	if cfg.PingPeriod == 0 {
-		cfg.PingPeriod = (cfg.PongWait * 9) / 10
+		cfg.PingPeriod = min(defaultPingPeriod, (cfg.PongWait*9)/10)
 	}
 
 	if cfg.WriteWait == 0 {
@@ -610,7 +692,13 @@ func NewClient(url string, webSocketID string, CLIKey string, teamID string, con
 const (
 	defaultConnectAttemptWait = 10 * time.Second
 
-	defaultPongWait = 10 * time.Second
+	// defaultPongWait leaves room for a few late pongs (slow network, busy
+	// server) before the connection is treated as dead.
+	defaultPongWait = 30 * time.Second
+
+	// defaultPingPeriod stays well under the server's idle check so the server
+	// keeps seeing the connection as alive.
+	defaultPingPeriod = 10 * time.Second
 
 	defaultWriteWait = 10 * time.Second
 
@@ -620,6 +708,10 @@ const (
 	// a ping). Reconnecting with the X-Webhook-Ids / X-Session-Filters headers
 	// recreates the session, so this close code is expected, not an error.
 	closeCodeSessionExpired = 4001
+
+	// closeCodeCLIKeyRevoked (4003) is sent by the server when the CLI key was
+	// revoked while connected. A reconnect would be refused.
+	closeCodeCLIKeyRevoked = 4003
 )
 
 //

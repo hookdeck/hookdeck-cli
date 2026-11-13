@@ -263,6 +263,11 @@ The [`RequireCLIAuthenticationOnce(t)`](helpers.go:268) helper function:
   - Context-based process management
   - Background process handling
 
+- **`listen_access_ended_test.go`** - Listen stopping when access ends
+  - Runs the built binary against the real API, with `--ws-base` pointing the websocket at a local fake server
+  - A refused connect (403, with and without the server's reason) and a 4003 revoke while connected each print the reason once, connect once and exit 1
+  - A 503 keeps reconnecting (the negative control)
+
 - **`project_use_test.go`** - Project use automated tests (CI-compatible)
   - Flag validation tests
   - Helper function tests
