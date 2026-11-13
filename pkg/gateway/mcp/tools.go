@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"strconv"
+
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hookdeck/hookdeck-cli/pkg/config"
@@ -165,6 +167,43 @@ const (
 	// both rejected as "must be one of [number, object, array]".
 	descCountFilter = "A whole number, e.g. 0 to find records that produced none. Comparisons such as \">0\" are not supported here."
 )
+
+// descIncludeData describes include on the events and requests list tools.
+//
+// The API documents include on GET /events, GET /requests and
+// GET /requests/{id}/events. It can return a lot of data, so the description
+// warns about size where the agent chooses the argument. Without it, an agent
+// that needs payloads has to fetch each event by ID, one call per event, and
+// a fast agent can hit the rate limit doing so.
+func descIncludeData(resource, singularTool string) string {
+	return "Set to \"data\" to return each " + resource + "'s payload (headers, body, path, parsed_query) as a data object on every result, " +
+		"instead of fetching each one with " + singularTool + ". " +
+		"Responses grow with every payload and webhook bodies can be large: keep limit small and page with next. " +
+		"When include is set and limit is not, limit defaults to " + strconv.Itoa(includeDataDefaultLimit) + " rather than the API's default page size, " +
+		"so a page of " + strconv.Itoa(includeDataDefaultLimit) + " does not mean there are no more: check pagination.next. " +
+		"For a bigger page, pass limit explicitly. " +
+		"Omit include when IDs and metadata are enough."
+}
+
+// includeDataDefaultLimit is the page size sent when a list asks for payloads
+// without saying how many.
+//
+// The warning in descIncludeData is advice; this is the backstop. Left to the
+// API's default page size, {"action":"list","include":"data"} returns a full
+// page of payloads, which can fill an agent's context in one call. An explicit
+// limit is honoured as given: an agent that asks for more has chosen to.
+const includeDataDefaultLimit = 10
+
+// listLimit returns the limit to send for a list action, applying
+// includeDataDefaultLimit when payloads are requested and no limit was given.
+// A limit of 0 or less is treated as not given, as SetInt already does.
+func listLimit(in mcpcore.Input) int {
+	limit := in.Int("limit", 0)
+	if limit <= 0 && in.String("include") != "" {
+		return includeDataDefaultLimit
+	}
+	return limit
+}
 
 // measures, dimensions and status decide whether a metrics call succeeds, and
 // each of the four actions has its own vocabulary. One flat schema cannot carry

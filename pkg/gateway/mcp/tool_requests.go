@@ -23,6 +23,8 @@ var requestsSpec = mcpcore.ToolSpec{
 	Summary: "SEARCH MANY requests — plural, collection only. Find inbound requests (raw HTTP data received by Hookdeck before routing) matching filters and get back their IDs. " +
 		"List supports the same filters as `hookdeck gateway request list` (metadata, date range, payload search, sort). " +
 		"To act on a specific request you already have an ID for, use " + requestToolName + " (singular). This tool only searches. " +
+		"Pass include: \"data\" with action list to get each request's payload (headers, body, path, parsed_query) in the list itself, rather than calling " + requestToolName + " once per request. " +
+		"Payloads make the response much larger, so keep limit small when you include them; without a limit, it defaults to 10. " +
 		"There is no event_id filter here: to go from an event to its request, read request_id off the event and call " + requestToolName + " with action get. " +
 		"Results are scoped to the active project — call the projects tool first if the user has specified a project.",
 	Actions: requestsActions,
@@ -48,6 +50,7 @@ var requestsSpec = mcpcore.ToolSpec{
 		"cli_events_count": {Type: "string", Desc: "Filter by count of events delivered to a CLI listen session. " + descCountFilter},
 		"order_by":         {Type: "string", Desc: "Sort field, e.g. created_at"},
 		"dir":              {Type: "string", Desc: "Sort direction: asc or desc"},
+		"include":          {Type: "string", Enum: []string{"data"}, Desc: descIncludeData("request", requestToolName), Actions: []string{"list"}},
 		"limit":            {Type: "integer", Desc: "Max results", Actions: []string{"list"}},
 		"next":             {Type: "string", Desc: "Next page cursor", Actions: []string{"list"}},
 		"prev":             {Type: "string", Desc: "Previous page cursor", Actions: []string{"list"}},
@@ -80,6 +83,16 @@ Count filters:
   A request that produced no events is the usual reason a webhook "went missing":
   {"action":"list","events_count":"0"} finds requests that matched no connection, and
   {"action":"list","ignored_count":"1"} finds ones a connection filter dropped an event from.
+
+Including payloads:
+  By default list returns each request's metadata only. include: "data" adds a data object to every
+  request: its headers, body, path and parsed_query. Use it when you need the payloads of several
+  requests, instead of fetching each one with ` + requestToolName + ` get or raw_body.
+  The response grows with every payload, and webhook bodies can be large, so keep limit small and
+  page with next rather than asking for one big page. If you set include without a limit, limit
+  defaults to 10 instead of the API's default page size, so a page of 10 does not mean there are
+  no more: check pagination.next. For a bigger page, pass limit explicitly.
+  Example: {"action":"list","status":"rejected","include":"data","limit":5}
 
 Requests and events:
   The API offers one traversal direction only. Requests cannot be filtered by event_id — there is
@@ -155,7 +168,8 @@ func requestsList(ctx context.Context, client *hookdeck.Client, in mcpcore.Input
 	mcpcore.SetIfNonEmpty(params, "created_at[lte]", in.String("created_before"))
 	mcpcore.SetIfNonEmpty(params, "ingested_at[gte]", in.String("ingested_after"))
 	mcpcore.SetIfNonEmpty(params, "ingested_at[lte]", in.String("ingested_before"))
-	mcpcore.SetInt(params, "limit", in.Int("limit", 0))
+	mcpcore.SetIfNonEmpty(params, "include", in.String("include"))
+	mcpcore.SetInt(params, "limit", listLimit(in))
 	mcpcore.SetIfNonEmpty(params, "order_by", in.String("order_by"))
 	mcpcore.SetIfNonEmpty(params, "dir", in.String("dir"))
 	mcpcore.SetIfNonEmpty(params, "next", in.String("next"))
