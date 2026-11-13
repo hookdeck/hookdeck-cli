@@ -95,6 +95,19 @@ func (c *Client) ListConnections(ctx context.Context, params map[string]string) 
 // the connection the caller named, and an upsert would then update the wrong
 // one, so the name is compared again here.
 func (c *Client) FindConnectionByName(ctx context.Context, name string) (*Connection, error) {
+	matches, err := c.FindConnectionsByName(ctx, name)
+	if err != nil || len(matches) == 0 {
+		return nil, err
+	}
+	return &matches[0], nil
+}
+
+// FindConnectionsByName returns every connection whose name is exactly name.
+//
+// More than one can match: a connection name is only unique per source, so the
+// same name under two sources is two connections. Use SelectConnectionForUpsert
+// to pick the one an upsert refers to.
+func (c *Client) FindConnectionsByName(ctx context.Context, name string) ([]Connection, error) {
 	result, err := c.ListConnections(ctx, map[string]string{"name": name})
 	if err != nil {
 		return nil, err
@@ -102,12 +115,13 @@ func (c *Client) FindConnectionByName(ctx context.Context, name string) (*Connec
 	if result == nil {
 		return nil, nil
 	}
-	for i := range result.Models {
-		if m := result.Models[i]; m.Name != nil && *m.Name == name {
-			return &result.Models[i], nil
+	var matches []Connection
+	for _, m := range result.Models {
+		if m.Name != nil && *m.Name == name {
+			matches = append(matches, m)
 		}
 	}
-	return nil, nil
+	return matches, nil
 }
 
 // GetConnection retrieves a single connection by ID

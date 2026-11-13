@@ -38,10 +38,10 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 		 - Only updates properties that are explicitly provided
 		 - Preserves existing properties that aren't specified
 	
-	An existing connection's source and destination cannot be changed. If the
-	source or destination you name (by ID or by name) differs from the one the
-	connection already uses, the command fails before changing anything.
-	Settings of the current source and destination can still be updated.
+	An existing connection's destination cannot be changed. If the destination
+	you name (by ID or by name) differs from the one the connection already uses,
+	the command fails before changing anything. Settings of the current
+	destination can still be updated. The source can be changed.
 
 	Rules are replaced as a whole when --rules or --rules-file is given, and
 	left alone otherwise. Pass --rules '[]' to remove all rules.
@@ -312,8 +312,8 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 //     has to come from the stored connection
 //  3. A name is given without a type, which is filled in from the stored record
 //  4. A create-time default would otherwise be applied to a stored destination
-//  5. A source or destination is named by ID or name, so it can be checked
-//     against the stored one (a connection's sides cannot be changed)
+//  5. A destination is named by ID or name, so it can be checked against the
+//     stored one (upsert cannot change an existing connection's destination)
 func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 	// PUT /connections must carry a source and a destination, each either by ID
 	// or inline. A side the flags do not name (no --*-id, --*-name or --*-type)
@@ -347,13 +347,14 @@ func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 		(cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
 			cu.DestinationDeliveryGroupRatePeriod != "")
 
-	// A source or destination named by ID or by name has to be compared with the
-	// stored connection: the API never re-points an existing connection (#466),
+	// A destination named by ID or by name has to be compared with the stored
+	// one: upsert never re-points an existing connection's destination (#466),
 	// and without the comparison the change is dropped while the command reports
 	// success. The lookup also has to happen before an inline destination is
 	// upserted, or a rejected change leaves that destination behind unattached.
-	sideNamed := cu.sourceID != "" || cu.sourceName != "" ||
-		cu.destinationID != "" || cu.destinationName != ""
+	// The source is not compared: upsert does change it, by ID or by inline name
+	// (verified against the live API).
+	sideNamed := cu.destinationID != "" || cu.destinationName != ""
 
 	return cu.dryRun || sideNamed ||
 		sourceUnnamed || destinationUnnamed ||
@@ -372,9 +373,13 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	var isUpdate bool
 
 	if cu.needsExistingConnection() {
-		found, err := client.FindConnectionByName(context.Background(), name)
+		candidates, err := client.FindConnectionsByName(context.Background(), name)
 		if err != nil {
 			return fmt.Errorf("failed to check if connection exists: %w", err)
+		}
+		found, sameConnection, err := hookdeck.SelectConnectionForUpsert(candidates, name, cu.sourceID, cu.sourceName)
+		if err != nil {
+			return err
 		}
 
 		if found != nil {
@@ -382,9 +387,13 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 			isUpdate = true
 
 			// Checked before anything is written, so a rejected change creates no
-			// inline source or destination that nothing then points at.
-			if err := hookdeck.CheckConnectionSidesUnchanged(existing, cu.sourceID, cu.sourceName, cu.destinationID, cu.destinationName); err != nil {
-				return err
+			// inline source or destination that nothing then points at. Skipped when
+			// a different source is named: the API treats that as a different
+			// connection with the same name, which may have any destination.
+			if sameConnection {
+				if err := hookdeck.CheckConnectionSidesUnchanged(existing, "", "", cu.destinationID, cu.destinationName); err != nil {
+					return err
+				}
 			}
 		}
 	}

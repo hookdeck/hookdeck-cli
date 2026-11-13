@@ -1690,7 +1690,6 @@ func TestConnectionsUpsertRejectsAChangedSide(t *testing.T) {
 		want string
 	}{
 		{"destination", map[string]any{"source_id": "src_1", "destination_id": "des_other"}, "destination"},
-		{"source", map[string]any{"source_id": "src_other", "destination_id": "des_1"}, "source"},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -1714,6 +1713,22 @@ func TestConnectionsUpsertRejectsAChangedSide(t *testing.T) {
 			assert.Contains(t, lookup.query, "name=stripe-to-backend")
 		})
 	}
+}
+
+// Unlike the destination, the API does re-point an existing connection's source
+// on upsert (checked against the live API), so that must not be refused.
+func TestConnectionsUpsertCanChangeTheSource(t *testing.T) {
+	var got, lookup wireRequest
+	session := writeSession(t, map[string]http.HandlerFunc{
+		"GET /2026-09-01/connections": ok(&lookup, listResponse(storedConnection())),
+		"PUT /2026-09-01/connections": ok(&got, connectionBody()),
+	})
+
+	succeeds(t, session, "gateway_connections_write", map[string]any{
+		"action": "upsert", "name": "stripe-to-backend", "source_id": "src_other", "destination_id": "des_1",
+	})
+
+	assert.Equal(t, "src_other", got.decodeBody(t)["source_id"])
 }
 
 // Negative control: the stored IDs go through.

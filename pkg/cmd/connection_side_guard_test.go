@@ -39,16 +39,6 @@ func TestConnectionUpsertRejectsChangedSide(t *testing.T) {
 			args:    []string{"--destination-id", "des_other"},
 			message: "destination",
 		},
-		{
-			name:    "different source ID",
-			args:    []string{"--source-id", "src_other", "--destination-id", "des_1"},
-			message: "source",
-		},
-		{
-			name:    "inline source with a different name",
-			args:    []string{"--source-name", "other-src", "--source-type", "WEBHOOK", "--destination-name", "my-api", "--destination-type", "HTTP", "--destination-url", "https://api.example.com"},
-			message: "source",
-		},
 	}
 
 	for _, tc := range cases {
@@ -72,9 +62,79 @@ func TestConnectionUpsertRejectsChangedSide(t *testing.T) {
 	}
 }
 
+// TestConnectionUpsertWithADifferentSourceIsADifferentConnection pins what the
+// live API does: a connection name is only unique per source, so naming another
+// source creates a second connection with the same name instead of re-pointing
+// the stored one. That connection may have any destination, so the destination
+// guard must not apply to it - the live API accepts this, and refusing it would
+// block a working feature.
+func TestConnectionUpsertWithADifferentSourceIsADifferentConnection(t *testing.T) {
+	t.Run("by ID, with a different destination", func(t *testing.T) {
+		stub, err := runConnectionCommand(t, storedWithSides(),
+			"gateway", "connection", "upsert", "my-conn", "--source-id", "src_other", "--destination-id", "des_other")
+
+		require.NoError(t, err)
+		require.Len(t, stub.writes(), 1)
+		require.Equal(t, "src_other", stub.writes()[0].Body["source_id"])
+		require.Equal(t, "des_other", stub.writes()[0].Body["destination_id"])
+	})
+
+	t.Run("by inline name", func(t *testing.T) {
+		stub, err := runConnectionCommand(t, storedWithSides(),
+			"gateway", "connection", "upsert", "my-conn", "--source-name", "other-src")
+
+		require.NoError(t, err)
+		require.Len(t, stub.writes(), 1)
+		source, ok := stub.writes()[0].Body["source"].(map[string]interface{})
+		require.True(t, ok, "the new source must be sent inline")
+		require.Equal(t, "other-src", source["name"])
+	})
+}
+
+// twoConnectionsNamedMyConn returns my-conn on two sources, each with its own
+// destination.
+func twoConnectionsNamedMyConn() []hookdeck.Connection {
+	first := *storedUpsertConnection()
+	second := *storedUpsertConnection()
+	second.ID = "web_2"
+	second.Source = &hookdeck.Source{ID: "src_2", Name: "second-src", Type: "WEBHOOK"}
+	second.Destination = &hookdeck.Destination{ID: "des_2", Name: "second-api", Type: "HTTP"}
+	return []hookdeck.Connection{first, second}
+}
+
+// TestConnectionUpsertAmbiguousName: the same name on two sources is two
+// connections, and picking the first would update the wrong one.
+func TestConnectionUpsertAmbiguousName(t *testing.T) {
+	t.Run("no source named is refused before any write", func(t *testing.T) {
+		stub, err := runConnectionCommand(t, twoConnectionsNamedMyConn(),
+			"gateway", "connection", "upsert", "my-conn", "--description", "d")
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "--source-id")
+		require.Empty(t, stub.writes())
+	})
+
+	t.Run("the source picks the connection and its destination is guarded", func(t *testing.T) {
+		stub, err := runConnectionCommand(t, twoConnectionsNamedMyConn(),
+			"gateway", "connection", "upsert", "my-conn", "--source-id", "src_2", "--destination-id", "des_1")
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "second-api", "the second connection's destination is the one being compared")
+		require.Empty(t, stub.writes())
+	})
+
+	t.Run("negative control: the second connection's own destination is accepted", func(t *testing.T) {
+		stub, err := runConnectionCommand(t, twoConnectionsNamedMyConn(),
+			"gateway", "connection", "upsert", "my-conn", "--source-id", "src_2", "--destination-id", "des_2")
+
+		require.NoError(t, err)
+		require.Len(t, stub.writes(), 1)
+	})
+}
+
 // TestConnectionUpsertAllowsUnchangedSides is the negative control: the same
 // flags with the stored names and IDs must still reach the API, so the guard is
-// rejecting the difference and not every upsert that names a side.
+// rejecting the difference and not every upsert that names a destination.
 func TestConnectionUpsertAllowsUnchangedSides(t *testing.T) {
 	cases := map[string][]string{
 		"inline sides with the stored names": {"--source-name", "my-src", "--source-type", "WEBHOOK", "--destination-name", "my-api", "--destination-type", "HTTP", "--destination-url", "https://api.example.com/v2"},
@@ -106,7 +166,8 @@ func TestConnectionUpsertChangedSideOnNewConnectionIsACreate(t *testing.T) {
 }
 
 // TestConnectionUpdateRejectsChangedSide covers connection update, which sent
-// the new ID to an endpoint that discards it.
+// the new ID to an endpoint that discards it. Unlike upsert, update ignores a
+// new source as well as a new destination (verified against the live API).
 func TestConnectionUpdateRejectsChangedSide(t *testing.T) {
 	for flag, message := range map[string]string{
 		"--destination-id": "destination",

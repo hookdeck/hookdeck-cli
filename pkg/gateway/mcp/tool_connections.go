@@ -66,7 +66,8 @@ var connectionsSpec = mcpcore.ToolSpec{
 		"source_id": {Type: "string", Desc: "Source ID.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
 			{On: []string{"list"}, Text: "Filters on %s."},
 			{On: []string{"create"}, Text: "Links the source on %s."},
-			{On: []string{"upsert", "update"}, Text: "On %s it must match the source the connection already has: an existing connection's source cannot be changed, and a different value is rejected."},
+			{On: []string{"upsert"}, Text: "Links the source on %s. Upsert keys on source and name, so a different source_id addresses a different connection with the same name rather than re-pointing the existing one."},
+			{On: []string{"update"}, Text: "On %s it must match the source the connection already has: update cannot change it, and a different value is rejected."},
 		}},
 		"destination_id": {Type: "string", Desc: "Destination ID.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
 			{On: []string{"list"}, Text: "Filters on %s."},
@@ -198,16 +199,25 @@ func connectionsUpsert(ctx context.Context, client *hookdeck.Client, in mcpcore.
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
-	// The API never re-points an existing connection, so a different source_id
-	// or destination_id would be dropped and the call reported as a success
-	// (#466). Compare against the stored connection before writing.
-	if req.SourceID != nil || req.DestinationID != nil {
-		existing, err := client.FindConnectionByName(ctx, *req.Name)
+	// Upsert never re-points an existing connection's destination, so a
+	// different destination_id would be dropped and the call reported as a
+	// success (#466). Compare against the stored connection before writing.
+	if req.DestinationID != nil {
+		candidates, err := client.FindConnectionsByName(ctx, *req.Name)
 		if err != nil {
 			return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 		}
-		if err := hookdeck.CheckConnectionSidesUnchanged(existing, derefString(req.SourceID), "", derefString(req.DestinationID), ""); err != nil {
+		// A different source_id addresses a different connection with the same
+		// name (the endpoint keys on source and name), which may have any
+		// destination.
+		existing, sameConnection, err := hookdeck.SelectConnectionForUpsert(candidates, *req.Name, derefString(req.SourceID), "")
+		if err != nil {
 			return mcpcore.ErrorResult(err.Error()), nil
+		}
+		if sameConnection {
+			if err := hookdeck.CheckConnectionSidesUnchanged(existing, "", "", derefString(req.DestinationID), ""); err != nil {
+				return mcpcore.ErrorResult(err.Error()), nil
+			}
 		}
 	}
 	conn, err := client.UpsertConnection(ctx, req)

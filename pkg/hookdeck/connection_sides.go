@@ -48,3 +48,38 @@ func sideChangeError(side, connection, currentName, currentID, requested string)
 			"To use a different %s, create a new connection, or delete this one and recreate it",
 		connection, side, currentName, currentID, side, requested, side)
 }
+
+// SelectConnectionForUpsert picks the stored connection an upsert refers to from
+// the connections that share its name.
+//
+// The upsert endpoint identifies a connection by source and name together, so
+// naming a different source is a request for a different connection - the
+// endpoint creates one beside the existing one rather than re-pointing it. In
+// that case the stored connection is returned with sameConnection false, and
+// the caller must not hold the request to the stored connection's destination.
+//
+// With no source named, one match is the connection; several are ambiguous, and
+// guessing between them would update the wrong one.
+func SelectConnectionForUpsert(candidates []Connection, name, sourceID, sourceName string) (existing *Connection, sameConnection bool, err error) {
+	if len(candidates) == 0 {
+		return nil, false, nil
+	}
+	if sourceID == "" && sourceName == "" {
+		if len(candidates) > 1 {
+			return nil, false, fmt.Errorf(
+				"%d connections are named %q, on different sources; name the one to upsert with --source-id or --source-name",
+				len(candidates), name)
+		}
+		return &candidates[0], true, nil
+	}
+	for i := range candidates {
+		src := candidates[i].Source
+		if src == nil {
+			continue
+		}
+		if (sourceID != "" && src.ID == sourceID) || (sourceName != "" && src.Name == sourceName) {
+			return &candidates[i], true, nil
+		}
+	}
+	return &candidates[0], false, nil
+}

@@ -94,6 +94,25 @@ func TestConnectionUpsertRejectsChangedDestination(t *testing.T) {
 		assert.Contains(t, stderr+stdout, "cannot be changed")
 	})
 
+	t.Run("a different source is a different connection and is not refused", func(t *testing.T) {
+		// Negative control for the whole guard. A connection name is only unique
+		// per source, so upsert with another source creates a second connection
+		// with the same name; it does not re-point the stored one, and refusing
+		// it would block a working feature.
+		newSource := "test-upsert-newsrc-" + generateTimestamp()
+		var created Connection
+		require.NoError(t, cli.RunJSON(&created, "gateway", "connection", "upsert", conn.Name,
+			"--source-name", newSource, "--source-type", "WEBHOOK"))
+		t.Cleanup(func() { deleteConnection(t, cli, created.ID) })
+
+		assert.NotEqual(t, connID, created.ID, "a different source must not re-point the stored connection")
+		assert.Equal(t, newSource, created.Source.Name)
+
+		var stored Connection
+		require.NoError(t, cli.RunJSON(&stored, "gateway", "connection", "get", connID))
+		assert.Equal(t, conn.Source.ID, stored.Source.ID, "the stored connection keeps its source")
+	})
+
 	t.Run("the stored destination is still accepted", func(t *testing.T) {
 		// Negative control: the guard rejects a difference, not every upsert that
 		// names a destination.

@@ -617,10 +617,10 @@ func TestNeedsExistingConnection(t *testing.T) {
 			"the API ignores a different destination ID on an existing connection (#466)")
 	})
 
-	t.Run("--source-id and --destination-id together must be compared", func(t *testing.T) {
+	t.Run("--destination-name alone must be compared with the stored destination", func(t *testing.T) {
 		cu := newUpsertCmdForFlags()
-		cu.sourceID = "src_1"
-		cu.destinationID = "des_1"
+		withNamedSource(cu)
+		cu.destinationName = "web"
 
 		assert.True(t, cu.needsExistingConnection())
 	})
