@@ -149,7 +149,7 @@ hookdeck project list [<organization_substring>] [<project_substring>] [flags]
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--output` | `string` | Output format: json |
+| `--output` | `string` | Output format (json) |
 | `--type` | `string` | Filter by project type: gateway, outpost, console |
 
 **Examples:**
