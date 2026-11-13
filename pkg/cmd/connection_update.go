@@ -46,8 +46,9 @@ Examples:
   # Update description
   hookdeck gateway connection update web_abc123 --description "Updated description"
 
-  # Change the source on a connection
-  hookdeck gateway connection update web_abc123 --source-id src_def456
+  # A connection's source and destination cannot be changed. --source-id and
+  # --destination-id are accepted only when they match the stored values;
+  # to use a different one, create a new connection.
 
   # Update rules
   hookdeck gateway connection update web_abc123 \
@@ -67,13 +68,13 @@ Examples:
 	cu.cmd.Flags().StringVar(&cu.description, "description", "", "Connection description")
 
 	// Resource references
-	cu.cmd.Flags().StringVar(&cu.sourceID, "source-id", "", "Update source by ID")
-	cu.cmd.Flags().StringVar(&cu.destinationID, "destination-id", "", "Update destination by ID")
+	cu.cmd.Flags().StringVar(&cu.sourceID, "source-id", "", "Source ID the connection already uses (a different value is rejected: a connection's source cannot be changed)")
+	cu.cmd.Flags().StringVar(&cu.destinationID, "destination-id", "", "Destination ID the connection already uses (a different value is rejected: a connection's destination cannot be changed)")
 
 	addConnectionRuleFlags(cu.cmd, &cu.connectionRuleFlags)
 
 	// Output
-	cu.cmd.Flags().StringVar(&cu.output, "output", "", "Output format (json)")
+	cu.cmd.Flags().Var(newOutputFormatValue(&cu.output), "output", "Output format (json)")
 
 	return cu
 }
@@ -103,14 +104,18 @@ func (cu *connectionUpdateCmd) runConnectionUpdateCmd(cmd *cobra.Command, args [
 		hasChanges = true
 	}
 
-	if cu.sourceID != "" {
-		req.SourceID = &cu.sourceID
-		hasChanges = true
-	}
-
-	if cu.destinationID != "" {
-		req.DestinationID = &cu.destinationID
-		hasChanges = true
+	// The API never changes an existing connection's source or destination
+	// (PUT /connections/{id} drops source_id and destination_id), so a value
+	// that differs from the stored one is an error rather than a silent no-op
+	// reported as success (#466). A value equal to the stored one is not sent.
+	if cu.sourceID != "" || cu.destinationID != "" {
+		current, err := client.GetConnection(ctx, connectionID)
+		if err != nil {
+			return fmt.Errorf("failed to get connection: %w", err)
+		}
+		if err := hookdeck.CheckConnectionSidesUnchanged(current, cu.sourceID, "", cu.destinationID, ""); err != nil {
+			return err
+		}
 	}
 
 	// Build rules if any rule flags are set

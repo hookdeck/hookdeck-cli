@@ -71,7 +71,7 @@ are omitted unless you ask for one by name.`,
 		},
 	}
 
-	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 
 	return cc
 }
@@ -169,7 +169,7 @@ which when that happens.`,
 	cc.cmd.Flags().StringArrayVar(&cc.unset, "unset", nil, "Return a key to its default (repeatable)")
 	cc.cmd.Flags().StringVar(&cc.configFile, "config-file", "", "Path to a JSON file of configuration values")
 	cc.cmd.Flags().BoolVar(&cc.dryRun, "dry-run", false, "Show what would change without applying it")
-	cc.cmd.Flags().StringVar(&cc.output, "output", "", "Output format (json)")
+	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 
 	return cc
 }

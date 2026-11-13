@@ -527,6 +527,14 @@ func newUpsertCmdForFlags() *connectionUpsertCmd {
 	return &connectionUpsertCmd{connectionCreateCmd: &connectionCreateCmd{}}
 }
 
+// withNamedSource names the source inline, so a case that is about the
+// destination-side decision is not also triggering the lookup for an unnamed
+// source.
+func withNamedSource(cu *connectionUpsertCmd) {
+	cu.sourceName = "my-src"
+	cu.sourceType = "WEBHOOK"
+}
+
 // TestNeedsExistingConnection pins the lookup decision. The create-time
 // behaviours below are wrong against a connection that already exists, and the
 // ordinary idempotent invocation - --destination-name plus --destination-type
@@ -550,14 +558,15 @@ func TestNeedsExistingConnection(t *testing.T) {
 		assert.True(t, cu.needsExistingConnection())
 	})
 
-	t.Run("an explicit --destination-cli-path needs no lookup", func(t *testing.T) {
+	t.Run("an explicit --destination-cli-path still looks up a named destination", func(t *testing.T) {
 		cu := newUpsertCmdForFlags()
+		withNamedSource(cu)
 		cu.destinationName = "local"
 		cu.destinationType = "CLI"
 		cu.destinationCliPath = "/webhooks"
 
-		assert.False(t, cu.needsExistingConnection(),
-			"the caller said what the path should be, so nothing is being defaulted")
+		assert.True(t, cu.needsExistingConnection(),
+			"nothing is defaulted, but a named destination has to be compared with the stored one (#466)")
 	})
 
 	t.Run("delivery group flags without overrides must look the connection up", func(t *testing.T) {
@@ -573,8 +582,9 @@ func TestNeedsExistingConnection(t *testing.T) {
 			"without the lookup the bare groups object replaces the stored overrides (#393)")
 	})
 
-	t.Run("delivery group flags with overrides need no lookup", func(t *testing.T) {
+	t.Run("delivery group flags with overrides still look up a named destination", func(t *testing.T) {
 		cu := newUpsertCmdForFlags()
+		withNamedSource(cu)
 		cu.destinationName = "web"
 		cu.destinationType = "HTTP"
 		cu.destinationURL = "https://api.example.com"
@@ -583,25 +593,63 @@ func TestNeedsExistingConnection(t *testing.T) {
 		cu.DestinationDeliveryGroupRatePeriod = "second"
 		cu.DestinationDeliveryGroupOverrides = `{"cust_1":{"rate":5,"rate_period":"minute"}}`
 
-		assert.False(t, cu.needsExistingConnection(),
-			"the caller supplied the overrides, so there is nothing to carry forward")
+		assert.True(t, cu.needsExistingConnection(),
+			"nothing is carried forward, but a named destination has to be compared with the stored one (#466)")
 	})
 
-	t.Run("an HTTP destination by name and type still needs no lookup", func(t *testing.T) {
+	t.Run("an HTTP destination by name and type looks the connection up", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		withNamedSource(cu)
+		cu.destinationName = "web"
+		cu.destinationType = "HTTP"
+		cu.destinationURL = "https://api.example.com"
+
+		assert.True(t, cu.needsExistingConnection(),
+			"a different destination name is ignored by the API for an existing connection, so it has to be compared before anything is written (#466)")
+	})
+
+	t.Run("--destination-id must be compared with the stored destination", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		withNamedSource(cu)
+		cu.destinationID = "des_1"
+
+		assert.True(t, cu.needsExistingConnection(),
+			"the API ignores a different destination ID on an existing connection (#466)")
+	})
+
+	t.Run("--destination-name alone must be compared with the stored destination", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		withNamedSource(cu)
+		cu.destinationName = "web"
+
+		assert.True(t, cu.needsExistingConnection())
+	})
+
+	t.Run("an inline source with no destination flags must look the connection up", func(t *testing.T) {
+		cu := newUpsertCmdForFlags()
+		cu.sourceName = "my-src"
+		cu.sourceType = "WEBHOOK"
+		cu.SourceHMACSecret = "s3cret"
+
+		assert.True(t, cu.needsExistingConnection(),
+			"the stored destination is only sent if the connection was looked up")
+	})
+
+	t.Run("an inline destination with no source flags must look the connection up", func(t *testing.T) {
 		cu := newUpsertCmdForFlags()
 		cu.destinationName = "web"
 		cu.destinationType = "HTTP"
 		cu.destinationURL = "https://api.example.com"
 
-		assert.False(t, cu.needsExistingConnection(),
-			"upsert is meant to be one API call where the lookup cannot change the outcome")
+		assert.True(t, cu.needsExistingConnection(),
+			"the stored source is only sent if the connection was looked up")
 	})
 
-	t.Run("--destination-id is the caller pointing at a destination, not creating one", func(t *testing.T) {
+	t.Run("--source-id with no destination flags must look the connection up", func(t *testing.T) {
 		cu := newUpsertCmdForFlags()
-		cu.destinationID = "des_1"
+		cu.sourceID = "src_1"
 
-		assert.False(t, cu.needsExistingConnection())
+		assert.True(t, cu.needsExistingConnection())
 	})
 
 	t.Run("the pre-existing conditions still hold", func(t *testing.T) {

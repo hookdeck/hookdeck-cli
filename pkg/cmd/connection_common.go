@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,14 @@ import (
 
 	"github.com/hookdeck/hookdeck-cli/pkg/hookdeck"
 )
+
+// retryStatusCodeExpr matches one entry of a retry rule's response_status_codes, mirroring the
+// API's RetryRule pattern: a range ("500-599"), a comparison (">400", ">=500", "<=499", "=404"),
+// or a code with optional exclusion ("404", "!401"). Codes are 200-599.
+var retryStatusCodeExpr = regexp.MustCompile(`^(?:([2-5]\d{2})-([2-5]\d{2})|([><=]{1,2})([2-5]\d{2})|!?([2-5]\d{2}))$`)
+
+// maxRetryStatusCodes is the API's limit on entries in a retry rule's response_status_codes.
+const maxRetryStatusCodes = 10
 
 // shouldShowConnectionDeprecation returns true when the user invoked the
 // root-level alias (hookdeck connection / hookdeck connections) and we
@@ -128,7 +137,7 @@ func addConnectionRuleFlags(cmd *cobra.Command, f *connectionRuleFlags) {
 	cmd.Flags().StringVar(&f.RuleRetryStrategy, "rule-retry-strategy", "", "Retry strategy (linear, exponential)")
 	cmd.Flags().IntVar(&f.RuleRetryCount, "rule-retry-count", 0, "Number of retry attempts")
 	cmd.Flags().IntVar(&f.RuleRetryInterval, "rule-retry-interval", 0, "Interval between retries in milliseconds")
-	cmd.Flags().StringVar(&f.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes to retry on")
+	cmd.Flags().StringVar(&f.RuleRetryResponseStatusCode, "rule-retry-response-status-codes", "", "Comma-separated HTTP status codes or expressions to retry on: codes (404), ranges (500-599), comparisons (>400, <=499) and exclusions (!401), e.g. \"429,500-599\"")
 
 	cmd.Flags().StringVar(&f.RuleFilterBody, "rule-filter-body", "", "Filter on request body using Hookdeck filter syntax (JSON)")
 	cmd.Flags().StringVar(&f.RuleFilterHeaders, "rule-filter-headers", "", "Filter on request headers using Hookdeck filter syntax (JSON)")
@@ -251,7 +260,8 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 		if f.RuleRetryInterval > 0 {
 			rule["interval"] = f.RuleRetryInterval
 		}
-		// API expects response_status_codes as []string (RetryRule schema)
+		// API expects response_status_codes as []string (RetryRule schema). Each entry may be a
+		// code ("404"), a range ("500-599"), a comparison (">400", "<=499") or an exclusion ("!401").
 		if f.RuleRetryResponseStatusCode != "" {
 			parts := strings.Split(f.RuleRetryResponseStatusCode, ",")
 			strCodes := make([]string, 0, len(parts))
@@ -260,14 +270,13 @@ func buildConnectionRules(f *connectionRuleFlags) ([]hookdeck.Rule, error) {
 				if part == "" {
 					continue
 				}
-				n, err := strconv.Atoi(part)
-				if err != nil {
-					return nil, fmt.Errorf("invalid HTTP status code %q in --rule-retry-response-status-codes: must be an integer", part)
-				}
-				if n < 100 || n > 599 {
-					return nil, fmt.Errorf("invalid HTTP status code %d in --rule-retry-response-status-codes: must be between 100 and 599", n)
+				if !retryStatusCodeExpr.MatchString(part) {
+					return nil, fmt.Errorf("invalid HTTP status code expression %q in --rule-retry-response-status-codes: use a code (404), range (500-599), comparison (>400, <=499) or exclusion (!401), with codes 200-599", part)
 				}
 				strCodes = append(strCodes, part)
+			}
+			if len(strCodes) > maxRetryStatusCodes {
+				return nil, fmt.Errorf("--rule-retry-response-status-codes accepts at most %d entries (got %d); use ranges such as 500-599 to cover more codes", maxRetryStatusCodes, len(strCodes))
 			}
 			rule["response_status_codes"] = strCodes
 		}

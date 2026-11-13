@@ -44,7 +44,7 @@ Examples:
 	dc.cmd.Flags().StringVar(&dc.destType, "type", "", "Filter by destination type (HTTP, CLI, MOCK_API)")
 	dc.cmd.Flags().BoolVar(&dc.disabled, "disabled", false, "Include disabled destinations")
 	dc.cmd.Flags().IntVar(&dc.limit, "limit", 100, "Limit number of results")
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 
 	return dc
 }

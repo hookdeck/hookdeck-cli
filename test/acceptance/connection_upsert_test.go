@@ -376,6 +376,67 @@ func TestConnectionUpsertPartialUpdates(t *testing.T) {
 		t.Logf("Successfully upserted connection %s with source-name only", connID)
 	})
 
+	// An inline source (name + type + auth) with no destination flags used to
+	// skip the connection lookup, so the PUT carried no destination and the API
+	// answered 422 "value must contain at least one of [destination_id, destination]".
+	t.Run("UpsertInlineSourceWithoutDestinationFlagsKeepsDestination", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping acceptance test in short mode")
+		}
+
+		cli := NewCLIRunner(t)
+		timestamp := generateTimestamp()
+
+		connName := "test-upsert-srcinline-" + timestamp
+		sourceName := "test-upsert-src-si-" + timestamp
+		destName := "test-upsert-dst-si-" + timestamp
+		destURL := "https://api.example.com/webhook"
+
+		var createResp map[string]interface{}
+		err := cli.RunJSON(&createResp,
+			"gateway", "connection", "create",
+			"--name", connName,
+			"--source-type", "WEBHOOK",
+			"--source-name", sourceName,
+			"--destination-type", "HTTP",
+			"--destination-name", destName,
+			"--destination-url", destURL,
+		)
+		require.NoError(t, err, "Should create connection")
+
+		connID, ok := createResp["id"].(string)
+		require.True(t, ok && connID != "", "Expected connection ID")
+
+		t.Cleanup(func() {
+			deleteConnection(t, cli, connID)
+		})
+
+		createDest, ok := createResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination in create response")
+		destID, ok := createDest["id"].(string)
+		require.True(t, ok && destID != "", "Expected destination ID")
+
+		var upsertResp map[string]interface{}
+		err = cli.RunJSON(&upsertResp,
+			"gateway", "connection", "upsert", connName,
+			"--source-name", sourceName,
+			"--source-type", "WEBHOOK",
+			"--source-hmac-secret", "s3cret",
+		)
+		require.NoError(t, err, "Should upsert an inline source without destination flags")
+
+		upsertDest, ok := upsertResp["destination"].(map[string]interface{})
+		require.True(t, ok, "Expected destination in upsert response")
+		assert.Equal(t, destID, upsertDest["id"], "Destination should be the stored one")
+		upsertDestConfig, ok := upsertDest["config"].(map[string]interface{})
+		require.True(t, ok, "Expected destination config in upsert response")
+		assert.Equal(t, destURL, upsertDestConfig["url"], "Destination URL should be unchanged")
+
+		upsertSource, ok := upsertResp["source"].(map[string]interface{})
+		require.True(t, ok, "Expected source in upsert response")
+		assert.Equal(t, sourceName, upsertSource["name"], "Source name should be unchanged")
+	})
+
 	// Regression test for https://github.com/hookdeck/hookdeck-cli/issues/192:
 	// --rule-filter-headers should store JSON as a parsed object with exact values preserved.
 	t.Run("FilterHeadersJSONExactValues", func(t *testing.T) {

@@ -51,7 +51,7 @@ Examples:
 	tc.cmd.Flags().StringVar(&tc.requestFile, "request-file", "", "Path to request JSON file")
 	tc.cmd.Flags().StringVar(&tc.connectionID, "connection-id", "", "Connection ID for execution context")
 	tc.cmd.Flags().StringVar(&tc.env, "env", "", "Environment variables as KEY=value,KEY2=value2")
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

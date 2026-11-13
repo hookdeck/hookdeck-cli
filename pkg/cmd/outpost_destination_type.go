@@ -56,7 +56,7 @@ func newOutpostDestinationTypeListCmd() *outpostDestinationTypeListCmd {
   hookdeck outpost destination-type list`,
 	}
 
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 
 	return dc
 }
@@ -117,7 +117,7 @@ or format the schema constrains it to.`,
 		},
 	}
 
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 
 	return dc
 }

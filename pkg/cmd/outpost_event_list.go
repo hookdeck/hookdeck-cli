@@ -63,7 +63,7 @@ Filters are combined with AND. Time bounds are ISO 8601 datetimes.`,
 	ec.cmd.Flags().StringVar(&ec.dir, "dir", "", "Sort direction (asc, desc)")
 	ec.cmd.Flags().StringVar(&ec.next, "next", "", "Next page cursor")
 	ec.cmd.Flags().StringVar(&ec.prev, "prev", "", "Previous page cursor")
-	ec.cmd.Flags().StringVar(&ec.output, "output", "", "Output format (json)")
+	ec.cmd.Flags().Var(newOutputFormatValue(&ec.output), "output", "Output format (json)")
 
 	return ec
 }

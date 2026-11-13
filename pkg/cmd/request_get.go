@@ -31,7 +31,7 @@ Examples:
 		RunE: rc.runRequestGetCmd,
 	}
 
-	rc.cmd.Flags().StringVar(&rc.output, "output", "", "Output format (json)")
+	rc.cmd.Flags().Var(newOutputFormatValue(&rc.output), "output", "Output format (json)")
 
 	return rc
 }

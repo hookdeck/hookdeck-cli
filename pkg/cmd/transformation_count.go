@@ -32,7 +32,7 @@ Examples:
 	}
 
 	tc.cmd.Flags().StringVar(&tc.name, "name", "", "Filter by transformation name")
-	tc.cmd.Flags().StringVar(&tc.output, "output", "", "Output format (json)")
+	tc.cmd.Flags().Var(newOutputFormatValue(&tc.output), "output", "Output format (json)")
 
 	return tc
 }

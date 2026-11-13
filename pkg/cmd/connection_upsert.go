@@ -38,7 +38,17 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 		 - Only updates properties that are explicitly provided
 		 - Preserves existing properties that aren't specified
 	
+	An existing connection's destination cannot be changed. If the destination
+	you name (by ID or by name) differs from the one the connection already uses,
+	the command fails before changing anything. Settings of the current
+	destination can still be updated. The source can be changed.
+
+	Rules are replaced as a whole when --rules or --rules-file is given, and
+	left alone otherwise. Pass --rules '[]' to remove all rules.
+
 	Use --dry-run to preview changes without applying them.
+
+	` + LongSourceAuthType("--source-config") + `
 	
 	Examples:
 		 # Create or update a connection with inline source and destination
@@ -76,7 +86,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.sourceDescription, "source-description", "", "Source description")
 
 	// Universal source authentication flags
-	cu.cmd.Flags().StringVar(&cu.SourceWebhookSecret, "source-webhook-secret", "", "Webhook secret for source verification (e.g., Stripe)")
+	cu.cmd.Flags().StringVar(&cu.SourceWebhookSecret, "source-webhook-secret", "", "Webhook secret the source verifies signatures with; sent as webhook_secret_key, plus HMAC settings on WEBHOOK and HTTP only")
 	cu.cmd.Flags().StringVar(&cu.SourceAPIKey, "source-api-key", "", "API key for source authentication")
 	cu.cmd.Flags().StringVar(&cu.SourceBasicAuthUser, "source-basic-auth-user", "", "Username for Basic authentication")
 	cu.cmd.Flags().StringVar(&cu.SourceBasicAuthPass, "source-basic-auth-pass", "", "Password for Basic authentication")
@@ -167,7 +177,7 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 	cu.cmd.Flags().StringVar(&cu.destinationID, "destination-id", "", "Use existing destination by ID")
 
 	// Output flags
-	cu.cmd.Flags().StringVar(&cu.output, "output", "", "Output format (json)")
+	cu.cmd.Flags().Var(newOutputFormatValue(&cu.output), "output", "Output format (json)")
 
 	// Upsert-specific flags
 	cu.cmd.Flags().BoolVar(&cu.dryRun, "dry-run", false, "Preview changes without applying them")
@@ -298,23 +308,23 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 //
 // It is needed when:
 //  1. Dry-run mode (to show the preview)
-//  2. Partial update (source/destination config fields without name/type)
+//  2. Either side - source or destination - is not named by the flags, so it
+//     has to come from the stored connection
 //  3. A name is given without a type, which is filled in from the stored record
 //  4. A create-time default would otherwise be applied to a stored destination
+//  5. A destination is named by ID or name, so it can be checked against the
+//     stored one (upsert cannot change an existing connection's destination)
 func (cu *connectionUpsertCmd) needsExistingConnection() bool {
-	hasSourceConfigOnly := (cu.SourceWebhookSecret != "" || cu.SourceAPIKey != "" ||
-		cu.SourceBasicAuthUser != "" || cu.SourceBasicAuthPass != "" ||
-		cu.SourceHMACSecret != "" || cu.SourceHMACAlgo != "" ||
-		cu.SourceAllowedHTTPMethods != "" || cu.SourceCustomResponseType != "" ||
-		cu.SourceCustomResponseBody != "" || cu.SourceConfig != "" || cu.SourceConfigFile != "") &&
-		cu.sourceName == "" && cu.sourceType == "" && cu.sourceID == ""
-
-	hasDestinationConfigOnly := (cu.destinationURL != "" || cu.destinationCliPath != "" ||
-		cu.destinationPathForwardingDisabled != nil || cu.destinationHTTPMethod != "" ||
-		cu.DestinationRateLimit != 0 || cu.DestinationRateLimitPeriod != "" || cu.DestinationDeliveryGroupKey != "" ||
-		cu.DestinationDeliveryGroupRate != 0 || cu.DestinationDeliveryGroupRatePeriod != "" ||
-		cu.DestinationDeliveryGroupOverrides != "" || cu.DestinationAuthMethod != "") &&
-		cu.destinationName == "" && cu.destinationType == "" && cu.destinationID == ""
+	// PUT /connections must carry a source and a destination, each either by ID
+	// or inline. A side the flags do not name (no --*-id, --*-name or --*-type)
+	// can only be supplied from the stored connection: carried over by ID when
+	// it has no flags at all, or rebuilt with config flags merged in otherwise.
+	// Without the lookup it is left out of the request, and the API rejects the
+	// update with "must contain at least one of [destination_id, destination]".
+	// This covers the no-flags and config-only cases, and the one that was
+	// missed: an inline source with no destination flags, or the reverse.
+	sourceUnnamed := cu.sourceID == "" && cu.sourceName == "" && cu.sourceType == ""
+	destinationUnnamed := cu.destinationID == "" && cu.destinationName == "" && cu.destinationType == ""
 
 	// Also need to fetch existing when name is provided without type (to fill in the type)
 	hasPartialSourceInline := (cu.sourceName != "" && cu.sourceType == "" && cu.sourceID == "")
@@ -337,9 +347,17 @@ func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 		(cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
 			cu.DestinationDeliveryGroupRatePeriod != "")
 
-	return cu.dryRun ||
-		(!cu.hasAnySourceFlag() && !cu.hasAnyDestinationFlag()) ||
-		hasSourceConfigOnly || hasDestinationConfigOnly ||
+	// A destination named by ID or by name has to be compared with the stored
+	// one: upsert never re-points an existing connection's destination (#466),
+	// and without the comparison the change is dropped while the command reports
+	// success. The lookup also has to happen before an inline destination is
+	// upserted, or a rejected change leaves that destination behind unattached.
+	// The source is not compared: upsert does change it, by ID or by inline name
+	// (verified against the live API).
+	sideNamed := cu.destinationID != "" || cu.destinationName != ""
+
+	return cu.dryRun || sideNamed ||
+		sourceUnnamed || destinationUnnamed ||
 		hasPartialSourceInline || hasPartialDestinationInline ||
 		cliPathDefaultWouldApply || groupsWouldDropOverrides
 }
@@ -355,16 +373,28 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 	var isUpdate bool
 
 	if cu.needsExistingConnection() {
-		connections, err := client.ListConnections(context.Background(), map[string]string{
-			"name": name,
-		})
+		candidates, err := client.FindConnectionsByName(context.Background(), name)
 		if err != nil {
 			return fmt.Errorf("failed to check if connection exists: %w", err)
 		}
+		found, sameConnection, err := hookdeck.SelectConnectionForUpsert(candidates, name, cu.sourceID, cu.sourceName)
+		if err != nil {
+			return err
+		}
 
-		if connections != nil && len(connections.Models) > 0 {
-			existing = &connections.Models[0]
+		if found != nil {
+			existing = found
 			isUpdate = true
+
+			// Checked before anything is written, so a rejected change creates no
+			// inline source or destination that nothing then points at. Skipped when
+			// a different source is named: the API treats that as a different
+			// connection with the same name, which may have any destination.
+			if sameConnection {
+				if err := hookdeck.CheckConnectionSidesUnchanged(existing, "", "", cu.destinationID, cu.destinationName); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -557,7 +587,15 @@ func (cu *connectionUpsertCmd) buildUpsertRequest(existing *hookdeck.Connection,
 	if err != nil {
 		return nil, err
 	}
-	if len(rules) > 0 {
+	// Keyed off whether --rules or --rules-file was given rather than whether it
+	// produced any rules, so an explicit empty array reaches the API and clears
+	// the ruleset, as it does for `connection update` (#472).
+	if cu.Rules != "" || cu.RulesFile != "" {
+		if rules == nil {
+			rules = []hookdeck.Rule{}
+		}
+		req.Rules = &rules
+	} else if len(rules) > 0 {
 		req.Rules = &rules
 	}
 
@@ -583,10 +621,23 @@ func (cu *connectionUpsertCmd) buildSourceInputForUpdate(existingSource *hookdec
 		}
 	}
 
-	// Build new config from flags (this will override existing values)
-	newConfig, err := cu.buildSourceConfig()
+	// Build new config from flags (this will override existing values). Shape it for the
+	// stored type: no --source-type was given, and both the auth fields and the auth_type to
+	// infer depend on the type.
+	newConfig, err := cu.buildSourceConfigForType(existingSource.Type)
 	if err != nil {
 		return nil, err
+	}
+
+	// The stored config carries auth_type (the method the source verifies with) but not the
+	// auth credentials. Sending that auth_type back without auth fails validation, and keeping
+	// it beside new auth names the old method for the new credentials. So it goes unless the
+	// stored auth is going back with it; new auth brings its own (inferred) auth_type.
+	if _, newAuth := newConfig["auth"]; newAuth {
+		delete(sourceConfig, "auth")
+		delete(sourceConfig, "auth_type")
+	} else if _, storedAuth := sourceConfig["auth"]; !storedAuth {
+		delete(sourceConfig, "auth_type")
 	}
 
 	// Merge new config into existing config
@@ -730,7 +781,10 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		}
 
 		// Check rules changes
-		if req.Rules != nil && len(*req.Rules) > 0 {
+		if req.Rules != nil && len(*req.Rules) == 0 {
+			changes++
+			fmt.Printf("  • Rules: will be cleared (%d rules → none)\n", len(existing.Rules))
+		} else if req.Rules != nil {
 			changes++
 			rulesJSON, _ := json.MarshalIndent(req.Rules, "    ", "  ")
 			fmt.Printf("  • Rules:\n")
@@ -749,7 +803,7 @@ func (cu *connectionUpsertCmd) previewUpsertChanges(existing *hookdeck.Connectio
 		if req.DestinationID == nil && req.Destination == nil && existing.Destination != nil {
 			fmt.Printf("  • Destination: %s (unchanged)\n", existing.Destination.Name)
 		}
-		if (req.Rules == nil || len(*req.Rules) == 0) && len(existing.Rules) > 0 {
+		if req.Rules == nil && len(existing.Rules) > 0 {
 			fmt.Printf("  • Rules: %d rules (unchanged)\n", len(existing.Rules))
 		}
 	} else {
