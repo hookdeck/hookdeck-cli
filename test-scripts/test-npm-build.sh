@@ -86,7 +86,9 @@ verify_binary_arch "binaries/linux-arm64/hookdeck" "ELF 64-bit.*ARM aarch64" "li
 
 # Windows binaries - PE32 is 32-bit, PE32+ is 64-bit
 verify_binary_arch "binaries/win32-amd64/hookdeck.exe" "PE32+ executable.*x86-64" "win32-amd64 (64-bit)"
-verify_binary_arch "binaries/win32-386/hookdeck.exe" "PE32 executable.*Intel 80386" "win32-386 (32-bit)"
+# Older versions of `file` print "Intel 80386" and newer ones print "Intel i386".
+# [i8]0*386 matches both, in the basic regex grep uses here.
+verify_binary_arch "binaries/win32-386/hookdeck.exe" "PE32 executable.*Intel [i8]0*386" "win32-386 (32-bit)"
 
 echo ""
 echo "✓ All binary architectures verified!"
