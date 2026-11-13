@@ -55,10 +55,32 @@ func FetchSourceAuthMethods() (map[string][]AuthMethod, error) {
 		return nil, fmt.Errorf("failed to parse OpenAPI spec: no source auth methods found")
 	}
 
-	if data, err := json.Marshal(methods); err == nil {
-		_ = os.WriteFile(cachePath, data, 0o600)
-	}
+	writeAuthMethodsCache(methods)
+	// The same download feeds the source types cache.
+	cacheSourceTypes(body)
 	return methods, nil
+}
+
+func writeAuthMethodsCache(methods map[string][]AuthMethod) {
+	if data, err := json.Marshal(methods); err == nil {
+		_ = os.WriteFile(filepath.Join(os.TempDir(), authMethodsCacheFileName), data, 0o600)
+	}
+}
+
+// cacheAuthMethods parses specData and caches the auth methods, best effort.
+func cacheAuthMethods(specData []byte) {
+	if methods, err := ParseSourceAuthMethods(specData); err == nil && len(methods) > 0 {
+		writeAuthMethodsCache(methods)
+	}
+}
+
+// cacheSourceTypes parses specData and caches the source types, best effort.
+func cacheSourceTypes(specData []byte) {
+	if types, err := ParseSourceTypes(specData); err == nil && len(types) > 0 {
+		if data, err := json.Marshal(types); err == nil {
+			_ = os.WriteFile(filepath.Join(os.TempDir(), cacheFileName), data, 0o600)
+		}
+	}
 }
 
 // specSchema is the subset of an OpenAPI schema object this parser reads.

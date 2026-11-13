@@ -202,3 +202,46 @@ func TestFetchSourceTypesIgnoresEmptyCacheFile(t *testing.T) {
 	assert.NotEmpty(t, types)
 	assert.Equal(t, 1, *requests, "an empty cache file is not served")
 }
+
+// Source types and auth methods are two views of one spec, so a cold start downloads it once,
+// whichever is read first.
+func TestSourceTypesAndAuthMethodsShareOneDownload(t *testing.T) {
+	for name, first := range map[string]func() error{
+		"types first":   func() error { _, err := FetchSourceTypes(); return err },
+		"methods first": func() error { _, err := FetchSourceAuthMethods(); return err },
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := string(loadSpecFixture(t))
+			requests, _ := serveSpec(t, &body)
+
+			require.NoError(t, first())
+			types, err := FetchSourceTypes()
+			require.NoError(t, err)
+			methods, err := FetchSourceAuthMethods()
+			require.NoError(t, err)
+			assert.NotEmpty(t, types)
+			assert.NotEmpty(t, methods)
+			assert.Equal(t, 1, *requests)
+		})
+	}
+}
+
+// A spec server that never answers must not hang a command: the download gives up.
+func TestDownloadOpenAPISpecTimesOut(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+	}))
+	t.Cleanup(func() { close(release); server.Close() })
+
+	originalURL, originalClient := openapiURL, specClient
+	t.Cleanup(func() { openapiURL, specClient = originalURL, originalClient })
+	openapiURL = server.URL
+	specClient = &http.Client{Timeout: 100 * time.Millisecond}
+
+	start := time.Now()
+	_, err := downloadOpenAPISpec()
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second)
+	assert.Equal(t, 10*time.Second, originalClient.Timeout, "the shipped client carries the timeout")
+}

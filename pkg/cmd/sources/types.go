@@ -74,12 +74,21 @@ func FetchSourceTypes() (map[string]SourceType, error) {
 	if data, err := json.Marshal(sourceTypes); err == nil {
 		_ = os.WriteFile(cachePath, data, 0o600)
 	}
+	// The same download feeds the auth methods cache, so the next FetchSourceAuthMethods
+	// does not download the 1.3 MB spec a second time.
+	cacheAuthMethods(body)
 	return sourceTypes, nil
 }
 
+// specDownloadTimeout bounds one spec download. Source create and upsert read the spec on the
+// way to the API call, so a stalled connection must not hang the command.
+const specDownloadTimeout = 10 * time.Second
+
+var specClient = &http.Client{Timeout: specDownloadTimeout}
+
 // downloadOpenAPISpec fetches the API's OpenAPI spec.
 func downloadOpenAPISpec() ([]byte, error) {
-	resp, err := http.Get(openapiURL)
+	resp, err := specClient.Get(openapiURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download OpenAPI spec: %w", err)
 	}
