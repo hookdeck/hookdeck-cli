@@ -138,7 +138,16 @@ func (r *TransformationRunResponse) ConsoleText() string {
 type TransformationExecution struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
-	// Additional fields may be present from API
+
+	// The remaining fields are what the execution endpoints return besides the
+	// ID. The event payloads and logs are kept as raw JSON so their shape is
+	// passed through untouched, including by `--output json`.
+	WebhookID            string          `json:"webhook_id,omitempty"`
+	IssueID              string          `json:"issue_id,omitempty"`
+	LogLevel             string          `json:"log_level,omitempty"`
+	OriginalEventData    json.RawMessage `json:"original_event_data,omitempty"`
+	TransformedEventData json.RawMessage `json:"transformed_event_data,omitempty"`
+	Logs                 json.RawMessage `json:"logs,omitempty"`
 }
 
 // TransformationExecutionListResponse represents the response from listing executions

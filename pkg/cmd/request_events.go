@@ -45,6 +45,7 @@ type requestEventsCmd struct {
 	parsedQuery       string
 	orderBy           string
 	dir               string
+	include           string
 }
 
 func newRequestEventsCmd() *requestEventsCmd {
@@ -59,10 +60,17 @@ func newRequestEventsCmd() *requestEventsCmd {
 Filters match ` + "`hookdeck gateway event list`" + `: this command queries the same event
 collection, narrowed to one request.
 
+Use --include=data with --output=json to get each event's payload in the results. Without
+--limit, the limit is then 10 instead of 100.
+
+When the request has more events than fit on one page, a note on stderr gives the cursor to
+pass to --next for the following page.
+
 Examples:
   hookdeck gateway request events req_abc123
   hookdeck gateway request events req_abc123 --status FAILED
-  hookdeck gateway request events req_abc123 --destination-id des_abc123`,
+  hookdeck gateway request events req_abc123 --destination-id des_abc123
+  hookdeck gateway request events req_abc123 --include data --output json`,
 		RunE: rc.runRequestEventsCmd,
 	}
 
@@ -97,6 +105,7 @@ Examples:
 	rc.cmd.Flags().StringVar(&rc.body, "body", "", "Filter by body (JSON string)")
 	rc.cmd.Flags().StringVar(&rc.path, "path", "", "Filter by path")
 	rc.cmd.Flags().StringVar(&rc.parsedQuery, "parsed-query", "", "Filter by parsed query (JSON string)")
+	rc.cmd.Flags().StringVar(&rc.include, "include", "", includeFlagUsage("event"))
 	rc.cmd.Flags().StringVar(&rc.orderBy, "order-by", "", "Sort key (e.g. created_at)")
 	rc.cmd.Flags().StringVar(&rc.dir, "dir", "", "Sort direction (asc, desc)")
 	rc.cmd.Flags().IntVar(&rc.limit, "limit", 100, "Limit number of results")
@@ -122,7 +131,12 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 	requestID := args[0]
 	client := Config.GetAPIClient()
 	ctx := context.Background()
-	params := map[string]string{"limit": strconv.Itoa(rc.limit)}
+	params := map[string]string{}
+	limit, err := applyIncludeData(cmd, rc.include, rc.output, rc.limit, params)
+	if err != nil {
+		return err
+	}
+	params["limit"] = strconv.Itoa(limit)
 	if rc.next != "" {
 		params["next"] = rc.next
 	}
@@ -209,6 +223,15 @@ func (rc *requestEventsCmd) runRequestEventsCmd(cmd *cobra.Command, args []strin
 	resp, err := client.GetRequestEvents(ctx, requestID, params)
 	if err != nil {
 		return fmt.Errorf("failed to list request events: %w", err)
+	}
+
+	// The output carries no pagination cursor (the JSON is a bare array), so a
+	// page the API cut short would look complete. When the API says there is
+	// more, say so on stderr, which leaves the JSON on stdout intact, and give
+	// the cursor --next takes. This applies with or without --include: the
+	// --include default of 10 makes it likelier, but 100 events is also a page.
+	if next := resp.Pagination.Next; next != nil && *next != "" {
+		fmt.Fprintf(os.Stderr, "More events exist for this request. Pass --next %s for the next page, or a larger --limit.\n", *next)
 	}
 
 	if rc.output == "json" {

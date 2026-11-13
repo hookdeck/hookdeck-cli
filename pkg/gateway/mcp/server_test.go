@@ -344,15 +344,19 @@ func TestReadOnlyModeHidesWriteOnlyPropsAndProse(t *testing.T) {
 // surface them either. Reading the spec without that context makes them look
 // like filters we simply forgot, which is exactly how they would get added —
 // this pins the omission as intentional.
+//
+// include is not in this list: the API documents it on these endpoints, and
+// without it an agent that needs payloads fetches every event by ID, one call
+// each. It is pinned the other way round by TestListToolsOfferIncludeData.
 func TestPluralToolsOmitParametersHiddenFromTheAPIDocs(t *testing.T) {
 	session := connectInMemory(t, newTestClient("https://api.hookdeck.com", "test-key"))
 	tools := listTools(t, session)
 
 	hidden := map[string][]string{
 		"gateway_events_read": {
-			"bulk_retry_id", "include", "progressive", "event_data_id", "cli_user_id",
+			"bulk_retry_id", "progressive", "event_data_id", "cli_user_id",
 		},
-		"gateway_requests_read": {"bulk_retry_id", "include", "progressive"},
+		"gateway_requests_read": {"bulk_retry_id", "progressive"},
 	}
 
 	for tool, names := range hidden {

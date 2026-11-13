@@ -1619,6 +1619,9 @@ List events (processed webhook deliveries). Filter by connection ID, source, des
 Use `--search-term` to find a complete value across the body, headers, parsed query or path
 at once, when you know the value but not which field carries it.
 
+Use `--include`=data with `--output`=json to get each event's payload in the results, instead of
+fetching events one at a time. Without `--limit`, the limit is then 10 instead of 100.
+
 **Usage:**
 
 ```bash
@@ -1641,6 +1644,7 @@ hookdeck gateway event list [flags]
 | `--error-code` | `string` | Filter by error code |
 | `--headers` | `string` | Filter by headers (JSON string) |
 | `--id` | `string` | Filter by event ID(s) (comma-separated) |
+| `--include` | `string` | Set to "data" to include each event's payload (headers, body, path, parsed query) in the results. Requires `--output` json. Responses grow with every payload: when `--limit` is not set it defaults to 10 instead of 100 |
 | `--issue-id` | `string` | Filter by issue ID |
 | `--last-attempt-at-after` | `string` | Filter by last_attempt_at after (ISO date-time) |
 | `--last-attempt-at-before` | `string` | Filter by last_attempt_at before (ISO date-time) |
@@ -1668,6 +1672,7 @@ hookdeck gateway event list --connection-id web_abc123
 hookdeck gateway event list --status FAILED --limit 20
 hookdeck gateway event list --search-term cus_1234
 hookdeck gateway event list --status QUEUED --next-attempt-at-before 2026-01-01T00:00:00Z
+hookdeck gateway event list --status FAILED --include data --output json
 ```
 ### hookdeck gateway event get
 
@@ -1769,6 +1774,9 @@ Use `--search-term` to find a complete value across the body, headers, parsed qu
 at once. `--events-count` 0 finds requests that produced no events, which is the usual reason a
 webhook appears to have gone missing.
 
+Use `--include`=data with `--output`=json to get each request's payload in the results, instead of
+fetching requests one at a time. Without `--limit`, the limit is then 10 instead of 100.
+
 **Usage:**
 
 ```bash
@@ -1788,6 +1796,7 @@ hookdeck gateway request list [flags]
 | `--headers` | `string` | Filter by headers (JSON string) |
 | `--id` | `string` | Filter by request ID(s) (comma-separated) |
 | `--ignored-count` | `string` | Filter by number of ignored events. A whole number |
+| `--include` | `string` | Set to "data" to include each request's payload (headers, body, path, parsed query) in the results. Requires `--output` json. Responses grow with every payload: when `--limit` is not set it defaults to 10 instead of 100 |
 | `--ingested-at-after` | `string` | Filter by ingested_at after (ISO date-time) |
 | `--ingested-at-before` | `string` | Filter by ingested_at before (ISO date-time) |
 | `--limit` | `int` | Limit number of results (default "100") |
@@ -1810,6 +1819,7 @@ hookdeck gateway request list
 hookdeck gateway request list --source-id src_abc123 --limit 20
 hookdeck gateway request list --search-term cus_1234
 hookdeck gateway request list --events-count 0
+hookdeck gateway request list --source-id src_abc123 --include data --output json
 ```
 ### hookdeck gateway request get
 
@@ -1861,6 +1871,12 @@ List events (deliveries) created from a request.
 Filters match `hookdeck gateway event list`: this command queries the same event
 collection, narrowed to one request.
 
+Use `--include`=data with `--output`=json to get each event's payload in the results. Without
+`--limit`, the limit is then 10 instead of 100.
+
+When the request has more events than fit on one page, a note on stderr gives the cursor to
+pass to `--next` for the following page.
+
 **Usage:**
 
 ```bash
@@ -1882,6 +1898,7 @@ hookdeck gateway request events <request-id> [flags]
 | `--dir` | `string` | Sort direction (asc, desc) |
 | `--error-code` | `string` | Filter by error code |
 | `--headers` | `string` | Filter by headers (JSON string) |
+| `--include` | `string` | Set to "data" to include each event's payload (headers, body, path, parsed query) in the results. Requires `--output` json. Responses grow with every payload: when `--limit` is not set it defaults to 10 instead of 100 |
 | `--issue-id` | `string` | Filter by issue ID |
 | `--last-attempt-at-after` | `string` | Filter by last_attempt_at after (ISO date-time) |
 | `--last-attempt-at-before` | `string` | Filter by last_attempt_at before (ISO date-time) |
@@ -1907,6 +1924,7 @@ hookdeck gateway request events <request-id> [flags]
 hookdeck gateway request events req_abc123
 hookdeck gateway request events req_abc123 --status FAILED
 hookdeck gateway request events req_abc123 --destination-id des_abc123
+hookdeck gateway request events req_abc123 --include data --output json
 ```
 ### hookdeck gateway request ignored-events
 
