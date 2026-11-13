@@ -56,7 +56,7 @@ Topics default to all ("*") when --topics is omitted.`,
 	}
 
 	dc.cmd.Flags().StringVar(&dc.destType, "type", "", "Destination type (required)")
-	dc.cmd.Flags().StringVar(&dc.output, "output", "", "Output format (json)")
+	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 	addOutpostDestinationFieldFlags(dc.cmd, &dc.fields)
 	dc.cmd.MarkFlagRequired("type")
 

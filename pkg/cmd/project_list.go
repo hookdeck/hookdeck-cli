@@ -36,7 +36,7 @@ $ hookdeck project list --output json
 $ hookdeck project list --type gateway`,
 	}
 
-	lc.cmd.Flags().StringVar(&lc.output, "output", "", "Output format: json")
+	lc.cmd.Flags().Var(newOutputFormatValue(&lc.output), "output", "Output format (json)")
 	lc.cmd.Flags().StringVar(&lc.typeFilter, "type", "", "Filter by project type: gateway, outpost, console")
 
 	return lc

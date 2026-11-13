@@ -43,7 +43,7 @@ Examples:
 	ac.cmd.Flags().IntVar(&ac.limit, "limit", 100, "Limit number of results")
 	ac.cmd.Flags().StringVar(&ac.next, "next", "", "Pagination cursor for next page")
 	ac.cmd.Flags().StringVar(&ac.prev, "prev", "", "Pagination cursor for previous page")
-	ac.cmd.Flags().StringVar(&ac.output, "output", "", "Output format (json)")
+	ac.cmd.Flags().Var(newOutputFormatValue(&ac.output), "output", "Output format (json)")
 
 	return ac
 }
