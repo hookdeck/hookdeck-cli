@@ -38,6 +38,11 @@ func newConnectionUpsertCmd() *connectionUpsertCmd {
 		 - Only updates properties that are explicitly provided
 		 - Preserves existing properties that aren't specified
 	
+	An existing connection's source and destination cannot be changed. If the
+	source or destination you name (by ID or by name) differs from the one the
+	connection already uses, the command fails before changing anything.
+	Settings of the current source and destination can still be updated.
+
 	Use --dry-run to preview changes without applying them.
 
 	` + LongSourceAuthType("--source-config") + `
@@ -304,6 +309,8 @@ func (cu *connectionUpsertCmd) validateDestinationFlags() error {
 //     has to come from the stored connection
 //  3. A name is given without a type, which is filled in from the stored record
 //  4. A create-time default would otherwise be applied to a stored destination
+//  5. A source or destination is named by ID or name, so it can be checked
+//     against the stored one (a connection's sides cannot be changed)
 func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 	// PUT /connections must carry a source and a destination, each either by ID
 	// or inline. A side the flags do not name (no --*-id, --*-name or --*-type)
@@ -337,7 +344,15 @@ func (cu *connectionUpsertCmd) needsExistingConnection() bool {
 		(cu.DestinationDeliveryGroupKey != "" || cu.DestinationDeliveryGroupRate != 0 ||
 			cu.DestinationDeliveryGroupRatePeriod != "")
 
-	return cu.dryRun ||
+	// A source or destination named by ID or by name has to be compared with the
+	// stored connection: the API never re-points an existing connection (#466),
+	// and without the comparison the change is dropped while the command reports
+	// success. The lookup also has to happen before an inline destination is
+	// upserted, or a rejected change leaves that destination behind unattached.
+	sideNamed := cu.sourceID != "" || cu.sourceName != "" ||
+		cu.destinationID != "" || cu.destinationName != ""
+
+	return cu.dryRun || sideNamed ||
 		sourceUnnamed || destinationUnnamed ||
 		hasPartialSourceInline || hasPartialDestinationInline ||
 		cliPathDefaultWouldApply || groupsWouldDropOverrides
@@ -362,6 +377,12 @@ func (cu *connectionUpsertCmd) runConnectionUpsertCmd(cmd *cobra.Command, args [
 		if found != nil {
 			existing = found
 			isUpdate = true
+
+			// Checked before anything is written, so a rejected change creates no
+			// inline source or destination that nothing then points at.
+			if err := hookdeck.CheckConnectionSidesUnchanged(existing, cu.sourceID, cu.sourceName, cu.destinationID, cu.destinationName); err != nil {
+				return err
+			}
 		}
 	}
 

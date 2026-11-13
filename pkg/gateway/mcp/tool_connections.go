@@ -65,11 +65,13 @@ var connectionsSpec = mcpcore.ToolSpec{
 		"description": {Type: "string", Desc: "Connection description (create/upsert/update)", Write: true, Actions: []string{"create", "upsert", "update"}},
 		"source_id": {Type: "string", Desc: "Source ID.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
 			{On: []string{"list"}, Text: "Filters on %s."},
-			{On: []string{"create", "upsert", "update"}, Text: "Links the source on %s."},
+			{On: []string{"create"}, Text: "Links the source on %s."},
+			{On: []string{"upsert", "update"}, Text: "On %s it must match the source the connection already has: an existing connection's source cannot be changed, and a different value is rejected."},
 		}},
 		"destination_id": {Type: "string", Desc: "Destination ID.", Actions: []string{"list", "create", "upsert", "update"}, ActionNotes: []mcpcore.ActionNote{
 			{On: []string{"list"}, Text: "Filters on %s."},
-			{On: []string{"create", "upsert", "update"}, Text: "Links the destination on %s."},
+			{On: []string{"create"}, Text: "Links the destination on %s."},
+			{On: []string{"upsert", "update"}, Text: "On %s it must match the destination the connection already has: an existing connection's destination cannot be changed, and a different value is rejected."},
 		}},
 		"rules":    {Type: "array", Desc: "Ruleset applied to the connection (create/upsert/update). Array of rule objects; replaces the stored ruleset. Order matters: filter, transform and deduplicate rules run in array order, so send the full array in the intended order.", Items: &mcpcore.Prop{Type: "object"}, Write: true, Actions: []string{"create", "upsert", "update"}},
 		"disabled": {Type: "boolean", Desc: "Filter disabled connections (list)", Only: []string{mcpcore.GroupRead}, Actions: []string{"list"}},
@@ -196,11 +198,30 @@ func connectionsUpsert(ctx context.Context, client *hookdeck.Client, in mcpcore.
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
+	// The API never re-points an existing connection, so a different source_id
+	// or destination_id would be dropped and the call reported as a success
+	// (#466). Compare against the stored connection before writing.
+	if req.SourceID != nil || req.DestinationID != nil {
+		existing, err := client.FindConnectionByName(ctx, *req.Name)
+		if err != nil {
+			return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
+		}
+		if err := hookdeck.CheckConnectionSidesUnchanged(existing, derefString(req.SourceID), "", derefString(req.DestinationID), ""); err != nil {
+			return mcpcore.ErrorResult(err.Error()), nil
+		}
+	}
 	conn, err := client.UpsertConnection(ctx, req)
 	if err != nil {
 		return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
 	}
 	return mcpcore.JSONResultEnvelopeForClient(conn, client)
+}
+
+func derefString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func connectionsUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore.Input) (*mcpsdk.CallToolResult, error) {
@@ -211,6 +232,19 @@ func connectionsUpdate(ctx context.Context, client *hookdeck.Client, in mcpcore.
 	req, err := connectionRequest(in)
 	if err != nil {
 		return mcpcore.ErrorResult(err.Error()), nil
+	}
+	// PUT /connections/{id} drops source_id and destination_id, so a different
+	// value would be reported as applied when it was not (#466).
+	if req.SourceID != nil || req.DestinationID != nil {
+		current, err := client.GetConnection(ctx, id)
+		if err != nil {
+			return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
+		}
+		if err := hookdeck.CheckConnectionSidesUnchanged(current, derefString(req.SourceID), "", derefString(req.DestinationID), ""); err != nil {
+			return mcpcore.ErrorResult(err.Error()), nil
+		}
+		// Equal to the stored value: nothing to send.
+		req.SourceID, req.DestinationID = nil, nil
 	}
 	conn, err := client.UpdateConnection(ctx, id, req)
 	if err != nil {
