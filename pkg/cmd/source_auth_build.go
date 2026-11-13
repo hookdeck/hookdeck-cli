@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -174,7 +175,10 @@ func secretAuth(set sourceAuthMethodSet, secret string, explicitHMAC bool, f *so
 		}
 		method = &ms[0]
 		if explicitHMAC && f.HMACAlgo != "" {
-			return nil, "", fmt.Errorf("%s does not apply to source type %s: its %s method takes no algorithm",
+			// Ignored rather than refused: the provider fixes its own algorithm, and before
+			// this builder the API dropped the key, so scripts passing it (e.g. TWILIO with
+			// sha1) created working sources. Refusing would break them.
+			fmt.Fprintf(os.Stderr, "Warning: --%s is ignored for source type %s: its %s method sets its own algorithm\n",
 				pre+"hmac-algo", sourceType, methodLabel(*method))
 		}
 	}

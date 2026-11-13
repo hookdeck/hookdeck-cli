@@ -65,7 +65,9 @@ func TestSourceAuthFromFlagsPerType(t *testing.T) {
 		{"hmac-secret", "FORMSTACK", sourceConfigFlags{HMACSecret: "S"}, authWant{auth: secretOnly}},
 		{"hmac-secret", "GITLAB", sourceConfigFlags{HMACSecret: "S"}, authWant{auth: secretOnly, authType: "STANDARD_WEBHOOKS"}},
 		{"hmac-secret", "GRAFANA", sourceConfigFlags{HMACSecret: "S"}, authWant{auth: secretOnly, authType: "GRAFANA"}},
-		{"hmac-secret", "GITLAB", sourceConfigFlags{HMACSecret: "S", HMACAlgo: "sha512"}, authWant{err: "--hmac-algo does not apply to source type GITLAB"}},
+		// --hmac-algo on a method with no algorithm is ignored with a warning, not refused:
+		// the provider fixes its own algorithm, and refusing broke TWILIO with sha1.
+		{"hmac-secret", "GITLAB", sourceConfigFlags{HMACSecret: "S", HMACAlgo: "sha512"}, authWant{auth: secretOnly, authType: "STANDARD_WEBHOOKS"}},
 		{"hmac-secret", "PROMETHEUS_ALERTMANAGER", sourceConfigFlags{HMACSecret: "S"}, authWant{err: "--hmac-secret does not apply to source type PROMETHEUS_ALERTMANAGER"}},
 		{"hmac-secret", "BETTER_STACK", sourceConfigFlags{HMACSecret: "S"}, authWant{err: "--hmac-secret does not apply to source type BETTER_STACK"}},
 		{"hmac-secret", "ORDINAL", sourceConfigFlags{HMACSecret: "S"}, authWant{err: "--hmac-secret does not apply to source type ORDINAL"}},
