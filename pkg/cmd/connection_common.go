@@ -343,3 +343,80 @@ func parseJSONOrString(s string) interface{} {
 	}
 	return s
 }
+
+// validateRules checks the individual --rule-* flags for consistency. It is
+// shared by connection create, update and upsert.
+func (f *connectionRuleFlags) validateRules() error {
+	// Check if JSON fallback is used
+	hasJSONRules := f.Rules != "" || f.RulesFile != ""
+
+	// Check if any individual rule flags are set
+	hasRetryFlags := f.RuleRetryStrategy != "" || f.RuleRetryCount > 0 || f.RuleRetryInterval > 0 || f.RuleRetryResponseStatusCode != ""
+	hasFilterFlags := f.RuleFilterBody != "" || f.RuleFilterHeaders != "" || f.RuleFilterQuery != "" || f.RuleFilterPath != ""
+	hasTransformFlags := f.RuleTransformName != "" || f.RuleTransformCode != "" || f.RuleTransformEnv != ""
+	hasDelayFlags := f.RuleDelay > 0
+	hasDeduplicateFlags := f.RuleDeduplicateWindow > 0 || f.RuleDeduplicateIncludeFields != "" || f.RuleDeduplicateExcludeFields != ""
+
+	hasIndividualFlags := hasRetryFlags || hasFilterFlags || hasTransformFlags || hasDelayFlags || hasDeduplicateFlags
+
+	// If JSON fallback is used, individual flags must not be set
+	if hasJSONRules && hasIndividualFlags {
+		return fmt.Errorf("cannot use --rules or --rules-file with individual --rule-* flags")
+	}
+
+	// Validate retry rule
+	if hasRetryFlags {
+		if f.RuleRetryStrategy == "" {
+			return fmt.Errorf("--rule-retry-strategy is required when using retry rule flags")
+		}
+		if f.RuleRetryStrategy != "linear" && f.RuleRetryStrategy != "exponential" {
+			return fmt.Errorf("--rule-retry-strategy must be 'linear' or 'exponential', got: %s", f.RuleRetryStrategy)
+		}
+		if f.RuleRetryCount < 0 {
+			return fmt.Errorf("--rule-retry-count must be a positive integer")
+		}
+		if f.RuleRetryInterval < 0 {
+			return fmt.Errorf("--rule-retry-interval must be a positive integer")
+		}
+	}
+
+	// Validate filter rule
+	if hasFilterFlags {
+		if f.RuleFilterBody == "" && f.RuleFilterHeaders == "" && f.RuleFilterQuery == "" && f.RuleFilterPath == "" {
+			return fmt.Errorf("at least one filter expression must be provided when using filter rule flags")
+		}
+	}
+
+	// Validate transform rule
+	if hasTransformFlags {
+		if f.RuleTransformName == "" {
+			return fmt.Errorf("--rule-transform-name is required when using transform rule flags")
+		}
+		if f.RuleTransformEnv != "" {
+			// Validate JSON
+			var env map[string]interface{}
+			if err := json.Unmarshal([]byte(f.RuleTransformEnv), &env); err != nil {
+				return fmt.Errorf("--rule-transform-env must be a valid JSON string: %w", err)
+			}
+		}
+	}
+
+	// Validate delay rule
+	if hasDelayFlags {
+		if f.RuleDelay < 0 {
+			return fmt.Errorf("--rule-delay must be a positive integer")
+		}
+	}
+
+	// Validate deduplicate rule
+	if hasDeduplicateFlags {
+		if f.RuleDeduplicateWindow == 0 {
+			return fmt.Errorf("--rule-deduplicate-window is required when using deduplicate rule flags")
+		}
+		if f.RuleDeduplicateWindow < 0 {
+			return fmt.Errorf("--rule-deduplicate-window must be a positive integer")
+		}
+	}
+
+	return nil
+}

@@ -83,7 +83,7 @@ func (cu *connectionUpdateCmd) validateFlags(cmd *cobra.Command, args []string) 
 	if err := Config.Profile.ValidateAPIKey(); err != nil {
 		return err
 	}
-	return nil
+	return cu.validateRules()
 }
 
 func (cu *connectionUpdateCmd) runConnectionUpdateCmd(cmd *cobra.Command, args []string) error {
