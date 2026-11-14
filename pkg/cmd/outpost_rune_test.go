@@ -581,10 +581,11 @@ func TestOutpostPublishProceedsWhenTheTenantExists(t *testing.T) {
 	})
 
 	cmd := newOutpostPublishCmd().cmd
-	_, err := runCommand(t, cmd,
+	stdout, err := runCommand(t, cmd,
 		"--tenant-id", "acme", "--topic", "user.created",
 		"--data", `{"a":1}`, "--api-key", "key_test")
 	require.NoError(t, err)
+	assert.Contains(t, stdout, "Matched destinations: des_1")
 
 	var published bool
 	for _, r := range *requests {
@@ -593,6 +594,31 @@ func TestOutpostPublishProceedsWhenTheTenantExists(t *testing.T) {
 		}
 	}
 	assert.True(t, published, "a valid tenant must still publish")
+}
+
+// An empty destination_ids list is not evidence that the topic matched nothing.
+// The same body comes back when the only subscriber is disabled, or when
+// --destination-id names a destination that belongs to another tenant.
+func TestOutpostPublishEmptyDestinationIDsDoesNotBlameTheTopic(t *testing.T) {
+	stubOutpostAPI(t, map[string]http.HandlerFunc{
+		"GET /2026-09-01/tenants/acme": jsonResponse(http.StatusOK, map[string]string{"id": "acme"}),
+		"POST /2026-09-01/publish": jsonResponse(http.StatusAccepted, map[string]any{
+			"id": "evt_none", "destination_ids": []string{},
+		}),
+	})
+
+	cmd := newOutpostPublishCmd().cmd
+	stdout, err := runCommand(t, cmd,
+		"--tenant-id", "acme", "--topic", "user.created",
+		"--data", `{"a":1}`, "--api-key", "key_test")
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "evt_none")
+	assert.NotContains(t, stdout, "matched this topic",
+		"an empty destination_ids list does not mean the topic failed to match")
+	assert.Contains(t, stdout, "matched no destinations")
+	assert.Contains(t, stdout, "disabled")
+	assert.Contains(t, stdout, "another tenant")
 }
 
 // A lookup that errors must not block publishing: refusing over a transient

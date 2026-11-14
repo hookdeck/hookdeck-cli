@@ -193,7 +193,12 @@ func (pc *outpostPublishCmd) run(cmd *cobra.Command, args []string) error {
 	if len(resp.DestinationIDs) > 0 {
 		fmt.Printf("  Matched destinations: %s\n", strings.Join(resp.DestinationIDs, ", "))
 	} else {
-		fmt.Println("  No destinations matched this topic, so it will not be delivered.")
+		// destination_ids is empty when nothing is subscribed to the topic, and
+		// also when the only subscriber is disabled or --destination-id names a
+		// destination on another tenant. The topic may still have matched.
+		fmt.Println("  The event matched no destinations, so it will not be delivered.")
+		fmt.Println("  None may be subscribed to this topic, a matching destination may be disabled,")
+		fmt.Println("  or --destination-id may name a destination that belongs to another tenant.")
 	}
 
 	return nil
