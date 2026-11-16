@@ -177,7 +177,7 @@ func TestOutpostTenantPortalAndCustomDomain(t *testing.T) {
 		return domain.Hostname
 	}
 
-	hostname := fmt.Sprintf("cli-acceptance-%d.hookdeck.com", time.Now().UnixNano())
+	hostname := fmt.Sprintf("cli-acceptance-%d.hookdeck.dev", time.Now().UnixNano())
 
 	before := readCustomDomain()
 	t.Cleanup(func() {
