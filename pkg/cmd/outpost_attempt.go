@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -58,6 +59,11 @@ func printOutpostAttempt(attempt *hookdeck.OutpostAttempt) {
 	}
 	fmt.Println()
 	fmt.Printf("  Time: %s\n", attempt.Time.Format("2006-01-02 15:04:05"))
+	if len(attempt.ResponseData) > 0 {
+		if response, err := json.MarshalIndent(attempt.ResponseData, "  ", "  "); err == nil {
+			fmt.Printf("  Response: %s\n", string(response))
+		}
+	}
 }
 
 type outpostAttemptListCmd struct {
@@ -200,7 +206,7 @@ func newOutpostAttemptGetCmd() *outpostAttemptGetCmd {
 		Use:     "get <attempt-id>",
 		Args:    validators.ExactArgs(1),
 		Short:   ShortGet(ResourceAttempt),
-		Long:    `Get a delivery attempt, including the destination's response.`,
+		Long:    `Get a delivery attempt. Pass --include response_data to fetch the destination's response.`,
 		PreRunE: ac.validateFlags,
 		RunE:    ac.run,
 		Example: `  # Get an attempt with the response body

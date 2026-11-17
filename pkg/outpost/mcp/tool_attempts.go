@@ -11,7 +11,7 @@ import (
 
 var attemptsActions = mcpcore.ActionSet{
 	{Name: "list", Desc: "list delivery attempts"},
-	{Name: "get", Desc: "get one attempt, including the response data"},
+	{Name: "get", Desc: "get one attempt; add include response_data for the destination's response"},
 }
 
 var attemptsSpec = mcpcore.ToolSpec{
@@ -26,7 +26,7 @@ var attemptsSpec = mcpcore.ToolSpec{
 		"destination_type": {Type: "string", Desc: "Filter by destination type (list). " + descListValue, Actions: []string{"list"}},
 		"topic":            {Type: "string", Desc: "Filter by topic(s) (list). " + descListValue, Actions: []string{"list"}},
 		"status":           {Type: "string", Desc: "Filter by outcome: success or failed (list).", Enum: []string{"success", "failed"}, Actions: []string{"list"}},
-		"include":          {Type: "array", Desc: `Embed related records in the response: "event", "destination".`, Items: &mcpcore.Prop{Type: "string"}, Actions: []string{"list", "get"}},
+		"include":          {Type: "array", Desc: `Embed related records in the response: "event", "event.data", "response_data", "destination".`, Items: &mcpcore.Prop{Type: "string"}, Actions: []string{"list", "get"}},
 		"time_after":       {Type: "string", Desc: descTimeAfter + " (list)", Actions: []string{"list"}},
 		"time_before":      {Type: "string", Desc: descTimeBefore + " (list)", Actions: []string{"list"}},
 		"limit":            {Type: "integer", Desc: "Max results (list)", Actions: []string{"list"}},
