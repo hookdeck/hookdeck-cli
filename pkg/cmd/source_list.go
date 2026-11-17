@@ -20,6 +20,8 @@ type sourceListCmd struct {
 	disabled   bool
 	limit      int
 	output     string
+	next       string
+	prev       string
 }
 
 func newSourceListCmd() *sourceListCmd {
@@ -44,6 +46,8 @@ Examples:
 	sc.cmd.Flags().StringVar(&sc.sourceType, "type", "", "Filter by source type (e.g. WEBHOOK, STRIPE)")
 	sc.cmd.Flags().BoolVar(&sc.disabled, "disabled", false, "Include disabled sources")
 	sc.cmd.Flags().IntVar(&sc.limit, "limit", 100, "Limit number of results")
+	sc.cmd.Flags().StringVar(&sc.next, "next", "", "Pagination cursor for next page")
+	sc.cmd.Flags().StringVar(&sc.prev, "prev", "", "Pagination cursor for previous page")
 	sc.cmd.Flags().Var(newOutputFormatValue(&sc.output), "output", "Output format (json)")
 
 	return sc
@@ -69,6 +73,12 @@ func (sc *sourceListCmd) runSourceListCmd(cmd *cobra.Command, args []string) err
 		params["disabled"] = "false"
 	}
 	params["limit"] = strconv.Itoa(sc.limit)
+	if sc.next != "" {
+		params["next"] = sc.next
+	}
+	if sc.prev != "" {
+		params["prev"] = sc.prev
+	}
 
 	resp, err := client.ListSources(context.Background(), params)
 	if err != nil {
