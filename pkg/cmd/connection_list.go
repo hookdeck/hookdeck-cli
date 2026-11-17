@@ -21,6 +21,8 @@ type connectionListCmd struct {
 	disabled      bool
 	limit         int
 	output        string
+	next          string
+	prev          string
 }
 
 func newConnectionListCmd() *connectionListCmd {
@@ -58,6 +60,8 @@ Examples:
 	cc.cmd.Flags().StringVar(&cc.destinationID, "destination-id", "", "Filter by destination ID")
 	cc.cmd.Flags().BoolVar(&cc.disabled, "disabled", false, "Include disabled connections")
 	cc.cmd.Flags().IntVar(&cc.limit, "limit", 100, "Limit number of results")
+	cc.cmd.Flags().StringVar(&cc.next, "next", "", "Pagination cursor for next page")
+	cc.cmd.Flags().StringVar(&cc.prev, "prev", "", "Pagination cursor for previous page")
 	cc.cmd.Flags().Var(newOutputFormatValue(&cc.output), "output", "Output format (json)")
 
 	return cc
@@ -104,6 +108,12 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 	}
 
 	params["limit"] = strconv.Itoa(cc.limit)
+	if cc.next != "" {
+		params["next"] = cc.next
+	}
+	if cc.prev != "" {
+		params["prev"] = cc.prev
+	}
 
 	// List connections
 	response, err := client.ListConnections(context.Background(), params)

@@ -20,6 +20,8 @@ type destinationListCmd struct {
 	disabled bool
 	limit    int
 	output   string
+	next     string
+	prev     string
 }
 
 func newDestinationListCmd() *destinationListCmd {
@@ -44,6 +46,8 @@ Examples:
 	dc.cmd.Flags().StringVar(&dc.destType, "type", "", "Filter by destination type (HTTP, CLI, MOCK_API)")
 	dc.cmd.Flags().BoolVar(&dc.disabled, "disabled", false, "Include disabled destinations")
 	dc.cmd.Flags().IntVar(&dc.limit, "limit", 100, "Limit number of results")
+	dc.cmd.Flags().StringVar(&dc.next, "next", "", "Pagination cursor for next page")
+	dc.cmd.Flags().StringVar(&dc.prev, "prev", "", "Pagination cursor for previous page")
 	dc.cmd.Flags().Var(newOutputFormatValue(&dc.output), "output", "Output format (json)")
 
 	return dc
@@ -69,6 +73,12 @@ func (dc *destinationListCmd) runDestinationListCmd(cmd *cobra.Command, args []s
 		params["disabled"] = "false"
 	}
 	params["limit"] = strconv.Itoa(dc.limit)
+	if dc.next != "" {
+		params["next"] = dc.next
+	}
+	if dc.prev != "" {
+		params["prev"] = dc.prev
+	}
 
 	resp, err := client.ListDestinations(context.Background(), params)
 	if err != nil {
