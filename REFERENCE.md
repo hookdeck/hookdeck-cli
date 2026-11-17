@@ -2769,7 +2769,7 @@ hookdeck outpost attempt list --event-id evt_abc123 --include response_data --ou
 ```
 ### hookdeck outpost attempt get
 
-Get a delivery attempt, including the destination's response.
+Get a delivery attempt. Pass --include response_data to fetch the destination's response.
 
 **Usage:**
 
