@@ -286,13 +286,18 @@ func eventsListing(ctx context.Context, client *hookdeck.Client, in mcpcore.Inpu
 		return mcpcore.ErrorResult(err.Error()), nil
 	}
 
+	if ignored {
+		ignoredResult, err := client.GetRequestIgnoredEvents(ctx, requestID, params)
+		if err != nil {
+			return mcpcore.ErrorResult(mcpcore.TranslateAPIError(err)), nil
+		}
+		return mcpcore.JSONResultEnvelopeForClient(ignoredResult, client)
+	}
+
 	var result *hookdeck.EventListResponse
-	switch {
-	case ignored:
-		result, err = client.GetRequestIgnoredEvents(ctx, requestID, params)
-	case requestID != "":
+	if requestID != "" {
 		result, err = client.GetRequestEvents(ctx, requestID, params)
-	default:
+	} else {
 		result, err = client.ListEvents(ctx, params)
 	}
 	if err != nil {

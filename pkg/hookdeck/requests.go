@@ -163,7 +163,7 @@ func (c *Client) GetRequestEvents(ctx context.Context, requestID string, params 
 }
 
 // GetRequestIgnoredEvents returns the list of ignored events for a request (GET /requests/{id}/ignored_events)
-func (c *Client) GetRequestIgnoredEvents(ctx context.Context, requestID string, params map[string]string) (*EventListResponse, error) {
+func (c *Client) GetRequestIgnoredEvents(ctx context.Context, requestID string, params map[string]string) (*IgnoredEventListResponse, error) {
 	path, err := apiPath("requests", requestID, "ignored_events")
 	if err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func (c *Client) GetRequestIgnoredEvents(ctx context.Context, requestID string, 
 	if err != nil {
 		return nil, err
 	}
-	var result EventListResponse
+	var result IgnoredEventListResponse
 	_, err = postprocessJsonResponse(resp, &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse request ignored events response: %w", err)

@@ -32,6 +32,27 @@ type Event struct {
 	TeamID         string     `json:"team_id"`
 }
 
+// IgnoredEvent is a record from GET /requests/{id}/ignored_events: an event
+// Hookdeck decided not to create. It is not an Event: it has no status, source
+// or destination, and cause says why it was ignored.
+type IgnoredEvent struct {
+	ID        string `json:"id"`
+	TeamID    string `json:"team_id"`
+	WebhookID string `json:"webhook_id"`
+	// Cause is e.g. FILTERED, TRANSFORMATION_FAILED or CLI_DISCONNECTED.
+	Cause     string `json:"cause"`
+	RequestID string `json:"request_id"`
+	// Meta depends on the cause: an array, an object or null.
+	Meta      interface{} `json:"meta"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+// IgnoredEventListResponse is the response from listing a request's ignored events
+type IgnoredEventListResponse struct {
+	Models     []IgnoredEvent     `json:"models"`
+	Pagination PaginationResponse `json:"pagination"`
+}
+
 // EventData is the payload on an event, returned by GET /events with
 // include=data and on a single event.
 //
