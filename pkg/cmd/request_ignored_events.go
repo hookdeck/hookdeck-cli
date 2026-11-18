@@ -84,7 +84,7 @@ func (rc *requestIgnoredEventsCmd) runRequestIgnoredEventsCmd(cmd *cobra.Command
 
 	color := ansi.Color(os.Stdout)
 	for _, e := range resp.Models {
-		fmt.Printf("%s %s %s\n", color.Green(e.ID), e.Status, e.WebhookID)
+		fmt.Printf("%s %s %s\n", color.Green(e.ID), e.Cause, e.WebhookID)
 	}
 	return nil
 }
