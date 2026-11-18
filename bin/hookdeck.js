@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { execFileSync } = require('child_process');
+const { spawn } = require('child_process');
 const { existsSync } = require('fs');
 const path = require('path');
 
@@ -28,10 +28,35 @@ if (!existsSync(binaryPath)) {
   process.exit(1);
 }
 
-try {
-  execFileSync(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
-} catch (error) {
-  // execFileSync will exit with the same code as the binary
-  // If there's an error executing, exit with code 1
-  process.exit(error.status ?? 1);
-}
+// Use spawn (not execFileSync) so the Node event loop stays free to receive signals and
+// forward them to the CLI; otherwise `kill <pid>` / `docker stop` would never reach it.
+const child = spawn(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
+
+const forwardedSignals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+const handlers = {};
+forwardedSignals.forEach((sig) => {
+  handlers[sig] = () => {
+    try {
+      child.kill(sig);
+    } catch (e) {
+      // child already gone
+    }
+  };
+  process.on(sig, handlers[sig]);
+});
+
+child.on('error', (error) => {
+  console.error(`Error: failed to run ${binaryPath}: ${error.message}`);
+  process.exit(1);
+});
+
+child.on('exit', (code, signal) => {
+  if (signal) {
+    // Mirror the child's fate: re-raise the signal with default handling so the parent
+    // sees the same termination status.
+    forwardedSignals.forEach((sig) => process.removeListener(sig, handlers[sig]));
+    process.kill(process.pid, signal);
+    return;
+  }
+  process.exit(code ?? 1);
+});
