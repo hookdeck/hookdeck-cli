@@ -101,11 +101,21 @@ func listProjectItems(srv *Server, client *hookdeck.Client) ([]project.ProjectLi
 
 	filtered := make([]project.ProjectListItem, 0, len(items))
 	for _, it := range items {
-		if it.Type == filter {
+		if matchesProjectFilter(it.Type, filter) {
 			filtered = append(filtered, it)
 		}
 	}
 	return filtered, nil
+}
+
+// matchesProjectFilter reports whether a project of projectType is served by a
+// server whose filter is filter. Console projects are Event Gateway projects
+// with a different entry point, so the Gateway filter accepts both.
+func matchesProjectFilter(projectType, filter string) bool {
+	if filter == config.ProjectTypeEventGateway {
+		return config.IsGatewayProject(projectType)
+	}
+	return projectType == filter
 }
 
 func projectsList(srv *Server, client *hookdeck.Client) (*mcpsdk.CallToolResult, error) {
@@ -152,7 +162,7 @@ func projectsUse(srv *Server, client *hookdeck.Client, in Input) (*mcpsdk.CallTo
 			// The project may well exist — it is just not one this server can
 			// serve, and switching to it would make every later call fail.
 			return ErrorResult(fmt.Sprintf(
-				"project %q not found among the %s projects available to this server. Use action list to see them.",
+				"project %q not found among the %s projects available to this server. Use action list to see them; projects of other types are served by their own MCP server (hookdeck gateway mcp / hookdeck outpost mcp).",
 				id, config.ProjectTypeToJSON(filter),
 			)), nil
 		}

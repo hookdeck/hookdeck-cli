@@ -64,7 +64,11 @@ func NewServer(opts ServerOptions) *mcpcore.Server {
 		Client:       opts.Client,
 		Config:       opts.Config,
 		WriteEnabled: opts.WriteEnabled,
-		ToolDefs:     toolDefs,
+		// A Gateway server can only act on Gateway projects; without this
+		// filter `projects use` accepts an Outpost project and every later
+		// call 404s.
+		ProjectFilter: config.ProjectTypeEventGateway,
+		ToolDefs:      toolDefs,
 	})
 }
 

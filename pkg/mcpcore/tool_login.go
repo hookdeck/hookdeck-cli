@@ -80,7 +80,7 @@ func loginProjectMismatch(filter string, response *hookdeck.PollAPIKeyResponse, 
 		return nil
 	}
 	got := config.NormalizeProjectType(response.ProjectType)
-	if got == filter {
+	if matchesProjectFilter(got, filter) {
 		return nil
 	}
 	return fmt.Errorf(
