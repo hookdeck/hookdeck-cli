@@ -351,11 +351,11 @@ func (f *connectionRuleFlags) validateRules() error {
 	hasJSONRules := f.Rules != "" || f.RulesFile != ""
 
 	// Check if any individual rule flags are set
-	hasRetryFlags := f.RuleRetryStrategy != "" || f.RuleRetryCount > 0 || f.RuleRetryInterval > 0 || f.RuleRetryResponseStatusCode != ""
+	hasRetryFlags := f.RuleRetryStrategy != "" || f.RuleRetryCount != 0 || f.RuleRetryInterval != 0 || f.RuleRetryResponseStatusCode != ""
 	hasFilterFlags := f.RuleFilterBody != "" || f.RuleFilterHeaders != "" || f.RuleFilterQuery != "" || f.RuleFilterPath != ""
 	hasTransformFlags := f.RuleTransformName != "" || f.RuleTransformCode != "" || f.RuleTransformEnv != ""
-	hasDelayFlags := f.RuleDelay > 0
-	hasDeduplicateFlags := f.RuleDeduplicateWindow > 0 || f.RuleDeduplicateIncludeFields != "" || f.RuleDeduplicateExcludeFields != ""
+	hasDelayFlags := f.RuleDelay != 0
+	hasDeduplicateFlags := f.RuleDeduplicateWindow != 0 || f.RuleDeduplicateIncludeFields != "" || f.RuleDeduplicateExcludeFields != ""
 
 	hasIndividualFlags := hasRetryFlags || hasFilterFlags || hasTransformFlags || hasDelayFlags || hasDeduplicateFlags
 
