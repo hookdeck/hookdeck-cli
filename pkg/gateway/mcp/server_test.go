@@ -1436,6 +1436,48 @@ func TestProjectsUse_Success(t *testing.T) {
 	assert.Contains(t, text, `"active_project_id"`)
 }
 
+// The Gateway server can only serve Gateway projects, so it must neither list
+// nor switch to an Outpost project (the switch would leave every Gateway tool
+// 404ing against a project it cannot serve).
+func mixedTypeProjectsHandler() map[string]http.HandlerFunc {
+	return map[string]http.HandlerFunc{
+		hookdeck.APIPathPrefix + "/projects": func(w http.ResponseWriter, r *http.Request) {
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"id": "proj_test123", "name": "Production", "type": "event_gateway"},
+				{"id": "proj_console", "name": "Console One", "type": "console"},
+				{"id": "proj_outpost", "name": "Outpost One", "type": "outpost"},
+			})
+		},
+	}
+}
+
+func TestProjectsList_OnlyGatewayProjects(t *testing.T) {
+	session := mockAPIWithClient(t, mixedTypeProjectsHandler())
+
+	result := callTool(t, session, "hookdeck_projects_read", map[string]any{"action": "list"})
+	assert.False(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "Production")
+	assert.Contains(t, text, "Console One")
+	assert.NotContains(t, text, "Outpost One")
+	assert.NotContains(t, text, "proj_outpost")
+}
+
+func TestProjectsUse_RefusesOutpostProject(t *testing.T) {
+	api := mockAPI(t, mixedTypeProjectsHandler())
+	client := newTestClient(api.URL, "test-key")
+	client.SuppressRateLimitErrors = true
+	session := connectInMemory(t, client)
+
+	result := callTool(t, session, "hookdeck_projects_use", map[string]any{"action": "use", "project_id": "proj_outpost"})
+	assert.True(t, result.IsError)
+	text := textContent(t, result)
+	assert.Contains(t, text, "gateway projects")
+	assert.Contains(t, text, "hookdeck outpost mcp")
+	// The session must stay on the project it was already on.
+	assert.Equal(t, "proj_test123", client.ProjectID)
+}
+
 func TestProjectsUse_MissingProjectID(t *testing.T) {
 	client := newTestClient("https://api.hookdeck.com", "test-key")
 	session := connectInMemory(t, client)
