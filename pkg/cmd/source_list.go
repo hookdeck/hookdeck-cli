@@ -105,8 +105,7 @@ func (sc *sourceListCmd) runSourceListCmd(cmd *cobra.Command, args []string) err
 	}
 
 	// Display pagination info
-	commandExample := "hookdeck gateway source list"
-	printPaginationInfo(resp.Pagination, commandExample)
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

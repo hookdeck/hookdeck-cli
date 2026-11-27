@@ -203,8 +203,7 @@ func (rc *requestListCmd) runRequestListCmd(cmd *cobra.Command, args []string) e
 	}
 
 	// Display pagination info
-	commandExample := "hookdeck gateway request list"
-	printPaginationInfo(resp.Pagination, commandExample)
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

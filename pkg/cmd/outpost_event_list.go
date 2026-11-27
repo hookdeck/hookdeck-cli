@@ -119,7 +119,7 @@ func (ec *outpostEventListCmd) run(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	printPaginationInfo(resp.Pagination, "hookdeck outpost event list")
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

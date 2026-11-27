@@ -170,8 +170,7 @@ func (cc *connectionListCmd) runConnectionListCmd(cmd *cobra.Command, args []str
 	}
 
 	// Display pagination info
-	commandExample := "hookdeck gateway connection list"
-	printPaginationInfo(response.Pagination, commandExample)
+	printPaginationInfo(cmd, args, response.Pagination)
 
 	return nil
 }
