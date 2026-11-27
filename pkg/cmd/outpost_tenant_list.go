@@ -99,7 +99,7 @@ func (tc *outpostTenantListCmd) runOutpostTenantListCmd(cmd *cobra.Command, args
 		fmt.Println()
 	}
 
-	printPaginationInfo(resp.Pagination, "hookdeck outpost tenant list")
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

@@ -103,8 +103,7 @@ func (ac *attemptListCmd) runAttemptListCmd(cmd *cobra.Command, args []string) e
 	}
 
 	// Display pagination info
-	commandExample := "hookdeck gateway attempt list"
-	printPaginationInfo(resp.Pagination, commandExample)
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

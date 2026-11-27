@@ -118,8 +118,7 @@ func (ic *issueListCmd) runIssueListCmd(cmd *cobra.Command, args []string) error
 		fmt.Println()
 	}
 
-	commandExample := "hookdeck gateway issue list"
-	printPaginationInfo(resp.Pagination, commandExample)
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

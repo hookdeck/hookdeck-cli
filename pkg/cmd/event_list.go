@@ -240,8 +240,7 @@ func (ec *eventListCmd) runEventListCmd(cmd *cobra.Command, args []string) error
 	}
 
 	// Display pagination info
-	commandExample := "hookdeck gateway event list"
-	printPaginationInfo(resp.Pagination, commandExample)
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

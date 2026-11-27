@@ -107,8 +107,7 @@ func (dc *destinationListCmd) runDestinationListCmd(cmd *cobra.Command, args []s
 	}
 
 	// Display pagination info
-	commandExample := "hookdeck gateway destination list"
-	printPaginationInfo(resp.Pagination, commandExample)
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

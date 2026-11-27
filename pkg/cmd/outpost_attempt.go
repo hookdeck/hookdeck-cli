@@ -179,7 +179,7 @@ func (ac *outpostAttemptListCmd) run(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	printPaginationInfo(resp.Pagination, "hookdeck outpost attempt list")
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }

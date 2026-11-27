@@ -106,8 +106,7 @@ func (tc *transformationListCmd) runTransformationListCmd(cmd *cobra.Command, ar
 	}
 
 	// Display pagination info
-	commandExample := "hookdeck gateway transformation list"
-	printPaginationInfo(resp.Pagination, commandExample)
+	printPaginationInfo(cmd, args, resp.Pagination)
 
 	return nil
 }
